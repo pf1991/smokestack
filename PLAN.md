@@ -39,7 +39,7 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 - **Production:** every building runs its current recipe; one cycle takes `days` days and requires all inputs present and output storage not full. Output per good is capped at the building's `storage`.
 - **Farms:** grain, cotton and fruit produce ×0 in Dec–Feb and ×1.5 in Jul–Sep. Milk is unaffected.
 - **Market:** monthly demand = `population / 1000 × DEMAND_PER_1000[good] × lifecycle(good, year) × modifiers`. Sale price = `basePrice × clamp(1.5 − 0.75 × supplyRatio, 0.5, 1.5)`, where supplyRatio = sold30 / demand30. Stores in the same city split daily demand equally among those holding stock.
-- **Growth (monthly):** `pop × (1 + 0.02 × (avgSatisfaction − 0.4) − 0.01 × pollution)`, minimum 500. Pollution is in 0..1.
+- **Growth (monthly):** `pop × (1 + 0.015 × avgSatisfaction − 0.01 × pollution)`, minimum 500. Pollution is in 0..1. (Rebalanced after Wave 3 review: unsupplied, clean cities hold steady; supplied cities grow.)
 - **Lifecycle:** factor 0 before `era`, 1 from `era`, and after `fadeYear` it falls linearly to 0.2 over 10 years.
 - **Eras:** Steam Age 1900–1919, Roaring Age 1920–1939, Atomic Age 1940–1959, Space Age 1960–1979, Silicon Age 1980–2000.
 
@@ -48,50 +48,50 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 
 | Raw (tier 0) | Intermediate (tier 1) | Consumer (tier 2) |
 |---|---|---|
-| wood · Wood · 4 · 1900 · 🪵 | lumber · Lumber · 10 · 1900 · 🪚 | furniture · Furniture · 48 · 1900 · 🪑 |
-| grain · Grain · 3 · 1900 · 🌾 | flour · Flour · 8 · 1900 · 🥡 | bread · Bread · 14 · 1900 · 🍞 |
-| cotton · Cotton · 4 · 1900 · ☁️ | steel · Steel · 22 · 1900 · 🔩 | tools · Tools · 42 · 1900 · 🔨 |
-| fruit · Fruit · 3 · 1900 · 🍎 | fabric · Fabric · 12 · 1900 · 🧵 | clothes · Clothes · 40 · 1900 · 👔 |
-| milk · Milk · 3 · 1900 · 🥛 | glass · Glass · 10 · 1900 · 🪟 | cheese · Cheese · 22 · 1900 · 🧀 |
-| iron_ore · Iron Ore · 6 · 1900 · ⛏️ | fuel · Fuel · 18 · 1910 · ⛽ | juice · Juice · 26 · 1900 · 🧃 |
-| coal · Coal · 5 · 1900 · ⚫ | plastic · Plastic · 20 · 1935 · 🧪 | toys · Toys · 30 · 1900 · 🧸 |
-| sand · Sand · 2 · 1900 · ⏳ | | cars · Automobile · 420 · 1910 · 🚗 |
-| oil · Crude Oil · 8 · 1910 · 🛢️ | | radios · Radio · 130 · 1925 · fade 1965 · 📻 |
-| | | tvs · Television · 260 · 1950 · 📺 |
-| | | computers · Computer · 600 · 1980 · 💻 |
+| wood · Wood · 4 · 1900 · 🪵 | lumber · Lumber · 10 · 1900 · 🪚 | furniture · Furniture · 72 · 1900 · 🪑 |
+| grain · Grain · 3 · 1900 · 🌾 | flour · Flour · 8 · 1900 · 🥡 | bread · Bread · 21 · 1900 · 🍞 |
+| cotton · Cotton · 4 · 1900 · ☁️ | steel · Steel · 22 · 1900 · 🔩 | tools · Tools · 63 · 1900 · 🔨 |
+| fruit · Fruit · 3 · 1900 · 🍎 | fabric · Fabric · 12 · 1900 · 🧵 | clothes · Clothes · 60 · 1900 · 👔 |
+| milk · Milk · 3 · 1900 · 🥛 | glass · Glass · 10 · 1900 · 🪟 | cheese · Cheese · 33 · 1900 · 🧀 |
+| iron_ore · Iron Ore · 6 · 1900 · ⛏️ | fuel · Fuel · 18 · 1910 · ⛽ | juice · Juice · 39 · 1900 · 🧃 |
+| coal · Coal · 5 · 1900 · ⚫ | plastic · Plastic · 20 · 1935 · 🧪 | toys · Toys · 45 · 1900 · 🧸 |
+| sand · Sand · 2 · 1900 · ⏳ |  | cars · Automobile · 630 · 1910 · 🚗 |
+| oil · Crude Oil · 8 · 1910 · 🛢️ |  | radios · Radio · 195 · 1925 · fade 1965 · 📻 |
+|  |  | tvs · Television · 390 · 1950 · 📺 |
+|  |  | computers · Computer · 900 · 1980 · 💻 |
 
-**DEMAND_PER_1000 (units/month):** furniture 6, bread 30, tools 5, clothes 8, cheese 12, juice 12, toys 6, cars 0.5, radios 1.5, tvs 1, computers 0.6.
+**DEMAND_PER_1000 (units/month):** furniture 12, bread 60, tools 10, clothes 16, cheese 24, juice 24, toys 12, cars 1, radios 3, tvs 2, computers 1.2.
 
 **Recipes** (`id: inputs → outputs, days`). A recipe's era is the max era of all its inputs and outputs.
-- Extraction (no inputs, 1 day): r_wood → wood 4 · r_grain → grain 5 · r_cotton → cotton 4 · r_fruit → fruit 4 · r_milk → milk 4 · r_iron → iron_ore 4 · r_coal → coal 4 · r_sand → sand 6 · r_oil → oil 4
-- Refining (1 day): r_lumber wood 4 → lumber 2 · r_flour grain 4 → flour 2 · r_steel iron_ore 3 + coal 2 → steel 2 · r_fabric cotton 4 → fabric 2 · r_glass sand 4 + coal 1 → glass 2 · r_fuel oil 4 → fuel 2 · r_plastic oil 4 → plastic 2
-- Manufacturing: r_furniture lumber 2 → furniture 1 (1) · r_bread flour 2 + milk 1 → bread 3 (1) · r_tools steel 1 + lumber 1 → tools 1 (1) · r_clothes fabric 2 → clothes 1 (1) · r_cheese milk 3 → cheese 1 (1) · r_juice fruit 3 + glass 1 → juice 2 (1) · r_toys_wood lumber 1 → toys 1 (1) · r_toys_plastic plastic 1 → toys 2 (1) · r_cars steel 4 + glass 2 + fuel 1 → cars 1 (2) · r_radios steel 1 + glass 1 + lumber 1 → radios 1 (1) · r_tvs plastic 2 + glass 2 + steel 1 → tvs 1 (2) · r_computers plastic 2 + steel 1 + glass 1 → computers 1 (2)
+- Extraction (no inputs, 1 day): r_wood → wood 10 · r_grain → grain 12 · r_cotton → cotton 10 · r_fruit → fruit 10 · r_milk → milk 10 · r_iron → iron_ore 10 · r_coal → coal 10 · r_sand → sand 12 · r_oil → oil 10
+- Refining: r_lumber wood 10 → lumber 5 (1) · r_flour grain 12 → flour 6 (1) · r_steel iron_ore 6 + coal 4 → steel 4 (1) · r_fabric cotton 10 → fabric 5 (1) · r_glass sand 8 + coal 2 → glass 4 (1) · r_fuel oil 8 → fuel 4 (1) · r_plastic oil 8 → plastic 4 (1)
+- Manufacturing: r_furniture lumber 4 → furniture 2 (1) · r_bread flour 4 + milk 2 → bread 6 (1) · r_tools steel 2 + lumber 2 → tools 2 (1) · r_clothes fabric 4 → clothes 2 (1) · r_cheese milk 6 → cheese 2 (1) · r_juice fruit 6 + glass 2 → juice 4 (1) · r_toys_wood lumber 2 → toys 2 (1) · r_toys_plastic plastic 2 → toys 4 (1) · r_cars steel 4 + glass 2 + fuel 1 → cars 1 (2) · r_radios steel 2 + glass 2 + lumber 2 → radios 2 (1) · r_tvs plastic 2 + glass 2 + steel 1 → tvs 1 (2) · r_computers plastic 2 + steel 1 + glass 1 → computers 1 (2)
 
 **Buildings** (`id · category · size · cost · maint/month · terrain · recipes · storage · era · pollution`)
-- lumber_camp · extractor · 2×2 · 12000 · 400 · forest · r_wood · 60 · 1900 · 0
-- farm · extractor · 3×3 · 10000 · 300 · grass · r_grain, r_cotton, r_fruit · 60 · 1900 · 0
-- dairy_farm · extractor · 3×3 · 12000 · 350 · grass · r_milk · 60 · 1900 · 0
-- mine · extractor · 2×2 · 25000 · 800 · hills, mountain · r_iron, r_coal (requiresDeposit) · 80 · 1900 · 3
-- sand_pit · extractor · 2×2 · 8000 · 250 · sand · r_sand · 80 · 1900 · 1
-- oil_well · extractor · 2×2 · 30000 · 900 · grass, sand, hills · r_oil (requiresDeposit) · 80 · 1910 · 3
-- sawmill · factory · 3×3 · 20000 · 600 · grass, sand · r_lumber · 60 · 1900 · 2
-- flour_mill · factory · 3×3 · 18000 · 500 · grass, sand · r_flour · 60 · 1900 · 1
-- steel_mill · factory · 3×3 · 60000 · 1500 · grass, sand, hills · r_steel · 60 · 1900 · 6
-- textile_mill · factory · 3×3 · 30000 · 800 · grass, sand · r_fabric · 60 · 1900 · 2
-- glassworks · factory · 3×3 · 35000 · 900 · grass, sand · r_glass · 60 · 1900 · 4
-- refinery · factory · 3×3 · 70000 · 1800 · grass, sand · r_fuel, r_plastic · 60 · 1910 · 8
-- furniture_factory · factory · 3×3 · 30000 · 700 · grass, sand · r_furniture · 40 · 1900 · 1
-- bakery · factory · 2×2 · 15000 · 400 · grass, sand · r_bread · 60 · 1900 · 1
-- toolworks · factory · 3×3 · 35000 · 900 · grass, sand · r_tools · 40 · 1900 · 3
-- clothing_factory · factory · 3×3 · 30000 · 800 · grass, sand · r_clothes · 40 · 1900 · 1
-- creamery · factory · 2×2 · 15000 · 400 · grass, sand · r_cheese · 40 · 1900 · 1
-- juice_plant · factory · 2×2 · 20000 · 500 · grass, sand · r_juice · 40 · 1900 · 1
-- toy_factory · factory · 2×2 · 22000 · 500 · grass, sand · r_toys_wood, r_toys_plastic · 40 · 1900 · 1
-- car_plant · factory · 4×4 · 150000 · 4000 · grass, sand · r_cars · 30 · 1910 · 5
-- electronics_plant · factory · 3×3 · 90000 · 2500 · grass, sand · r_radios, r_tvs, r_computers · 30 · 1925 · 2
-- store · retail · 2×2 · 15000 · 400 · grass, sand (requiresCity) · — · 200 · 1900 · 0
-- warehouse · logistics · 3×3 · 20000 · 300 · grass, sand, hills · — · 600 · 1900 · 0
-- train_station · logistics · 3×2 · 40000 · 1000 · grass, sand, hills · — · 400 · 1900 · 0 (Task 27)
+- lumber_camp · extractor · 2×2 · 12000 · 200 · forest · r_wood · 120 · 1900 · 0
+- farm · extractor · 3×3 · 10000 · 150 · grass · r_grain, r_cotton, r_fruit · 120 · 1900 · 0
+- dairy_farm · extractor · 3×3 · 12000 · 175 · grass · r_milk · 120 · 1900 · 0
+- mine · extractor · 2×2 · 25000 · 400 · hills, mountain · r_iron, r_coal (requiresDeposit) · 160 · 1900 · 3
+- sand_pit · extractor · 2×2 · 8000 · 125 · sand · r_sand · 160 · 1900 · 1
+- oil_well · extractor · 2×2 · 30000 · 450 · grass, sand, hills · r_oil (requiresDeposit) · 160 · 1910 · 3
+- sawmill · factory · 3×3 · 20000 · 300 · grass, sand · r_lumber · 120 · 1900 · 2
+- flour_mill · factory · 3×3 · 18000 · 250 · grass, sand · r_flour · 120 · 1900 · 1
+- steel_mill · factory · 3×3 · 60000 · 750 · grass, sand, hills · r_steel · 120 · 1900 · 6
+- textile_mill · factory · 3×3 · 30000 · 400 · grass, sand · r_fabric · 120 · 1900 · 2
+- glassworks · factory · 3×3 · 35000 · 450 · grass, sand · r_glass · 120 · 1900 · 4
+- refinery · factory · 3×3 · 70000 · 900 · grass, sand · r_fuel, r_plastic · 120 · 1910 · 8
+- furniture_factory · factory · 3×3 · 30000 · 350 · grass, sand · r_furniture · 80 · 1900 · 1
+- bakery · factory · 2×2 · 15000 · 200 · grass, sand · r_bread · 120 · 1900 · 1
+- toolworks · factory · 3×3 · 35000 · 450 · grass, sand · r_tools · 80 · 1900 · 3
+- clothing_factory · factory · 3×3 · 30000 · 400 · grass, sand · r_clothes · 80 · 1900 · 1
+- creamery · factory · 2×2 · 15000 · 200 · grass, sand · r_cheese · 80 · 1900 · 1
+- juice_plant · factory · 2×2 · 20000 · 250 · grass, sand · r_juice · 80 · 1900 · 1
+- toy_factory · factory · 2×2 · 22000 · 250 · grass, sand · r_toys_wood, r_toys_plastic · 80 · 1900 · 1
+- car_plant · factory · 4×4 · 150000 · 2000 · grass, sand · r_cars · 60 · 1910 · 5
+- electronics_plant · factory · 3×3 · 90000 · 1250 · grass, sand · r_radios, r_tvs, r_computers · 60 · 1925 · 2
+- store · retail · 2×2 · 15000 · 200 · grass, sand (requiresCity) · — · 300 · 1900 · 0
+- warehouse · logistics · 3×3 · 20000 · 150 · grass, sand, hills · — · 1000 · 1900 · 0
+- train_station · logistics · 3×2 · 40000 · 500 · grass, sand, hills · — · 600 · 1900 · 0
 
 ### Controls
 Left click uses the current tool. Right-drag or middle-drag pans, as do WASD/arrow keys. The mouse wheel zooms (0.5×–3×). Space pauses; 1/2/3/4 set speeds 1/2/4/8. Esc cancels the tool. B opens the build menu, R the routes window, F finances, N the newspaper. Delete activates bulldoze.
@@ -355,12 +355,12 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 
 - [ ] **Step 1: Write failing tests** with the spec's numbers:
   - `lifecycle`: radios 1920 → 0, 1930 → 1, 1970 → 0.6, 1980 → 0.2.
-  - `demand`: pop 10000, bread, 1900 → 300.
-  - `price`: furniture ratio 0 → 72, 1 → 36, 3 → 24.
+  - `demand`: pop 10000, bread, 1900 → 600.
+  - `price`: furniture ratio 0 → 108, 1 → 54, 3 → 36.
   - `split between two stores`: equal stock, demand ⇒ equal qty; a store with 0 stock gets nothing.
   - `cannot sell more than stock`.
-  - `low demand accumulates`: pop 10000, cars (5/month) → 0 sold on day 1, and exactly 1 sold by day 6.
-  - `growth`: (10000, 0.9, 0) → 10100; (10000, 0, 1) → 9820; never below 500.
+  - `low demand accumulates`: pop 5000, cars (5/month) → 0 sold on day 1, and exactly 1 sold by day 6.
+  - `growth`: (10000, 0.9, 0) → 10135; (10000, 0, 1) → 9900; never below 500.
   - `urbanRadius(9000) === 6`.
 - [ ] **Step 2:** Run. Expected: FAIL. **Step 3:** Implement. **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(sim): city market demand, pricing and growth`.
@@ -515,11 +515,11 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `growthMonth(ctx): void`: applies `monthlyGrowth` per city using the average satisfaction over goods with demand > 0 and `city.pollution`; sets `happiness`; calls `refreshUrbanTiles`; resets `producedThisMonth`.
   - Registers in `SYSTEMS` (via Task 17's registry; until Task 17 merges, export the functions only and Task 17 wires them).
 - [ ] **Step 1: Write failing tests:**
-  - `lumber camp produces 4 wood/day on full forest`.
-  - `farm fallow in January, ×1.5 in August` (grain 0 and 7.5 → stored as a float; inventories may hold fractions, and loading only moves whole units).
-  - `sawmill converts 4 wood → 2 lumber`; `status no_input when empty`; `output_full stops production`.
+  - `lumber camp produces 10 wood/day on full forest`.
+  - `farm fallow in January, ×1.5 in August` (grain 0 and 18 → stored as a float; inventories may hold fractions, and loading only moves whole units).
+  - `sawmill converts 10 wood → 5 lumber`; `status no_input when empty`; `output_full stops production`.
   - `car plant takes 2 days per car`.
-  - `store sells to city and earns money` (stock 10 furniture, pop 10000 → sells 2 on day one, at $72 each).
+  - `store sells to city and earns money` (stock 10 furniture, pop 10000 → sells 4 on day one, at $108 each).
   - `demand modifier doubles sales`.
   - `maintenance charged monthly`.
   - `well-supplied city grows`.
