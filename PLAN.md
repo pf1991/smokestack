@@ -194,7 +194,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `types.ts`:
     - `GoodId = string`, `BuildingTypeId = string`, `OwnerId = 'player' | 'rival'`, `Vec2 = { x: number; y: number }`, `Inventory = Record<GoodId, number>`
     - `Terrain = 'water' | 'sand' | 'grass' | 'forest' | 'hills' | 'mountain'`
-    - `Tile { terrain; deposit: GoodId | null; road: boolean; rail: boolean; buildingId: number | null; cityId: number | null; pollution: number }`
+    - `Tile { terrain; deposit: GoodId | null; road: boolean; rail: boolean; roadOwner: OwnerId | null; railOwner: OwnerId | null; buildingId: number | null; cityId: number | null; pollution: number }` (`roadOwner`/`railOwner` are null for pre-built and unowned track; upkeep and removal refunds follow them)
     - `GameMap { width; height; tiles: Tile[] }`
     - `GameDate { year; month /*1-12*/; day /*1-30*/; hour /*0-23*/ }`
     - `BuildingStatus = 'ok' | 'no_input' | 'output_full' | 'halted' | 'idle'`
@@ -413,9 +413,9 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 **Interfaces:**
 - Consumes: Tasks 1–6.
 - Produces:
-  - `createGame(opts: { seed: number; companyName?: string; scenarioId?: string; rival?: boolean }): GameState`: runs mapgen; lays city street grids (centre row and column plus every 3rd row/column inside the urban radius, on land only); links each city to its nearest neighbour with `findPath(…, roadBuildable, waterAvoidingCost)`; calls `refreshUrbanTiles`; creates companies (`rival.active = opts.rival ?? true`); sets `unlocked` to the ids of goods, buildings and recipes with era ≤ 1900.
+  - `createGame(opts: { seed: number; companyName?: string; scenarioId?: string; rival?: boolean }): GameState`: runs mapgen; lays city street grids (centre row and column plus every 3rd row/column inside the urban radius, on land only); links each city to its nearest neighbour with `findPath(…, roadBuildable, waterAvoidingCost)`, then joins any remaining separate road networks by linking the closest city pair across them until all cities share one network; calls `refreshUrbanTiles`; creates companies (`rival.active = opts.rival ?? true`); sets `unlocked` to the ids of goods, buildings and recipes with era ≤ 1900.
   - `canPlaceBuilding(state, owner, typeId, pos): Result<{ cost: number }>`, `placeBuilding(ctx, owner, typeId, pos, recipeId?): Result<Building>`. Error strings: `'Out of bounds'`, `'Not invented yet'`, `'Wrong terrain'`, `'Tile occupied'`, `'Must be inside a city'`, `'Cannot build on city land'`, `'Needs a resource deposit'`, `'Not enough money'`. For deposit buildings, the default recipe is the one whose output matches the deposit.
-  - `demolishBuilding(ctx, id): Result`: refunds 25% as `demolition` income, removes the building's stops from routes, sets vehicles on routes with < 2 stops to `idle`, emits `buildingRemoved`.
+  - `demolishBuilding(ctx, id, owner?: OwnerId): Result` (when `owner` is given and differs: `'Not your building'`): refunds 25% as `demolition` income, removes the building's stops from routes, sets vehicles on routes with < 2 stops to `idle`, emits `buildingRemoved`.
   - `buildRoad(ctx, owner, tiles: Vec2[]): Result<{ built: number; cost: number }>`: atomic; skips tiles that already have road. Errors: `'Cannot build road there'`, `'Not enough money'`. Increments `company.roadTiles` and emits `roadChanged`.
   - `removeRoad(ctx, owner, tiles): Result`: refuses tiles where a vehicle currently stands.
   - `lPath(from, to): Vec2[]`: horizontal then vertical, inclusive.
