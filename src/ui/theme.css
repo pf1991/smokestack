@@ -1,0 +1,182 @@
+/* SMOKESTACK theme: industrial art-deco. Walnut panels, brass trim, cream paper. */
+
+:root {
+  --walnut: #2b1d14;
+  --walnut-light: #3d2a1d;
+  --brass: #c9a227;
+  --brass-dark: #8a6d17;
+  --brass-light: #e8c75a;
+  --paper: #f3e9d2;
+  --paper-shade: #e4d5b2;
+  --ink: #1d1a16;
+  --player: #2f6fb5;
+  --rival: #b5302f;
+  --good: #3c8d3c;
+  --bad: #b5302f;
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-body: Georgia, 'Times New Roman', serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--walnut);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+}
+
+/* Walnut panel with a brass inset border. */
+.panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18)),
+    var(--walnut-light);
+  border: 2px solid var(--brass-dark);
+  box-shadow: inset 0 0 0 1px var(--brass), inset 0 0 12px rgba(0, 0, 0, 0.5);
+  padding: 12px;
+}
+
+/* Brass button with a subtle bevel. */
+.btn {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--walnut);
+  background: linear-gradient(180deg, var(--brass-light), var(--brass) 55%, var(--brass-dark));
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+  padding: 6px 12px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 2px 3px rgba(0, 0, 0, 0.4);
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}
+
+.btn:active {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Cream paper for text areas and readouts. */
+.paper,
+textarea,
+input[type='text'] {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--brass-dark);
+  font-family: var(--font-body);
+  padding: 6px 8px;
+}
+
+/* Draggable window with brass frame. */
+.window {
+  position: absolute;
+  pointer-events: auto;
+  min-width: 220px;
+  background: var(--walnut-light);
+  border: 3px solid var(--brass);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 1px var(--brass-dark),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+  color: var(--paper);
+}
+
+.window-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: move;
+  user-select: none;
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--walnut);
+  background: linear-gradient(90deg, var(--brass-dark), var(--brass), var(--brass-dark));
+  border-bottom: 2px solid var(--brass-dark);
+}
+
+.window-close {
+  font: inherit;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--paper);
+  background: var(--walnut);
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+}
+
+.window-close:hover {
+  background: var(--rival);
+}
+
+.window-body {
+  padding: 10px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+/* Toasts stack in the top-right corner. */
+.toast-stack {
+  position: fixed;
+  pointer-events: auto;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 1000;
+  max-width: min(360px, calc(100vw - 32px));
+}
+
+.toast {
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--brass-dark);
+  border-left-width: 8px;
+  border-radius: 3px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-body);
+}
+
+.toast.info {
+  border-left-color: var(--brass);
+}
+
+.toast.good {
+  border-left-color: var(--good);
+}
+
+.toast.bad {
+  border-left-color: var(--bad);
+}
