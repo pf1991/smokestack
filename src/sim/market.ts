@@ -48,15 +48,19 @@ export function computeDailySales(
   stores: StoreStock[],
   year: number,
   demandMod: (goodId: GoodId) => number,
+  dayOffset = 0,
 ): Sale[] {
   const out: Sale[] = [];
-  for (const goodId of Object.keys(DEMAND_PER_1000)) {
+  const goodIds = Object.keys(DEMAND_PER_1000);
+  for (let gi = 0; gi < goodIds.length; gi++) {
+    const goodId = goodIds[gi];
     const monthly = monthlyDemand(city, goodId, year, demandMod(goodId));
-    const entry = (city.market[goodId] ??= { sold30: 0, demand30: 0, pending: 0 });
     if (monthly <= 0) {
-      entry.pending = 0;
+      const existing = city.market[goodId];
+      if (existing) existing.pending = 0;
       continue;
     }
+    const entry = (city.market[goodId] ??= { sold30: 0, demand30: 0, pending: 0 });
     const daily = monthly / 30;
     // cap is floored at 1 so very low-demand goods can still accumulate a whole unit
     entry.pending = Math.min(entry.pending + daily, Math.max(daily * 3, 1));
@@ -66,6 +70,11 @@ export function computeDailySales(
     const got = stores.map(() => 0);
     // equal split; shares a store cannot fill go to stores that still have stock
     let active = avail.map((_, i) => i).filter((i) => avail[i] > 0);
+    // rotate the starting store so odd units do not always favour store 0
+    if (active.length > 0) {
+      const start = (((dayOffset + gi) % active.length) + active.length) % active.length;
+      active = [...active.slice(start), ...active.slice(0, start)];
+    }
     while (units > 0 && active.length > 0) {
       for (const i of active) {
         if (units <= 0) break;

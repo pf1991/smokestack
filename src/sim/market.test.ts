@@ -112,4 +112,41 @@ describe('market', () => {
   it('urbanRadius', () => {
     expect(urbanRadius(9000)).toBe(6);
   });
+
+  it('rotates odd units between stores across days', () => {
+    const c = city(3000);
+    const stores: StoreStock[] = [
+      { buildingId: 1, ownerId: 'player', stock: { bread: 1000 } },
+      { buildingId: 2, ownerId: 'rival', stock: { bread: 1000 } },
+    ];
+    const tot: Record<number, number> = { 1: 0, 2: 0 };
+    for (const off of [0, 1]) {
+      for (const s of computeDailySales(c, stores, 1900, () => 1, off)) {
+        if (s.goodId === 'bread') tot[s.buildingId] += s.qty;
+      }
+    }
+    expect(tot[1]).toBe(3);
+    expect(tot[2]).toBe(3);
+  });
+
+  it('does not create entries for goods without demand', () => {
+    const c = city(3000);
+    computeDailySales(c, [], 1900, () => 1);
+    expect(c.market.cars).toBeUndefined();
+    expect(c.market.bread).toBeDefined();
+  });
+
+  it('only mutates pending; demandMod scales units', () => {
+    const run = (mod: number) => {
+      const c = city(10000);
+      c.market.bread = { sold30: 7, demand30: 9, pending: 0 };
+      const stores: StoreStock[] = [{ buildingId: 1, ownerId: 'player', stock: { bread: 1000 } }];
+      const sales = computeDailySales(c, stores, 1900, () => mod);
+      expect(stores[0].stock.bread).toBe(1000);
+      expect(c.market.bread.sold30).toBe(7);
+      expect(c.market.bread.demand30).toBe(9);
+      return sales.filter((x) => x.goodId === 'bread').reduce((a, x) => a + x.qty, 0);
+    };
+    expect(run(2)).toBe(2 * run(1));
+  });
 });
