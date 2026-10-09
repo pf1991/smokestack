@@ -60,7 +60,7 @@ describe('content catalog', () => {
     const value = (inv: Record<string, number>) =>
       Object.entries(inv).reduce((sum, [id, qty]) => sum + qty * GOODS[id].basePrice, 0);
     const manufacturing = Object.values(RECIPES).filter((r) =>
-      Object.keys(r.inputs).some((g) => GOODS[g].tier > 0),
+      Object.keys(r.outputs).some((g) => GOODS[g].tier === 2),
     );
     expect(manufacturing.length).toBeGreaterThan(0);
     for (const recipe of manufacturing) {
