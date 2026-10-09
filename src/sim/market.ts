@@ -109,7 +109,7 @@ export function satisfaction(city: City, goodId: GoodId): number {
 }
 
 export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number): number {
-  const next = population * (1 + 0.02 * (avgSatisfaction - 0.4) - 0.01 * pollution);
+  const next = population * (1 + 0.015 * avgSatisfaction - 0.01 * pollution);
   return Math.max(500, Math.round(next));
 }
 
