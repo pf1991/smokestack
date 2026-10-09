@@ -279,8 +279,11 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `five cities, centers on grass, ≥ 25 tiles apart, ≥ 6 tiles from the edge, unique names, population in [2000,12000]`.
   - `deposits on legal terrain`: iron_ore/coal only on hills/mountain, oil only on grass/sand; at least 4 clusters of each.
   - `no roads or buildings yet`.
+  - `every city has iron, coal, forest and sand nearby` (seeds 1–10: iron and coal within 20 tiles, forest and sand within 25).
+  - `terrain variety`: averaged over seeds 1–10, water ≥ 10% and mountain ≥ 2%.
+  - `small map works`: `generateMap(1, 64, 48)` returns valid output (or a clear error).
 - [ ] **Step 2:** Run `npx vitest run src/sim/mapgen.test.ts`. Expected: FAIL.
-- [ ] **Step 3:** Implement. Use fractal value noise (4 octaves) for elevation `e` and, at a different seed offset, for moisture `m`. Classify terrain: `e<0.30` water, `<0.34` sand, `>0.78` mountain, `>0.66` hills, else forest if `m>0.55` else grass. Place deposit clusters of 3–6 tiles: 6 iron, 6 coal, 5 oil. If the land ratio is below 0.55, regenerate with `seed+1000`. City `urbanRadius = 3 + floor(pop/3000)`, `happiness 0.7`, `market {}`.
+- [ ] **Step 3:** Implement. Use fractal value noise (4 octaves) for elevation `e` and, at a different seed offset, for moisture `m`. Stretch contrast first: `e = clamp((e − 0.5) × 1.6 + 0.5, 0, 1)` (and the same for `m`). Then classify terrain: `e<0.30` water, `<0.34` sand, `>0.78` mountain, `>0.66` hills, else forest if `m>0.55` else grass. Place cities first, then deposits. Each city gets 1 iron and 1 coal cluster seeded on hills/mountain within 20 tiles of its centre, and 1 oil cluster on grass/sand within 25 tiles. Then add random clusters up to totals of 8 iron, 8 coal and 7 oil. Clusters are 3–6 tiles. Reject the attempt (and retry with `seed+1000`) if any city lacks forest or sand within 25 tiles. If the land ratio is below 0.55, regenerate with `seed+1000`. City `urbanRadius = 3 + floor(pop/3000)`, `happiness 0.7`, `market {}`.
 - [ ] **Step 4:** Run the test. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(sim): procedural map generator with deposits and cities`.
 
@@ -344,7 +347,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `salePrice(goodId, supplyRatio: number): number` (rounded to whole dollars, min 1)
   - `supplyRatio(entry: MarketEntry | undefined): number` (0 when there is no demand history)
   - `StoreStock { buildingId; ownerId: OwnerId; stock: Inventory }`, `Sale { buildingId; ownerId; goodId; qty; revenue }`
-  - `computeDailySales(city, stores: StoreStock[], year, demandMod: (goodId) => number): Sale[]`: mutates only `city.market[g].pending`. Each day, `pending = min(pending + monthly/30, monthly/30 × 3)`. Whole units `floor(pending)` are split equally among stores with stock > 0 (an unsold share is redistributed once), and the units actually sold are subtracted from `pending`. This lets low-demand goods such as cars still sell every few days.
+  - `computeDailySales(city, stores: StoreStock[], year, demandMod: (goodId) => number): Sale[]`: mutates only `city.market[g].pending`. Each day, `pending = min(pending + monthly/30, max(monthly/30 × 3, 1))`. Whole units `floor(pending + 1e-9)` are dealt round-robin to stores that still have stock until the units or the stock run out, and the units actually sold are subtracted from `pending`. This lets low-demand goods such as cars still sell every few days.
   - `updateMarketDay(city, goodId, sold: number, demandToday: number): void`: `x30 = x30 × 29/30 + today`
   - `satisfaction(city, goodId): number` = clamp(sold30 / demand30, 0, 1)
   - `monthlyGrowth(population, avgSatisfaction, pollution): number`
