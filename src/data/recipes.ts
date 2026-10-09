@@ -50,8 +50,8 @@ export function getRecipe(id: string): RecipeDef {
   return recipe;
 }
 
-/** A recipe's era is the max era of its outputs. */
+/** A recipe's era is the max era over all its inputs and outputs. */
 export function recipeEra(id: string): number {
   const recipe = getRecipe(id);
-  return Math.max(...Object.keys(recipe.outputs).map((g) => getGood(g).era));
+  return Math.max(...[...Object.keys(recipe.inputs), ...Object.keys(recipe.outputs)].map((g) => getGood(g).era));
 }

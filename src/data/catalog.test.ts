@@ -43,8 +43,9 @@ describe('content catalog', () => {
   });
 
   it('recipe era', () => {
-    expect(recipeEra('r_toys_plastic')).toBe(1900);
+    expect(recipeEra('r_toys_plastic')).toBe(1935);
     expect(recipeEra('r_cars')).toBe(1910);
+    expect(recipeEra('r_fuel')).toBe(1910);
   });
 
   it('exact values', () => {

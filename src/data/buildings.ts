@@ -51,7 +51,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   oil_well: {
     id: 'oil_well', name: 'Oil Well', ...EX, size: { w: 2, h: 2 }, cost: 30000, maintenance: 900,
-    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: true, recipes: ['r_oil'], storage: 80, era: 1920, pollution: 3,
+    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: true, recipes: ['r_oil'], storage: 80, era: 1910, pollution: 3,
     color: '#2a2622', description: 'A black gusher of progress, nodding day and night.',
   },
   sawmill: {
@@ -81,7 +81,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   refinery: {
     id: 'refinery', name: 'Refinery', ...FA, size: { w: 3, h: 3 }, cost: 70000, maintenance: 1800,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_fuel', 'r_plastic'], storage: 60, era: 1920, pollution: 8,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_fuel', 'r_plastic'], storage: 60, era: 1910, pollution: 8,
     color: '#c0702a', description: 'Towers of pipe cracking crude into fuel and wonder.',
   },
   furniture_factory: {

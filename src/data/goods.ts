@@ -21,7 +21,7 @@ export const GOODS: Record<GoodId, GoodDef> = {
   iron_ore: { id: 'iron_ore', name: 'Iron Ore', tier: 0, basePrice: 6, era: 1900, fadeYear: null, icon: '⛏️', color: '#a0522d' },
   coal: { id: 'coal', name: 'Coal', tier: 0, basePrice: 5, era: 1900, fadeYear: null, icon: '⚫', color: '#2b2b2f' },
   sand: { id: 'sand', name: 'Sand', tier: 0, basePrice: 2, era: 1900, fadeYear: null, icon: '⏳', color: '#e6cf9a' },
-  oil: { id: 'oil', name: 'Crude Oil', tier: 0, basePrice: 8, era: 1920, fadeYear: null, icon: '🛢️', color: '#3c3a36' },
+  oil: { id: 'oil', name: 'Crude Oil', tier: 0, basePrice: 8, era: 1910, fadeYear: null, icon: '🛢️', color: '#3c3a36' },
 
   // Intermediate (tier 1)
   lumber: { id: 'lumber', name: 'Lumber', tier: 1, basePrice: 10, era: 1900, fadeYear: null, icon: '🪚', color: '#c8a16e' },
@@ -29,7 +29,7 @@ export const GOODS: Record<GoodId, GoodDef> = {
   steel: { id: 'steel', name: 'Steel', tier: 1, basePrice: 22, era: 1900, fadeYear: null, icon: '🔩', color: '#9aa4ae' },
   fabric: { id: 'fabric', name: 'Fabric', tier: 1, basePrice: 12, era: 1900, fadeYear: null, icon: '🧵', color: '#7b4fa0' },
   glass: { id: 'glass', name: 'Glass', tier: 1, basePrice: 10, era: 1900, fadeYear: null, icon: '🪟', color: '#7fd1c7' },
-  fuel: { id: 'fuel', name: 'Fuel', tier: 1, basePrice: 18, era: 1920, fadeYear: null, icon: '⛽', color: '#e07b22' },
+  fuel: { id: 'fuel', name: 'Fuel', tier: 1, basePrice: 18, era: 1910, fadeYear: null, icon: '⛽', color: '#e07b22' },
   plastic: { id: 'plastic', name: 'Plastic', tier: 1, basePrice: 20, era: 1935, fadeYear: null, icon: '🧪', color: '#4fb3e8' },
 
   // Consumer (tier 2)
