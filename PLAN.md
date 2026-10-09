@@ -194,7 +194,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `types.ts`:
     - `GoodId = string`, `BuildingTypeId = string`, `OwnerId = 'player' | 'rival'`, `Vec2 = { x: number; y: number }`, `Inventory = Record<GoodId, number>`
     - `Terrain = 'water' | 'sand' | 'grass' | 'forest' | 'hills' | 'mountain'`
-    - `Tile { terrain; deposit: GoodId | null; road: boolean; rail: boolean; buildingId: number | null; cityId: number | null; pollution: number }`
+    - `Tile { terrain; deposit: GoodId | null; road: boolean; rail: boolean; roadOwner: OwnerId | null; railOwner: OwnerId | null; buildingId: number | null; cityId: number | null; pollution: number }` (`roadOwner`/`railOwner` are null for pre-built and unowned track; upkeep and removal refunds follow them)
     - `GameMap { width; height; tiles: Tile[] }`
     - `GameDate { year; month /*1-12*/; day /*1-30*/; hour /*0-23*/ }`
     - `BuildingStatus = 'ok' | 'no_input' | 'output_full' | 'halted' | 'idle'`
@@ -413,9 +413,9 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 **Interfaces:**
 - Consumes: Tasks 1–6.
 - Produces:
-  - `createGame(opts: { seed: number; companyName?: string; scenarioId?: string; rival?: boolean }): GameState`: runs mapgen; lays city street grids (centre row and column plus every 3rd row/column inside the urban radius, on land only); links each city to its nearest neighbour with `findPath(…, roadBuildable, waterAvoidingCost)`; calls `refreshUrbanTiles`; creates companies (`rival.active = opts.rival ?? true`); sets `unlocked` to the ids of goods, buildings and recipes with era ≤ 1900.
+  - `createGame(opts: { seed: number; companyName?: string; scenarioId?: string; rival?: boolean }): GameState`: runs mapgen; lays city street grids (centre row and column plus every 3rd row/column inside the urban radius, on land only); links each city to its nearest neighbour with `findPath(…, roadBuildable, waterAvoidingCost)`, then joins any remaining separate road networks by linking the closest city pair across them until all cities share one network; calls `refreshUrbanTiles`; creates companies (`rival.active = opts.rival ?? true`); sets `unlocked` to the ids of goods, buildings and recipes with era ≤ 1900.
   - `canPlaceBuilding(state, owner, typeId, pos): Result<{ cost: number }>`, `placeBuilding(ctx, owner, typeId, pos, recipeId?): Result<Building>`. Error strings: `'Out of bounds'`, `'Not invented yet'`, `'Wrong terrain'`, `'Tile occupied'`, `'Must be inside a city'`, `'Cannot build on city land'`, `'Needs a resource deposit'`, `'Not enough money'`. For deposit buildings, the default recipe is the one whose output matches the deposit.
-  - `demolishBuilding(ctx, id): Result`: refunds 25% as `demolition` income, removes the building's stops from routes, sets vehicles on routes with < 2 stops to `idle`, emits `buildingRemoved`.
+  - `demolishBuilding(ctx, id, owner?: OwnerId): Result` (when `owner` is given and differs: `'Not your building'`): refunds 25% as `demolition` income, removes the building's stops from routes, sets vehicles on routes with < 2 stops to `idle`, emits `buildingRemoved`.
   - `buildRoad(ctx, owner, tiles: Vec2[]): Result<{ built: number; cost: number }>`: atomic; skips tiles that already have road. Errors: `'Cannot build road there'`, `'Not enough money'`. Increments `company.roadTiles` and emits `roadChanged`.
   - `removeRoad(ctx, owner, tiles): Result`: refuses tiles where a vehicle currently stands.
   - `lPath(from, to): Vec2[]`: horizontal then vertical, inclusive.
@@ -491,7 +491,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `seasonTint(month): string | null` (rgba overlay: cool blue in winter, warm in summer, null otherwise)
   - `applyAtmosphere(ctx, w, h, date): void`: night overlay (multiply dark blue by 1 − lightLevel) plus season tint.
   - `cssFilterFor(year): string` (e.g. `"sepia(0.8) saturate(0.6)"`), applied to the world canvas element.
-  - `class ParticleSystem { emitSmoke(wx, wy, density: number): void; emitFloatText(wx, wy, text: string, color: string): void; emitSparks(wx, wy): void; update(dtMs): void; draw(ctx, cam): void; count(): number }`. Capped at 2000 particles. Smoke rises, drifts with a global wind and fades over ~3 s. Float text ("+$48") rises 24 px and fades over 1.2 s.
+  - `class ParticleSystem { emitSmoke(wx, wy, density: number, dtMs: number): void /* rate-based: ~4 puffs/s at density 1, frame-rate independent */; emitFloatText(wx, wy, text: string, color: string): void; emitSparks(wx, wy): void; update(dtMs): void; draw(ctx, cam): void; count(): number }`. Capped at 2000 particles. Smoke rises, drifts with a global wind and fades over ~3 s. Float text ("+$48") rises 24 px and fades over 1.2 s.
 - [ ] **Step 1: Write failing tests:** `lightLevel(12)===1`, `lightLevel(0)===0.25`, `lightLevel(6)` strictly between; `eraGrade(1900).sepia===0.8`, `eraGrade(1965).sepia===0`, `eraGrade(1990)` equals `eraGrade(1965)`; `particles expire` (emit, update 5000 ms → count 0); `cap respected`.
 - [ ] **Step 2:** Run. Expected: FAIL. **Step 3:** Implement. **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(render): day/night, seasons, era grading and particles`.
@@ -857,6 +857,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `100-year headless run completes under 20 s with no exceptions and victory emitted`.
 - [ ] **Step 2:** Run `npx vitest run src/sim/balance.test.ts`. Expected: FAIL or PASS. Tune constants until all pass, never weakening a test's bounds.
 - [ ] **Step 3:** Implement the tutorial and the chain report.
+- [ ] **Step 3b: Visual polish backlog** (from Wave 2 screenshot reviews): soften the blocky rock-base edge around mountain ranges; smooth the staircase coastline at zoom ≤ 0.5 (corner-rounded sand/water blends); vary hill mound size more so hills read less like a repeated pattern.
 - [ ] **Step 4:** Run `npm test`. Expected: PASS.
 - [ ] **Step 5:** Commit `feat: tutorial and economy balance pass`.
 
