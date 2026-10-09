@@ -76,6 +76,7 @@ describe('findPath', () => {
     expect(roadBuildable({ ...t, buildingId: 1 }, 0, 0)).toBe(false);
     expect(roadBuildable({ ...t, cityId: 1 }, 0, 0)).toBe(false);
     expect(roadBuildable({ ...t, cityId: 1, road: true }, 0, 0)).toBe(true);
+    expect(roadBuildable(tile('water'), 0, 0)).toBe(true);
     expect(waterAvoidingCost(tile('water'))).toBe(8);
     expect(waterAvoidingCost(t)).toBe(1);
   });

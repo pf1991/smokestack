@@ -541,7 +541,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `updateRoute(ctx, routeId, patch: Partial<Pick<Route,'name'|'stops'|'color'>>): Result`, `deleteRoute(ctx, routeId): Result` (sells its vehicles)
   - `buyTruck(ctx, owner, routeId): Result<Vehicle>`: spawns at the first stop's first access tile.
   - `sellVehicle(ctx, id): Result` (50% refund under `vehicles`)
-  - `vehiclesTick(ctx): void`: state machine `moving → loading → moving`. On arrival it unloads `stop.unload` goods the building accepts (bounded by `storageLeft`), then loads `stop.load` goods from `loadSource` (whole units, split evenly, capped by capacity). Then it paths to any access tile of the next stop via `findPath(roadPassable)`. With no path it goes `stuck`, emits `vehicleStuck` once and retries every 24 ticks. It sets `prevPos` before moving each tick. A route with < 2 stops makes its vehicles `idle`.
+  - `vehiclesTick(ctx): void`: state machine `moving → loading → moving`. On arrival it unloads `stop.unload` goods the building accepts (bounded by `storageLeft`), then loads `stop.load` goods from `loadSource` (whole units, split evenly, capped by capacity). Then it paths to any access tile of the next stop via `findPath(roadPassable)`. With no path it goes `stuck`, emits `vehicleStuck` once and retries every 24 ticks, staggered by `vehicle.id % 24` so many stuck trucks don't all search the map on the same tick (a failed search scans the whole map, 10–20 ms). It sets `prevPos` before moving each tick. A route with < 2 stops makes its vehicles `idle`.
   - `vehicleMaintenanceMonth(ctx): void`
 - [ ] **Step 1: Write failing tests:**
   - `round trip delivers wood to sawmill` (a straight 10-tile road; after enough ticks, sawmill input wood > 0 and camp output decreased).
@@ -805,7 +805,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Produces:
   - `TRAIN = { cost: 60000, capacity: 120, speed: 1.0, maintenance: 1200, loadTicks: 12 }`
   - `buildRail(ctx, owner, tiles): Result<{ built; cost }>`: $1,200/tile; a crossing over an existing road tile is allowed (level crossing); no water or mountain.
-  - `stationAccess(state, station): Vec2[]`: rail tiles adjacent to the station footprint.
+  - `stationAccess(state, station): Vec2[]`: rail tiles adjacent to the station footprint. Keep `findPath` target lists small (access tiles only); never pass every rail or road tile as a target, because the heuristic scans all targets per node.
   - Train routes (`kind: 'train'`) accept only `train_station` stops and path with `railPassable`. `buyTrain(ctx, owner, routeId): Result<Vehicle>`. The station behaves like a warehouse (uses `input` as storage, accepts anything), so trucks feed it and trains haul between stations.
   - Upkeep is charged via `company.railTiles`.
 - [ ] **Step 1: Write failing tests:** `rail crosses road but not water`; `train hauls 120 between stations`; `truck route can stop at station`; `train route rejects non-station stop`; `rail upkeep charged`.
