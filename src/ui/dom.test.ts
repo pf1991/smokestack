@@ -44,6 +44,36 @@ describe('h', () => {
   it('accepts a null props argument', () => {
     expect(h('i', null).tagName).toBe('I');
   });
+
+  it('flattens nested arrays of children', () => {
+    const items = ['a', 'b'].map((t) => h('li', null, t));
+    const ul = h('ul', null, items, [[h('li', null, 'c')]], 42);
+    expect(ul.children.length).toBe(3);
+    expect(ul.textContent).toBe('abc42');
+  });
+
+  it('sets value, checked, selected and disabled as DOM properties', () => {
+    const input = h('input', { type: 'text', value: 'hello' }) as HTMLInputElement;
+    expect(input.value).toBe('hello');
+    expect(input.hasAttribute('value')).toBe(false);
+
+    const box = h('input', { type: 'checkbox', checked: true }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(box.hasAttribute('checked')).toBe(false);
+
+    const opt = h('option', { selected: true }) as HTMLOptionElement;
+    expect(opt.selected).toBe(true);
+    expect(opt.hasAttribute('selected')).toBe(false);
+
+    const btn = h('button', { disabled: true }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('ignores on* props that are not functions and never writes inline handlers', () => {
+    const el = h('button', { onClick: 'alert(1)' } as Record<string, unknown>);
+    expect(el.hasAttribute('onclick')).toBe(false);
+    expect(el.getAttribute('onClick')).toBeNull();
+  });
 });
 
 describe('createWindow', () => {
@@ -73,15 +103,50 @@ describe('createWindow', () => {
     expect(win.el.isConnected).toBe(false);
   });
 
-  it('dragging the title bar moves the window', () => {
+  const pointer = (target: EventTarget, type: string, x: number, y: number) =>
+    target.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }));
+
+  it('dragging the title bar moves the window by the pointer delta', () => {
     const win = createWindow({ id: 'd1', title: 'T', content: h('div') });
+    document.body.appendChild(win.el);
     const title = win.el.querySelector('.window-title') as HTMLElement;
-    title.dispatchEvent(new MouseEvent('mousedown', { clientX: 10, clientY: 10, bubbles: true }));
-    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 60, clientY: 40, bubbles: true }));
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    expect(win.el.style.left).toBe('50px');
-    expect(win.el.style.top).toBe('30px');
+    const startLeft = parseFloat(win.el.style.left);
+    const startTop = parseFloat(win.el.style.top);
+    pointer(title, 'pointerdown', 300, 300);
+    pointer(document, 'pointermove', 320, 310);
+    pointer(document, 'pointerup', 320, 310);
+    expect(parseFloat(win.el.style.left)).toBe(startLeft + 20);
+    expect(parseFloat(win.el.style.top)).toBe(startTop + 10);
     win.close();
+  });
+
+  it('clamps the window inside the viewport while dragging', () => {
+    const win = createWindow({ id: 'clamp1', title: 'T', content: h('div') });
+    document.body.appendChild(win.el);
+    const title = win.el.querySelector('.window-title') as HTMLElement;
+    pointer(title, 'pointerdown', 300, 300);
+    pointer(document, 'pointermove', -5000, -5000);
+    expect(win.el.style.left).toBe('0px');
+    expect(win.el.style.top).toBe('0px');
+    pointer(document, 'pointermove', 50000, 50000);
+    pointer(document, 'pointerup', 50000, 50000);
+    expect(parseFloat(win.el.style.left)).toBeLessThanOrEqual(window.innerWidth);
+    expect(parseFloat(win.el.style.top)).toBeLessThanOrEqual(window.innerHeight);
+    win.close();
+  });
+
+  it('closing mid-drag stops the drag and removes document listeners', () => {
+    const win = createWindow({ id: 'cd1', title: 'T', content: h('div') });
+    document.body.appendChild(win.el);
+    const title = win.el.querySelector('.window-title') as HTMLElement;
+    pointer(title, 'pointerdown', 300, 300);
+    pointer(document, 'pointermove', 310, 300);
+    const leftBefore = win.el.style.left;
+    win.close();
+    pointer(document, 'pointermove', 400, 400);
+    pointer(document, 'pointerup', 400, 400);
+    expect(win.el.style.left).toBe(leftBefore);
+    expect(win.el.isConnected).toBe(false);
   });
 
   it('setContent replaces the body', () => {
@@ -118,11 +183,25 @@ describe('Toasts', () => {
     expect(root.querySelectorAll('.toast').length).toBe(0);
   });
 
-  it('returned unsubscribe stops toasts', () => {
+  it('evicted toasts have their timers cleared', () => {
+    vi.useFakeTimers();
+    const root = document.createElement('div');
+    const bus = new EventBus();
+    Toasts.attach(root, bus);
+    for (let i = 0; i < 6; i++) bus.emit({ type: 'toast', message: `m${i}`, tone: 'info' });
+    expect(vi.getTimerCount()).toBe(4);
+  });
+
+  it('returned unsubscribe stops toasts and clears all timers', () => {
+    vi.useFakeTimers();
     const root = document.createElement('div');
     const bus = new EventBus();
     const off = Toasts.attach(root, bus);
+    bus.emit({ type: 'toast', message: 'a', tone: 'info' });
+    bus.emit({ type: 'toast', message: 'b', tone: 'info' });
     off();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(root.querySelectorAll('.toast-stack').length).toBe(0);
     bus.emit({ type: 'toast', message: 'x', tone: 'info' });
     expect(root.querySelectorAll('.toast').length).toBe(0);
   });

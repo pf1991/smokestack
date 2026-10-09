@@ -17,6 +17,8 @@ export interface GameWindow {
 const open = new Map<string, GameWindow>();
 let zTop = 100;
 
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
 /**
  * Creates a draggable brass-framed window appended to document.body.
  * If a window with the same id is already open, that window is returned (and raised).
@@ -39,10 +41,12 @@ export function createWindow(opts: WindowOptions): GameWindow {
   const el = h('div', {
     class: 'window',
     style: { width: opts.width ? `${opts.width}px` : '', left: '80px', top: '80px', zIndex: String(++zTop) },
-    onMouseDown: () => {
+    onPointerDown: () => {
       el.style.zIndex = String(++zTop);
     },
   }, titleBar, body);
+
+  let stopDrag: (() => void) | null = null;
 
   let closed = false;
   const win: GameWindow = {
@@ -50,6 +54,7 @@ export function createWindow(opts: WindowOptions): GameWindow {
     close() {
       if (closed) return;
       closed = true;
+      stopDrag?.();
       open.delete(opts.id);
       el.remove();
       opts.onClose?.();
@@ -59,22 +64,29 @@ export function createWindow(opts: WindowOptions): GameWindow {
     },
   };
 
-  titleBar.addEventListener('mousedown', (ev) => {
+  titleBar.addEventListener('pointerdown', (ev) => {
     if (ev.target === closeBtn) return;
+    stopDrag?.();
     const startX = ev.clientX;
     const startY = ev.clientY;
-    const originLeft = el.offsetLeft;
-    const originTop = el.offsetTop;
-    const onMove = (m: MouseEvent) => {
-      el.style.left = `${originLeft + m.clientX - startX}px`;
-      el.style.top = `${originTop + m.clientY - startY}px`;
+    const originLeft = parseFloat(el.style.left) || 0;
+    const originTop = parseFloat(el.style.top) || 0;
+    const onMove = (m: PointerEvent | MouseEvent) => {
+      const maxLeft = Math.max(0, window.innerWidth - el.offsetWidth);
+      const maxTop = Math.max(0, window.innerHeight - titleBar.offsetHeight);
+      el.style.left = `${clamp(originLeft + m.clientX - startX, 0, maxLeft)}px`;
+      el.style.top = `${clamp(originTop + m.clientY - startY, 0, maxTop)}px`;
     };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+    const onUp = () => stopDrag?.();
+    stopDrag = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      stopDrag = null;
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   });
 
   open.set(opts.id, win);

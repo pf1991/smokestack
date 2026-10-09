@@ -95,6 +95,7 @@ input[type='text'] {
 /* Draggable window with brass frame. */
 .window {
   position: absolute;
+  pointer-events: auto;
   min-width: 220px;
   background: var(--walnut-light);
   border: 3px solid var(--brass);
@@ -147,6 +148,7 @@ input[type='text'] {
 /* Toasts stack in the top-right corner. */
 .toast-stack {
   position: fixed;
+  pointer-events: auto;
   top: calc(env(safe-area-inset-top, 0px) + 12px);
   right: 12px;
   display: flex;
