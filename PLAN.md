@@ -132,7 +132,7 @@ Work proceeds in **waves**. Tasks within a wave are independent and run as **par
 | 0 | 1 Kernel & scaffold | everything |
 | 1 | 2 Catalog · 3 Map generator · 4 Pathfinding · 5 Finances · 7 UI kit · 8 Audio → then 6 Market (needs Task 2's `GOODS`) | sim core, UI |
 | 2 | 9 State & construction · 10 Camera & terrain · 11 Sprite painter · 12 Atmosphere (all import `TILE`/`Camera` from `src/render/constants.ts`) | gameplay, world view |
-| 3 | 13 Production & retail · 14 Trucks & routes · 15 HUD & toolbar · 16 World renderer | loop |
+| 3 | 13 Production & retail · 14 Trucks & routes · 15 HUD & toolbar · 16 World renderer (shared inventory rules in `src/sim/inventory.ts`) | loop |
 | 4 | 17 Sim loop & saves → then 18 Bootstrap & tools (**playable milestone**) | features |
 | 5 | 19 Inspectors · 20 Route editor · 21 Finance dashboard · 22 Eras · 23 Newspaper & events · 24 Pollution · 25 Rival AI · 26 Contracts | polish |
 | 6 | 27 Railways · 28 Menu, scenarios & achievements → then 29 Tutorial & balance · 30 Deploy & final verification | ship |
@@ -507,9 +507,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 **Interfaces:**
 - Consumes: Tasks 2, 5, 6, 9 (`testkit`).
 - Produces:
-  - `acceptsGood(building, goodId): boolean`: a factory accepts its recipe inputs; a store accepts tier-2 goods; warehouses and stations accept anything; extractors accept nothing.
-  - `loadSource(building): Inventory`: `output` for extractors/factories, `input` for warehouse/station/store.
-  - `storageLeft(building, goodId): number`
+  - Uses `acceptsGood`, `loadSource`, `storageLeft` from `src/sim/inventory.ts` (already on main; stores, warehouses and stations share one storage pool, factories cap each input separately). Output caps: an extractor/factory output good is capped at `def.storage`.
   - `demandModifier(state, cityId, goodId): number`: product of active `state.modifiers` that match the good (or `'*'`) and the city (or null).
   - `productionDay(ctx): void`: extractors produce `outputs × efficiency` (lumber camp efficiency = forest tiles in footprint / footprint size; farms use the season factor); factories advance progress by `1/days` when inputs are present and output is not full; sets `status`; respects `haltedUntil`; accumulates `producedThisMonth`.
   - `retailDay(ctx): void`: per city, applies `computeDailySales` to stores (passing `dayOffset = dateToDays(state.date)`), earns `sales` (also adding revenue to the ledger month's `salesByGood`), updates the market, emits one `sale` event per (store, good) with qty > 0. Every good with demand updates `demand30` even when nothing sold.
@@ -537,7 +535,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Test: `src/sim/vehicles.test.ts`
 
 **Interfaces:**
-- Consumes: Tasks 4, 5, 9, 13 (`acceptsGood`, `loadSource`, `storageLeft`).
+- Consumes: Tasks 4, 5, 9; `acceptsGood`, `loadSource`, `storageLeft` from `src/sim/inventory.ts`.
 - Produces:
   - `TRUCK = { cost: 8000, capacity: 20, speed: 0.5, maintenance: 150, loadTicks: 6 }`
   - `createRoute(ctx, owner, name, stops: RouteStop[], kind = 'truck'): Result<Route>`: ≥ 2 stops, own buildings only, and each stop needs access tiles. Errors: `'A route needs at least two stops'`, `'Stop has no road access'`, `'Not your building'`. The colour is picked from an 8-colour palette by id.
