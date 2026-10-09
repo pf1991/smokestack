@@ -130,7 +130,7 @@ Work proceeds in **waves**. Tasks within a wave are independent and run as **par
 | Wave | Tasks (parallel) | Unblocks |
 |---|---|---|
 | 0 | 1 Kernel & scaffold | everything |
-| 1 | 2 Catalog · 3 Map generator · 4 Pathfinding · 5 Finances · 6 Market · 7 UI kit · 8 Audio | sim core, UI |
+| 1 | 2 Catalog · 3 Map generator · 4 Pathfinding · 5 Finances · 7 UI kit · 8 Audio → then 6 Market (needs Task 2's `GOODS`) | sim core, UI |
 | 2 | 9 State & construction · 10 Camera & terrain · 11 Sprite painter · 12 Atmosphere | gameplay, world view |
 | 3 | 13 Production & retail · 14 Trucks & routes · 15 HUD & toolbar · 16 World renderer | loop |
 | 4 | 17 Sim loop & saves → then 18 Bootstrap & tools (**playable milestone**) | features |
@@ -235,7 +235,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 ### Task 2: Content catalog
 
 **Files:**
-- Create: `src/data/goods.ts`, `src/data/recipes.ts`, `src/data/buildings.ts`, `src/data/names.ts`
+- Create: `src/data/goods.ts`, `src/data/recipes.ts`, `src/data/buildings.ts` (`src/data/names.ts` already exists on main)
 - Test: `src/data/catalog.test.ts`
 
 **Interfaces:**
