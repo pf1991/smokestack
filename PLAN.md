@@ -131,7 +131,7 @@ Work proceeds in **waves**. Tasks within a wave are independent and run as **par
 |---|---|---|
 | 0 | 1 Kernel & scaffold | everything |
 | 1 | 2 Catalog · 3 Map generator · 4 Pathfinding · 5 Finances · 7 UI kit · 8 Audio → then 6 Market (needs Task 2's `GOODS`) | sim core, UI |
-| 2 | 9 State & construction · 10 Camera & terrain · 11 Sprite painter · 12 Atmosphere | gameplay, world view |
+| 2 | 9 State & construction · 10 Camera & terrain · 11 Sprite painter · 12 Atmosphere (all import `TILE`/`Camera` from `src/render/constants.ts`) | gameplay, world view |
 | 3 | 13 Production & retail · 14 Trucks & routes · 15 HUD & toolbar · 16 World renderer | loop |
 | 4 | 17 Sim loop & saves → then 18 Bootstrap & tools (**playable milestone**) | features |
 | 5 | 19 Inspectors · 20 Route editor · 21 Finance dashboard · 22 Eras · 23 Newspaper & events · 24 Pollution · 25 Rival AI · 26 Contracts | polish |
@@ -446,7 +446,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 **Interfaces:**
 - Consumes: `types.ts`, `mapgen.ts` (`tileAt`).
 - Produces:
-  - `TILE = 32`; `Camera { x: number; y: number; zoom: number; viewW: number; viewH: number }` (x/y = world px at the top-left of the view)
+  - `TILE` and `Camera` live in `src/render/constants.ts` (already on main); `camera.ts` re-exports them. `Camera { x; y; zoom; viewW; viewH }` (x/y = world px at the top-left of the view)
   - `screenToWorld(cam, sx, sy): Vec2`, `screenToTile(cam, sx, sy): Vec2` (floored), `tileToScreen(cam, tx, ty): Vec2`, `zoomAt(cam, sx, sy, factor): void` (keeps the point under the cursor fixed; clamps zoom to [0.5, 3]), `clampCamera(cam, map): void`, `visibleTileRange(cam, map): { x0; y0; x1; y1 }`
   - `class TerrainRenderer { constructor(map: GameMap, seed: number); draw(ctx: CanvasRenderingContext2D, cam: Camera, timeMs: number, opts: { oilVisible: boolean; month: number }): void; invalidateTile(x, y): void }`. Draws 16×16-tile chunks into cached offscreen canvases. Each terrain gets a seeded-hash pixel texture: grass speckles, forest tree crowns with shadows, hills contour shading, mountains as grey peaks with snow caps, sand dots. Water is drawn per frame with animated shimmer lines. Deposits are drawn as coloured ore rocks; oil only when `oilVisible`. In winter months (Dec–Feb), grass and forest get a light snow overlay (re-cache on season change).
 - [ ] **Step 1: Write failing tests:** `screenToTile inverse of tileToScreen` (zoom 1 and 2); `zoomAt keeps cursor anchor`; `zoom clamped`; `clampCamera keeps view inside map`; `visibleTileRange clipped to map`.
@@ -462,7 +462,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Test: `src/render/sprites.test.ts`
 
 **Interfaces:**
-- Consumes: `BUILDINGS`, `GOODS` (Task 2); `TILE` (Task 10).
+- Consumes: `BUILDINGS`, `GOODS` (Task 2); `TILE` from `src/render/constants.ts`.
 - Produces:
   - `spriteKey(typeId, ownerId, variant): string`
   - `getBuildingSprite(typeId, ownerId: OwnerId): HTMLCanvasElement`: cached, sized `size.w*TILE × size.h*TILE` plus a 16 px headroom for chimneys. Style by category: extractors are a camp, farm field rows, a mine headframe or an oil derrick; factories are brick with a sawtooth roof and chimneys tinted by `def.color`; the store has an awning in the owner colour; the warehouse is a big shed with doors. A small owner pennant goes in the corner.
