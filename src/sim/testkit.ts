@@ -17,6 +17,8 @@ export function flatMap(w: number, h: number, terrain: Terrain = 'grass'): GameM
       buildingId: null,
       cityId: null,
       pollution: 0,
+      roadOwner: null,
+      railOwner: null,
     });
   }
   return { width: w, height: h, tiles };

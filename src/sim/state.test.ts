@@ -73,6 +73,27 @@ describe('createGame', () => {
     }
   });
 
+  it('starting road network joins every reachable city', () => {
+    let full = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const g = createGame({ seed });
+      let connected = true;
+      for (const a of g.cities) {
+        for (const b of g.cities) {
+          if (b.id <= a.id) continue;
+          if (findPath(g.map, a.center, [b.center], roadPassable)) continue;
+          connected = false;
+          // allowed only when no road could ever join them (ignoring buildings/city land)
+          const buildable = (t: { terrain: string }) => t.terrain !== 'mountain';
+          expect(findPath(g.map, a.center, [b.center], buildable), `seed ${seed}: ${a.id}-${b.id}`).toBeNull();
+        }
+      }
+      if (connected) full++;
+      expect(g.map.tiles.some((t) => t.roadOwner !== null || t.railOwner !== null)).toBe(false);
+    }
+    expect(full).toBeGreaterThanOrEqual(18);
+  });
+
   it('sets up companies, unlocks and urban tiles', () => {
     const g = createGame({ seed: 7, companyName: 'Acme', rival: false });
     expect(g.companies.player.name).toBe('Acme');
@@ -123,6 +144,8 @@ describe('placement', () => {
     expect(msg('bakery', { x: 4, y: 4 })).toBe('Tile occupied');
     tile(s, 11, 11).road = true;
     expect(msg('bakery', { x: 10, y: 10 })).toBe('Tile occupied');
+    tile(s, 16, 11).rail = true;
+    expect(msg('bakery', { x: 15, y: 10 })).toBe('Tile occupied');
     // cities
     expect(msg('store', { x: 5, y: 15 })).toBe('Must be inside a city');
     expect(msg('store', { x: 34, y: 15 })).toBe('Must be inside a city'); // straddles the urban edge
@@ -265,7 +288,11 @@ describe('demolition', () => {
     const v1 = addVehicle(s, r1.id, { x: 5, y: 6 });
     v1.stopIndex = 1;
     const v2 = addVehicle(s, r2.id, { x: 5, y: 6 });
-    v2.stopIndex = 2;
+    v2.stopIndex = 2; // heading to C
+    v2.path = [{ x: 5, y: 6 }, { x: 6, y: 6 }];
+    v2.pathIndex = 1;
+    const v3 = addVehicle(s, r2.id, { x: 5, y: 6 });
+    v3.stopIndex = 1; // heading to B, which is demolished → takes C's place
     const events: GameEvent[] = [];
     ctx.bus.onAny((e) => events.push(e));
     const money = s.companies.player.money;
@@ -279,11 +306,51 @@ describe('demolition', () => {
     expect(s.routes[r2.id].stops.map((x) => x.buildingId)).toEqual([a.value.id, c.value.id]);
     expect(v1.state).toBe('idle');
     expect(v2.state).toBe('moving');
-    expect(v2.stopIndex).toBeLessThan(2);
+    expect(v2.stopIndex).toBe(1); // still C
+    expect(v2.path).toEqual([]);
+    expect(v2.pathIndex).toBe(0);
+    expect(v3.stopIndex).toBe(1);
+    expect(v3.path).toEqual([]);
     for (let y = 2; y < 5; y++) for (let x = 8; x < 11; x++) expect(tile(s, x, y).buildingId).toBeNull();
     expect(events).toEqual([{ type: 'buildingRemoved', buildingId: b.value.id }]);
     expect(demolishBuilding(ctx, b.value.id).ok).toBe(false);
     expect(canPlaceBuilding(s, 'player', 'sawmill', { x: 8, y: 2 }).ok).toBe(true);
+  });
+
+  it('removed target stop at the end wraps to the first stop', () => {
+    const s = cityWorld();
+    const ctx = testCtx(s);
+    const ids = [2, 8, 14].map((x) => {
+      const r = placeBuilding(ctx, 'player', 'bakery', { x, y: 2 });
+      if (!r.ok) throw new Error(r.error);
+      return r.value.id;
+    });
+    const route: Route = {
+      id: nextId(s),
+      ownerId: 'player',
+      name: 'R',
+      color: '#fff',
+      kind: 'truck',
+      stops: ids.map((buildingId) => ({ buildingId, load: [], unload: [] })),
+    };
+    s.routes[route.id] = route;
+    const v = addVehicle(s, route.id, { x: 0, y: 0 });
+    v.stopIndex = 2;
+    expect(demolishBuilding(ctx, ids[2]).ok).toBe(true);
+    expect(v.stopIndex).toBe(0);
+    expect(v.state).toBe('moving');
+  });
+
+  it('demolish with an owner refuses other companies buildings', () => {
+    const s = cityWorld();
+    const ctx = testCtx(s);
+    const b = placeBuilding(ctx, 'rival', 'bakery', { x: 2, y: 2 });
+    if (!b.ok) throw new Error(b.error);
+    const before = snapshot(s);
+    expect(demolishBuilding(ctx, b.value.id, 'player')).toEqual({ ok: false, error: 'Not your building' });
+    expect(s).toEqual(before);
+    expect(demolishBuilding(ctx, b.value.id, 'rival').ok).toBe(true);
+    expect(s.companies.rival.money).toBe(300000 - 15000 + 3750);
   });
 });
 
@@ -316,6 +383,8 @@ describe('roads', () => {
     expect(r).toEqual({ ok: true, value: { built: 4, cost: 2000 } });
     expect(s.companies.player.money).toBe(298000);
     expect(s.companies.player.roadTiles).toBe(4);
+    expect(tile(s, 1, 0).roadOwner).toBe('player');
+    expect(tile(s, 2, 0).roadOwner).toBeNull(); // pre-existing tile was skipped
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe('roadChanged');
     expect(buildRoad(ctx, 'player', [{ x: 0, y: 0 }])).toEqual({ ok: true, value: { built: 0, cost: 0 } });
@@ -376,7 +445,38 @@ describe('roads', () => {
     expect(tile(s, 7, 0).road).toBe(false);
     expect(tile(s, 8, 0).road).toBe(false);
     expect(s.companies.player.roadTiles).toBe(8);
+    expect(tile(s, 7, 0).roadOwner).toBeNull();
     expect(events).toEqual([{ type: 'roadChanged', tiles: [{ x: 7, y: 0 }, { x: 8, y: 0 }] }]);
+  });
+
+  it('removeRoad only reduces the builder upkeep and protects other companies roads', () => {
+    const s = testState();
+    const ctx = testCtx(s);
+    buildRoad(ctx, 'player', lPath({ x: 0, y: 0 }, { x: 4, y: 0 }));
+    buildRoad(ctx, 'rival', lPath({ x: 0, y: 2 }, { x: 4, y: 2 }));
+    tile(s, 0, 4).road = true; // pre-built, unowned
+    tile(s, 1, 4).road = true;
+    expect(s.companies.player.roadTiles).toBe(5);
+    expect(s.companies.rival.roadTiles).toBe(5);
+
+    // unowned road: removable, nobody's counter changes
+    expect(removeRoad(ctx, 'player', [{ x: 0, y: 4 }]).ok).toBe(true);
+    expect(tile(s, 0, 4).road).toBe(false);
+    expect(s.companies.player.roadTiles).toBe(5);
+
+    // another company's road: refused atomically, even mixed with own road
+    const before = snapshot(s);
+    expect(removeRoad(ctx, 'player', [{ x: 1, y: 0 }, { x: 1, y: 2 }])).toEqual({ ok: false, error: 'Not your road' });
+    expect(s).toEqual(before);
+
+    // rival removes its own
+    expect(removeRoad(ctx, 'rival', [{ x: 1, y: 2 }, { x: 1, y: 4 }]).ok).toBe(true);
+    expect(s.companies.rival.roadTiles).toBe(4);
+    expect(s.companies.player.roadTiles).toBe(5);
+    // rebuilding a removed pre-built tile makes it owned (and charged upkeep)
+    expect(buildRoad(ctx, 'player', [{ x: 0, y: 4 }]).ok).toBe(true);
+    expect(tile(s, 0, 4).roadOwner).toBe('player');
+    expect(s.companies.player.roadTiles).toBe(6);
   });
 });
 

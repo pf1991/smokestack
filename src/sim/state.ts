@@ -168,6 +168,62 @@ function linkCities(map: GameMap, cities: City[]): void {
       break;
     }
   }
+  joinNetworks(map, cities);
+}
+
+/** Road-network component label of each city centre (flood fill over road tiles); -1 off-road. */
+function cityComponents(map: GameMap, cities: City[]): number[] {
+  const { width: w, height: h, tiles } = map;
+  const label = new Int32Array(w * h).fill(-1);
+  return cities.map((c, ci) => {
+    const start = c.center.y * w + c.center.x;
+    if (!tiles[start].road) return -1;
+    if (label[start] !== -1) return label[start];
+    label[start] = ci;
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop() as number;
+      const x = i % w;
+      const y = (i / w) | 0;
+      const ns = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1];
+      for (const n of ns) {
+        if (n < 0 || label[n] !== -1 || !tiles[n].road) continue;
+        label[n] = ci;
+        stack.push(n);
+      }
+    }
+    return ci;
+  });
+}
+
+/**
+ * Nearest-neighbour links can leave separate islands (e.g. two pairs). Repeatedly link the closest
+ * pair of cities in different components (lower ids on ties), skipping unreachable pairs, until one
+ * component remains or no further link is possible. Bounded: ≤ cities−1 links, each pair tried once.
+ */
+function joinNetworks(map: GameMap, cities: City[]): void {
+  const tried = new Set<string>();
+  for (;;) {
+    const comp = cityComponents(map, cities);
+    let best: [City, City] | null = null;
+    let bestD = Infinity;
+    for (let i = 0; i < cities.length; i++) {
+      for (let j = i + 1; j < cities.length; j++) {
+        if (comp[i] === comp[j] && comp[i] !== -1) continue;
+        if (tried.has(`${i}-${j}`)) continue;
+        const d = dist2(cities[i].center, cities[j].center);
+        if (d < bestD) {
+          bestD = d;
+          best = [cities[i], cities[j]];
+        }
+      }
+    }
+    if (!best) return;
+    const [a, b] = best;
+    tried.add(`${cities.indexOf(a)}-${cities.indexOf(b)}`);
+    const path = findPath(map, a.center, [b.center], roadBuildable, waterAvoidingCost);
+    if (path) for (const p of path) map.tiles[p.y * map.width + p.x].road = true;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -306,7 +362,8 @@ export function placeBuilding(
 /**
  * Deterministic square-spiral search (rings of growing Chebyshev radius around `near`, each ring
  * scanned clockwise from its top-left corner). `near` is the footprint's centre tile.
- * Checks at most (2·maxRadius+1)² positions.
+ * Checks at most (2·maxRadius+1)² positions. Returns null early, without searching, when the failure
+ * cannot depend on position: 'Not enough money' or 'Not invented yet'.
  */
 export function findPlacement(
   state: GameState,
@@ -348,10 +405,17 @@ export function findPlacement(
 // ---------------------------------------------------------------------------
 // demolition
 
-export function demolishBuilding(ctx: SimContext, id: number): Result {
+/**
+ * Refunds 25% of the cost, frees the footprint and removes the building's stops from every route.
+ * Vehicles keep heading to the same stop (re-indexed); if their target stop was removed they head to
+ * the stop that took its place. Their path is cleared so the vehicle system re-plans. Vehicles on a
+ * route left with fewer than 2 stops go `idle`. With `owner`, refuses other companies' buildings.
+ */
+export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): Result {
   const { state } = ctx;
   const building = state.buildings[id];
   if (!building) return err('No such building');
+  if (owner !== undefined && building.ownerId !== owner) return err('Not your building');
   const def = BUILDINGS[building.typeId];
   earn(state.companies[building.ownerId], 'demolition', def.cost * DEMOLITION_REFUND, state.date);
   for (const p of footprint(building)) {
@@ -359,17 +423,22 @@ export function demolishBuilding(ctx: SimContext, id: number): Result {
     if (t.buildingId === id) t.buildingId = null;
   }
   for (const route of Object.values(state.routes)) {
+    const removed: number[] = [];
+    route.stops.forEach((s, i) => {
+      if (s.buildingId === id) removed.push(i);
+    });
+    if (removed.length === 0) continue;
     const kept = route.stops.filter((s) => s.buildingId !== id);
-    if (kept.length === route.stops.length) continue;
     route.stops = kept;
     for (const v of Object.values(state.vehicles)) {
       if (v.routeId !== route.id) continue;
-      if (v.stopIndex >= kept.length) v.stopIndex = 0;
-      if (kept.length < 2) {
-        v.state = 'idle';
-        v.path = [];
-        v.pathIndex = 0;
-      }
+      const targetRemoved = removed.includes(v.stopIndex);
+      const shift = removed.filter((i) => i < v.stopIndex).length;
+      v.stopIndex -= shift;
+      if (targetRemoved || v.stopIndex >= kept.length) v.stopIndex = kept.length > 0 ? v.stopIndex % kept.length : 0;
+      v.path = [];
+      v.pathIndex = 0;
+      if (kept.length < 2) v.state = 'idle';
     }
   }
   delete state.buildings[id];
@@ -404,7 +473,11 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
   const company = state.companies[owner];
   if (!canAfford(company, cost)) return err('Not enough money');
   if (todo.length === 0) return ok({ built: 0, cost: 0 });
-  for (const p of todo) map.tiles[p.y * map.width + p.x].road = true;
+  for (const p of todo) {
+    const t = map.tiles[p.y * map.width + p.x];
+    t.road = true;
+    t.roadOwner = owner;
+  }
   spend(company, 'construction', cost, state.date);
   company.roadTiles += todo.length;
   ctx.bus.emit({ type: 'roadChanged', tiles: todo });
@@ -413,8 +486,9 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
 
 /**
  * Removes road from the given tiles. Tiles without road, out of bounds or under a building are
- * skipped. Refuses (changing nothing) if any vehicle currently stands on one of the tiles.
- * `roadTiles` is decremented by the removed count, floored at 0 (no per-tile ownership is tracked).
+ * skipped. Refuses (changing nothing) if any tile is another company's road ('Not your road') or a
+ * vehicle currently stands on one of them. Pre-built/unowned road may be removed by anyone. Each
+ * removed owned tile decrements its builder's `roadTiles` (floored at 0); `roadOwner` is cleared.
  */
 export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Result {
   const { state } = ctx;
@@ -426,6 +500,7 @@ export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resu
     if (!t || !t.road || t.buildingId !== null) continue;
     const i = p.y * map.width + p.x;
     if (seen.has(i)) continue;
+    if (t.roadOwner !== null && t.roadOwner !== owner) return err('Not your road');
     seen.add(i);
     todo.push({ x: p.x, y: p.y });
   }
@@ -435,9 +510,15 @@ export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resu
     if (seen.has(vy * map.width + vx) && vx >= 0 && vx < map.width) return err('A vehicle is on that road');
   }
   if (todo.length === 0) return ok();
-  for (const p of todo) map.tiles[p.y * map.width + p.x].road = false;
-  const company = state.companies[owner];
-  company.roadTiles = Math.max(0, company.roadTiles - todo.length);
+  for (const p of todo) {
+    const t = map.tiles[p.y * map.width + p.x];
+    if (t.roadOwner !== null) {
+      const c = state.companies[t.roadOwner];
+      c.roadTiles = Math.max(0, c.roadTiles - 1);
+    }
+    t.road = false;
+    t.roadOwner = null;
+  }
   ctx.bus.emit({ type: 'roadChanged', tiles: todo });
   return ok();
 }
