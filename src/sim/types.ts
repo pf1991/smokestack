@@ -66,6 +66,8 @@ export interface City {
   name: string;
   center: Vec2;
   population: number;
+  /** population before the last monthly growth step (for trend arrows) */
+  prevPopulation: number;
   /** 0..1 */
   happiness: number;
   /** 0..1 */
@@ -124,7 +126,9 @@ export interface LedgerMonth {
   month: number;
   income: Partial<Record<LedgerCategory, number>>;
   expense: Partial<Record<LedgerCategory, number>>;
+  salesByGood: Partial<Record<GoodId, number>>;
   cashEnd: number;
+  netWorthEnd: number;
 }
 
 export interface Company {
@@ -168,6 +172,12 @@ export interface Contract {
   status: 'offered' | 'active' | 'done' | 'failed';
 }
 
+export interface RivalProject {
+  cityId: number;
+  goodId: GoodId;
+  stage: number;
+}
+
 export type Speed = 0 | 1 | 2 | 4 | 8;
 
 export interface GameState {
@@ -189,6 +199,8 @@ export interface GameState {
   nextId: number;
   speed: Speed;
   scenarioId: string;
+  rivalProject: RivalProject | null;
+  /** primitives only; timed effects store dateToDays() numbers, e.g. flags.railStrikeUntil */
   flags: Record<string, number | boolean | string>;
 }
 
