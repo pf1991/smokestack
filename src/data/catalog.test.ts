@@ -49,11 +49,11 @@ describe('content catalog', () => {
   });
 
   it('exact values', () => {
-    expect(GOODS.cars.basePrice).toBe(420);
+    expect(GOODS.cars.basePrice).toBe(630);
     expect(GOODS.radios.fadeYear).toBe(1965);
     expect(BUILDINGS.car_plant.size).toEqual({ w: 4, h: 4 });
     expect(BUILDINGS.store.requiresCity).toBe(true);
-    expect(DEMAND_PER_1000.bread).toBe(30);
+    expect(DEMAND_PER_1000.bread).toBe(60);
   });
 
   it('every manufacturing recipe is profitable at base price', () => {

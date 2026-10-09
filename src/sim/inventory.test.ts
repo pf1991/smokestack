@@ -45,17 +45,17 @@ describe('inventory rules', () => {
   });
 
   it('storageLeft is per good for factories', () => {
-    // sawmill storage 60
-    expect(storageLeft(b('sawmill', 'r_lumber', { wood: 50 }), 'wood')).toBe(10);
-    expect(storageLeft(b('sawmill', 'r_lumber', { wood: 70 }), 'wood')).toBe(0);
+    // sawmill storage 120
+    expect(storageLeft(b('sawmill', 'r_lumber', { wood: 110 }), 'wood')).toBe(10);
+    expect(storageLeft(b('sawmill', 'r_lumber', { wood: 130 }), 'wood')).toBe(0);
     expect(storageLeft(b('sawmill', 'r_lumber'), 'grain')).toBe(0);
   });
 
   it('storageLeft is shared across goods for store, warehouse and station', () => {
-    // store storage 200
-    expect(storageLeft(b('store', null, { bread: 120, furniture: 30 }), 'clothes')).toBe(50);
-    // warehouse storage 600
-    expect(storageLeft(b('warehouse', null, { wood: 590 }), 'coal')).toBe(10);
+    // store storage 300
+    expect(storageLeft(b('store', null, { bread: 220, furniture: 30 }), 'clothes')).toBe(50);
+    // warehouse storage 1000
+    expect(storageLeft(b('warehouse', null, { wood: 990 }), 'coal')).toBe(10);
     expect(storageLeft(b('store', null, {}), 'lumber')).toBe(0);
   });
 });

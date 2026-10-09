@@ -37,15 +37,15 @@ describe('market', () => {
   });
 
   it('demand', () => {
-    expect(monthlyDemand(city(10000), 'bread', 1900)).toBeCloseTo(300);
-    expect(monthlyDemand(city(10000), 'bread', 1900, 2)).toBeCloseTo(600);
+    expect(monthlyDemand(city(10000), 'bread', 1900)).toBeCloseTo(600);
+    expect(monthlyDemand(city(10000), 'bread', 1900, 2)).toBeCloseTo(1200);
     expect(monthlyDemand(city(10000), 'wood', 1900)).toBe(0);
   });
 
   it('price', () => {
-    expect(salePrice('furniture', 0)).toBe(72);
-    expect(salePrice('furniture', 1)).toBe(36);
-    expect(salePrice('furniture', 3)).toBe(24);
+    expect(salePrice('furniture', 0)).toBe(108);
+    expect(salePrice('furniture', 1)).toBe(54);
+    expect(salePrice('furniture', 3)).toBe(36);
   });
 
   it('supplyRatio', () => {
@@ -64,9 +64,9 @@ describe('market', () => {
     const sales = computeDailySales(c, stores, 1900, () => 1);
     const bread = sales.filter((s) => s.goodId === 'bread');
     expect(bread.find((s) => s.buildingId === 3)).toBeUndefined();
-    expect(bread.find((s) => s.buildingId === 1)!.qty).toBe(5);
-    expect(bread.find((s) => s.buildingId === 2)!.qty).toBe(5);
-    expect(bread[0].revenue).toBe(5 * salePrice('bread', 0));
+    expect(bread.find((s) => s.buildingId === 1)!.qty).toBe(10);
+    expect(bread.find((s) => s.buildingId === 2)!.qty).toBe(10);
+    expect(bread[0].revenue).toBe(10 * salePrice('bread', 0));
   });
 
   it('cannot sell more than stock', () => {
@@ -77,13 +77,13 @@ describe('market', () => {
     ];
     const sales = computeDailySales(c, stores, 1900, () => 1);
     expect(sales.find((s) => s.buildingId === 1)!.qty).toBe(3);
-    expect(sales.find((s) => s.buildingId === 2)!.qty).toBe(7);
+    expect(sales.find((s) => s.buildingId === 2)!.qty).toBe(17);
     const one = computeDailySales(city(10000), [{ buildingId: 1, ownerId: 'player', stock: { bread: 2 } }], 1900, () => 1);
     expect(one[0].qty).toBe(2);
   });
 
   it('low demand accumulates', () => {
-    const c = city(10000);
+    const c = city(5000);
     const stores: StoreStock[] = [{ buildingId: 1, ownerId: 'player', stock: { cars: 50 } }];
     let total = 0;
     const day1 = computeDailySales(c, stores, 1920, () => 1);
@@ -104,8 +104,8 @@ describe('market', () => {
   });
 
   it('growth', () => {
-    expect(monthlyGrowth(10000, 0.9, 0)).toBe(10100);
-    expect(monthlyGrowth(10000, 0, 1)).toBe(9820);
+    expect(monthlyGrowth(10000, 0.9, 0)).toBe(10135);
+    expect(monthlyGrowth(10000, 0, 1)).toBe(9900);
     expect(monthlyGrowth(500, 0, 1)).toBe(500);
   });
 
@@ -114,7 +114,7 @@ describe('market', () => {
   });
 
   it('rotates odd units between stores across days', () => {
-    const c = city(3000);
+    const c = city(1500);
     const stores: StoreStock[] = [
       { buildingId: 1, ownerId: 'player', stock: { bread: 1000 } },
       { buildingId: 2, ownerId: 'rival', stock: { bread: 1000 } },
