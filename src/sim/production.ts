@@ -66,7 +66,7 @@ export function productionDay(ctx: SimContext): void {
       b.status = outs.some((g) => (b.output[g] ?? 0) >= def.storage) ? 'output_full' : 'ok';
       continue;
     }
-    if (outs.some((g) => (b.output[g] ?? 0) >= def.storage)) {
+    if (outs.some((g) => (b.output[g] ?? 0) + recipe.outputs[g] > def.storage)) {
       b.status = 'output_full';
       continue;
     }
@@ -136,7 +136,7 @@ export function growthMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const city of state.cities) {
     const sats = Object.keys(DEMAND_PER_1000)
-      .filter((g) => (city.market[g]?.demand30 ?? 0) > 0)
+      .filter((g) => monthlyDemand(city, g, state.date.year, demandModifier(state, city.id, g)) > 0)
       .map((g) => satisfaction(city, g));
     const avg = sats.length > 0 ? sats.reduce((a, b) => a + b, 0) / sats.length : 0.4;
     city.prevPopulation = city.population;
