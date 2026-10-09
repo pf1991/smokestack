@@ -15,6 +15,7 @@ export class Sfx {
   private ambienceWanted = false;
   private ambienceStarted = false;
   private noise: AudioBuffer | null = null;
+  private broken = false;
 
   constructor(
     private ctxFactory: () => AudioContext = () => new AudioContext(),
@@ -36,25 +37,42 @@ export class Sfx {
     if (this.master) this.master.gain.value = this.muted ? 0 : this.volume;
   }
 
-  private ensure(): AudioContext {
+  private ensure(): AudioContext | null {
+    if (this.broken) return null;
     if (!this.ctx) {
-      this.ctx = this.ctxFactory();
-      this.master = this.ctx.createGain();
-      this.master.connect(this.ctx.destination);
-      this.applyGain();
+      try {
+        const ctx = this.ctxFactory();
+        const master = ctx.createGain();
+        master.connect(ctx.destination);
+        this.ctx = ctx;
+        this.master = master;
+        this.applyGain();
+      } catch {
+        this.broken = true;
+        this.ctx = null;
+        this.master = null;
+        return null;
+      }
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    try {
+      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    } catch {
+      /* ignore */
+    }
     return this.ctx;
   }
 
-  attach(bus: EventBus): void {
-    bus.on('buildingPlaced', () => this.play('build'));
-    bus.on('buildingRemoved', () => this.play('demolish'));
-    bus.on('sale', () => this.play('kaching'));
-    bus.on('news', () => this.play('news'));
-    bus.on('achievement', () => this.play('achievement'));
-    bus.on('vehicleStuck', () => this.play('horn'));
-    bus.on('toast', (e) => { if (e.tone === 'bad') this.play('error'); });
+  attach(bus: EventBus): () => void {
+    const offs = [
+      bus.on('buildingPlaced', () => this.play('build')),
+      bus.on('buildingRemoved', () => this.play('demolish')),
+      bus.on('sale', (e) => { if (e.ownerId === 'player') this.play('kaching'); }),
+      bus.on('news', () => this.play('news')),
+      bus.on('achievement', () => this.play('achievement')),
+      bus.on('vehicleStuck', () => this.play('horn')),
+      bus.on('toast', (e) => { if (e.tone === 'bad') this.play('error'); }),
+    ];
+    return () => { for (const off of offs) off(); };
   }
 
   play(name: SfxName): void {
@@ -65,6 +83,8 @@ export class Sfx {
       this.lastKaching = t;
     }
     const ctx = this.ensure();
+    if (!ctx) return;
+    try {
     const t = ctx.currentTime;
     switch (name) {
       case 'click':
@@ -107,12 +127,17 @@ export class Sfx {
         });
         break;
     }
+    } catch {
+      /* never let audio crash the sim */
+    }
   }
 
   startAmbience(): void {
     this.ambienceWanted = true;
     if (this.muted || this.ambienceStarted) return;
     const ctx = this.ensure();
+    if (!ctx) return;
+    try {
     this.ambienceStarted = true;
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer(ctx);
@@ -134,6 +159,9 @@ export class Sfx {
     lfo.connect(depth);
     depth.connect(lp.frequency);
     lfo.start();
+    } catch {
+      this.ambienceStarted = false;
+    }
   }
 
   private noiseBuffer(ctx: AudioContext): AudioBuffer {

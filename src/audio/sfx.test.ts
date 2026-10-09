@@ -84,7 +84,7 @@ describe('Sfx', () => {
     bus.emit({ type: 'toast', message: 'x', tone: 'bad' });
     bus.emit({ type: 'toast', message: 'x', tone: 'good' });
     bus.emit({ type: 'achievement', id: 'a' });
-    bus.emit({ type: 'sale', cityId: 1, goodId: 'x' as never, qty: 1, revenue: 1, ownerId: 0 as never, buildingId: 1 });
+    bus.emit({ type: 'sale', cityId: 1, goodId: 'x' as never, qty: 1, revenue: 1, ownerId: 'player', buildingId: 1 });
     expect(played).toEqual(['demolish', 'horn', 'error', 'achievement', 'kaching']);
     expect(log.oscStarts).toBeGreaterThan(0);
   });
@@ -97,5 +97,35 @@ describe('Sfx', () => {
     expect(log.noiseStarts).toBe(0);
     sfx.setMuted(false);
     expect(log.noiseStarts).toBe(1);
+  });
+
+  it('never throws when AudioContext is unavailable', () => {
+    const sfx = new Sfx(() => { throw new Error('no audio'); });
+    expect(() => sfx.play('click')).not.toThrow();
+    expect(() => sfx.startAmbience()).not.toThrow();
+    expect(() => sfx.setMuted(false)).not.toThrow();
+  });
+
+  it('attach returns a detach function', () => {
+    const { factory, log } = fakeFactory();
+    const sfx = new Sfx(factory, () => 0);
+    const bus = new EventBus();
+    const off = sfx.attach(bus);
+    off();
+    bus.emit({ type: 'achievement', id: 'a' });
+    bus.emit({ type: 'buildingRemoved', buildingId: 1 });
+    expect(log.created).toBe(0);
+    expect(log.oscStarts).toBe(0);
+  });
+
+  it('only player sales ka-ching', () => {
+    const { factory, log } = fakeFactory();
+    const sfx = new Sfx(factory, () => 0);
+    const bus = new EventBus();
+    sfx.attach(bus);
+    bus.emit({ type: 'sale', cityId: 1, goodId: 'x' as never, qty: 1, revenue: 1, ownerId: 'rival', buildingId: 1 });
+    expect(log.oscStarts).toBe(0);
+    bus.emit({ type: 'sale', cityId: 1, goodId: 'x' as never, qty: 1, revenue: 1, ownerId: 'player', buildingId: 1 });
+    expect(log.oscStarts).toBeGreaterThan(0);
   });
 });
