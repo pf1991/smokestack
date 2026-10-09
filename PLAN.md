@@ -857,6 +857,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `100-year headless run completes under 20 s with no exceptions and victory emitted`.
 - [ ] **Step 2:** Run `npx vitest run src/sim/balance.test.ts`. Expected: FAIL or PASS. Tune constants until all pass, never weakening a test's bounds.
 - [ ] **Step 3:** Implement the tutorial and the chain report.
+- [ ] **Step 3b: Visual polish backlog** (from Wave 2 screenshot reviews): soften the blocky rock-base edge around mountain ranges; smooth the staircase coastline at zoom ≤ 0.5 (corner-rounded sand/water blends); vary hill mound size more so hills read less like a repeated pattern.
 - [ ] **Step 4:** Run `npm test`. Expected: PASS.
 - [ ] **Step 5:** Commit `feat: tutorial and economy balance pass`.
 
