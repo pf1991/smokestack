@@ -15,7 +15,7 @@
 ## Game Design
 
 ### Pitch
-It is 1900. You are a young industrialist with $300,000 and a map full of forests, hills rich in ore, and five small towns that want furniture, bread and, soon, automobiles. Build extraction → refining → manufacturing chains, connect them with roads and trucks (later railways), and sell finished goods in city stores. Prices fall when you flood a market and rise when a town is starved. Towns grow when they are well supplied and shrink when they choke on your smog. Inventions arrive by year: automobiles in 1910, radios in 1925, plastic in 1935, television in 1950, computers in 1980. Old products go out of fashion. *The Daily Smokestack* reports booms, crashes, strikes and the taunts of your rival, **Baron Cornelius Smogsworth** (top hat, monocle, no scruples).
+It is 1900. You are a young industrialist with $300,000 and a map full of forests, hills rich in ore, and five small towns that want furniture, bread and, soon, automobiles. Build extraction → refining → manufacturing chains, connect them with roads and trucks (later railways), and sell finished goods in city stores. Prices fall when you flood a market and rise when a town is starved. Towns grow when they are well supplied and shrink when they choke on your smog. Inventions arrive by year: automobiles and oil in 1910, radios in 1925, plastic in 1935, television in 1950, computers in 1980. Old products go out of fashion. *The Daily Smokestack* reports booms, crashes, strikes and the taunts of your rival, **Baron Cornelius Smogsworth** (top hat, monocle, no scruples).
 
 ### Signature features (the "surprise me" list)
 1. **Era colour grading:** the whole world renders in sepia in 1900 and gains saturation decade by decade until it reaches full technicolor in the 1960s.
@@ -29,7 +29,7 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 
 ### Core rules (values pinned here are used verbatim in tasks)
 - **Time:** 1 tick = 1 game hour; 24 ticks/day; 30 days/month; 12 months/year. Start 1 Jan 1900, game end 31 Dec 2000. At speed 1, one day lasts 2 real seconds. Speeds: 0 (pause), 1, 2, 4, 8.
-- **Map:** 128×96 tiles, 32 px/tile at zoom 1. Terrain: water, sand, grass, forest, hills, mountain. Deposits: iron_ore and coal on hills/mountain, oil on grass/sand (hidden until 1920).
+- **Map:** 128×96 tiles, 32 px/tile at zoom 1. Terrain: water, sand, grass, forest, hills, mountain. Deposits: iron_ore and coal on hills/mountain, oil on grass/sand (hidden until 1910).
 - **Cities:** 5, population 2,000–12,000. Urban radius = `3 + floor(population / 3000)` tiles. Stores may only be built fully inside an urban radius; nothing else may be built on urban tiles.
 - **Money:** start $300,000. Loans in $50,000 steps up to $500,000 total at 6%/year, charged monthly. Six consecutive month-ends with negative cash means bankruptcy (game over).
 - **Roads:** $500/tile, $3,000/tile on water (bridge), not on mountains. Maintenance $5/tile/month for roads you built. Cities start with street grids, and each city is linked to its nearest neighbour by a pre-built road.
@@ -53,16 +53,16 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 | cotton · Cotton · 4 · 1900 · ☁️ | steel · Steel · 22 · 1900 · 🔩 | tools · Tools · 42 · 1900 · 🔨 |
 | fruit · Fruit · 3 · 1900 · 🍎 | fabric · Fabric · 12 · 1900 · 🧵 | clothes · Clothes · 40 · 1900 · 👔 |
 | milk · Milk · 3 · 1900 · 🥛 | glass · Glass · 10 · 1900 · 🪟 | cheese · Cheese · 22 · 1900 · 🧀 |
-| iron_ore · Iron Ore · 6 · 1900 · ⛏️ | fuel · Fuel · 18 · 1920 · ⛽ | juice · Juice · 26 · 1900 · 🧃 |
+| iron_ore · Iron Ore · 6 · 1900 · ⛏️ | fuel · Fuel · 18 · 1910 · ⛽ | juice · Juice · 26 · 1900 · 🧃 |
 | coal · Coal · 5 · 1900 · ⚫ | plastic · Plastic · 20 · 1935 · 🧪 | toys · Toys · 30 · 1900 · 🧸 |
 | sand · Sand · 2 · 1900 · ⏳ | | cars · Automobile · 420 · 1910 · 🚗 |
-| oil · Crude Oil · 8 · 1920 · 🛢️ | | radios · Radio · 130 · 1925 · fade 1965 · 📻 |
+| oil · Crude Oil · 8 · 1910 · 🛢️ | | radios · Radio · 130 · 1925 · fade 1965 · 📻 |
 | | | tvs · Television · 260 · 1950 · 📺 |
 | | | computers · Computer · 600 · 1980 · 💻 |
 
 **DEMAND_PER_1000 (units/month):** furniture 6, bread 30, tools 5, clothes 8, cheese 12, juice 12, toys 6, cars 0.5, radios 1.5, tvs 1, computers 0.6.
 
-**Recipes** (`id: inputs → outputs, days`). A recipe's era is the max era of its outputs.
+**Recipes** (`id: inputs → outputs, days`). A recipe's era is the max era of all its inputs and outputs.
 - Extraction (no inputs, 1 day): r_wood → wood 4 · r_grain → grain 5 · r_cotton → cotton 4 · r_fruit → fruit 4 · r_milk → milk 4 · r_iron → iron_ore 4 · r_coal → coal 4 · r_sand → sand 6 · r_oil → oil 4
 - Refining (1 day): r_lumber wood 4 → lumber 2 · r_flour grain 4 → flour 2 · r_steel iron_ore 3 + coal 2 → steel 2 · r_fabric cotton 4 → fabric 2 · r_glass sand 4 + coal 1 → glass 2 · r_fuel oil 4 → fuel 2 · r_plastic oil 4 → plastic 2
 - Manufacturing: r_furniture lumber 2 → furniture 1 (1) · r_bread flour 2 + milk 1 → bread 3 (1) · r_tools steel 1 + lumber 1 → tools 1 (1) · r_clothes fabric 2 → clothes 1 (1) · r_cheese milk 3 → cheese 1 (1) · r_juice fruit 3 + glass 1 → juice 2 (1) · r_toys_wood lumber 1 → toys 1 (1) · r_toys_plastic plastic 1 → toys 2 (1) · r_cars steel 4 + glass 2 + fuel 1 → cars 1 (2) · r_radios steel 1 + glass 1 + lumber 1 → radios 1 (1) · r_tvs plastic 2 + glass 2 + steel 1 → tvs 1 (2) · r_computers plastic 2 + steel 1 + glass 1 → computers 1 (2)
@@ -73,13 +73,13 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 - dairy_farm · extractor · 3×3 · 12000 · 350 · grass · r_milk · 60 · 1900 · 0
 - mine · extractor · 2×2 · 25000 · 800 · hills, mountain · r_iron, r_coal (requiresDeposit) · 80 · 1900 · 3
 - sand_pit · extractor · 2×2 · 8000 · 250 · sand · r_sand · 80 · 1900 · 1
-- oil_well · extractor · 2×2 · 30000 · 900 · grass, sand, hills · r_oil (requiresDeposit) · 80 · 1920 · 3
+- oil_well · extractor · 2×2 · 30000 · 900 · grass, sand, hills · r_oil (requiresDeposit) · 80 · 1910 · 3
 - sawmill · factory · 3×3 · 20000 · 600 · grass, sand · r_lumber · 60 · 1900 · 2
 - flour_mill · factory · 3×3 · 18000 · 500 · grass, sand · r_flour · 60 · 1900 · 1
 - steel_mill · factory · 3×3 · 60000 · 1500 · grass, sand, hills · r_steel · 60 · 1900 · 6
 - textile_mill · factory · 3×3 · 30000 · 800 · grass, sand · r_fabric · 60 · 1900 · 2
 - glassworks · factory · 3×3 · 35000 · 900 · grass, sand · r_glass · 60 · 1900 · 4
-- refinery · factory · 3×3 · 70000 · 1800 · grass, sand · r_fuel, r_plastic · 60 · 1920 · 8
+- refinery · factory · 3×3 · 70000 · 1800 · grass, sand · r_fuel, r_plastic · 60 · 1910 · 8
 - furniture_factory · factory · 3×3 · 30000 · 700 · grass, sand · r_furniture · 40 · 1900 · 1
 - bakery · factory · 2×2 · 15000 · 400 · grass, sand · r_bread · 60 · 1900 · 1
 - toolworks · factory · 3×3 · 35000 · 900 · grass, sand · r_tools · 40 · 1900 · 3
@@ -242,7 +242,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Consumes: `types.ts` (Task 1).
 - Produces:
   - `GoodDef { id; name; tier: 0|1|2; basePrice; era; fadeYear: number | null; icon: string; color: string }`, `GOODS: Record<GoodId, GoodDef>`, `DEMAND_PER_1000: Record<GoodId, number>`
-  - `RecipeDef { id; inputs: Inventory; outputs: Inventory; days: number }`, `RECIPES: Record<string, RecipeDef>`, `recipeEra(id): number`
+  - `RecipeDef { id; inputs: Inventory; outputs: Inventory; days: number }`, `RECIPES: Record<string, RecipeDef>`, `recipeEra(id): number` (max era over inputs and outputs)
   - `BuildingCategory = 'extractor' | 'factory' | 'retail' | 'logistics'`
   - `BuildingDef { id; name; category; size: { w; h }; cost; maintenance; allowedTerrain: Terrain[]; requiresDeposit: boolean; requiresCity: boolean; recipes: string[]; storage; era; pollution; color: string; description: string }`, `BUILDINGS: Record<BuildingTypeId, BuildingDef>`
   - `getBuilding(id)`, `getGood(id)`, `getRecipe(id)`: each throws `Error('Unknown …: id')` on a miss
@@ -704,8 +704,8 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 
 **Interfaces:**
 - Consumes: Tasks 2, 17.
-- Produces: `ERAS: { name; start; end; blurb }[]`; `eraName(year): string`; `isUnlocked(state, id): boolean`; `checkUnlocks(ctx): void` (on day: adds newly eligible good/building/recipe ids to `state.unlocked`, emits `unlock`, and publishes an `invention` news item with a flavourful headline, e.g. "HORSELESS CARRIAGE TAKES TOWN BY STORM — Automobile plants now possible"; sets `state.flags.oilRevealed = true` in 1920 with "BLACK GOLD! Oil found beneath the plains"); `fadeWarnings(ctx)` (on year: news the year before `fadeYear` and when demand halves); `eraBanner` toast on era change.
-- [ ] **Step 1: Write failing tests:** `cars unlocked on 1 Jan 1910 with one news item`; `no duplicate unlock`; `oil revealed in 1920`; `eraName(1955)==='Atomic Age'`; `radio fade warning in 1964`.
+- Produces: `ERAS: { name; start; end; blurb }[]`; `eraName(year): string`; `isUnlocked(state, id): boolean`; `checkUnlocks(ctx): void` (on day: adds newly eligible good/building/recipe ids to `state.unlocked`, emits `unlock`, and publishes an `invention` news item with a flavourful headline, e.g. "HORSELESS CARRIAGE TAKES TOWN BY STORM — Automobile plants now possible"; sets `state.flags.oilRevealed = true` in 1910 with "BLACK GOLD! Oil found beneath the plains"); `fadeWarnings(ctx)` (on year: news the year before `fadeYear` and when demand halves); `eraBanner` toast on era change.
+- [ ] **Step 1: Write failing tests:** `cars unlocked on 1 Jan 1910 with one news item`; `no duplicate unlock`; `oil revealed in 1910`; `eraName(1955)==='Atomic Age'`; `radio fade warning in 1964`.
 - [ ] **Step 2:** Run. Expected: FAIL. **Step 3:** Implement. Also make the toolbar (Task 15) read `isUnlocked`: a one-line change in `toolbar.ts`. **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(sim): eras, inventions and product lifecycle news`.
 
