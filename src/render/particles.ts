@@ -4,6 +4,8 @@ import type { Camera } from './constants';
 
 const MAX_PARTICLES = 2000;
 const SMOKE_LIFE = 3000;
+const SMOKE_RATE = 4; // puffs per second at density 1
+const MAX_STEP_MS = 100;
 const SMOKE_RISE = 12; // px/s
 const TEXT_LIFE = 1200;
 const TEXT_RISE = 24 / 1.2; // 24 px over 1.2 s, px/s
@@ -34,10 +36,12 @@ export class ParticleSystem {
   private parts: Particle[] = [];
   private t = 0;
 
-  emitSmoke(wx: number, wy: number, density: number): void {
+  emitSmoke(wx: number, wy: number, density: number, dtMs: number): void {
     const d = Math.min(1, Math.max(0, density));
-    // Expected puffs per call = 2 * density, always an integer count.
-    const n = Math.floor(d * 2 + Math.random());
+    const dt = Math.min(Math.max(0, dtMs), MAX_STEP_MS);
+    // Expected puffs per call = SMOKE_RATE * density * dt, so the emission rate
+    // is independent of how often the caller runs.
+    const n = Math.floor((SMOKE_RATE * d * dt) / 1000 + Math.random());
     for (let i = 0; i < n; i++) {
       this.add({
         kind: 'smoke',
@@ -82,12 +86,16 @@ export class ParticleSystem {
   }
 
   update(dtMs: number): void {
-    const step = Math.max(0, dtMs);
+    const step = Math.min(Math.max(0, dtMs), MAX_STEP_MS);
     this.t += step;
     const dt = step / 1000;
     const wind = windAt(this.t);
-    for (const p of this.parts) {
+    const parts = this.parts;
+    let w = 0;
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
       p.age += step;
+      if (p.age >= p.life) continue;
       if (p.kind === 'smoke') {
         p.x += wind * dt;
         p.y += p.vy * dt;
@@ -98,11 +106,14 @@ export class ParticleSystem {
       } else {
         p.y += p.vy * dt;
       }
+      parts[w++] = p;
     }
-    this.parts = this.parts.filter((p) => p.age < p.life);
+    parts.length = w;
+    this.trim();
   }
 
   draw(ctx: CanvasRenderingContext2D, cam: Camera): void {
+    this.trim();
     ctx.save();
     for (const p of this.parts) {
       const sx = (p.x - cam.x) * cam.zoom;
@@ -137,11 +148,17 @@ export class ParticleSystem {
   }
 
   count(): number {
+    this.trim();
     return this.parts.length;
   }
 
   private add(p: Particle): void {
-    if (this.parts.length >= MAX_PARTICLES) this.parts.shift();
     this.parts.push(p);
+  }
+
+  /** Drops the oldest particles in one splice once over the cap. */
+  private trim(): void {
+    const excess = this.parts.length - MAX_PARTICLES;
+    if (excess > 0) this.parts.splice(0, excess);
   }
 }
