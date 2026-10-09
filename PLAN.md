@@ -491,7 +491,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `seasonTint(month): string | null` (rgba overlay: cool blue in winter, warm in summer, null otherwise)
   - `applyAtmosphere(ctx, w, h, date): void`: night overlay (multiply dark blue by 1 − lightLevel) plus season tint.
   - `cssFilterFor(year): string` (e.g. `"sepia(0.8) saturate(0.6)"`), applied to the world canvas element.
-  - `class ParticleSystem { emitSmoke(wx, wy, density: number): void; emitFloatText(wx, wy, text: string, color: string): void; emitSparks(wx, wy): void; update(dtMs): void; draw(ctx, cam): void; count(): number }`. Capped at 2000 particles. Smoke rises, drifts with a global wind and fades over ~3 s. Float text ("+$48") rises 24 px and fades over 1.2 s.
+  - `class ParticleSystem { emitSmoke(wx, wy, density: number, dtMs: number): void /* rate-based: ~4 puffs/s at density 1, frame-rate independent */; emitFloatText(wx, wy, text: string, color: string): void; emitSparks(wx, wy): void; update(dtMs): void; draw(ctx, cam): void; count(): number }`. Capped at 2000 particles. Smoke rises, drifts with a global wind and fades over ~3 s. Float text ("+$48") rises 24 px and fades over 1.2 s.
 - [ ] **Step 1: Write failing tests:** `lightLevel(12)===1`, `lightLevel(0)===0.25`, `lightLevel(6)` strictly between; `eraGrade(1900).sepia===0.8`, `eraGrade(1965).sepia===0`, `eraGrade(1990)` equals `eraGrade(1965)`; `particles expire` (emit, update 5000 ms → count 0); `cap respected`.
 - [ ] **Step 2:** Run. Expected: FAIL. **Step 3:** Implement. **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(render): day/night, seasons, era grading and particles`.
