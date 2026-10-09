@@ -13,6 +13,10 @@ export interface Tile {
   deposit: GoodId | null;
   road: boolean;
   rail: boolean;
+  /** company that built (and pays upkeep for) this road; null for pre-built or unowned road */
+  roadOwner: OwnerId | null;
+  /** company that built this rail; null when unowned */
+  railOwner: OwnerId | null;
   buildingId: number | null;
   cityId: number | null;
   pollution: number;

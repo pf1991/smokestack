@@ -3,7 +3,7 @@ import { findPath, roadPassable, railPassable, roadBuildable, waterAvoidingCost 
 import type { GameMap, Tile, Terrain } from './types';
 
 function tile(terrain: Terrain = 'grass', road = false): Tile {
-  return { terrain, deposit: null, road, rail: false, buildingId: null, cityId: null, pollution: 0 };
+  return { terrain, deposit: null, road, rail: false, roadOwner: null, railOwner: null, buildingId: null, cityId: null, pollution: 0 };
 }
 function makeMap(w: number, h: number, road = true, terrain: Terrain = 'grass'): GameMap {
   const tiles: Tile[] = [];

@@ -46,6 +46,8 @@ function buildTerrain(seed: number, width: number, height: number): GameMap {
         buildingId: null,
         cityId: null,
         pollution: 0,
+        roadOwner: null,
+        railOwner: null,
       };
     }
   }
