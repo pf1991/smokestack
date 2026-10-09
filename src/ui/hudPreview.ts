@@ -1,0 +1,20 @@
+import { createGame } from '../sim/state';
+import { Hud } from './hud';
+import { Toolbar } from './toolbar';
+import './theme.css';
+
+const state = createGame({ seed: 1 });
+state.date.year = 1925;
+state.date.month = 3;
+state.date.day = 14;
+state.speed = 2;
+state.unlocked = state.unlocked.filter((id) => id !== 'electronics_plant');
+const root = document.getElementById('ui')!;
+const hud = new Hud(root, { onSpeed: (s) => { state.speed = s; hud.update(state); }, onOpenPanel: () => {} });
+const toolbar = new Toolbar(root, () => {});
+hud.update(state);
+toolbar.update(state);
+document.getElementById('ticker')!.textContent = 'EXTRA! Baron Smogsworth buys up all the timber in the county — The Daily Smokestack';
+const tab = new URLSearchParams(location.search).get('tab') ?? 'manufacture';
+(root.querySelector(`[data-tab="${tab}"]`) as HTMLElement).click();
+(root.querySelector('[data-building="furniture_factory"]') as HTMLElement | null)?.click();
