@@ -1,0 +1,375 @@
+import type { Result } from '../core/result';
+import { err, ok } from '../core/result';
+import { canAfford, earn, spend } from './finance';
+import { acceptsGood, loadSource, storageLeft } from './inventory';
+import { findPath, roadPassable, type Passable } from './pathfinding';
+import { accessTiles, nextId } from './state';
+import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
+
+export interface VehicleSpec {
+  cost: number;
+  capacity: number;
+  /** tiles per tick */
+  speed: number;
+  /** dollars per month */
+  maintenance: number;
+  /** ticks spent at each stop */
+  loadTicks: number;
+}
+
+export const TRUCK = { cost: 8000, capacity: 20, speed: 0.5, maintenance: 150, loadTicks: 6 } as const;
+
+/** How a vehicle kind moves: its spec, which tiles it may drive on and where it docks at a building. */
+export interface VehicleKindDef {
+  spec: VehicleSpec;
+  passable: Passable;
+  access: (state: GameState, building: Building) => Vec2[];
+}
+
+/** Movement is generic over this table; Task 27 registers `train` here. */
+export const VEHICLE_KINDS: Partial<Record<Vehicle['kind'], VehicleKindDef>> = {
+  truck: { spec: TRUCK, passable: roadPassable, access: accessTiles },
+};
+
+export const ROUTE_COLORS = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6'];
+
+/** Ticks between path retries of a stuck vehicle (staggered by vehicle id). */
+export const STUCK_RETRY_TICKS = 24;
+const SELL_REFUND = 0.5;
+
+// ---------------------------------------------------------------------------
+// routes
+
+function validateStops(state: GameState, owner: OwnerId, kind: Route['kind'], stops: RouteStop[]): Result {
+  const def = VEHICLE_KINDS[kind];
+  if (!def) return err('Unknown vehicle kind');
+  for (const stop of stops) {
+    const b = state.buildings[stop.buildingId];
+    if (!b) return err('No such building');
+    if (b.ownerId !== owner) return err('Not your building');
+    if (def.access(state, b).length === 0) return err('Stop has no road access');
+  }
+  return ok();
+}
+
+const copyStop = (s: RouteStop): RouteStop => ({ buildingId: s.buildingId, load: [...s.load], unload: [...s.unload] });
+
+export function createRoute(
+  ctx: SimContext,
+  owner: OwnerId,
+  name: string,
+  stops: RouteStop[],
+  kind: Route['kind'] = 'truck',
+): Result<Route> {
+  const { state } = ctx;
+  if (stops.length < 2) return err('A route needs at least two stops');
+  const v = validateStops(state, owner, kind, stops);
+  if (!v.ok) return v;
+  const id = nextId(state);
+  const route: Route = {
+    id,
+    ownerId: owner,
+    name,
+    color: ROUTE_COLORS[id % ROUTE_COLORS.length],
+    stops: stops.map(copyStop),
+    kind,
+  };
+  state.routes[id] = route;
+  return ok(route);
+}
+
+/**
+ * Stops may drop below two here (the route's vehicles then idle); new stops must be own buildings
+ * with access. When stops change, every vehicle re-plans towards its (clamped) current stop index.
+ */
+export function updateRoute(
+  ctx: SimContext,
+  routeId: number,
+  patch: Partial<Pick<Route, 'name' | 'stops' | 'color'>>,
+): Result {
+  const { state } = ctx;
+  const route = state.routes[routeId];
+  if (!route) return err('No such route');
+  if (patch.stops) {
+    const v = validateStops(state, route.ownerId, route.kind, patch.stops);
+    if (!v.ok) return v;
+  }
+  if (patch.name !== undefined) route.name = patch.name;
+  if (patch.color !== undefined) route.color = patch.color;
+  if (patch.stops) {
+    route.stops = patch.stops.map(copyStop);
+    const n = route.stops.length;
+    for (const veh of Object.values(state.vehicles)) {
+      if (veh.routeId !== routeId) continue;
+      veh.path = [];
+      veh.pathIndex = 0;
+      veh.stopIndex = n > 0 ? veh.stopIndex % n : 0;
+      if (n < 2) veh.state = 'idle';
+      else if (veh.state === 'idle' || veh.state === 'stuck') veh.state = 'moving';
+      // a 'loading' vehicle finishes its dwell, then (path cleared) heads for its current stop
+    }
+  }
+  return ok();
+}
+
+/** Sells the route's vehicles (50% refund each), then removes the route. */
+export function deleteRoute(ctx: SimContext, routeId: number): Result {
+  const { state } = ctx;
+  if (!state.routes[routeId]) return err('No such route');
+  for (const veh of Object.values(state.vehicles)) if (veh.routeId === routeId) sellVehicle(ctx, veh.id);
+  delete state.routes[routeId];
+  return ok();
+}
+
+// ---------------------------------------------------------------------------
+// purchases
+
+function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kind: Vehicle['kind']): Result<Vehicle> {
+  const { state } = ctx;
+  const def = VEHICLE_KINDS[kind];
+  if (!def) return err('Unknown vehicle kind');
+  const route = state.routes[routeId];
+  if (!route) return err('No such route');
+  if (route.ownerId !== owner) return err('Not your route');
+  if (route.kind !== kind) return err('Wrong vehicle for this route');
+  const first = route.stops[0] ? state.buildings[route.stops[0].buildingId] : undefined;
+  const spawn = first ? def.access(state, first)[0] : undefined;
+  if (!spawn) return err('Stop has no road access');
+  const company = state.companies[owner];
+  if (!canAfford(company, def.spec.cost)) return err('Not enough money');
+  spend(company, 'vehicles', def.spec.cost, state.date);
+  const vehicle: Vehicle = {
+    id: nextId(state),
+    kind,
+    ownerId: owner,
+    routeId,
+    pos: { x: spawn.x, y: spawn.y },
+    prevPos: { x: spawn.x, y: spawn.y },
+    path: [],
+    pathIndex: 0,
+    stopIndex: 0,
+    cargo: {},
+    capacity: def.spec.capacity,
+    state: route.stops.length >= 2 ? 'moving' : 'idle',
+    waitTicks: 0,
+    stuckNotified: false,
+  };
+  state.vehicles[vehicle.id] = vehicle;
+  return ok(vehicle);
+}
+
+/** Spawns at the first stop's first access tile and heads for that stop. */
+export function buyTruck(ctx: SimContext, owner: OwnerId, routeId: number): Result<Vehicle> {
+  return buyVehicle(ctx, owner, routeId, 'truck');
+}
+
+/** Removes the vehicle (cargo is lost) and refunds 50% of its price as `vehicles` income. */
+export function sellVehicle(ctx: SimContext, id: number): Result {
+  const { state } = ctx;
+  const veh = state.vehicles[id];
+  if (!veh) return err('No such vehicle');
+  const cost = VEHICLE_KINDS[veh.kind]?.spec.cost ?? 0;
+  earn(state.companies[veh.ownerId], 'vehicles', cost * SELL_REFUND, state.date);
+  delete state.vehicles[id];
+  return ok();
+}
+
+export function vehicleMaintenanceMonth(ctx: SimContext): void {
+  const { state } = ctx;
+  for (const veh of Object.values(state.vehicles)) {
+    const def = VEHICLE_KINDS[veh.kind];
+    if (def) spend(state.companies[veh.ownerId], 'vehicles', def.spec.maintenance, state.date);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// state machine
+
+function cargoTotal(veh: Vehicle): number {
+  let n = 0;
+  for (const g in veh.cargo) n += veh.cargo[g];
+  return n;
+}
+
+/** Unload `stop.unload` goods the building accepts (bounded by storageLeft), then load `stop.load`. */
+function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building): void {
+  let unloaded: string[] | null = null;
+  for (const g of stop.unload) {
+    const carried = veh.cargo[g] ?? 0;
+    if (carried <= 0 || !acceptsGood(b, g)) continue;
+    const n = Math.min(carried, storageLeft(b, g));
+    if (n <= 0) continue;
+    b.input[g] = (b.input[g] ?? 0) + n;
+    if (carried - n > 0) veh.cargo[g] = carried - n;
+    else delete veh.cargo[g];
+    (unloaded ??= []).push(g);
+  }
+
+  const src = loadSource(b);
+  const goods = stop.load;
+  const k = goods.length;
+  let free = veh.capacity - cargoTotal(veh);
+  if (k === 0 || free <= 0) return;
+  // whole units, one at a time round-robin; the starting good rotates with the clock so remainders
+  // are not always given to the first listed good. Goods just unloaded here are not reloaded.
+  const start = state.tick % k;
+  let progress = true;
+  while (free > 0 && progress) {
+    progress = false;
+    for (let j = 0; j < k && free > 0; j++) {
+      const g = goods[(start + j) % k];
+      if (unloaded?.includes(g)) continue;
+      const avail = src[g] ?? 0;
+      if (avail < 1) continue;
+      src[g] = avail - 1;
+      veh.cargo[g] = (veh.cargo[g] ?? 0) + 1;
+      free--;
+      progress = true;
+    }
+  }
+}
+
+function goStuck(ctx: SimContext, veh: Vehicle): false {
+  veh.state = 'stuck';
+  veh.path = [];
+  veh.pathIndex = 0;
+  if (!veh.stuckNotified) {
+    veh.stuckNotified = true;
+    ctx.bus.emit({ type: 'vehicleStuck', vehicleId: veh.id });
+  }
+  return false;
+}
+
+/**
+ * Plans a path from the vehicle's current tile to any access tile of its current stop, skipping
+ * stops whose building no longer exists. Sets 'moving' on success, 'stuck' (one event) on failure.
+ */
+function plan(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): boolean {
+  const { state } = ctx;
+  const n = route.stops.length;
+  let b: Building | undefined;
+  for (let tries = 0; tries < n; tries++) {
+    b = state.buildings[route.stops[veh.stopIndex].buildingId];
+    if (b) break;
+    veh.stopIndex = (veh.stopIndex + 1) % n;
+  }
+  if (!b) return goStuck(ctx, veh);
+  const targets = def.access(state, b);
+  const from = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };
+  const path = targets.length > 0 ? findPath(state.map, from, targets, def.passable) : null;
+  if (!path) return goStuck(ctx, veh);
+  veh.path = path;
+  veh.pathIndex = 0;
+  veh.state = 'moving';
+  veh.stuckNotified = false;
+  return true;
+}
+
+function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
+  const { state } = ctx;
+  const stop = route.stops[veh.stopIndex];
+  const b = state.buildings[stop.buildingId];
+  if (!b) {
+    veh.stopIndex = (veh.stopIndex + 1) % route.stops.length;
+    plan(ctx, veh, route, def);
+    return;
+  }
+  transfer(state, veh, stop, b);
+  veh.state = 'loading';
+  veh.waitTicks = def.spec.loadTicks;
+}
+
+const EPS = 1e-9;
+
+/** Advances `speed` tiles along the path, crossing several nodes if needed; arrival at the last node. */
+function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
+  const { map } = ctx.state;
+  let remaining = def.spec.speed;
+  let replanned = false;
+  for (;;) {
+    if (veh.pathIndex >= veh.path.length) {
+      arrive(ctx, veh, route, def);
+      return;
+    }
+    const node = veh.path[veh.pathIndex];
+    // the road ahead was removed: re-plan once from here (the start node is always our own tile)
+    if (veh.pathIndex > 0 && !def.passable(map.tiles[node.y * map.width + node.x], node.x, node.y)) {
+      if (replanned || !plan(ctx, veh, route, def)) {
+        if (veh.state === 'moving') goStuck(ctx, veh);
+        return;
+      }
+      replanned = true;
+      continue;
+    }
+    if (remaining <= EPS) return;
+    const dx = node.x - veh.pos.x;
+    const dy = node.y - veh.pos.y;
+    const d = Math.abs(dx) + Math.abs(dy);
+    if (d <= remaining + EPS) {
+      veh.pos.x = node.x;
+      veh.pos.y = node.y;
+      remaining -= d;
+      veh.pathIndex++;
+    } else {
+      // partial step: x first, then y (off-grid only right after a mid-tile re-plan)
+      const mx = Math.max(-remaining, Math.min(remaining, dx));
+      veh.pos.x += mx;
+      remaining -= Math.abs(mx);
+      const my = Math.max(-remaining, Math.min(remaining, dy));
+      veh.pos.y += my;
+      return;
+    }
+  }
+}
+
+function tickVehicle(ctx: SimContext, veh: Vehicle): void {
+  const { state } = ctx;
+  veh.prevPos.x = veh.pos.x;
+  veh.prevPos.y = veh.pos.y;
+  const def = VEHICLE_KINDS[veh.kind];
+  if (!def) return;
+  const route = veh.routeId !== null ? state.routes[veh.routeId] : undefined;
+  const n = route ? route.stops.length : 0;
+  if (!route || n < 2) {
+    veh.state = 'idle';
+    if (veh.path.length > 0) {
+      veh.path = [];
+      veh.pathIndex = 0;
+    }
+    return;
+  }
+  if (veh.stopIndex >= n || veh.stopIndex < 0) veh.stopIndex = ((veh.stopIndex % n) + n) % n;
+  if (veh.state === 'idle') {
+    veh.state = 'moving';
+    veh.path = [];
+    veh.pathIndex = 0;
+  }
+
+  switch (veh.state) {
+    case 'loading': {
+      if (--veh.waitTicks > 0) return;
+      veh.waitTicks = 0;
+      // A cleared path means the stops were re-indexed while we dwelt (demolition or edit):
+      // head for the current stop instead of skipping past it.
+      if (veh.path.length > 0) veh.stopIndex = (veh.stopIndex + 1) % n;
+      plan(ctx, veh, route, def);
+      return;
+    }
+    case 'stuck': {
+      if ((state.tick + veh.id) % STUCK_RETRY_TICKS !== 0) return;
+      plan(ctx, veh, route, def);
+      return;
+    }
+    case 'moving': {
+      if (veh.path.length === 0 && !plan(ctx, veh, route, def)) return;
+      move(ctx, veh, route, def);
+      return;
+    }
+  }
+}
+
+/** The vehicle state machine: moving → loading → moving, with stuck/idle side states. Ids ascending. */
+export function vehiclesTick(ctx: SimContext): void {
+  const { vehicles } = ctx.state;
+  for (const id in vehicles) tickVehicle(ctx, vehicles[id]);
+}
