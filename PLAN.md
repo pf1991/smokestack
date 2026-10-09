@@ -347,7 +347,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `salePrice(goodId, supplyRatio: number): number` (rounded to whole dollars, min 1)
   - `supplyRatio(entry: MarketEntry | undefined): number` (0 when there is no demand history)
   - `StoreStock { buildingId; ownerId: OwnerId; stock: Inventory }`, `Sale { buildingId; ownerId; goodId; qty; revenue }`
-  - `computeDailySales(city, stores: StoreStock[], year, demandMod: (goodId) => number): Sale[]`: mutates only `city.market[g].pending`. Each day, `pending = min(pending + monthly/30, max(monthly/30 × 3, 1))`. Whole units `floor(pending + 1e-9)` are dealt round-robin to stores that still have stock until the units or the stock run out, and the units actually sold are subtracted from `pending`. This lets low-demand goods such as cars still sell every few days.
+  - `computeDailySales(city, stores: StoreStock[], year, demandMod: (goodId) => number, dayOffset = 0): Sale[]`: dealing starts at store `(dayOffset + goodIndex) % activeStores` so leftover units rotate fairly between owners. mutates only `city.market[g].pending`. Each day, `pending = min(pending + monthly/30, max(monthly/30 × 3, 1))`. Whole units `floor(pending + 1e-9)` are dealt round-robin to stores that still have stock until the units or the stock run out, and the units actually sold are subtracted from `pending`. This lets low-demand goods such as cars still sell every few days.
   - `updateMarketDay(city, goodId, sold: number, demandToday: number): void`: `x30 = x30 × 29/30 + today`
   - `satisfaction(city, goodId): number` = clamp(sold30 / demand30, 0, 1)
   - `monthlyGrowth(population, avgSatisfaction, pollution): number`
@@ -512,7 +512,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `storageLeft(building, goodId): number`
   - `demandModifier(state, cityId, goodId): number`: product of active `state.modifiers` that match the good (or `'*'`) and the city (or null).
   - `productionDay(ctx): void`: extractors produce `outputs × efficiency` (lumber camp efficiency = forest tiles in footprint / footprint size; farms use the season factor); factories advance progress by `1/days` when inputs are present and output is not full; sets `status`; respects `haltedUntil`; accumulates `producedThisMonth`.
-  - `retailDay(ctx): void`: per city, applies `computeDailySales` to stores, earns `sales`, updates the market, emits one `sale` event per (store, good) with qty > 0. Every good with demand updates `demand30` even when nothing sold.
+  - `retailDay(ctx): void`: per city, applies `computeDailySales` to stores (passing `dayOffset = dateToDays(state.date)`), earns `sales` (also adding revenue to the ledger month's `salesByGood`), updates the market, emits one `sale` event per (store, good) with qty > 0. Every good with demand updates `demand30` even when nothing sold.
   - `maintenanceMonth(ctx): void`: building maintenance plus `roadTiles × 5` plus `railTiles × 0` (Task 27 sets rail upkeep), charged as `maintenance`.
   - `growthMonth(ctx): void`: applies `monthlyGrowth` per city using the average satisfaction over goods with demand > 0 and `city.pollution`; sets `happiness`; calls `refreshUrbanTiles`; resets `producedThisMonth`.
   - Registers in `SYSTEMS` (via Task 17's registry; until Task 17 merges, export the functions only and Task 17 wires them).
