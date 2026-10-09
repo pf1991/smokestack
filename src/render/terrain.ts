@@ -3,6 +3,7 @@ import type { GameMap, Terrain, Tile } from '../sim/types';
 
 export const CHUNK = 16;
 const CHUNK_PX = CHUNK * TILE;
+const MAX_RENDERS_PER_FRAME = 4;
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 type Surface = HTMLCanvasElement | OffscreenCanvas;
@@ -32,9 +33,11 @@ const BASE: Record<Terrain, [number, number, number]> = {
   sand: [222, 201, 140],
   grass: [104, 156, 70],
   forest: [58, 110, 52],
-  hills: [140, 140, 80],
-  mountain: [128, 126, 124],
+  hills: [138, 148, 82],
+  mountain: [92, 88, 86],
 };
+
+const PRIORITY: Record<Terrain, number> = { water: -1, sand: 0, grass: 1, forest: 2, hills: 3, mountain: 4 };
 
 export function isWinter(month: number): boolean {
   return month === 12 || month === 1 || month === 2;
@@ -90,8 +93,9 @@ export class TerrainRenderer {
     const r = visibleTileRange(cam, this.map);
     if (r.x1 < r.x0 || r.y1 < r.y0) return;
     ctx.save();
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = cam.zoom < 1;
 
+    let budget = MAX_RENDERS_PER_FRAME;
     const cx0 = Math.floor(r.x0 / CHUNK);
     const cx1 = Math.floor(r.x1 / CHUNK);
     const cy0 = Math.floor(r.y0 / CHUNK);
@@ -100,16 +104,26 @@ export class TerrainRenderer {
       for (let cx = cx0; cx <= cx1; cx++) {
         const key = cy * this.cols + cx;
         let ch = this.chunks.get(key);
-        if (!ch) {
-          ch = { surface: makeSurface(CHUNK_PX, CHUNK_PX), dirty: true, winter, oil: opts.oilVisible, drawn: false };
-          this.chunks.set(key, ch);
-        }
-        if (ch.dirty || !ch.drawn || ch.winter !== winter || ch.oil !== opts.oilVisible) {
+        const stale = !ch || ch.dirty || !ch.drawn || ch.winter !== winter || ch.oil !== opts.oilVisible;
+        if (stale && budget > 0) {
+          if (!ch) {
+            ch = { surface: makeSurface(CHUNK_PX, CHUNK_PX), dirty: true, winter, oil: opts.oilVisible, drawn: false };
+            this.chunks.set(key, ch);
+          }
+          budget--;
           ch.winter = winter;
           ch.oil = opts.oilVisible;
           ch.dirty = false;
           ch.drawn = true;
           this.renderChunk(ch, cx, cy);
+        }
+        if (!ch || !ch.drawn) {
+          // over budget and nothing cached yet: flat placeholder until a later frame
+          const fx = Math.floor((cx * CHUNK_PX - cam.x) * cam.zoom);
+          const fy = Math.floor((cy * CHUNK_PX - cam.y) * cam.zoom);
+          ctx.fillStyle = winter ? '#dfe8ee' : '#68a046';
+          ctx.fillRect(fx, fy, Math.ceil(CHUNK_PX * cam.zoom) + 1, Math.ceil(CHUNK_PX * cam.zoom) + 1);
+          continue;
         }
         const sx = Math.floor((cx * CHUNK_PX - cam.x) * cam.zoom);
         const sy = Math.floor((cy * CHUNK_PX - cam.y) * cam.zoom);
@@ -189,7 +203,18 @@ export class TerrainRenderer {
         ctx.restore();
       }
     }
-    // Pass 2: forest crowns (include a 1-tile ring so overhangs cross chunk seams).
+    // Pass 2: hill mounds, then mountain peaks (row-sorted), both over a 1-tile ring so they cross seams.
+    for (let ty = ty0 - 1; ty <= ty1; ty++) {
+      for (let tx = tx0 - 1; tx <= tx1; tx++) {
+        if (this.terrainAt(tx, ty) === 'hills') this.drawMounds(ctx, (tx - tx0) * TILE, (ty - ty0) * TILE, tx, ty, ch.winter);
+      }
+    }
+    for (let ty = ty0 - 1; ty <= ty1 + 1; ty++) {
+      for (let tx = tx0 - 1; tx <= tx1; tx++) {
+        if (this.terrainAt(tx, ty) === 'mountain') this.drawPeaks(ctx, (tx - tx0) * TILE, (ty - ty0) * TILE, tx, ty, ch.winter);
+      }
+    }
+    // Pass 2b: forest crowns.
     for (let ty = ty0 - 1; ty <= ty1; ty++) {
       for (let tx = tx0 - 1; tx <= tx1; tx++) {
         const t = this.tile(tx, ty);
@@ -213,14 +238,26 @@ export class TerrainRenderer {
     const terr = tile.terrain;
     const base = BASE[terr];
     // soft per-tile colour variation, smoothed a bit by blending with a coarse hash
-    const v = (h01(tx, ty, s, 1) - 0.5) * 16 + (h01(tx >> 2, ty >> 2, s, 2) - 0.5) * 14;
+    const v = (h01(tx, ty, s, 1) - 0.5) * 4 + (h01(tx >> 2, ty >> 2, s, 2) - 0.5) * 3;
     ctx.fillStyle = rgb(base[0] + v, base[1] + v, base[2] + v * 0.8);
     ctx.fillRect(0, 0, TILE, TILE);
 
+    if (terr === 'water') {
+      this.drawWaterTile(ctx, tx, ty);
+      return;
+    }
+    if (terr === 'mountain') {
+      for (let i = 0; i < 40; i++) {
+        const k = h01(tx, ty, s, 500 + i);
+        ctx.fillStyle = k < 0.5 ? 'rgba(60,56,56,0.35)' : 'rgba(140,134,130,0.3)';
+        ctx.fillRect(Math.floor(h01(tx, ty, s, 560 + i) * 8) * 4, Math.floor(h01(tx, ty, s, 620 + i) * 8) * 4, 4, 4);
+      }
+    } else {
+      this.blendNeighbours(ctx, tx, ty, terr);
+      this.scree(ctx, tx, ty);
+    }
+
     switch (terr) {
-      case 'water':
-        this.drawWaterTile(ctx, tx, ty);
-        return;
       case 'sand':
         for (let i = 0; i < 10; i++) {
           const x = h01(tx, ty, s, 10 + i * 2) * TILE;
@@ -247,15 +284,12 @@ export class TerrainRenderer {
           ctx.fillStyle = 'rgba(30,70,30,0.4)';
           ctx.fillRect(Math.floor(h01(tx, ty, s, 20 + i * 2) * 30), Math.floor(h01(tx, ty, s, 21 + i * 2) * 30), 3, 2);
         }
-        this.edgeStrips(ctx, tx, ty, (t) => t === 'grass' || t === 'sand' || t === 'hills', 'rgba(20,50,25,0.4)', 4);
         this.sandFringe(ctx, tx, ty);
         break;
       case 'hills':
-        this.drawHills(ctx, tx, ty);
         this.sandFringe(ctx, tx, ty);
         break;
       case 'mountain':
-        this.drawMountain(ctx, tx, ty, winter);
         break;
     }
 
@@ -346,99 +380,152 @@ export class TerrainRenderer {
     }
   }
 
-  private drawHills(ctx: Ctx, tx: number, ty: number): void {
-    const s = this.seed;
-    const ox = h01(tx, ty, s, 40) * 10 - 5;
-    const oy = h01(tx, ty, s, 41) * 8 - 4;
-    // soft mounds with light top-left, dark bottom-right contour
-    for (let i = 0; i < 3; i++) {
-      const cx = 16 + ox + (i - 1) * 7;
-      const cy = 18 + oy + (i % 2) * 3;
-      const rad = 11 - i * 2;
-      ctx.fillStyle = 'rgba(70,60,30,0.28)';
-      ctx.beginPath();
-      ctx.ellipse(cx + 1.5, cy + 2, rad, rad * 0.62, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = rgb(150 + i * 10, 150 + i * 9, 88 + i * 6);
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rad, rad * 0.6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(95,85,45,0.55)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rad * 0.62, rad * 0.36, 0, 0.3, Math.PI * 1.2);
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(235,235,170,0.4)';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy - 1, rad * 0.85, rad * 0.5, 0, Math.PI * 1.05, Math.PI * 1.75);
-      ctx.stroke();
-    }
-    for (let i = 0; i < 4; i++) {
-      ctx.fillStyle = 'rgba(90,120,60,0.55)';
-      ctx.fillRect(Math.floor(h01(tx, ty, s, 50 + i * 2) * 30), Math.floor(h01(tx, ty, s, 51 + i * 2) * 30), 2, 2);
+  /** Blend a jittered gradient from each edge/corner towards lower-priority neighbours' colours. */
+  private blendNeighbours(ctx: Ctx, tx: number, ty: number, terr: Terrain): void {
+    const pr = PRIORITY[terr];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const n = this.terrainAt(tx + dx, ty + dy);
+        if (n === undefined || n === 'water' || PRIORITY[n] >= pr) continue;
+        const b = BASE[n];
+        const depth = 8 + h01(tx, ty, this.seed, 600 + (dy + 1) * 3 + dx + 1) * 5;
+        const c0 = `rgba(${b[0]},${b[1]},${b[2]},0.85)`;
+        const c1 = `rgba(${b[0]},${b[1]},${b[2]},0)`;
+        if (dx && dy) {
+          const px = dx < 0 ? 0 : TILE;
+          const py = dy < 0 ? 0 : TILE;
+          const g = ctx.createRadialGradient(px, py, 0, px, py, depth);
+          g.addColorStop(0, c0);
+          g.addColorStop(1, c1);
+          ctx.fillStyle = g;
+          ctx.fillRect(dx < 0 ? 0 : TILE - depth, dy < 0 ? 0 : TILE - depth, depth, depth);
+        } else {
+          const x0 = dx > 0 ? TILE : 0;
+          const y0 = dy > 0 ? TILE : 0;
+          const x1 = dx < 0 ? depth : dx > 0 ? TILE - depth : 0;
+          const y1 = dy < 0 ? depth : dy > 0 ? TILE - depth : 0;
+          const g = ctx.createLinearGradient(x0, y0, x1, y1);
+          g.addColorStop(0, c0);
+          g.addColorStop(1, c1);
+          ctx.fillStyle = g;
+          if (dx) ctx.fillRect(dx < 0 ? 0 : TILE - depth, 0, depth, TILE);
+          else ctx.fillRect(0, dy < 0 ? 0 : TILE - depth, TILE, depth);
+        }
+      }
     }
   }
 
-  private drawMountain(ctx: Ctx, tx: number, ty: number, winter: boolean): void {
+  /** Rocky scree fading out from adjoining mountain tiles. */
+  private scree(ctx: Ctx, tx: number, ty: number): void {
+    const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    for (let i = 0; i < 4; i++) {
+      if (this.terrainAt(tx + dirs[i][0], ty + dirs[i][1]) !== 'mountain') continue;
+      const d = 14 + h01(tx, ty, this.seed, 650 + i) * 6;
+      const [x0, y0, x1, y1] = [[0, 0, 0, d], [TILE, 0, TILE - d, 0], [0, TILE, 0, TILE - d], [0, 0, d, 0]][i];
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, 'rgba(98,93,88,0.75)');
+      g.addColorStop(1, 'rgba(98,93,88,0)');
+      ctx.fillStyle = g;
+      if (i === 0) ctx.fillRect(0, 0, TILE, d);
+      else if (i === 2) ctx.fillRect(0, TILE - d, TILE, d);
+      else if (i === 3) ctx.fillRect(0, 0, d, TILE);
+      else ctx.fillRect(TILE - d, 0, d, TILE);
+      for (let k = 0; k < 6; k++) {
+        const t = h01(tx, ty, this.seed, 660 + i * 8 + k) * TILE;
+        const o = h01(tx, ty, this.seed, 700 + i * 8 + k) * d * 0.7;
+        const [px, py] = i === 0 ? [t, o] : i === 2 ? [t, TILE - o] : i === 3 ? [o, t] : [TILE - o, t];
+        ctx.fillStyle = k % 2 ? 'rgba(70,66,64,0.7)' : 'rgba(160,154,148,0.6)';
+        ctx.fillRect(Math.floor(px), Math.floor(py), 2, 2);
+      }
+    }
+  }
+
+  /** 1-2 soft hill mounds per tile; radius 12-18, may overhang tile edges. */
+  private drawMounds(ctx: Ctx, ox: number, oy: number, tx: number, ty: number, winter: boolean): void {
     const s = this.seed;
-    ctx.fillStyle = 'rgb(104,100,98)';
-    ctx.fillRect(0, 0, TILE, TILE);
-    const peaks = 1 + (h01(tx, ty, s, 60) > 0.55 ? 1 : 0);
-    for (let p = 0; p < peaks; p++) {
-      const px = peaks === 1 ? 16 + (h01(tx, ty, s, 61) - 0.5) * 6 : 10 + p * 12;
-      const h = 17 + h01(tx, ty, s, 62 + p) * 9 - (peaks === 2 ? 3 : 0);
-      const half = 13 - (peaks === 2 ? 3 : 0);
-      const baseY = 29 - p * 2;
-      const topY = baseY - h;
-      // lit left face / shaded right face
-      ctx.fillStyle = 'rgb(150,146,142)';
+    const n = 1 + (hash(tx, ty, s, 40) % 2);
+    const base = BASE.hills;
+    for (let i = 0; i < n; i++) {
+      const cx = ox + 6 + h01(tx, ty, s, 41 + i * 5) * 20;
+      const cy = oy + 10 + h01(tx, ty, s, 42 + i * 5) * 16;
+      const rad = 12 + h01(tx, ty, s, 43 + i * 5) * 6;
+      const j = (h01(tx, ty, s, 44 + i * 5) - 0.5) * 10;
+      const tone = (d: number): string => {
+        const c = [base[0] + j + d, base[1] + j + d, base[2] + j * 0.6 + d * 0.6];
+        return winter ? rgb(c[0] * 0.25 + 240 * 0.75, c[1] * 0.25 + 245 * 0.75, c[2] * 0.25 + 250 * 0.75) : rgb(c[0], c[1], c[2]);
+      };
+      const ry = rad * 0.6;
+      ctx.fillStyle = winter ? 'rgba(120,140,170,0.12)' : 'rgba(40,40,15,0.22)';
       ctx.beginPath();
-      ctx.moveTo(px, topY);
-      ctx.lineTo(px - half, baseY);
-      ctx.lineTo(px + 1, baseY);
-      ctx.closePath();
+      ctx.ellipse(cx + 3, cy + 3, rad, ry, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgb(86,82,84)';
+      ctx.fillStyle = tone(9); // NW highlight crescent
       ctx.beginPath();
-      ctx.moveTo(px, topY);
-      ctx.lineTo(px + half, baseY);
-      ctx.lineTo(px + 1, baseY);
-      ctx.closePath();
+      ctx.ellipse(cx, cy, rad, ry, 0, 0, Math.PI * 2);
       ctx.fill();
-      // ridges
-      ctx.strokeStyle = 'rgba(60,56,58,0.6)';
-      ctx.lineWidth = 1;
+      ctx.fillStyle = tone(0);
       ctx.beginPath();
-      ctx.moveTo(px, topY + 4);
-      ctx.lineTo(px - 2, baseY - 4);
-      ctx.moveTo(px + 3, topY + 8);
-      ctx.lineTo(px + 6, baseY - 2);
-      ctx.stroke();
-      // snow cap (jagged)
-      const capH = Math.max(5, h * 0.38) + (winter ? 3 : 0);
-      ctx.fillStyle = 'rgb(246,248,252)';
-      ctx.beginPath();
-      ctx.moveTo(px, topY);
-      const capW = (capH / h) * half;
-      ctx.lineTo(px - capW, topY + capH);
-      ctx.lineTo(px - capW * 0.5, topY + capH - 2);
-      ctx.lineTo(px - capW * 0.1, topY + capH + 1);
-      ctx.lineTo(px + capW * 0.35, topY + capH - 2);
-      ctx.lineTo(px + capW, topY + capH);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = 'rgba(160,180,210,0.6)';
-      ctx.beginPath();
-      ctx.moveTo(px, topY);
-      ctx.lineTo(px + capW, topY + capH);
-      ctx.lineTo(px + capW * 0.35, topY + capH - 2);
-      ctx.lineTo(px + 1, topY + capH * 0.5);
-      ctx.closePath();
+      ctx.ellipse(cx + 2, cy + 1.5, rad * 0.92, ry * 0.9, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    // foot shadow so neighbouring mountains read as a range
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(0, 29, TILE, 3);
+  }
+
+  /** One mountain peak per tile; wide enough that neighbours overlap into ranges. */
+  private drawPeaks(ctx: Ctx, ox: number, oy: number, tx: number, ty: number, winter: boolean): void {
+    const s = this.seed;
+    const px = ox + 16 + (h01(tx, ty, s, 61) - 0.5) * 16;
+    const baseY = oy + 18 + h01(tx, ty, s, 60) * 14;
+    const h = 24 + h01(tx, ty, s, 62) * 10;
+    const half = 18 + h01(tx, ty, s, 63) * 4;
+    const topY = baseY - h;
+    const tx0 = px + (h01(tx, ty, s, 64) - 0.5) * 6;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(px + 4, baseY + 1, half, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgb(138,132,128)';
+    ctx.beginPath();
+    ctx.moveTo(tx0, topY);
+    ctx.lineTo(px - half, baseY);
+    ctx.lineTo(px + 1, baseY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgb(76,72,74)';
+    ctx.beginPath();
+    ctx.moveTo(tx0, topY);
+    ctx.lineTo(px + half, baseY);
+    ctx.lineTo(px + 1, baseY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(55,52,54,0.5)';
+    for (let i = 0; i < 5; i++) {
+      const t = 0.3 + h01(tx, ty, s, 65 + i) * 0.65;
+      const y = topY + h * t;
+      const w = half * t;
+      const x = tx0 + (h01(tx, ty, s, 70 + i) - 0.3) * w;
+      ctx.fillRect(Math.round(x), Math.round(y), 2 + (i % 3), 1);
+    }
+    const capH = Math.max(7, h * 0.4) + (winter ? 4 : 0);
+    const capW = (capH / h) * half;
+    ctx.fillStyle = 'rgb(246,248,252)';
+    ctx.beginPath();
+    ctx.moveTo(tx0, topY);
+    ctx.lineTo(tx0 - capW, topY + capH);
+    ctx.lineTo(tx0 - capW * 0.5, topY + capH - 3);
+    ctx.lineTo(tx0 - capW * 0.1, topY + capH + 1);
+    ctx.lineTo(tx0 + capW * 0.35, topY + capH - 3);
+    ctx.lineTo(tx0 + capW, topY + capH);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(150,172,205,0.65)';
+    ctx.beginPath();
+    ctx.moveTo(tx0, topY);
+    ctx.lineTo(tx0 + capW, topY + capH);
+    ctx.lineTo(tx0 + capW * 0.35, topY + capH - 3);
+    ctx.lineTo(tx0 + 1, topY + capH * 0.5);
+    ctx.closePath();
+    ctx.fill();
   }
 
   private drawTrees(ctx: Ctx, ox: number, oy: number, tx: number, ty: number, winter: boolean): void {

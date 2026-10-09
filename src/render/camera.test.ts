@@ -73,5 +73,8 @@ describe('camera', () => {
     expect(r2.y1).toBeLessThanOrEqual(95);
     const r3 = visibleTileRange(cam({ x: 0, y: 0 }), m);
     expect(r3).toEqual({ x0: 0, y0: 0, x1: 25, y1: 18 });
+    // non-tile-aligned camera
+    const r4 = visibleTileRange(cam({ x: 10, y: 10 }), m);
+    expect(r4).toEqual({ x0: 0, y0: 0, x1: 25, y1: 19 });
   });
 });
