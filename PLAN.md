@@ -15,7 +15,7 @@
 ## Game Design
 
 ### Pitch
-It is 1900. You are a young industrialist with $300,000 and a map full of forests, hills rich in ore, and five small towns that want furniture, bread and, soon, automobiles. Build extraction → refining → manufacturing chains, connect them with roads and trucks (later railways), and sell finished goods in city stores. Prices fall when you flood a market and rise when a town is starved. Towns grow when they are well supplied and shrink when they choke on your smog. Inventions arrive by year: automobiles in 1910, radios in 1925, plastic in 1935, television in 1950, computers in 1980. Old products go out of fashion. *The Daily Smokestack* reports booms, crashes, strikes and the taunts of your rival, **Baron Cornelius Smogsworth** (top hat, monocle, no scruples).
+It is 1900. You are a young industrialist with $300,000 and a map full of forests, hills rich in ore, and five small towns that want furniture, bread and, soon, automobiles. Build extraction → refining → manufacturing chains, connect them with roads and trucks (later railways), and sell finished goods in city stores. Prices fall when you flood a market and rise when a town is starved. Towns grow when they are well supplied and shrink when they choke on your smog. Inventions arrive by year: automobiles and oil in 1910, radios in 1925, plastic in 1935, television in 1950, computers in 1980. Old products go out of fashion. *The Daily Smokestack* reports booms, crashes, strikes and the taunts of your rival, **Baron Cornelius Smogsworth** (top hat, monocle, no scruples).
 
 ### Signature features (the "surprise me" list)
 1. **Era colour grading:** the whole world renders in sepia in 1900 and gains saturation decade by decade until it reaches full technicolor in the 1960s.
@@ -29,7 +29,7 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 
 ### Core rules (values pinned here are used verbatim in tasks)
 - **Time:** 1 tick = 1 game hour; 24 ticks/day; 30 days/month; 12 months/year. Start 1 Jan 1900, game end 31 Dec 2000. At speed 1, one day lasts 2 real seconds. Speeds: 0 (pause), 1, 2, 4, 8.
-- **Map:** 128×96 tiles, 32 px/tile at zoom 1. Terrain: water, sand, grass, forest, hills, mountain. Deposits: iron_ore and coal on hills/mountain, oil on grass/sand (hidden until 1920).
+- **Map:** 128×96 tiles, 32 px/tile at zoom 1. Terrain: water, sand, grass, forest, hills, mountain. Deposits: iron_ore and coal on hills/mountain, oil on grass/sand (hidden until 1910).
 - **Cities:** 5, population 2,000–12,000. Urban radius = `3 + floor(population / 3000)` tiles. Stores may only be built fully inside an urban radius; nothing else may be built on urban tiles.
 - **Money:** start $300,000. Loans in $50,000 steps up to $500,000 total at 6%/year, charged monthly. Six consecutive month-ends with negative cash means bankruptcy (game over).
 - **Roads:** $500/tile, $3,000/tile on water (bridge), not on mountains. Maintenance $5/tile/month for roads you built. Cities start with street grids, and each city is linked to its nearest neighbour by a pre-built road.
@@ -53,16 +53,16 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 | cotton · Cotton · 4 · 1900 · ☁️ | steel · Steel · 22 · 1900 · 🔩 | tools · Tools · 42 · 1900 · 🔨 |
 | fruit · Fruit · 3 · 1900 · 🍎 | fabric · Fabric · 12 · 1900 · 🧵 | clothes · Clothes · 40 · 1900 · 👔 |
 | milk · Milk · 3 · 1900 · 🥛 | glass · Glass · 10 · 1900 · 🪟 | cheese · Cheese · 22 · 1900 · 🧀 |
-| iron_ore · Iron Ore · 6 · 1900 · ⛏️ | fuel · Fuel · 18 · 1920 · ⛽ | juice · Juice · 26 · 1900 · 🧃 |
+| iron_ore · Iron Ore · 6 · 1900 · ⛏️ | fuel · Fuel · 18 · 1910 · ⛽ | juice · Juice · 26 · 1900 · 🧃 |
 | coal · Coal · 5 · 1900 · ⚫ | plastic · Plastic · 20 · 1935 · 🧪 | toys · Toys · 30 · 1900 · 🧸 |
 | sand · Sand · 2 · 1900 · ⏳ | | cars · Automobile · 420 · 1910 · 🚗 |
-| oil · Crude Oil · 8 · 1920 · 🛢️ | | radios · Radio · 130 · 1925 · fade 1965 · 📻 |
+| oil · Crude Oil · 8 · 1910 · 🛢️ | | radios · Radio · 130 · 1925 · fade 1965 · 📻 |
 | | | tvs · Television · 260 · 1950 · 📺 |
 | | | computers · Computer · 600 · 1980 · 💻 |
 
 **DEMAND_PER_1000 (units/month):** furniture 6, bread 30, tools 5, clothes 8, cheese 12, juice 12, toys 6, cars 0.5, radios 1.5, tvs 1, computers 0.6.
 
-**Recipes** (`id: inputs → outputs, days`). A recipe's era is the max era of its outputs.
+**Recipes** (`id: inputs → outputs, days`). A recipe's era is the max era of all its inputs and outputs.
 - Extraction (no inputs, 1 day): r_wood → wood 4 · r_grain → grain 5 · r_cotton → cotton 4 · r_fruit → fruit 4 · r_milk → milk 4 · r_iron → iron_ore 4 · r_coal → coal 4 · r_sand → sand 6 · r_oil → oil 4
 - Refining (1 day): r_lumber wood 4 → lumber 2 · r_flour grain 4 → flour 2 · r_steel iron_ore 3 + coal 2 → steel 2 · r_fabric cotton 4 → fabric 2 · r_glass sand 4 + coal 1 → glass 2 · r_fuel oil 4 → fuel 2 · r_plastic oil 4 → plastic 2
 - Manufacturing: r_furniture lumber 2 → furniture 1 (1) · r_bread flour 2 + milk 1 → bread 3 (1) · r_tools steel 1 + lumber 1 → tools 1 (1) · r_clothes fabric 2 → clothes 1 (1) · r_cheese milk 3 → cheese 1 (1) · r_juice fruit 3 + glass 1 → juice 2 (1) · r_toys_wood lumber 1 → toys 1 (1) · r_toys_plastic plastic 1 → toys 2 (1) · r_cars steel 4 + glass 2 + fuel 1 → cars 1 (2) · r_radios steel 1 + glass 1 + lumber 1 → radios 1 (1) · r_tvs plastic 2 + glass 2 + steel 1 → tvs 1 (2) · r_computers plastic 2 + steel 1 + glass 1 → computers 1 (2)
@@ -73,13 +73,13 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 - dairy_farm · extractor · 3×3 · 12000 · 350 · grass · r_milk · 60 · 1900 · 0
 - mine · extractor · 2×2 · 25000 · 800 · hills, mountain · r_iron, r_coal (requiresDeposit) · 80 · 1900 · 3
 - sand_pit · extractor · 2×2 · 8000 · 250 · sand · r_sand · 80 · 1900 · 1
-- oil_well · extractor · 2×2 · 30000 · 900 · grass, sand, hills · r_oil (requiresDeposit) · 80 · 1920 · 3
+- oil_well · extractor · 2×2 · 30000 · 900 · grass, sand, hills · r_oil (requiresDeposit) · 80 · 1910 · 3
 - sawmill · factory · 3×3 · 20000 · 600 · grass, sand · r_lumber · 60 · 1900 · 2
 - flour_mill · factory · 3×3 · 18000 · 500 · grass, sand · r_flour · 60 · 1900 · 1
 - steel_mill · factory · 3×3 · 60000 · 1500 · grass, sand, hills · r_steel · 60 · 1900 · 6
 - textile_mill · factory · 3×3 · 30000 · 800 · grass, sand · r_fabric · 60 · 1900 · 2
 - glassworks · factory · 3×3 · 35000 · 900 · grass, sand · r_glass · 60 · 1900 · 4
-- refinery · factory · 3×3 · 70000 · 1800 · grass, sand · r_fuel, r_plastic · 60 · 1920 · 8
+- refinery · factory · 3×3 · 70000 · 1800 · grass, sand · r_fuel, r_plastic · 60 · 1910 · 8
 - furniture_factory · factory · 3×3 · 30000 · 700 · grass, sand · r_furniture · 40 · 1900 · 1
 - bakery · factory · 2×2 · 15000 · 400 · grass, sand · r_bread · 60 · 1900 · 1
 - toolworks · factory · 3×3 · 35000 · 900 · grass, sand · r_tools · 40 · 1900 · 3
@@ -242,7 +242,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Consumes: `types.ts` (Task 1).
 - Produces:
   - `GoodDef { id; name; tier: 0|1|2; basePrice; era; fadeYear: number | null; icon: string; color: string }`, `GOODS: Record<GoodId, GoodDef>`, `DEMAND_PER_1000: Record<GoodId, number>`
-  - `RecipeDef { id; inputs: Inventory; outputs: Inventory; days: number }`, `RECIPES: Record<string, RecipeDef>`, `recipeEra(id): number`
+  - `RecipeDef { id; inputs: Inventory; outputs: Inventory; days: number }`, `RECIPES: Record<string, RecipeDef>`, `recipeEra(id): number` (max era over inputs and outputs)
   - `BuildingCategory = 'extractor' | 'factory' | 'retail' | 'logistics'`
   - `BuildingDef { id; name; category; size: { w; h }; cost; maintenance; allowedTerrain: Terrain[]; requiresDeposit: boolean; requiresCity: boolean; recipes: string[]; storage; era; pollution; color: string; description: string }`, `BUILDINGS: Record<BuildingTypeId, BuildingDef>`
   - `getBuilding(id)`, `getGood(id)`, `getRecipe(id)`: each throws `Error('Unknown …: id')` on a miss
@@ -279,8 +279,11 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `five cities, centers on grass, ≥ 25 tiles apart, ≥ 6 tiles from the edge, unique names, population in [2000,12000]`.
   - `deposits on legal terrain`: iron_ore/coal only on hills/mountain, oil only on grass/sand; at least 4 clusters of each.
   - `no roads or buildings yet`.
+  - `every city has iron, coal, forest and sand nearby` (seeds 1–10: iron and coal within 20 tiles, forest and sand within 25).
+  - `terrain variety`: averaged over seeds 1–10, water ≥ 10% and mountain ≥ 2%.
+  - `small map works`: `generateMap(1, 64, 48)` returns valid output (or a clear error).
 - [ ] **Step 2:** Run `npx vitest run src/sim/mapgen.test.ts`. Expected: FAIL.
-- [ ] **Step 3:** Implement. Use fractal value noise (4 octaves) for elevation `e` and, at a different seed offset, for moisture `m`. Classify terrain: `e<0.30` water, `<0.34` sand, `>0.78` mountain, `>0.66` hills, else forest if `m>0.55` else grass. Place deposit clusters of 3–6 tiles: 6 iron, 6 coal, 5 oil. If the land ratio is below 0.55, regenerate with `seed+1000`. City `urbanRadius = 3 + floor(pop/3000)`, `happiness 0.7`, `market {}`.
+- [ ] **Step 3:** Implement. Use fractal value noise (4 octaves) for elevation `e` and, at a different seed offset, for moisture `m`. Stretch contrast first: `e = clamp((e − 0.5) × 1.6 + 0.5, 0, 1)` (and the same for `m`). Then classify terrain: `e<0.30` water, `<0.34` sand, `>0.78` mountain, `>0.66` hills, else forest if `m>0.55` else grass. Place cities first, then deposits. Each city gets 1 iron and 1 coal cluster seeded on hills/mountain within 20 tiles of its centre, and 1 oil cluster on grass/sand within 25 tiles. Then add random clusters up to totals of 8 iron, 8 coal and 7 oil. Clusters are 3–6 tiles. Reject the attempt (and retry with `seed+1000`) if any city lacks forest or sand within 25 tiles. If the land ratio is below 0.55, regenerate with `seed+1000`. City `urbanRadius = 3 + floor(pop/3000)`, `happiness 0.7`, `market {}`.
 - [ ] **Step 4:** Run the test. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(sim): procedural map generator with deposits and cities`.
 
@@ -541,7 +544,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `updateRoute(ctx, routeId, patch: Partial<Pick<Route,'name'|'stops'|'color'>>): Result`, `deleteRoute(ctx, routeId): Result` (sells its vehicles)
   - `buyTruck(ctx, owner, routeId): Result<Vehicle>`: spawns at the first stop's first access tile.
   - `sellVehicle(ctx, id): Result` (50% refund under `vehicles`)
-  - `vehiclesTick(ctx): void`: state machine `moving → loading → moving`. On arrival it unloads `stop.unload` goods the building accepts (bounded by `storageLeft`), then loads `stop.load` goods from `loadSource` (whole units, split evenly, capped by capacity). Then it paths to any access tile of the next stop via `findPath(roadPassable)`. With no path it goes `stuck`, emits `vehicleStuck` once and retries every 24 ticks. It sets `prevPos` before moving each tick. A route with < 2 stops makes its vehicles `idle`.
+  - `vehiclesTick(ctx): void`: state machine `moving → loading → moving`. On arrival it unloads `stop.unload` goods the building accepts (bounded by `storageLeft`), then loads `stop.load` goods from `loadSource` (whole units, split evenly, capped by capacity). Then it paths to any access tile of the next stop via `findPath(roadPassable)`. With no path it goes `stuck`, emits `vehicleStuck` once and retries every 24 ticks, staggered by `vehicle.id % 24` so many stuck trucks don't all search the map on the same tick (a failed search scans the whole map, 10–20 ms). It sets `prevPos` before moving each tick. A route with < 2 stops makes its vehicles `idle`.
   - `vehicleMaintenanceMonth(ctx): void`
 - [ ] **Step 1: Write failing tests:**
   - `round trip delivers wood to sawmill` (a straight 10-tile road; after enough ticks, sawmill input wood > 0 and camp output decreased).
@@ -704,8 +707,8 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 
 **Interfaces:**
 - Consumes: Tasks 2, 17.
-- Produces: `ERAS: { name; start; end; blurb }[]`; `eraName(year): string`; `isUnlocked(state, id): boolean`; `checkUnlocks(ctx): void` (on day: adds newly eligible good/building/recipe ids to `state.unlocked`, emits `unlock`, and publishes an `invention` news item with a flavourful headline, e.g. "HORSELESS CARRIAGE TAKES TOWN BY STORM — Automobile plants now possible"; sets `state.flags.oilRevealed = true` in 1920 with "BLACK GOLD! Oil found beneath the plains"); `fadeWarnings(ctx)` (on year: news the year before `fadeYear` and when demand halves); `eraBanner` toast on era change.
-- [ ] **Step 1: Write failing tests:** `cars unlocked on 1 Jan 1910 with one news item`; `no duplicate unlock`; `oil revealed in 1920`; `eraName(1955)==='Atomic Age'`; `radio fade warning in 1964`.
+- Produces: `ERAS: { name; start; end; blurb }[]`; `eraName(year): string`; `isUnlocked(state, id): boolean`; `checkUnlocks(ctx): void` (on day: adds newly eligible good/building/recipe ids to `state.unlocked`, emits `unlock`, and publishes an `invention` news item with a flavourful headline, e.g. "HORSELESS CARRIAGE TAKES TOWN BY STORM — Automobile plants now possible"; sets `state.flags.oilRevealed = true` in 1910 with "BLACK GOLD! Oil found beneath the plains"); `fadeWarnings(ctx)` (on year: news the year before `fadeYear` and when demand halves); `eraBanner` toast on era change.
+- [ ] **Step 1: Write failing tests:** `cars unlocked on 1 Jan 1910 with one news item`; `no duplicate unlock`; `oil revealed in 1910`; `eraName(1955)==='Atomic Age'`; `radio fade warning in 1964`.
 - [ ] **Step 2:** Run. Expected: FAIL. **Step 3:** Implement. Also make the toolbar (Task 15) read `isUnlocked`: a one-line change in `toolbar.ts`. **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(sim): eras, inventions and product lifecycle news`.
 
@@ -805,7 +808,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Produces:
   - `TRAIN = { cost: 60000, capacity: 120, speed: 1.0, maintenance: 1200, loadTicks: 12 }`
   - `buildRail(ctx, owner, tiles): Result<{ built; cost }>`: $1,200/tile; a crossing over an existing road tile is allowed (level crossing); no water or mountain.
-  - `stationAccess(state, station): Vec2[]`: rail tiles adjacent to the station footprint.
+  - `stationAccess(state, station): Vec2[]`: rail tiles adjacent to the station footprint. Keep `findPath` target lists small (access tiles only); never pass every rail or road tile as a target, because the heuristic scans all targets per node.
   - Train routes (`kind: 'train'`) accept only `train_station` stops and path with `railPassable`. `buyTrain(ctx, owner, routeId): Result<Vehicle>`. The station behaves like a warehouse (uses `input` as storage, accepts anything), so trucks feed it and trains haul between stations.
   - Upkeep is charged via `company.railTiles`.
 - [ ] **Step 1: Write failing tests:** `rail crosses road but not water`; `train hauls 120 between stations`; `truck route can stop at station`; `train route rejects non-station stop`; `rail upkeep charged`.
