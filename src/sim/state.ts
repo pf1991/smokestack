@@ -408,8 +408,9 @@ export function findPlacement(
 /**
  * Refunds 25% of the cost, frees the footprint and removes the building's stops from every route.
  * Vehicles keep heading to the same stop (re-indexed); if their target stop was removed they head to
- * the stop that took its place. Their path is cleared so the vehicle system re-plans. Vehicles on a
- * route left with fewer than 2 stops go `idle`. With `owner`, refuses other companies' buildings.
+ * the stop that took its place. Their path is cleared so the vehicle system re-plans, except for a
+ * vehicle loading at a surviving stop, which moves on after its dwell. Vehicles on a route left with
+ * fewer than 2 stops go `idle`. With `owner`, refuses other companies' buildings.
  */
 export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): Result {
   const { state } = ctx;
@@ -436,9 +437,16 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
       const shift = removed.filter((i) => i < v.stopIndex).length;
       v.stopIndex -= shift;
       if (targetRemoved || v.stopIndex >= kept.length) v.stopIndex = kept.length > 0 ? v.stopIndex % kept.length : 0;
-      v.path = [];
-      v.pathIndex = 0;
-      if (kept.length < 2) v.state = 'idle';
+      // a truck dwelling at a surviving stop keeps its arrival path, so it moves on afterwards
+      // instead of driving back to load there again
+      if (targetRemoved || v.state !== 'loading') {
+        v.path = [];
+        v.pathIndex = 0;
+      }
+      if (kept.length < 2) {
+        v.state = 'idle';
+        v.stuckNotified = false;
+      }
     }
   }
   delete state.buildings[id];
