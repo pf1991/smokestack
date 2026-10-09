@@ -347,7 +347,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
   - `salePrice(goodId, supplyRatio: number): number` (rounded to whole dollars, min 1)
   - `supplyRatio(entry: MarketEntry | undefined): number` (0 when there is no demand history)
   - `StoreStock { buildingId; ownerId: OwnerId; stock: Inventory }`, `Sale { buildingId; ownerId; goodId; qty; revenue }`
-  - `computeDailySales(city, stores: StoreStock[], year, demandMod: (goodId) => number): Sale[]`: mutates only `city.market[g].pending`. Each day, `pending = min(pending + monthly/30, monthly/30 × 3)`. Whole units `floor(pending)` are split equally among stores with stock > 0 (an unsold share is redistributed once), and the units actually sold are subtracted from `pending`. This lets low-demand goods such as cars still sell every few days.
+  - `computeDailySales(city, stores: StoreStock[], year, demandMod: (goodId) => number): Sale[]`: mutates only `city.market[g].pending`. Each day, `pending = min(pending + monthly/30, max(monthly/30 × 3, 1))`. Whole units `floor(pending + 1e-9)` are dealt round-robin to stores that still have stock until the units or the stock run out, and the units actually sold are subtracted from `pending`. This lets low-demand goods such as cars still sell every few days.
   - `updateMarketDay(city, goodId, sold: number, demandToday: number): void`: `x30 = x30 × 29/30 + today`
   - `satisfaction(city, goodId): number` = clamp(sold30 / demand30, 0, 1)
   - `monthlyGrowth(population, avgSatisfaction, pollution): number`
