@@ -19,6 +19,11 @@ const CITY_MIN_DIST = 25;
 const CITY_EDGE = 6;
 const NOISE_SCALE = 1 / 22;
 
+const stretch = (v: number): number => Math.min(1, Math.max(0, (v - 0.5) * 1.6 + 0.5));
+
+/** Diagnostic: attempts used by the most recent successful generateMap call. */
+export let lastGenerationAttempts = 0;
+
 function classify(e: number, m: number): Terrain {
   if (e < 0.3) return 'water';
   if (e < 0.34) return 'sand';
@@ -31,8 +36,8 @@ function buildTerrain(seed: number, width: number, height: number): GameMap {
   const tiles: Tile[] = new Array(width * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const e = valueNoise2D(seed, x * NOISE_SCALE, y * NOISE_SCALE, 4);
-      const m = valueNoise2D(seed + 7919, x * NOISE_SCALE, y * NOISE_SCALE, 4);
+      const e = stretch(valueNoise2D(seed, x * NOISE_SCALE, y * NOISE_SCALE, 4));
+      const m = stretch(valueNoise2D(seed + 7919, x * NOISE_SCALE, y * NOISE_SCALE, 4));
       tiles[y * width + x] = {
         terrain: classify(e, m),
         deposit: null,
@@ -65,54 +70,94 @@ function isolated(map: GameMap, x: number, y: number): boolean {
   return true;
 }
 
-function placeClusters(
+/** Place one 3-6 tile cluster; optionally seeded within `radius` of `anchor`. */
+function placeCluster(
   map: GameMap,
   rng: RngHolder,
   good: string,
-  count: number,
   legal: Terrain[],
+  anchor?: { x: number; y: number; radius: number },
 ): boolean {
   const { width, height } = map;
-  for (let n = 0; n < count; n++) {
-    let placed = false;
-    for (let attempt = 0; attempt < 400 && !placed; attempt++) {
-      const sx = randInt(rng, 2, width - 3);
-      const sy = randInt(rng, 2, height - 3);
-      const st = map.tiles[sy * width + sx];
-      if (!legal.includes(st.terrain) || st.deposit || !isolated(map, sx, sy)) continue;
-      const target = randInt(rng, 3, 6);
-      const cells: number[] = [sy * width + sx];
-      st.deposit = good;
-      let guard = 0;
-      while (cells.length < target && guard++ < 40) {
-        const from = cells[randInt(rng, 0, cells.length - 1)];
-        const [dx, dy] = DIRS[randInt(rng, 0, 3)];
-        const nx = (from % width) + dx;
-        const ny = Math.floor(from / width) + dy;
-        const t = tileAt(map, nx, ny);
-        if (!t || t.deposit || !legal.includes(t.terrain)) continue;
-        // must not touch any other cluster (other cells of this cluster are fine)
-        let touches = false;
-        for (let oy = -1; oy <= 1 && !touches; oy++) {
-          for (let ox = -1; ox <= 1; ox++) {
-            const o = tileAt(map, nx + ox, ny + oy);
-            if (o?.deposit && !cells.includes((ny + oy) * width + nx + ox)) {
-              touches = true;
-              break;
-            }
+  for (let attempt = 0; attempt < 400; attempt++) {
+    let sx: number;
+    let sy: number;
+    if (anchor) {
+      sx = anchor.x + randInt(rng, -anchor.radius, anchor.radius);
+      sy = anchor.y + randInt(rng, -anchor.radius, anchor.radius);
+      if (sx < 2 || sy < 2 || sx > width - 3 || sy > height - 3) continue;
+      if (Math.hypot(sx - anchor.x, sy - anchor.y) > anchor.radius) continue;
+    } else {
+      sx = randInt(rng, 2, width - 3);
+      sy = randInt(rng, 2, height - 3);
+    }
+    const st = map.tiles[sy * width + sx];
+    if (!legal.includes(st.terrain) || st.deposit || !isolated(map, sx, sy)) continue;
+    const target = randInt(rng, 3, 6);
+    const cells: number[] = [sy * width + sx];
+    st.deposit = good;
+    let guard = 0;
+    while (cells.length < target && guard++ < 40) {
+      const from = cells[randInt(rng, 0, cells.length - 1)];
+      const [dx, dy] = DIRS[randInt(rng, 0, 3)];
+      const nx = (from % width) + dx;
+      const ny = Math.floor(from / width) + dy;
+      const t = tileAt(map, nx, ny);
+      if (!t || t.deposit || !legal.includes(t.terrain)) continue;
+      // must not touch any other cluster (other cells of this cluster are fine)
+      let touches = false;
+      for (let oy = -1; oy <= 1 && !touches; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          const o = tileAt(map, nx + ox, ny + oy);
+          if (o?.deposit && !cells.includes((ny + oy) * width + nx + ox)) {
+            touches = true;
+            break;
           }
         }
-        if (touches) continue;
-        t.deposit = good;
-        cells.push(ny * width + nx);
       }
-      if (cells.length >= 3) {
-        placed = true;
-      } else {
-        for (const c of cells) map.tiles[c].deposit = null;
+      if (touches) continue;
+      t.deposit = good;
+      cells.push(ny * width + nx);
+    }
+    if (cells.length >= 3) return true;
+    for (const c of cells) map.tiles[c].deposit = null;
+  }
+  return false;
+}
+
+const ORE: Terrain[] = ['hills', 'mountain'];
+const OIL: Terrain[] = ['grass', 'sand'];
+
+function hasTerrainNear(map: GameMap, c: { x: number; y: number }, r: number, terrains: Terrain[]): boolean {
+  for (let y = Math.max(0, c.y - r); y <= Math.min(map.height - 1, c.y + r); y++) {
+    for (let x = Math.max(0, c.x - r); x <= Math.min(map.width - 1, c.x + r); x++) {
+      if (Math.hypot(x - c.x, y - c.y) <= r && terrains.includes(map.tiles[y * map.width + x].terrain)) {
+        return true;
       }
     }
-    if (!placed) return false;
+  }
+  return false;
+}
+
+/** Cities first: one iron, coal and oil cluster near each, then random extras up to the totals. */
+function placeDeposits(map: GameMap, rng: RngHolder, cities: City[]): boolean {
+  for (const city of cities) {
+    const c = city.center;
+    if (!hasTerrainNear(map, c, 20, ORE)) return false;
+    if (!hasTerrainNear(map, c, 25, ['forest']) || !hasTerrainNear(map, c, 25, ['sand'])) return false;
+    if (!placeCluster(map, rng, 'iron_ore', ORE, { ...c, radius: 20 })) return false;
+    if (!placeCluster(map, rng, 'coal', ORE, { ...c, radius: 20 })) return false;
+    if (!placeCluster(map, rng, 'oil', OIL, { ...c, radius: 25 })) return false;
+  }
+  const totals: [string, number, Terrain[]][] = [
+    ['iron_ore', 8, ORE],
+    ['coal', 8, ORE],
+    ['oil', 7, OIL],
+  ];
+  for (const [good, total, legal] of totals) {
+    for (let n = cities.length; n < total; n++) {
+      if (!placeCluster(map, rng, good, legal)) return false;
+    }
   }
   return true;
 }
@@ -157,15 +202,10 @@ export function generateMap(
     const map = buildTerrain(s, width, height);
     if (landRatio(map) < MIN_LAND) continue;
     const rng: RngHolder = { rngState: s ^ 0x5bd1e995 };
-    if (
-      !placeClusters(map, rng, 'iron_ore', 6, ['hills', 'mountain']) ||
-      !placeClusters(map, rng, 'coal', 6, ['hills', 'mountain']) ||
-      !placeClusters(map, rng, 'oil', 5, ['grass', 'sand'])
-    ) {
-      continue;
-    }
     const cities = placeCities(map, rng);
     if (!cities) continue;
+    if (!placeDeposits(map, rng, cities)) continue;
+    lastGenerationAttempts = attempt + 1;
     return { map, cities };
   }
   throw new Error(`mapgen: no valid map found for seed ${seed}`);

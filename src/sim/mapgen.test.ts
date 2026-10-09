@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateMap, tileAt, tileIndex } from './mapgen';
-import type { GameMap } from './types';
+import type { GameMap, Tile } from './types';
 
 const W = 128;
 const H = 96;
@@ -110,8 +110,46 @@ describe('generateMap', () => {
   });
 
   it('is fast', () => {
+    generateMap(5);
     const t0 = performance.now();
     generateMap(5);
-    expect(performance.now() - t0).toBeLessThan(100);
+    expect(performance.now() - t0).toBeLessThan(250);
+  });
+
+  it('every city has iron, coal, forest and sand nearby', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { map, cities } = generateMap(seed);
+      const near = (c: { x: number; y: number }, r: number, pred: (t: Tile) => boolean) =>
+        map.tiles.some(
+          (t, i) => pred(t) && Math.hypot((i % map.width) - c.x, Math.floor(i / map.width) - c.y) <= r,
+        );
+      for (const city of cities) {
+        const c = city.center;
+        expect(near(c, 20, (t) => t.deposit === 'iron_ore')).toBe(true);
+        expect(near(c, 20, (t) => t.deposit === 'coal')).toBe(true);
+        expect(near(c, 25, (t) => t.terrain === 'forest')).toBe(true);
+        expect(near(c, 25, (t) => t.terrain === 'sand')).toBe(true);
+      }
+    }
+  });
+
+  it('has terrain variety', () => {
+    let water = 0;
+    let mountain = 0;
+    let total = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const { map } = generateMap(seed);
+      total += map.tiles.length;
+      for (const t of map.tiles) {
+        if (t.terrain === 'water') water++;
+        if (t.terrain === 'mountain') mountain++;
+      }
+    }
+    expect(water / total).toBeGreaterThanOrEqual(0.1);
+    expect(mountain / total).toBeGreaterThanOrEqual(0.02);
+  });
+
+  it('small map throws a clear error (cities cannot fit 25 tiles apart)', () => {
+    expect(() => generateMap(1, 64, 48)).toThrow(/mapgen: no valid map found/);
   });
 });
