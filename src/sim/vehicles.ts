@@ -97,16 +97,26 @@ export function updateRoute(
   if (patch.name !== undefined) route.name = patch.name;
   if (patch.color !== undefined) route.color = patch.color;
   if (patch.stops) {
+    const oldStops = route.stops;
     route.stops = patch.stops.map(copyStop);
     const n = route.stops.length;
     for (const veh of Object.values(state.vehicles)) {
       if (veh.routeId !== routeId) continue;
-      veh.path = [];
-      veh.pathIndex = 0;
+      const oldBuilding = oldStops[veh.stopIndex]?.buildingId;
       veh.stopIndex = n > 0 ? veh.stopIndex % n : 0;
-      if (n < 2) veh.state = 'idle';
-      else if (veh.state === 'idle' || veh.state === 'stuck') veh.state = 'moving';
-      // a 'loading' vehicle finishes its dwell, then (path cleared) heads for its current stop
+      // A loading vehicle keeps its arrival path (so it moves on after its dwell) unless the
+      // building at its stop changed; then the cleared path sends it to the new current stop.
+      if (veh.state !== 'loading' || route.stops[veh.stopIndex]?.buildingId !== oldBuilding) {
+        veh.path = [];
+        veh.pathIndex = 0;
+      }
+      if (n < 2) {
+        veh.state = 'idle';
+        veh.stuckNotified = false;
+      } else if (veh.state === 'idle' || veh.state === 'stuck') {
+        veh.state = 'moving';
+        veh.stuckNotified = false;
+      }
     }
   }
   return ok();
@@ -332,6 +342,7 @@ function tickVehicle(ctx: SimContext, veh: Vehicle): void {
   const n = route ? route.stops.length : 0;
   if (!route || n < 2) {
     veh.state = 'idle';
+    veh.stuckNotified = false;
     if (veh.path.length > 0) {
       veh.path = [];
       veh.pathIndex = 0;

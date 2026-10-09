@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { GameEvent } from '../core/events';
+import { BUILDINGS } from '../data/buildings';
 import { buildRoad, demolishBuilding, lPath, placeBuilding, removeRoad } from './state';
 import { testCtx, testState } from './testkit';
 import type { Building, GameState, SimContext, Terrain, Vehicle } from './types';
@@ -255,5 +256,162 @@ describe('vehiclesTick', () => {
     expect(v.prevPos).toEqual(p);
     expect(v.pos.x - v.prevPos.x).toBeCloseTo(0.5);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+  });
+
+  it('demolishing an earlier stop while loading moves on instead of reloading', () => {
+    const { ctx, camp, mill, camp2 } = world();
+    camp.output.wood = 100;
+    const r = must(
+      createRoute(ctx, 'player', 'tri', [
+        { buildingId: camp2.id, load: [], unload: [] },
+        { buildingId: camp.id, load: ['wood'], unload: [] },
+        { buildingId: mill.id, load: [], unload: ['wood'] },
+      ]),
+    );
+    const v = must(buyTruck(ctx, 'player', r.id));
+    tickUntil(ctx, () => v.state === 'loading' && v.stopIndex === 1);
+    expect(v.cargo.wood).toBe(20);
+    must(demolishBuilding(ctx, camp2.id));
+    expect(v.stopIndex).toBe(0); // still the camp, re-indexed
+    tickUntil(ctx, () => v.state !== 'loading');
+    expect(v.state).toBe('moving');
+    expect(v.stopIndex).toBe(1);
+    expect(v.path[v.path.length - 1]).toEqual({ x: 12, y: 10 });
+    tickUntil(ctx, () => v.state === 'loading');
+    expect(v.stopIndex).toBe(1);
+    expect(mill.input.wood).toBe(20);
+    expect(camp.output.wood).toBe(80);
+  });
+
+  it('an unchanged stop edited while loading moves on instead of reloading', () => {
+    const { ctx, camp, mill } = world();
+    camp.output.wood = 100;
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    tickUntil(ctx, () => v.state === 'loading');
+    must(updateRoute(ctx, r.id, { stops: [...r.stops, { buildingId: camp.id, load: [], unload: [] }] }));
+    tickUntil(ctx, () => v.state !== 'loading');
+    expect(v.stopIndex).toBe(1);
+    expect(v.path[v.path.length - 1]).toEqual({ x: 12, y: 10 });
+  });
+
+  it('demolishing the stop a truck is loading at', () => {
+    const { ctx, camp, mill, camp2 } = world();
+    camp.output.wood = 100;
+    const r = must(
+      createRoute(ctx, 'player', 'tri', [
+        { buildingId: camp.id, load: ['wood'], unload: [] },
+        { buildingId: mill.id, load: [], unload: ['wood'] },
+        { buildingId: camp2.id, load: [], unload: [] },
+      ]),
+    );
+    const v = must(buyTruck(ctx, 'player', r.id));
+    tickUntil(ctx, () => v.state === 'loading' && v.stopIndex === 1);
+    expect(() => must(demolishBuilding(ctx, mill.id))).not.toThrow();
+    expect(v.stopIndex).toBe(1); // now camp2, which took the mill's place
+    tickUntil(ctx, () => v.state !== 'loading');
+    tickUntil(ctx, () => v.state === 'loading');
+    expect(v.stopIndex).toBe(1);
+    expect(v.pos).toEqual({ x: 20, y: 10 });
+  });
+
+  it('conservation: goods are never created or destroyed', () => {
+    const { s, ctx, camp, mill } = world();
+    const cap = BUILDINGS.sawmill.storage;
+    camp.output.wood = cap + 40;
+    const r = woodRoute(ctx, camp, mill);
+    for (let i = 0; i < 3; i++) must(buyTruck(ctx, 'player', r.id));
+    const total = () => {
+      let n = (camp.output.wood ?? 0) + (camp.input.wood ?? 0) + (mill.input.wood ?? 0) + (mill.output.wood ?? 0);
+      for (const v of Object.values(s.vehicles)) n += v.cargo.wood ?? 0;
+      return n;
+    };
+    for (let i = 0; i < 500; i++) {
+      tick(ctx);
+      expect(total()).toBe(cap + 40);
+    }
+    expect(mill.input.wood).toBe(cap);
+  });
+
+  it('buyTruck refuses foreign and mismatched routes', () => {
+    const { s, ctx, camp, mill } = world();
+    const r = woodRoute(ctx, camp, mill);
+    expect(buyTruck(ctx, 'rival', r.id)).toEqual({ ok: false, error: 'Not your route' });
+    s.routes[r.id].kind = 'train';
+    expect(buyTruck(ctx, 'player', r.id)).toEqual({ ok: false, error: 'Wrong vehicle for this route' });
+  });
+
+  it('unloading is limited by storageLeft; the truck keeps the rest', () => {
+    const { ctx, camp, mill } = world();
+    camp.output.wood = 20;
+    const cap = BUILDINGS.sawmill.storage;
+    mill.input.wood = cap - 10;
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    tickUntil(ctx, () => v.state === 'loading' && v.stopIndex === 1);
+    expect(mill.input.wood).toBe(cap);
+    expect(v.cargo.wood).toBe(10);
+  });
+
+  it('re-plans around a removed road when a detour exists', () => {
+    const { ctx, camp, mill } = world();
+    must(buildRoad(ctx, 'player', [{ x: 7, y: 11 }, { x: 7, y: 12 }, { x: 8, y: 12 }, { x: 9, y: 12 }, { x: 9, y: 11 }]));
+    const events: GameEvent[] = [];
+    ctx.bus.on('vehicleStuck', (e) => events.push(e));
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    tickUntil(ctx, () => v.state === 'moving' && v.stopIndex === 1 && v.path.length > 0);
+    must(removeRoad(ctx, 'player', [{ x: 8, y: 10 }]));
+    for (let i = 0; i < 40 && !(v.state === 'loading' && v.stopIndex === 1); i++) {
+      tick(ctx);
+      expect(v.state).not.toBe('stuck');
+    }
+    expect(v.state).toBe('loading');
+    expect(v.stopIndex).toBe(1);
+    expect(events).toEqual([]);
+  });
+
+  it('determinism: identical runs give identical JSON', () => {
+    const run = () => {
+      const { s, ctx, camp, mill } = world();
+      camp.output.wood = 45;
+      camp.output.coal = 7;
+      const r = must(
+        createRoute(ctx, 'player', 'mix', [
+          { buildingId: camp.id, load: ['wood', 'coal'], unload: [] },
+          { buildingId: mill.id, load: [], unload: ['wood', 'coal'] },
+        ]),
+      );
+      must(buyTruck(ctx, 'player', r.id));
+      tick(ctx, 37);
+      must(buyTruck(ctx, 'player', r.id));
+      tick(ctx, 300);
+      return JSON.stringify(s);
+    };
+    expect(run()).toBe(run());
+  });
+
+  it('fractional stock loads whole units only', () => {
+    const { ctx, camp, mill } = world();
+    camp.output.wood = 18.5;
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    tickUntil(ctx, () => v.state === 'loading');
+    expect(v.cargo.wood).toBe(18);
+    expect(camp.output.wood).toBe(0.5);
+  });
+
+  it('a stuck truck that goes idle forgets its stuck notice', () => {
+    const { ctx, camp, mill } = world();
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    tickUntil(ctx, () => v.state === 'moving' && v.stopIndex === 1);
+    must(removeRoad(ctx, 'player', [{ x: 8, y: 10 }]));
+    tickUntil(ctx, () => v.state === 'stuck');
+    expect(v.stuckNotified).toBe(true);
+    must(updateRoute(ctx, r.id, { stops: [r.stops[0]] }));
+    tick(ctx);
+    expect(v.state).toBe('idle');
+    expect(v.stuckNotified).toBe(false);
   });
 });
