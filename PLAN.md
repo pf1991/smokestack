@@ -667,7 +667,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Test: `src/sim/routeHelpers.test.ts`, `src/ui/panels/routes.test.ts`
 
 **Interfaces:**
-- Consumes: Tasks 14, 18 (`pickStop` tool).
+- Consumes: Tasks 14, 18 (`pickStop` tool). `sellVehicle`, `updateRoute` and `deleteRoute` do not check ownership: the panel must only offer them for the player's own routes and vehicles.
 - Produces:
   - `suggestStop(state, buildingId, prevStops: RouteStop[]): RouteStop`: loads everything the building outputs that a later or earlier stop accepts; unloads everything previous stops load that this building accepts.
   - `routeThroughput(state, routeId): number`: estimated units per month = trucks × capacity × 720 / round-trip ticks (round trip from path lengths).
@@ -758,7 +758,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Test: `src/sim/rival.test.ts`
 
 **Interfaces:**
-- Consumes: Tasks 9 (`findPlacement`, `buildRoad`, `assetValue`), 14, 17, 23 (`publishNews`).
+- Consumes: Tasks 9 (`findPlacement`, `buildRoad`, `assetValue`), 14, 17, 23 (`publishNews`). Pass `'rival'` as owner everywhere; `sellVehicle`/`updateRoute`/`deleteRoute` don't check ownership, so only call them on the rival's own routes and vehicles.
 - Produces:
   - `chainFor(goodId, state): BuildingTypeId[]`: the backward chain from extractor to factory using the first unlocked recipe per good. `furniture` → `['lumber_camp','sawmill','furniture_factory']`.
   - `rivalMonth(ctx)` (only when `companies.rival.active`): with at most one project in flight (`state.rivalProject`), it picks the (city, tier-2 good) with the highest `unmet demand × price` among chains costing ≤ money − $50,000. It builds a store in that city and the chain buildings via `findPlacement` near the city; connects each to the road network with `findPath(roadBuildable)` + `buildRoad`; and creates routes with 1–2 trucks per leg. It adds trucks to legs whose source output is ≥ 80% full. It never spends below its $50,000 reserve and takes loans only when money < $20,000.
