@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BUILDINGS } from '../data/buildings';
 import { TILE } from './constants';
-import { chimneyOffsets, spriteKey, houseStyle, windowRects } from './sprites';
+import { chimneyOffsets, spriteKey, houseStyle, windowRects, HEADROOM } from './sprites';
 
 describe('sprites pure helpers', () => {
   it('chimneyOffsets and windowRects inside sprite bounds for every building', () => {
@@ -9,10 +9,10 @@ describe('sprites pure helpers', () => {
       const w = def.size.w * TILE;
       const h = def.size.h * TILE + 16;
       for (const c of chimneyOffsets(def.id)) {
-        expect(c.x).toBeGreaterThanOrEqual(0);
-        expect(c.x).toBeLessThanOrEqual(w);
+        expect(c.x - 3).toBeGreaterThanOrEqual(0);
+        expect(c.x + 3).toBeLessThanOrEqual(w);
         expect(c.y).toBeGreaterThanOrEqual(0);
-        expect(c.y).toBeLessThanOrEqual(h);
+        expect(c.y).toBeLessThan(HEADROOM);
       }
       for (const r of windowRects(def.id)) {
         expect(r.x).toBeGreaterThanOrEqual(0);

@@ -52,29 +52,41 @@ export function chimneyOffsets(typeId: string): Vec2[] {
   if (typeId === 'mine') return [{ x: Math.round(W * 0.78), y: 8 }];
   if (typeId === 'oil_well') return [{ x: Math.round(W / 2), y: 3 }];
   if (def.category !== 'factory') return [];
-  switch (typeId) {
-    case 'car_plant': return [0.2, 0.5, 0.8].map(f => ({ x: Math.round(W * f), y: 4 }));
-    case 'steel_mill': return [0.2, 0.5].map(f => ({ x: Math.round(W * f), y: 2 }));
-    case 'refinery': return [{ x: Math.round(W * 0.15), y: 3 }, { x: Math.round(W * 0.85), y: 6 }];
-    default:
-      return def.size.w >= 3
-        ? [{ x: Math.round(W * 0.2), y: 5 }, { x: Math.round(W * 0.42), y: 8 }]
-        : [{ x: Math.round(W * 0.25), y: 6 }];
-  }
+  const table: Record<string, [number, number][]> = {
+    car_plant: [[0.2, 4], [0.5, 2], [0.8, 4]],
+    steel_mill: [[0.2, 2], [0.45, 5]],
+    refinery: [[0.15, 3], [0.85, 6]],
+    textile_mill: [[0.15, 7], [0.3, 4], [0.45, 7]],
+    bakery: [[0.25, 10]],
+    glassworks: [[0.2, 6]],
+    sawmill: [[0.2, 6]],
+    flour_mill: [[0.2, 5], [0.4, 9]],
+    toolworks: [[0.2, 4], [0.38, 7]],
+    furniture_factory: [[0.2, 7], [0.4, 5]],
+    clothing_factory: [[0.2, 6]],
+    creamery: [[0.25, 7]],
+    juice_plant: [[0.2, 8]],
+    toy_factory: [[0.25, 8]],
+    electronics_plant: [[0.15, 9]],
+  };
+  const t = table[typeId] ?? [[0.25, 6]];
+  return t.map(([f, y]) => ({ x: Math.round(W * f), y }));
 }
 
 /** Rects (sprite coords) where lit windows are drawn at night. */
 export function windowRects(typeId: string): { x: number; y: number; w: number; h: number }[] {
   const def = BUILDINGS[typeId];
   if (!def) return [];
-  if (['farm', 'sand_pit', 'oil_well', 'lumber_camp'].includes(typeId)) return [];
+  if (['farm', 'sand_pit', 'oil_well', 'lumber_camp', 'warehouse'].includes(typeId)) return [];
+  if (typeId === 'dairy_farm') {
+    return [10, 16, 38, 44].map(x => ({ x, y: HEADROOM + 17, w: 4, h: 3 }));
+  }
+  if (typeId === 'mine') return [{ x: 43, y: HEADROOM + 15, w: 4, h: 3 }];
   const { W, H } = dims(def);
   const out: { x: number; y: number; w: number; h: number }[] = [];
   const y = H - SHADOW - WALL + 2;
   const step = typeId === 'car_plant' ? 8 : 10;
-  const from = typeId === 'warehouse' ? W : 5;
-  if (typeId === 'warehouse') return out;
-  for (let x = from; x + 4 <= W - SHADOW - 3; x += step) out.push({ x, y, w: 4, h: 3 });
+  for (let x = 5; x + 4 <= W - SHADOW - 3; x += step) out.push({ x, y, w: 4, h: 3 });
   return out;
 }
 
@@ -108,6 +120,11 @@ function shade(hex: string, amt: number): string {
   const f = (v: number) => Math.max(0, Math.min(255, Math.round(v + amt * (amt < 0 ? v : 255 - v))));
   const r = f((n >> 16) & 255), gg = f((n >> 8) & 255), b = f(n & 255);
   return `rgb(${r},${gg},${b})`;
+}
+function mix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ch = (sh: number) => Math.round(((pa >> sh) & 255) * (1 - t) + ((pb >> sh) & 255) * t);
+  return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
 }
 function softShadow(g: Ctx, x: number, y: number, w: number, h: number): void {
   rect(g, x + 4, y + 4, w, h, 'rgba(0,0,0,0.14)');
@@ -158,8 +175,7 @@ function sawtooth(g: Ctx, b: Box, tint: string, teeth: number): void {
     rect(g, b.x + 1, y + th - 1, b.w - 2, 1, 'rgba(0,0,0,0.3)');
   }
 }
-function stack(g: Ctx, x: number, top: number, base: number, tint: string): void {
-  const w = 6;
+function stack(g: Ctx, x: number, top: number, base: number, tint: string, w = 6): void {
   rect(g, x - w / 2 + 2, top + 2, w, base - top, 'rgba(0,0,0,0.18)');
   rect(g, x - w / 2, top, w, base - top, '#8c4a38');
   rect(g, x - w / 2, top, w, 2, '#3a2a25');
@@ -168,7 +184,8 @@ function stack(g: Ctx, x: number, top: number, base: number, tint: string): void
   rect(g, x - w / 2 + w - 2, top, 2, base - top, 'rgba(0,0,0,0.2)');
 }
 function stacks(g: Ctx, typeId: string, tint: string, base: number): void {
-  for (const c of chimneyOffsets(typeId)) stack(g, c.x, c.y, base, tint);
+  const w = typeId === 'textile_mill' ? 3 : 6;
+  for (const c of chimneyOffsets(typeId)) stack(g, c.x, c.y, base, tint, w);
 }
 
 // ---------------------------------------------------------------- building painters
@@ -261,7 +278,7 @@ function paintMine(g: Ctx, def: BuildingDef, W: number, H: number): void {
   // engine house + chimney
   rect(g, 40, HEADROOM + 4, 18, 9, '#5d4a3a');
   rect(g, 40, HEADROOM + 13, 18, 6, '#3f3126');
-  rect(g, 43, HEADROOM + 15, 4, 3, '#ffd27a');
+  rect(g, 43, HEADROOM + 15, 4, 3, '#2b3a4a');
   stack(g, chimneyOffsets('mine')[0].x, 8, HEADROOM + 6, def.color);
   // ore cart on rails
   rect(g, 4, H - 16, W - 12, 1, '#3a3a3a');
@@ -316,32 +333,34 @@ function paintOil(g: Ctx, _def: BuildingDef, W: number, H: number): void {
 
 function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: OwnerId): void {
   const id = def.id;
-  const brick = id === 'sawmill' ? '#9b6e3f' : id === 'flour_mill' ? '#c9b99a' : '#a2513b';
-  const roofTint = id === 'steel_mill' ? '#4b4f57' : id === 'refinery' ? '#8d8d86' : '#7d8a92';
+  const brick = id === 'sawmill' ? '#9b6e3f' : id === 'flour_mill' ? '#c9b99a' : id === 'creamery' ? '#e8dcc0' : '#a2513b';
+  let roofTint = mix(def.color, '#6e7b84', 0.6);
+  if (id === 'creamery') roofTint = '#efe6cf';
+  if (id === 'toy_factory') roofTint = '#e88ab0';
   const b = building(g, W, H, roofTint, brick);
   brickTexture(g, b, id.length * 31);
   rect(g, b.x, b.y + b.roofH + 1, b.w, 1, def.color); // identity band along the wall
-  if (id !== 'refinery') sawtooth(g, b, roofTint, def.size.h >= 4 ? 6 : def.size.h === 3 ? 4 : 3);
+  const teeth = id === 'textile_mill' ? 6 : def.size.h >= 4 ? 6 : def.size.h === 3 ? 4 : 3;
+  if (id !== 'refinery' && id !== 'bakery') sawtooth(g, b, roofTint, teeth);
   windows(g, id, '#2b3a4a');
   rect(g, b.x + b.w - 14, b.y + b.roofH + 1, 8, WALL - 1, '#3b2c22'); // loading door
+  const ry = b.y + b.roofH; // roof/wall seam
 
   switch (id) {
     case 'sawmill': {
-      // big circular blade sign on the roof
-      const cx = Math.round(W * 0.7), cy = b.y + 14;
+      const cx = Math.round(W * 0.7), cy = b.y + 16;
       circle(g, cx, cy, 10, '#d5dade');
       for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2;
         poly(g, [[cx + Math.cos(a - 0.14) * 9, cy + Math.sin(a - 0.14) * 9], [cx + Math.cos(a) * 13, cy + Math.sin(a) * 13], [cx + Math.cos(a + 0.14) * 9, cy + Math.sin(a + 0.14) * 9]], '#d5dade');
       }
       circle(g, cx, cy, 4, '#8a5a2f'); circle(g, cx, cy, 1.2, '#222');
-      for (let i = 0; i < 3; i++) rect(g, 6, b.y + 4 + i * 4, 18, 3, '#c8a16e'); // lumber stack
+      for (let i = 0; i < 3; i++) rect(g, 6, b.y + 4 + i * 4, 18, 3, '#c8a16e');
       break;
     }
     case 'steel_mill': {
-      // blast furnace tower with glowing top
       const fx = Math.round(W * 0.68);
-      rect(g, fx - 9, 8, 20, b.y + b.roofH - 8 + 2, 'rgba(0,0,0,0.2)');
+      rect(g, fx - 8, 8, 20, 42, 'rgba(0,0,0,0.2)');
       rect(g, fx - 10, 8, 18, 40, '#3c3f46');
       rect(g, fx - 10, 8, 5, 40, '#5a5e66');
       rect(g, fx - 10, 20, 18, 2, '#222'); rect(g, fx - 10, 32, 18, 2, '#222');
@@ -350,7 +369,6 @@ function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: Own
       break;
     }
     case 'refinery': {
-      // tanks and pipes on a concrete yard
       rect(g, b.x + 1, b.y + 1, b.w - 2, b.roofH - 1, '#9a9a92');
       const tanks: [number, number, number][] = [[24, b.y + 14, 12], [58, b.y + 14, 11], [40, b.y + 40, 10]];
       for (const [tx, ty, r] of tanks) {
@@ -363,44 +381,141 @@ function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: Own
       g.strokeStyle = '#555'; g.lineWidth = 2;
       g.beginPath(); g.moveTo(24, b.y + 26); g.lineTo(24, b.y + 52); g.lineTo(40, b.y + 52); g.moveTo(58, b.y + 25); g.lineTo(58, b.y + 40); g.lineTo(50, b.y + 40); g.stroke();
       g.lineWidth = 1;
-      circle(g, chimneyOffsets(id)[1].x, 4, 2.5, '#ff9a3c'); // flare
+      circle(g, chimneyOffsets(id)[1].x, 4, 2.5, '#ff9a3c');
       break;
     }
     case 'car_plant': {
-      // long assembly hall: roof ribs + a red sign
-      for (let x = 8; x < b.w - 4; x += 12) rect(g, x, b.y + 2, 1, b.roofH - 4, 'rgba(0,0,0,0.2)');
-      rect(g, 8, b.y + b.roofH - 12, 40, 8, def.color);
-      rect(g, 10, b.y + b.roofH - 10, 36, 4, '#f4e6d0');
+      for (let x = 8; x < b.w - 4; x += 12) rect(g, x, b.y + 2, 1, ry - b.y - 20, 'rgba(0,0,0,0.2)');
+      rect(g, 8, ry - 24, 40, 8, def.color);
+      rect(g, 10, ry - 22, 36, 4, '#f4e6d0');
+      // forecourt strip with finished cars
+      rect(g, b.x + 2, ry - 13, b.w - 4, 11, '#5d6166');
+      rect(g, b.x + 2, ry - 8, b.w - 4, 1, '#d9d36a');
+      ['#b8322c', '#2f6fb5', '#e6e0d0'].forEach((c, i) => {
+        const cx = b.x + 8 + i * 22;
+        rect(g, cx, ry - 11, 14, 6, 'rgba(0,0,0,0.3)');
+        rect(g, cx, ry - 12, 14, 6, c);
+        rect(g, cx + 4, ry - 11, 6, 4, 'rgba(255,255,255,0.45)');
+      });
       break;
     }
     case 'textile_mill':
-      for (let x = 8; x < b.w - 6; x += 8) rect(g, x, b.y + b.roofH - 10, 4, 6, '#d9c7e6');
+      for (let x = 8; x < b.w - 6; x += 8) rect(g, x, ry - 10, 4, 6, '#d9c7e6');
       break;
-    case 'glassworks':
-      circle(g, Math.round(W * 0.7), b.y + 18, 9, '#bfe9e2'); circle(g, Math.round(W * 0.7), b.y + 18, 5, '#86cfc4');
+    case 'glassworks': {
+      const kx = Math.round(W * 0.68), ky = b.y + 6;
+      poly(g, [[kx - 12, ky + 30], [kx - 5, ky], [kx + 5, ky], [kx + 12, ky + 30]], '#7a5a48');
+      poly(g, [[kx - 12, ky + 30], [kx - 5, ky], [kx - 2, ky], [kx - 6, ky + 30]], '#9a7a64');
+      rect(g, kx - 6, ky - 1, 12, 3, '#3a2c25');
+      circle(g, kx, ky + 22, 5, '#ff8a2a'); circle(g, kx, ky + 22, 3, '#ffe08a');
+      break;
+    }
+    case 'creamery':
+      circle(g, 40, b.y + 14, 8, 'rgba(0,0,0,0.2)');
+      circle(g, 38, b.y + 12, 8, '#f4f6f8'); circle(g, 35, b.y + 9, 3, '#ffffff');
+      g.strokeStyle = '#b8c0c8'; g.beginPath(); g.arc(38, b.y + 12, 7.5, 0, Math.PI * 2); g.stroke();
+      rect(g, 6, b.y + 6, 14, 6, '#f2c94c');
+      break;
+    case 'juice_plant':
+      for (let i = 0; i < 3; i++) {
+        const vx = 12 + i * 15, vy = b.y + 22;
+        circle(g, vx + 1, vy + 2, 6, 'rgba(0,0,0,0.25)');
+        circle(g, vx, vy, 6, '#f39a2e'); circle(g, vx - 2, vy - 2, 2.2, '#ffd08a');
+        g.strokeStyle = '#a8591a'; g.beginPath(); g.arc(vx, vy, 5.5, 0, Math.PI * 2); g.stroke();
+      }
       break;
     case 'toy_factory':
       rect(g, 10, b.y + 6, 7, 7, '#e74c3c'); rect(g, 19, b.y + 6, 7, 7, '#3498db'); rect(g, 14, b.y + 14, 7, 7, '#f1c40f');
       break;
+    case 'bakery': {
+      rect(g, b.x + 1, b.y + 1, b.w - 2, b.roofH - 1, '#a67a52');
+      const dx = Math.round(W * 0.62), dy = b.y + 28;
+      circle(g, dx + 2, dy + 2, 9, 'rgba(0,0,0,0.25)');
+      circle(g, dx, dy, 8, '#8a5a3a'); circle(g, dx - 2, dy - 2, 3, '#b88458');
+      circle(g, dx, dy + 5, 3.5, '#ff8a2a'); circle(g, dx, dy + 5, 2, '#ffd27a');
+      rect(g, 8, b.y + 8, 14, 6, '#f1d9a8');
+      break;
+    }
+    case 'toolworks': {
+      rect(g, b.x + 3, b.y + 6, b.w - 6, 2, '#3a3f46');
+      rect(g, b.x + 3, b.y + 24, b.w - 6, 2, '#3a3f46');
+      rect(g, b.x + 3, b.y + 6, 2, 20, '#3a3f46'); rect(g, b.x + b.w - 5, b.y + 6, 2, 20, '#3a3f46');
+      rect(g, 30, b.y + 14, 2, 8, '#222'); rect(g, 28, b.y + 22, 6, 2, '#e0a82e');
+      poly(g, [[8, ry - 18], [24, ry - 18], [20, ry - 13], [18, ry - 10], [22, ry - 6], [8, ry - 6], [12, ry - 10], [12, ry - 13]], '#2b2f36');
+      break;
+    }
+    case 'clothing_factory': {
+      rect(g, b.x + 4, b.y + 12, b.w - 8, 1, '#3a3a3a');
+      ['#d9463b', '#f2c94c', '#3f9a5f'].forEach((c, i) => {
+        const sx = 12 + i * 16;
+        poly(g, [[sx, b.y + 13], [sx + 10, b.y + 13], [sx + 12, b.y + 17], [sx + 9, b.y + 18], [sx + 9, b.y + 26], [sx + 1, b.y + 26], [sx + 1, b.y + 18], [sx - 2, b.y + 17]], c);
+      });
+      break;
+    }
+    case 'electronics_plant': {
+      const mx = Math.round(W * 0.7);
+      rect(g, mx, 1, 1, ry - 2, '#d5dade');
+      for (let i = 0; i < 3; i++) rect(g, mx - 4 + i, 3 + i * 4, 9 - i * 2, 1, '#d5dade');
+      circle(g, mx, 1, 1.5, '#ff4a4a');
+      for (let i = 0; i < 3; i++) { rect(g, 10 + i * 14, b.y + 8, 11, 14, '#1f8f86'); rect(g, 11 + i * 14, b.y + 9, 9, 5, '#5fd0c6'); }
+      break;
+    }
+    case 'furniture_factory': {
+      rect(g, b.x + b.w - 26, b.y + 2, 24, 22, '#b89c68'); // yard notch
+      rect(g, b.x + b.w - 26, b.y + 2, 24, 1, 'rgba(0,0,0,0.25)');
+      for (let i = 0; i < 3; i++) rect(g, b.x + b.w - 24, b.y + 5 + i * 6, 20, 4, i % 2 ? '#c8a16e' : '#a8793d');
+      break;
+    }
+    case 'flour_mill': {
+      const mx = Math.round(W * 0.7), my = b.y + 18;
+      rect(g, mx - 7, my - 7, 14, 14, '#e9dfc7');
+      g.strokeStyle = '#6b4a2a'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(mx - 14, my - 14); g.lineTo(mx + 14, my + 14); g.moveTo(mx + 14, my - 14); g.lineTo(mx - 14, my + 14); g.stroke();
+      g.lineWidth = 1;
+      break;
+    }
     default:
-      rect(g, 8, b.y + b.roofH - 10, 12, 6, def.color); // roof sign in product colour
+      rect(g, 8, ry - 14, 12, 6, def.color);
   }
   stacks(g, id, def.color, b.y + 6);
   pennant(g, W, owner);
 }
 
-function paintStore(g: Ctx, _def: BuildingDef, W: number, H: number, owner: OwnerId): void {
-  const b = building(g, W, H, '#7a6a58', '#e8dcc0');
-  rect(g, b.x + 2, b.y + 2, b.w - 4, b.roofH - 4, '#8a7968');
-  rect(g, b.x + 6, b.y + 8, 10, 8, '#6a5c4d');
-  // striped awning over the shop window, in owner colour
-  const ay = b.y + b.roofH - 3, c = OWNER_COLOR[owner];
-  for (let x = b.x; x < b.x + b.w; x += 4) rect(g, x, ay, 4, 5, ((x - b.x) / 4) % 2 ? '#f4efe4' : c);
-  rect(g, b.x, ay + 5, b.w, 1, 'rgba(0,0,0,0.3)');
-  // shop window + door
-  rect(g, b.x + 4, b.y + b.roofH + 3, b.w - 18, 3, '#9fd4e8');
-  rect(g, b.x + b.w - 11, b.y + b.roofH + 2, 6, 5, '#5b3a1e');
-  rect(g, b.x + 4, b.y + b.roofH + 3, b.w - 18, 1, '#e8f6fb');
+function paintStore(g: Ctx, def: BuildingDef, W: number, H: number, owner: OwnerId): void {
+  const ownerC = OWNER_COLOR[owner];
+  const b = building(g, W, H, shade(def.color, -0.2), '#e8dcc0');
+  const yw = b.y + b.roofH; // seam; body bottom is yw + WALL
+  // parapet
+  rect(g, b.x, b.y, b.w, 3, shade(def.color, 0.15));
+  rect(g, b.x, b.y, 3, b.roofH, shade(def.color, 0.15));
+  rect(g, b.x + b.w - 3, b.y, 3, b.roofH, shade(def.color, 0.15));
+  rect(g, b.x + 3, b.y + 3, b.w - 6, 1, 'rgba(0,0,0,0.25)');
+  rect(g, b.x + 8, b.y + 8, 12, 8, 'rgba(0,0,0,0.2)'); // roof vent
+  // owner-colour sign board with white bar
+  rect(g, b.x + 4, yw - 21, b.w - 8, 9, ownerC);
+  rect(g, b.x + 4, yw - 21, b.w - 8, 1, 'rgba(255,255,255,0.35)');
+  rect(g, b.x + 10, yw - 18, b.w - 20, 3, '#ffffff');
+  // scalloped awning, full width, 8 px deep
+  const ay = yw - 11;
+  for (let x = b.x, i = 0; x < b.x + b.w; x += 6, i++) {
+    const cw = Math.min(6, b.x + b.w - x), col = i % 2 ? '#f6f1e6' : ownerC;
+    rect(g, x, ay, cw, 6, col);
+    circle(g, x + cw / 2, ay + 6, cw / 2, col);
+  }
+  rect(g, b.x, ay, b.w, 1, 'rgba(0,0,0,0.25)');
+  // glazed shopfront, goods, door, pavement
+  const fy = yw - 2, fh = 7;
+  rect(g, b.x, fy, b.w, WALL + 2, '#cbbfa3');
+  rect(g, b.x + 3, fy, b.w - 6, fh, '#3a5568');
+  rect(g, b.x + 4, fy + 1, b.w - 8, fh - 2, '#a9dcee');
+  rect(g, b.x + 4, fy + 1, b.w - 8, 1, '#e8f6fb');
+  ['#d9463b', '#f2c94c', '#3f9a5f', '#8e5bb5'].forEach((c, i) => {
+    const gx = b.x + 7 + i * 8 + (i >= 2 ? 10 : 0);
+    rect(g, gx, fy + 3, 3, 3, c);
+  });
+  const dx = Math.round(b.x + b.w / 2) - 3;
+  rect(g, dx, fy, 7, fh, '#5b3a1e'); rect(g, dx + 1, fy + 1, 5, 4, '#9fd4e8'); rect(g, dx + 5, fy + 4, 1, 1, '#f2c94c');
+  rect(g, b.x, yw + WALL - 2, b.w, 2, '#d9d4c8');
   pennant(g, W, owner);
 }
 
@@ -462,17 +577,18 @@ const cache = new Map<string, HTMLCanvasElement>();
  * `variant` only matters for farms: 'grain' | 'cotton' | 'fruit'.
  */
 export function getBuildingSprite(typeId: string, ownerId: OwnerId, variant = ''): HTMLCanvasElement {
-  const key = spriteKey(typeId, ownerId, variant);
-  let c = cache.get(key);
-  if (c) return c;
   const def = BUILDINGS[typeId];
   if (!def) throw new Error(`Unknown building: ${typeId}`);
+  const v = def.id === 'farm' ? variant || 'grain' : '';
+  const key = spriteKey(typeId, ownerId, v);
+  let c = cache.get(key);
+  if (c) return c;
   const { W, H } = dims(def);
   c = document.createElement('canvas');
   c.width = W;
   c.height = H;
   const g = c.getContext('2d');
-  if (g) paintBuilding(g, def, ownerId, variant);
+  if (g) paintBuilding(g, def, ownerId, v);
   cache.set(key, c);
   return c;
 }
