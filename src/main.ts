@@ -3,7 +3,6 @@ import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { runAutoplay } from './game/autoplay';
 import { GameController } from './game/controller';
-import { QuickRoute } from './game/quickRoute';
 import { runDays, stepTick } from './sim/simulation';
 import { createGame } from './sim/state';
 import type { Speed } from './sim/types';
@@ -14,6 +13,7 @@ import type { Speed } from './sim/types';
  *  - `autoplay=1`    script a furniture chain by the biggest city, then fast-forward 20 days at speed 8
  *  - `hour=<0-23>`   advance the clock to that hour on load (pauses unless `speed` is also given)
  *  - `speed=<0|1|2|4|8>` starting speed
+ *  - `panel=<id>`      open a panel (e.g. `routes`) on load
  */
 const canvas = document.getElementById('world') as HTMLCanvasElement;
 const ui = document.getElementById('ui') as HTMLElement;
@@ -62,11 +62,11 @@ if (params.has('speed') && [0, 1, 2, 4, 8].includes(speedParam)) state.speed = s
 
 const game = new GameController(canvas, ui);
 game.load(state);
-new QuickRoute(game, ui);
 if (focus) {
   game.camera.zoom = 1.25;
   game.centerOn(focus);
 }
+if (params.has('panel')) game.openPanel(params.get('panel') ?? '');
 if (notice) game.ctx.bus.emit({ type: 'toast', ...notice });
 
 if (import.meta.env.DEV) (window as unknown as { game: GameController }).game = game;

@@ -39,6 +39,8 @@ export type Ghost =
 export interface Selection {
   buildingId?: number;
   routeId?: number;
+  /** A route still being drafted in the route editor (not in `state.routes` yet). */
+  draftRoute?: { color: string; stops: { buildingId: number }[] };
   vehicleId?: number;
 }
 
@@ -840,8 +842,8 @@ export class WorldRenderer {
     const sel = this.selection;
     if (!sel) return;
     const px = 1 / z;
-    if (sel.routeId !== undefined) {
-      const route = state.routes[sel.routeId];
+    if (sel.routeId !== undefined || sel.draftRoute) {
+      const route = sel.draftRoute ?? state.routes[sel.routeId!];
       if (route) {
         const pts: Vec2[] = [];
         for (const s of route.stops) {

@@ -1,0 +1,38 @@
+/* Route editor window. */
+.rt { font-size: 13px; min-width: 380px; }
+.rt-top { margin-bottom: 8px; }
+.rt-empty, .rt-hint { margin: 6px 0 10px; color: var(--paper-shade); font-style: italic; line-height: 1.4; }
+.rt-card { background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; margin-bottom: 6px; }
+.rt-card.open { border-color: var(--brass-light); }
+.rt-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; }
+.rt-head:hover { background: rgba(232, 199, 90, 0.08); }
+.rt-swatch { width: 12px; align-self: stretch; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.5); flex: none; }
+.rt-title { flex: 1; min-width: 0; }
+.rt .rt-name { font: inherit; font-weight: bold; color: var(--paper); background: transparent; border: 1px solid transparent; border-radius: 2px; padding: 1px 3px; width: 100%; }
+.rt .rt-name:hover, .rt .rt-name:focus { border-color: var(--brass-dark); background: rgba(0, 0, 0, 0.25); outline: none; }
+.rt-stops-line { color: var(--paper-shade); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 3px; font-size: 12px; }
+.rt-stat { display: flex; flex-direction: column; align-items: flex-end; flex: none; font-size: 12px; color: var(--paper-shade); }
+.rt-stat b { color: var(--paper); font-size: 13px; }
+.rt-warn { margin: 0; padding: 4px 8px 6px 28px; list-style: none; color: #f0a35a; font-size: 12px; }
+.rt-detail { border-top: 1px solid var(--brass-dark); padding: 6px 8px 8px; }
+.rt-stop { padding: 4px 0 6px; border-bottom: 1px dotted rgba(201, 162, 39, 0.35); }
+.rt-stop-head { display: flex; align-items: center; gap: 6px; }
+.rt-num { width: 18px; height: 18px; border-radius: 50%; background: var(--brass); color: var(--walnut); font-size: 11px; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.rt-bname { flex: 1; font-weight: bold; }
+.rt-ctl { display: flex; gap: 2px; }
+.rt-mini { font: inherit; width: 22px; height: 22px; padding: 0; cursor: pointer; color: var(--paper); background: var(--walnut-light); border: 1px solid var(--brass-dark); border-radius: 2px; }
+.rt-mini:hover:not(:disabled) { background: var(--brass-dark); }
+.rt-mini:disabled { opacity: 0.35; cursor: default; }
+.rt-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin: 3px 0 0 24px; }
+.rt-chip-label { width: 58px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--paper-shade); }
+.rt-none { font-size: 11px; color: var(--paper-shade); opacity: 0.7; font-style: italic; }
+.rt-chip { font: inherit; cursor: pointer; padding: 1px 5px; border-radius: 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--brass-dark); opacity: 0.5; filter: grayscale(0.8); }
+.rt-chip.on { opacity: 1; filter: none; background: rgba(232, 199, 90, 0.25); border-color: var(--brass-light); }
+.rt-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.rt-sq { padding: 2px 9px; font-size: 14px; }
+.rt-trucks small { color: var(--paper-shade); }
+.rt-del.confirm { background: var(--bad); color: var(--paper); }
+.rt-cancel { background: var(--walnut-light); color: var(--paper); }
+.rt-draft-name { margin: 4px 0 8px; display: flex; align-items: center; gap: 6px; }
+.rt .rt-draft-name .rt-name { border-color: var(--brass-dark); background: rgba(0, 0, 0, 0.25); }
+.rt-buy { display: block; margin-top: 8px; cursor: pointer; }
