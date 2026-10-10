@@ -1,4 +1,5 @@
 import type { GameController } from '../../game/controller';
+import { rivalPanel } from './rival';
 import { contractsPanel } from './contracts';
 import { financePanel } from './finance';
 import { newspaperPanel } from './newspaper';
@@ -15,6 +16,7 @@ export interface PanelDef {
  * (e.g. `PANELS.building = buildingPanel`). On merge conflicts keep both sides.
  */
 export const PANELS: Record<string, PanelDef> = {};
+PANELS.rival = rivalPanel;
 
 PANELS.contracts = contractsPanel;
 PANELS.newspaper = newspaperPanel;
