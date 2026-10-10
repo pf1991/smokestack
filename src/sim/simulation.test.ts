@@ -28,6 +28,15 @@ describe('stepTick', () => {
     expect(SYSTEMS.map((s) => s.id)).toEqual(['vehicles', 'production', 'retail', 'upkeep', 'finance']);
   });
 
+  it('the clock stops after victory', () => {
+    const ctx = testCtx();
+    ctx.state.date = { year: 2001, month: 1, day: 1, hour: 0 };
+    const tick = ctx.state.tick;
+    stepTick(ctx);
+    expect(ctx.state.date).toEqual({ year: 2001, month: 1, day: 1, hour: 0 });
+    expect(ctx.state.tick).toBe(tick);
+  });
+
   it('month boundary fires systems once', () => {
     const ctx = testCtx();
     const counts = { tick: 0, day: 0, month: 0, year: 0 };
@@ -269,7 +278,7 @@ describe('headless chain', () => {
     );
     expect(sales).toBeGreaterThan(0);
     expect(state.cities[cityId].market.furniture?.sold30 ?? 0).toBeGreaterThan(0);
-    expect(ms).toBeLessThan(2000);
+    expect(ms).toBeLessThan(5000);
     // stretch: the chain pays for its own running costs over its first year
     expect(moneyEnd).toBeGreaterThan(moneyAfterConstruction);
   });

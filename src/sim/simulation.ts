@@ -21,6 +21,7 @@ const END_YEAR = 2001;
  */
 export function stepTick(ctx: SimContext): void {
   const { state, bus } = ctx;
+  if (state.date.year >= END_YEAR) return;
   state.tick += 1;
   for (const s of SYSTEMS) s.onTick?.(ctx);
 
