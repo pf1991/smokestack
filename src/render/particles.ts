@@ -3,9 +3,10 @@ import type { Camera } from './constants';
 /** Render-only particle effects. Positions are world pixels. */
 
 const MAX_PARTICLES = 2000;
-const SMOKE_LIFE = 3000;
-const SMOKE_RATE = 4; // puffs per second at density 1
+const SMOKE_LIFE = 4000;
+const SMOKE_RATE = 6; // puffs per second at density 1
 const MAX_STEP_MS = 100;
+const SMOKE_HIGHLIGHT = '#9a948a';
 const SMOKE_RISE = 12; // px/s
 const TEXT_LIFE = 1200;
 const TEXT_RISE = 24 / 1.2; // 24 px over 1.2 s, px/s
@@ -51,7 +52,7 @@ export class ParticleSystem {
         vy: -SMOKE_RISE,
         age: 0,
         life: SMOKE_LIFE,
-        color: '#808080',
+        color: '#3a332b',
       });
     }
   }
@@ -122,10 +123,18 @@ export class ParticleSystem {
       const t = p.age / p.life;
       const alpha = 1 - t;
       if (p.kind === 'smoke') {
-        ctx.globalAlpha = alpha * 0.5;
+        // dark sooty body plus a lighter offset puff for volume
+        const r = (4 + 12 * t) * cam.zoom;
+        const fade = Math.pow(1 - t, 0.7);
+        ctx.globalAlpha = 0.75 * fade;
         ctx.fillStyle = p.color;
         ctx.beginPath();
-        ctx.arc(sx, sy, (3 + 7 * t) * cam.zoom, 0, Math.PI * 2);
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.35 * fade;
+        ctx.fillStyle = SMOKE_HIGHLIGHT;
+        ctx.beginPath();
+        ctx.arc(sx - 2 * cam.zoom, sy - 2 * cam.zoom, r * 0.7, 0, Math.PI * 2);
         ctx.fill();
       } else if (p.kind === 'spark') {
         ctx.globalAlpha = alpha;

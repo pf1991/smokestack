@@ -89,9 +89,9 @@ describe('particles', () => {
       for (let k = 0; k < 60; k++) at60.emitSmoke(0, 0, 1, 16.7);
       const at30 = new ParticleSystem();
       for (let k = 0; k < 30; k++) at30.emitSmoke(0, 0, 1, 33.3);
-      // Expected 4 puffs per second of real time, so about 4 for each run.
-      expect(Math.abs(at60.count() - 4)).toBeLessThanOrEqual(2);
-      expect(Math.abs(at30.count() - 4)).toBeLessThanOrEqual(2);
+      // Expected 6 puffs per second of real time, so about 6 for each run.
+      expect(Math.abs(at60.count() - 6)).toBeLessThanOrEqual(2);
+      expect(Math.abs(at30.count() - 6)).toBeLessThanOrEqual(2);
     } finally {
       spy.mockRestore();
     }

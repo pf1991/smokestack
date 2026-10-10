@@ -90,8 +90,10 @@ const CHUNK_PX = CHUNK * TILE;
 const PAD = 8;
 const SURF_PX = CHUNK_PX + PAD * 2;
 const RENDERS_PER_FRAME = 3;
-/** ~1.1 MB each; a 0.5× view of 1400×900 shows at most ~35 chunks, so the visible set always fits. */
-const MAX_SURFACES = 48;
+/** Minimum surface cap (~1.1 MB each); raised per frame to 2 × visible chunks + 8 so the visible set always fits. */
+const MIN_SURFACE_CAP = 48;
+/** Frames between sweeps of direction entries for vehicles that no longer exist. */
+const VEHICLE_DIR_SWEEP = 600;
 const SPRITE_MARGIN = 2;
 const HOUSE_VARIANTS = 16;
 
@@ -411,6 +413,8 @@ export class WorldRenderer {
   private chunks = new Map<number, ChunkCache>();
   private chunkCols: number;
   private surfaceCount = 0;
+  private surfaceCap = MIN_SURFACE_CAP;
+  private curSig = '';
   private frame = 0;
   private lastNow: number | null = null;
   private lastFilter = '';
@@ -496,6 +500,9 @@ export class WorldRenderer {
     }
     this.state = state;
     this.frame++;
+    if (this.frame % VEHICLE_DIR_SWEEP === 0) {
+      for (const id of this.vehicleDir.keys()) if (!state.vehicles[id]) this.vehicleDir.delete(id);
+    }
     const dt = this.lastNow === null ? 16 : Math.min(100, Math.max(0, nowMs - this.lastNow));
     this.lastNow = nowMs;
     const { date } = state;
@@ -581,6 +588,8 @@ export class WorldRenderer {
     const cy0 = Math.floor(Math.max(0, r.y0 - 1) / CHUNK);
     const cx1 = Math.floor(Math.min(this.state.map.width - 1, r.x1 + 1) / CHUNK);
     const cy1 = Math.floor(Math.min(this.state.map.height - 1, r.y1 + 1) / CHUNK);
+    this.curSig = sig;
+    this.surfaceCap = Math.max(MIN_SURFACE_CAP, 2 * (cx1 - cx0 + 1) * (cy1 - cy0 + 1) + 8);
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         const c = this.chunkAt(cy * this.chunkCols + cx);
@@ -642,7 +651,7 @@ export class WorldRenderer {
   private renderChunk(c: ChunkCache, cx: number, cy: number, v: number, sig: string): void {
     let s = c.surf[v];
     if (!s) {
-      if (this.surfaceCount >= MAX_SURFACES) this.evictOne();
+      if (this.surfaceCount >= this.surfaceCap) this.evictOne(); // may allocate past the cap if nothing is evictable
       s = makeSurface(SURF_PX, SURF_PX);
       c.surf[v] = s;
       this.surfaceCount++;
@@ -701,9 +710,17 @@ export class WorldRenderer {
   private evictOne(): void {
     let worst: ChunkCache | null = null;
     let slot = 0;
+    const recent = this.frame - 1;
     for (const c of this.chunks.values()) {
       for (let i = 0; i < 2; i++) {
         if (!c.surf[i]) continue;
+        // never evict a surface drawn this or last frame
+        if (c.lastUsed[i] >= recent) continue;
+        // never evict a chunk's only usable surface while its other variant is stale
+        // (a chunk with a single surface that is off-screen may go; it re-renders on demand)
+        const o = 1 - i;
+        const fresh = (k: number) => c.surfVersion[k] === c.version && c.surfSig[k] === this.curSig;
+        if (c.surf[o] && !fresh(o) && fresh(i)) continue;
         if (!worst || c.lastUsed[i] < worst.lastUsed[slot]) {
           worst = c;
           slot = i;
@@ -1018,6 +1035,8 @@ export class WorldRenderer {
           const x = hs[i];
           const y = hs[i + 1];
           if (x < r.x0 - 1 || x > r.x1 + 1 || y < r.y0 - 1 || y > r.y1 + 1) continue;
+          // a building directly south is drawn over this house, so its windows must not glow through
+          if (y + 1 < state.map.height && state.map.tiles[(y + 1) * state.map.width + x].buildingId !== null) continue;
           const glow = getHouseGlow(style, hs[i + 2], state.date.year);
           ctx.drawImage(glow as CanvasImageSource, toSX(x * TILE - 6), toSY(y * TILE - 6), (TILE + 12) * z, (TILE + 12) * z);
         }
