@@ -1,6 +1,7 @@
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
+import { isUnlocked } from '../sim/eras';
 import { ROAD_COST } from '../sim/state';
 import type { GameState, Inventory } from '../sim/types';
 import { h } from './dom';
@@ -171,10 +172,9 @@ export class Toolbar {
   }
 
   update(state: GameState): void {
-    const unlocked = new Set(state.unlocked);
     for (const c of this.cards) {
       if (c.soon) continue;
-      const locked = !unlocked.has(c.def.id);
+      const locked = !isUnlocked(state, c.def.id);
       if (locked === c.locked) continue;
       c.locked = locked;
       c.el.disabled = locked;

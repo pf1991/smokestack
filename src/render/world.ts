@@ -547,7 +547,7 @@ export class WorldRenderer {
     ctx.save();
     ctx.fillStyle = '#1d1a16';
     ctx.fillRect(0, 0, cam.viewW, cam.viewH);
-    this.terrain.draw(ctx, cam, nowMs, { oilVisible: date.year >= 1910, month: date.month });
+    this.terrain.draw(ctx, cam, nowMs, { oilVisible: state.flags.oilRevealed === true || date.year >= 1910, month: date.month });
 
     const r = visibleTileRange(cam, state.map);
     // static cached layer: roads, bridges, lamps, gardens, houses
