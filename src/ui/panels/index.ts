@@ -16,3 +16,10 @@ export const PANELS: Record<string, PanelDef> = {};
 
 PANELS.contracts = contractsPanel;
 PANELS.newspaper = newspaperPanel;
+import { buildingPanel } from './building';
+import { cityPanel } from './city';
+import { vehiclePanel } from './vehicle';
+
+PANELS.building = buildingPanel;
+PANELS.city = cityPanel;
+PANELS.vehicle = vehiclePanel;
