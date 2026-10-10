@@ -15,6 +15,7 @@ import {
   removeRoad,
   ROAD_COST,
 } from '../sim/state';
+import { buildRail, railQuote, removeRail } from '../sim/rail';
 import type { GameState, SimContext, Vec2 } from '../sim/types';
 import { formatMoney, formatNumber } from '../ui/format';
 import { PANELS } from '../ui/panels/index';
@@ -140,8 +141,9 @@ export class ToolController {
   pointerMove(tile: Vec2): void {
     if (this.hover && this.hover.x === tile.x && this.hover.y === tile.y) return;
     this.hover = { ...tile };
-    // drag-bulldozing clears roads only; buildings need a deliberate click
-    if (this.pressed && this.tool.kind === 'bulldoze' && tileAt(this.state, tile)?.road) this.bulldoze(tile, false);
+    // drag-bulldozing clears roads and rails only; buildings need a deliberate click
+    const under = tileAt(this.state, tile);
+    if (this.pressed && this.tool.kind === 'bulldoze' && (under?.road || under?.rail)) this.bulldoze(tile, false);
     this.refreshGhost();
   }
 
@@ -151,11 +153,9 @@ export class ToolController {
     const start = this.dragStart;
     this.dragStart = null;
     if (start && (this.tool.kind === 'road' || this.tool.kind === 'rail')) {
-      if (this.tool.kind === 'rail') this.toast('Railways arrive in a later age', 'bad');
-      else {
-        const r = buildRoad(this.game.ctx, 'player', lPath(start, tile));
-        if (!r.ok) this.toast(r.error, 'bad');
-      }
+      const tiles = lPath(start, tile);
+      const r = this.tool.kind === 'rail' ? buildRail(this.game.ctx, 'player', tiles) : buildRoad(this.game.ctx, 'player', tiles);
+      if (!r.ok) this.toast(r.error, 'bad');
     }
     this.refreshGhost();
   }
@@ -184,6 +184,10 @@ export class ToolController {
       const r = demolishBuilding(this.game.ctx, t.buildingId, 'player');
       if (!r.ok) this.toast(r.error, 'bad');
       else reportLostStops(this.game.ctx, affected);
+    } else if (t.rail) {
+      // rail first: on a level crossing the road stays
+      const r = removeRail(this.game.ctx, 'player', [tile]);
+      if (!r.ok && explicit) this.toast(r.error, 'bad');
     } else if (t.road) {
       const r = removeRoad(this.game.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
@@ -256,7 +260,11 @@ export class ToolController {
       const end = hover ?? this.dragStart;
       if (!end) return null;
       const tiles = this.dragStart ? lPath(this.dragStart, end) : [end];
-      if (t.kind === 'rail') return { kind: 'tiles', tiles, valid: false, label: 'Railways arrive in a later age' };
+      if (t.kind === 'rail') {
+        const q = railQuote(this.state, 'player', tiles);
+        const label = q.error ?? (q.cost > 0 ? `Rail ${formatMoney(q.cost)}` : 'Rail (already built)');
+        return { kind: 'tiles', tiles, valid: q.error === null, label };
+      }
       const q = roadQuote(this.state, tiles);
       const label = q.error ?? (q.cost > 0 ? `Road ${formatMoney(q.cost)}` : 'Road (already built)');
       return { kind: 'tiles', tiles, valid: q.error === null, label };
@@ -279,6 +287,10 @@ export class ToolController {
         const mine = b.ownerId === 'player';
         const label = mine ? `Demolish ${def.name} +${formatMoney(def.cost * DEMOLITION_REFUND)}` : 'Not your building';
         return { kind: 'tiles', tiles: footprint(b), valid: mine, label };
+      }
+      if (tile.rail) {
+        const mine = tile.railOwner === null || tile.railOwner === 'player';
+        return { kind: 'tiles', tiles: [hover], valid: mine, label: mine ? 'Remove rail' : 'Not your rail' };
       }
       if (tile.road) {
         let label = 'Remove road';

@@ -15,6 +15,7 @@
 import type { EventBus } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
+import { STATION_TYPE, stationAccess } from '../sim/rail';
 import { accessTiles } from '../sim/state';
 import type { Building, GameMap, GameState, Tile, Vec2, Vehicle } from '../sim/types';
 import { applyAtmosphere, cssFilterFor, easeLight } from './atmosphere';
@@ -25,7 +26,11 @@ import {
   HEADROOM,
   chimneyOffsets,
   drawHouse,
-  drawTrain,
+  drawLocomotive,
+  drawWagon,
+  LOCO_HALF,
+  LOCO_STACK,
+  WAGON_HALF,
   drawTruck,
   getBuildingSprite,
   houseStyle,
@@ -106,6 +111,22 @@ const BRASS = '#c9a13a';
 const PLAYER_FLOAT = '#7ee07e';
 const RIVAL_FLOAT = '#b5302f';
 const LANE_OFFSET = 4;
+/** Wagons behind every locomotive (40 units each at TRAIN capacity 120). */
+const TRAIN_WAGONS = 3;
+/** Steam gives way to diesel from this year. */
+export const DIESEL_YEAR = 1950;
+/** Minimum spacing (tiles) between recorded locomotive positions, and how many are kept. */
+const TRAIL_STEP = 0.2;
+const TRAIL_MAX = 16;
+const DIR_ANGLE: Record<Dir, number> = { E: 0, S: Math.PI / 2, W: Math.PI, N: -Math.PI / 2 };
+
+interface TrainTrail {
+  /** tile coordinates, newest first */
+  pts: Vec2[];
+  /** unit heading of the last recorded step */
+  hx: number;
+  hy: number;
+}
 
 const MONEY = (n: number): string => '$' + Math.round(n).toLocaleString('en-US');
 /** Sales per building are summed and shown as at most one floater per this many real ms. */
@@ -274,6 +295,136 @@ function paintBridgeTile(g: Ctx, mask: number, era: 'dirt' | 'asphalt' | 'lanes'
   g.restore();
 }
 
+/** Rail gauge: each rail sits this many px either side of the track centreline. */
+const GAUGE = 4;
+const RAIL_STEEL = '#8e949b';
+const RAIL_SHINE = '#c9ced3';
+
+/**
+ * Paints one rail tile at (0,0): a ballast bed, sleepers ("ties") and two steel rails. Two
+ * perpendicular arms are drawn as a quarter-circle curve; anything else as straight arms from the
+ * centre. On a level crossing (`road` true) the ballast is replaced by timber decking set into the
+ * road, with striped crossbuck posts on the corners.
+ */
+function paintRailTile(g: Ctx, mask: number, road: boolean, winter: boolean, x: number, y: number, seed: number): void {
+  const C = TILE / 2;
+  const m = mask === 0 ? E | W : mask === N || mask === S ? N | S : mask === E || mask === W ? E | W : mask;
+  const curve = bitCount(m) === 2 && (m & (N | S)) !== 0 && (m & (E | W)) !== 0;
+  const ballast = winter ? '#b9b7b2' : '#857a6c';
+  const tie = road ? '#6b5236' : '#4a3626';
+
+  if (curve) {
+    // arc centred on the tile corner shared by the two arms
+    const cx = m & E ? TILE : 0;
+    const cy = m & S ? TILE : 0;
+    const a0 = m & E ? (m & S ? Math.PI : Math.PI / 2) : m & S ? -Math.PI / 2 : 0;
+    const a1 = a0 + Math.PI / 2;
+    const arc = (r: number, w: number, color: string): void => {
+      g.strokeStyle = color;
+      g.lineWidth = w;
+      g.beginPath();
+      g.arc(cx, cy, r, a0, a1);
+      g.stroke();
+    };
+    g.lineCap = 'butt';
+    if (!road) {
+      arc(C, 14, 'rgba(40,30,20,0.25)');
+      arc(C, 12, ballast);
+    }
+    g.strokeStyle = tie;
+    g.lineWidth = 2;
+    g.beginPath();
+    for (let k = 0; k < 5; k++) {
+      const a = a0 + ((k + 0.5) / 5) * (Math.PI / 2);
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      g.moveTo(cx + ca * (C - 6), cy + sa * (C - 6));
+      g.lineTo(cx + ca * (C + 6), cy + sa * (C + 6));
+    }
+    g.stroke();
+    for (const r of [C - GAUGE, C + GAUGE]) {
+      arc(r, 1.6, RAIL_STEEL);
+      arc(r - 0.4, 0.6, RAIL_SHINE);
+    }
+  } else {
+    const arms: [number, number, number, number][] = [];
+    // [x0, y0, x1, y1] from the centre out to each connected edge
+    if (m & N) arms.push([C, C, C, 0]);
+    if (m & S) arms.push([C, C, C, TILE]);
+    if (m & W) arms.push([C, C, 0, C]);
+    if (m & E) arms.push([C, C, TILE, C]);
+    const band = (hw: number, color: string): void => {
+      g.fillStyle = color;
+      for (const [x0, y0, x1, y1] of arms) {
+        if (x0 === x1) g.fillRect(C - hw, Math.min(y0, y1), hw * 2, Math.abs(y1 - y0));
+        else g.fillRect(Math.min(x0, x1), C - hw, Math.abs(x1 - x0), hw * 2);
+      }
+      g.fillRect(C - hw, C - hw, hw * 2, hw * 2);
+    };
+    if (!road) {
+      band(7, 'rgba(40,30,20,0.25)');
+      band(6, ballast);
+      // ballast grit
+      for (let i = 0; i < 6; i++) {
+        g.fillStyle = i % 2 ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)';
+        const vertical = (m & (N | S)) !== 0 && (m & (E | W)) === 0;
+        const along = h01(x, y, seed, 960 + i) * TILE;
+        const across = C - 5 + h01(x, y, seed, 970 + i) * 10;
+        g.fillRect(vertical ? across : along, vertical ? along : across, 1, 1);
+      }
+    } else {
+      band(6, 'rgba(70,52,30,0.85)'); // timber decking between and beside the rails
+    }
+    // sleepers every 4 px along each arm
+    g.fillStyle = tie;
+    for (const [x0, y0, x1, y1] of arms) {
+      const vertical = x0 === x1;
+      const len = Math.abs(vertical ? y1 - y0 : x1 - x0);
+      const dir = Math.sign(vertical ? y1 - y0 : x1 - x0);
+      for (let d = 2; d < len; d += 4) {
+        const p = C + dir * d;
+        if (vertical) g.fillRect(C - 6, p - 1, 12, 2);
+        else g.fillRect(p - 1, C - 6, 2, 12);
+      }
+    }
+    // rails
+    for (const [x0, y0, x1, y1] of arms) {
+      const vertical = x0 === x1;
+      for (const off of [-GAUGE, GAUGE]) {
+        g.fillStyle = RAIL_STEEL;
+        if (vertical) g.fillRect(C + off - 0.8, Math.min(y0, y1), 1.6, Math.abs(y1 - y0));
+        else g.fillRect(Math.min(x0, x1), C + off - 0.8, Math.abs(x1 - x0), 1.6);
+        g.fillStyle = RAIL_SHINE;
+        if (vertical) g.fillRect(C + off - 0.8, Math.min(y0, y1), 0.6, Math.abs(y1 - y0));
+        else g.fillRect(Math.min(x0, x1), C + off - 0.8, Math.abs(x1 - x0), 0.6);
+      }
+    }
+  }
+
+  if (road) {
+    // crossbuck posts on two opposite corners: white with red stripes
+    g.lineCap = 'butt';
+    for (const [px, py] of [[5, 5], [TILE - 5, TILE - 5]]) {
+      const cross = (w: number, color: string, dx: number, dy: number): void => {
+        g.strokeStyle = color;
+        g.lineWidth = w;
+        g.beginPath();
+        g.moveTo(px - 3.5 + dx, py - 3.5 + dy);
+        g.lineTo(px + 3.5 + dx, py + 3.5 + dy);
+        g.moveTo(px + 3.5 + dx, py - 3.5 + dy);
+        g.lineTo(px - 3.5 + dx, py + 3.5 + dy);
+        g.stroke();
+      };
+      cross(2.5, 'rgba(0,0,0,0.35)', 1, 1);
+      cross(2.5, '#b8322a', 0, 0);
+      cross(1.1, '#f4efe2', 0, 0);
+      g.fillStyle = '#2b2b2e';
+      g.fillRect(px - 1, py - 1, 2, 2);
+    }
+  }
+}
+
+
 /** A small garden tree for empty urban tiles. */
 function paintGardenTree(g: Ctx, cx: number, cy: number, r: number, winter: boolean): void {
   g.fillStyle = 'rgba(10,30,15,0.3)';
@@ -429,6 +580,8 @@ export class WorldRenderer {
   private ghost: Ghost | null = null;
   private selection: Selection | null = null;
   private vehicleDir = new Map<number, Dir>();
+  /** Recent locomotive positions (tile coords, newest first) so wagons follow the track. */
+  private trainTrails = new Map<number, TrainTrail>();
   private sortBuf: Building[] = [];
   /** sale floaters live apart from smoke/sparks so they can be drawn on the unfiltered overlay */
   private readonly floaters = new ParticleSystem();
@@ -519,6 +672,7 @@ export class WorldRenderer {
       this.chunks.clear();
       this.surfaceCount = 0;
       this.vehicleDir.clear();
+      this.trainTrails.clear();
       this.pendingSales.clear();
       this.lastFloat.clear();
       this.light = null;
@@ -527,6 +681,7 @@ export class WorldRenderer {
     this.frame++;
     if (this.frame % VEHICLE_DIR_SWEEP === 0) {
       for (const id of this.vehicleDir.keys()) if (!state.vehicles[id]) this.vehicleDir.delete(id);
+      for (const id of this.trainTrails.keys()) if (!state.vehicles[id]) this.trainTrails.delete(id);
     }
     const dt = this.lastNow === null ? 16 : Math.min(100, Math.max(0, nowMs - this.lastNow));
     this.lastNow = nowMs;
@@ -560,7 +715,7 @@ export class WorldRenderer {
     const visBuildings = this.collectBuildings(state, r);
     this.drawBuildings(ctx, visBuildings);
     this.emitSmoke(state, cam, dt);
-    this.drawVehicles(ctx, state, r, alpha);
+    this.drawVehicles(ctx, state, r, alpha, dt);
     ctx.restore();
 
     this.particles.update(dt);
@@ -744,6 +899,7 @@ export class WorldRenderer {
           if (t.terrain === 'water') paintBridgeTile(g, mask, era);
           else paintRoadTile(g, mask, era, t.cityId !== null, winter, x, y, seed, hasLamp(t, x, y));
         }
+        if (t.rail) paintRailTile(g, roadMask(map, x, y, 'rail'), t.road, winter, x, y, seed);
       }
     }
     // gardens on empty urban tiles, then houses (row order → lower houses overlap upper ones)
@@ -874,13 +1030,13 @@ export class WorldRenderer {
     return { x, y, dir };
   }
 
-  private drawVehicles(ctx: CanvasRenderingContext2D, state: GameState, r: { x0: number; y0: number; x1: number; y1: number }, alpha: number): void {
+  private drawVehicles(ctx: CanvasRenderingContext2D, state: GameState, r: { x0: number; y0: number; x1: number; y1: number }, alpha: number, dt: number): void {
     for (const id in state.vehicles) {
       const v = state.vehicles[id];
       if (v.pos.x < r.x0 - SPRITE_MARGIN || v.pos.x > r.x1 + SPRITE_MARGIN || v.pos.y < r.y0 - SPRITE_MARGIN || v.pos.y > r.y1 + SPRITE_MARGIN) continue;
       const p = this.vehiclePose(v, alpha);
       if (v.kind === 'train') {
-        drawTrain(ctx, p.x, p.y, p.dir, v.ownerId, 3);
+        this.drawTrainConsist(ctx, state, v, p, dt);
         continue;
       }
       let cargo: string | null = null;
@@ -893,6 +1049,122 @@ export class WorldRenderer {
       drawTruck(ctx, p.x, p.y, p.dir, v.ownerId, cargo);
     }
   }
+
+  // -------------------------------------------------------------- trains
+
+  /** Records the locomotive's position; a reversal (terminus) restarts the trail. Returns the polyline, loco first. */
+  private trainPolyline(id: number, cur: Vec2): Vec2[] {
+    let t = this.trainTrails.get(id);
+    if (!t) {
+      t = { pts: [cur], hx: 0, hy: 0 };
+      this.trainTrails.set(id, t);
+    }
+    const last = t.pts[0];
+    const dx = cur.x - last.x;
+    const dy = cur.y - last.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 3) {
+      t.pts = [cur]; // teleported (bought, loaded save): start over
+      t.hx = 0;
+      t.hy = 0;
+    } else if (d >= TRAIL_STEP) {
+      const hx = dx / d;
+      const hy = dy / d;
+      if (hx * t.hx + hy * t.hy < -0.5) t.pts = [cur];
+      else {
+        t.pts.unshift(cur);
+        if (t.pts.length > TRAIL_MAX) t.pts.length = TRAIL_MAX;
+      }
+      t.hx = hx;
+      t.hy = hy;
+    }
+    return t.pts[0] === cur ? t.pts : [cur, ...t.pts];
+  }
+
+  /**
+   * Point `s` tiles back along the polyline. Past its end the train extends straight backwards;
+   * `onTrack` is false there when the tile under the point carries no rail (that wagon is hidden).
+   */
+  private sampleBack(state: GameState, pl: Vec2[], s: number, back: Vec2): { x: number; y: number; onTrack: boolean } {
+    let rest = s;
+    for (let i = 0; i + 1 < pl.length; i++) {
+      const a = pl[i];
+      const b = pl[i + 1];
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (rest <= len) {
+        const k = len > 0 ? rest / len : 0;
+        return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, onTrack: true };
+      }
+      rest -= len;
+    }
+    const end = pl[pl.length - 1];
+    let ux = back.x;
+    let uy = back.y;
+    if (pl.length >= 2) {
+      const p = pl[pl.length - 2];
+      const l = Math.hypot(end.x - p.x, end.y - p.y);
+      if (l > 1e-6) {
+        ux = (end.x - p.x) / l;
+        uy = (end.y - p.y) / l;
+      }
+    }
+    const x = end.x + ux * rest;
+    const y = end.y + uy * rest;
+    const { map } = state;
+    const tx = Math.round(x);
+    const ty = Math.round(y);
+    const onTrack = tx >= 0 && ty >= 0 && tx < map.width && ty < map.height && map.tiles[ty * map.width + tx].rail;
+    return { x, y, onTrack };
+  }
+
+  /** Locomotive plus wagons following the track behind it; steam puffs before 1950, diesel exhaust after. */
+  private drawTrainConsist(ctx: CanvasRenderingContext2D, state: GameState, v: Vehicle, p: { x: number; y: number; dir: Dir }, dt: number): void {
+    const cur = { x: p.x / TILE - 0.5, y: p.y / TILE - 0.5 };
+    const pl = this.trainPolyline(v.id, cur);
+    const ang = DIR_ANGLE[p.dir];
+    const back = { x: -Math.cos(ang), y: -Math.sin(ang) };
+    // loco heading: from a point half a tile back, else its cardinal direction
+    const behind = this.sampleBack(state, pl, 0.5, back);
+    const locoAngle = pl.length >= 2 && Math.hypot(cur.x - behind.x, cur.y - behind.y) > 0.3
+      ? Math.atan2(cur.y - behind.y, cur.x - behind.x)
+      : ang;
+    // wagons fill up in order with the carried goods
+    const fills: (string | null)[] = [];
+    let carried = 0;
+    const goods: string[] = [];
+    for (const g in v.cargo) {
+      if (v.cargo[g] <= 0) continue;
+      carried += v.cargo[g];
+      goods.push(g);
+    }
+    const perWagon = v.capacity / TRAIN_WAGONS;
+    for (let i = 0; i < TRAIN_WAGONS; i++) {
+      const loaded = carried > i * perWagon + 1e-6;
+      const g = goods.length > 0 ? goods[i % goods.length] : undefined;
+      fills.push(loaded && g ? (GOODS[g]?.color ?? '#777') : null);
+    }
+    for (let i = TRAIN_WAGONS - 1; i >= 0; i--) {
+      const s = (LOCO_HALF + 1 + WAGON_HALF + i * (2 * WAGON_HALF + 1)) / TILE;
+      const c = this.sampleBack(state, pl, s, back);
+      if (!c.onTrack) continue;
+      const f = this.sampleBack(state, pl, s - 0.25, back);
+      const b = this.sampleBack(state, pl, s + 0.25, back);
+      const a = Math.hypot(f.x - b.x, f.y - b.y) > 1e-3 ? Math.atan2(f.y - b.y, f.x - b.x) : locoAngle;
+      drawWagon(ctx, (c.x + 0.5) * TILE, (c.y + 0.5) * TILE, a, fills[i], v.id + i);
+    }
+    const diesel = state.date.year >= DIESEL_YEAR;
+    drawLocomotive(ctx, p.x, p.y, locoAngle, v.ownerId, diesel);
+    // smoke from the stack
+    const moving = Math.abs(v.pos.x - v.prevPos.x) + Math.abs(v.pos.y - v.prevPos.y) > 1e-6;
+    const stack = diesel ? LOCO_STACK.diesel : LOCO_STACK.steam;
+    const ca = Math.cos(locoAngle);
+    const sa = Math.sin(locoAngle);
+    const sx = p.x + stack.x * ca - stack.y * sa;
+    const sy = p.y + stack.x * sa + stack.y * ca;
+    const density = diesel ? (moving ? 0.2 : 0) : moving ? 0.9 : v.state === 'loading' ? 0.3 : 0.08;
+    if (density > 0) this.particles.emitSmoke(sx, sy - 3, density, dt);
+  }
+
 
   // -------------------------------------------------------------- selection & ghost
 
@@ -971,6 +1243,7 @@ export class WorldRenderer {
         // access tiles hint
         ctx.fillStyle = 'rgba(201,161,58,0.25)';
         for (const a of accessTiles(state, b)) ctx.fillRect(a.x * TILE + 2, a.y * TILE + 2, TILE - 4, TILE - 4);
+        if (b.typeId === STATION_TYPE) for (const a of stationAccess(state, b)) ctx.fillRect(a.x * TILE + 2, a.y * TILE + 2, TILE - 4, TILE - 4);
       }
     }
     if (sel.vehicleId !== undefined) {
@@ -1137,8 +1410,9 @@ export class WorldRenderer {
       const v = state.vehicles[id];
       if (v.pos.x < r.x0 - 1 || v.pos.x > r.x1 + 1 || v.pos.y < r.y0 - 1 || v.pos.y > r.y1 + 1) continue;
       const p = this.vehiclePose(v, alpha);
-      const fx = p.dir === 'E' ? 11 : p.dir === 'W' ? -11 : 0;
-      const fy = p.dir === 'S' ? 11 : p.dir === 'N' ? -11 : 0;
+      const f = v.kind === 'train' ? 14 : 11;
+      const fx = p.dir === 'E' ? f : p.dir === 'W' ? -f : 0;
+      const fy = p.dir === 'S' ? f : p.dir === 'N' ? -f : 0;
       ctx.drawImage(lamp as CanvasImageSource, toSX(p.x + fx) - HR, toSY(p.y + fy) - HR, HR * 2, HR * 2);
     }
     ctx.restore();

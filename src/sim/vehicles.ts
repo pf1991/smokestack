@@ -24,9 +24,15 @@ export interface VehicleKindDef {
   spec: VehicleSpec;
   passable: Passable;
   access: (state: GameState, building: Building) => Vec2[];
+  /** error for a building this kind may not stop at (null when allowed); default: any building */
+  stopError?: (building: Building) => string | null;
+  /** error when a stop has no access tiles (default 'Stop has no road access') */
+  noAccessError?: string;
+  /** true while every vehicle of this kind stands still (e.g. a rail strike) */
+  halted?: (state: GameState) => boolean;
 }
 
-/** Movement is generic over this table; Task 27 registers `train` here. */
+/** Movement is generic over this table; rail.ts registers `train` here when it loads. */
 export const VEHICLE_KINDS: Partial<Record<Vehicle['kind'], VehicleKindDef>> = {
   truck: { spec: TRUCK, passable: roadPassable, access: accessTiles },
 };
@@ -47,7 +53,9 @@ function validateStops(state: GameState, owner: OwnerId, kind: Route['kind'], st
     const b = state.buildings[stop.buildingId];
     if (!b) return err('No such building');
     if (b.ownerId !== owner) return err('Not your building');
-    if (def.access(state, b).length === 0) return err('Stop has no road access');
+    const bad = def.stopError?.(b);
+    if (bad) return err(bad);
+    if (def.access(state, b).length === 0) return err(def.noAccessError ?? 'Stop has no road access');
   }
   return ok();
 }
@@ -134,7 +142,8 @@ export function deleteRoute(ctx: SimContext, routeId: number): Result {
 // ---------------------------------------------------------------------------
 // purchases
 
-function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kind: Vehicle['kind']): Result<Vehicle> {
+/** Buys a vehicle of `kind` for a route of the same kind (used by buyTruck and rail.ts's buyTrain). */
+export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kind: Vehicle['kind']): Result<Vehicle> {
   const { state } = ctx;
   const def = VEHICLE_KINDS[kind];
   if (!def) return err('Unknown vehicle kind');
@@ -144,7 +153,7 @@ function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kind: Vehi
   if (route.kind !== kind) return err('Wrong vehicle for this route');
   const first = route.stops[0] ? state.buildings[route.stops[0].buildingId] : undefined;
   const spawn = first ? def.access(state, first)[0] : undefined;
-  if (!spawn) return err('Stop has no road access');
+  if (!spawn) return err(def.noAccessError ?? 'Stop has no road access');
   const company = state.companies[owner];
   if (!canAfford(company, def.spec.cost)) return err('Not enough money');
   spend(company, 'vehicles', def.spec.cost, state.date);
@@ -338,6 +347,7 @@ function tickVehicle(ctx: SimContext, veh: Vehicle): void {
   veh.prevPos.y = veh.pos.y;
   const def = VEHICLE_KINDS[veh.kind];
   if (!def) return;
+  if (def.halted?.(state)) return;
   const route = veh.routeId !== null ? state.routes[veh.routeId] : undefined;
   const n = route ? route.stops.length : 0;
   if (!route || n < 2) {

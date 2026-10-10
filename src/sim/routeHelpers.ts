@@ -4,7 +4,7 @@ import { RECIPES } from '../data/recipes';
 import { acceptsGood, loadSource } from './inventory';
 import { findPath, roadPassable } from './pathfinding';
 import { accessTiles } from './state';
-import type { Building, GameState, GoodId, RouteStop } from './types';
+import type { Building, GameState, GoodId, Route, RouteStop } from './types';
 import { TRUCK, VEHICLE_KINDS } from './vehicles';
 
 /** Ticks in a game month (30 days x 24 ticks). */
@@ -66,12 +66,17 @@ export function suggestStops(state: GameState, buildingIds: number[]): RouteStop
   }));
 }
 
-/** Length in tiles of the road path between two buildings' access tiles, or null when unreachable. */
-export function legLength(state: GameState, a: Building, b: Building): number | null {
-  const from = accessTiles(state, a)[0];
-  const targets = accessTiles(state, b);
+/**
+ * Length in tiles of the path between two buildings' access tiles for a vehicle `kind` (road for
+ * trucks, rail for trains), or null when unreachable.
+ */
+export function legLength(state: GameState, a: Building, b: Building, kind: Route['kind'] = 'truck'): number | null {
+  const def = VEHICLE_KINDS[kind];
+  const access = def?.access ?? accessTiles;
+  const from = access(state, a)[0];
+  const targets = access(state, b);
   if (!from || targets.length === 0) return null;
-  const path = findPath(state.map, from, targets, roadPassable);
+  const path = findPath(state.map, from, targets, def?.passable ?? roadPassable);
   return path ? path.length - 1 : null;
 }
 
@@ -85,7 +90,7 @@ export function roundTripTicks(state: GameState, routeId: number): number | null
     const a = state.buildings[route.stops[i].buildingId];
     const b = state.buildings[route.stops[(i + 1) % route.stops.length].buildingId];
     if (!a || !b) return null;
-    const len = legLength(state, a, b);
+    const len = legLength(state, a, b, route.kind);
     if (len === null) return null;
     tiles += len;
   }

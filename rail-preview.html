@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SMOKESTACK rail preview</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1a16; font: 12px monospace; color: #eee; }
+      #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      #hud { position: fixed; top: 6px; left: 8px; background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="hud"></div>
+    <script type="module" src="/src/render/railPreview.ts"></script>
+  </body>
+</html>

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GameController } from '../../game/controller';
 import { buildRoad, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
+import { buildRail, TRAIN } from '../../sim/rail';
 import { buyTruck, createRoute, TRUCK } from '../../sim/vehicles';
 import type { ToolSpec } from '../tools';
 import { PANELS } from './index';
@@ -55,6 +56,29 @@ describe('routes panel', () => {
     expect(Object.values(s.vehicles)).toHaveLength(1);
     expect(s.companies.player.money).toBe(money - TRUCK.cost);
     expect(game.tools.onPick).toBeNull();
+  });
+
+  it('rail line: only stations are picked, Done creates a train route with a train', () => {
+    const { s, ctx, mill, game, host } = setup();
+    const a = must(placeBuilding(ctx, 'player', 'train_station', { x: 2, y: 20 }));
+    const b = must(placeBuilding(ctx, 'player', 'train_station', { x: 20, y: 20 }));
+    must(buildRail(ctx, 'player', lPath({ x: 2, y: 22 }, { x: 22, y: 22 })));
+    a.input.coal = 50;
+    PANELS.routes.open(host);
+    click('[data-act="new-train"]');
+    game.tools.onPick!(mill.id); // refused: not a station
+    game.tools.onPick!(a.id);
+    game.tools.onPick!(b.id);
+    expect(win().textContent).toContain('Buy first train');
+    const money = s.companies.player.money;
+    click('[data-act="done"]');
+    const routes = Object.values(s.routes);
+    expect(routes).toHaveLength(1);
+    expect(routes[0].kind).toBe('train');
+    expect(routes[0].stops.map((x) => x.buildingId)).toEqual([a.id, b.id]);
+    expect(Object.values(s.vehicles).map((v) => v.kind)).toEqual(['train']);
+    expect(s.companies.player.money).toBe(money - TRAIN.cost);
+    expect(win().textContent).toContain('1 🚂');
   });
 
   it('truck checkbox off skips the truck; fewer than two stops does not save', () => {

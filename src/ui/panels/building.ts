@@ -3,6 +3,7 @@ import { getGood } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { formatDate, isWinter } from '../../sim/clock';
 import { loadSource } from '../../sim/inventory';
+import { STATION_TYPE, stationAccess } from '../../sim/rail';
 import { accessTiles, DEMOLITION_REFUND, demolishBuilding, footprint } from '../../sim/state';
 import type { Building, GameState, Route } from '../../sim/types';
 import { h } from '../dom';
@@ -103,6 +104,8 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const statusBadge = h('span', { class: 'insp-badge' });
   const reason = h('div', { class: 'insp-reason' });
   const noRoad = h('div', { class: 'insp-warn' }, '⚠ No road access — trucks cannot reach this building');
+  const noRail = h('div', { class: 'insp-warn' }, '⚠ No track alongside — lay rail next to the station for trains');
+  noRail.hidden = true;
   const recipeSel = h('select', {
     class: 'insp-recipe',
     onChange: () => {
@@ -157,6 +160,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     h('div', { class: 'insp-head' }, owner, statusBadge),
     reason,
     noRoad,
+    noRail,
     recipeBox,
     inSection,
     outSection,
@@ -183,6 +187,11 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const routes = routesServing(state, id);
       setText(reason, statusReason(state, b, routes));
       noRoad.hidden = accessTiles(state, b).length > 0;
+      if (b.typeId === STATION_TYPE) {
+        const railOk = stationAccess(state, b).length > 0;
+        noRail.hidden = railOk;
+        if (railOk) noRoad.hidden = true; // a rail-only station is fine
+      }
 
       // recipe selector: unlocked recipes only (plus the current one)
       const hasRecipes = (def.category === 'extractor' || def.category === 'factory') && def.recipes.length > 0;

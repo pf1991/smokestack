@@ -3,6 +3,7 @@ import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
 import { isUnlocked } from '../sim/eras';
 import { ROAD_COST } from '../sim/state';
+import { RAIL_COST } from '../sim/rail';
 import type { GameState, Inventory } from '../sim/types';
 import { h } from './dom';
 import { formatMoney } from './format';
@@ -41,7 +42,7 @@ function flow(def: BuildingDef): string {
 }
 
 /** Buildings shown but not yet buildable (their system arrives in a later task, e.g. railways). */
-const COMING_SOON = new Set(['train_station']);
+const COMING_SOON = new Set<string>();
 
 interface Card {
   el: HTMLButtonElement;
@@ -124,8 +125,8 @@ export class Toolbar {
       transport.appendChild(el);
     };
     toolCard('road', 'Road', 'Drag to lay roads (bridges over water)', `${formatMoney(ROAD_COST)}/tile`, { kind: 'road' });
-    toolCard('rail', 'Rail', 'Steel rails for the age of trains', 'Coming soon', null);
-    toolCard('bulldoze', 'Bulldoze', 'Demolish for a 25% refund (Del)', 'Click a building or road', { kind: 'bulldoze' });
+    toolCard('rail', 'Rail', 'Drag to lay track (level crossings over roads, never water)', `${formatMoney(RAIL_COST)}/tile`, { kind: 'rail' });
+    toolCard('bulldoze', 'Bulldoze', 'Demolish for a 25% refund (Del)', 'Click a building, road or rail', { kind: 'bulldoze' });
 
     this.bar = h('div', { class: 'toolbar' }, tabsRow, body);
     root.appendChild(this.bar);
