@@ -1,3 +1,6 @@
+import { contractsSystem } from './contracts';
+import { checkUnlocks, eraBanner, fadeWarnings } from './eras';
+import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
@@ -55,4 +58,14 @@ export const SYSTEMS: SimSystem[] = [
   },
   finance,
   { id: 'rival', onMonth: (ctx) => { rivalMonth(ctx); rivalTaunt(ctx); } },
+  contractsSystem,
+  { id: 'events', onDay: eventsDay, onMonth: eventsMonth },
+  {
+    id: 'eras',
+    onDay(ctx) {
+      checkUnlocks(ctx);
+      eraBanner(ctx);
+    },
+    onYear: fadeWarnings,
+  },
 ];

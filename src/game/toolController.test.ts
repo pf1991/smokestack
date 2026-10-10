@@ -73,14 +73,14 @@ describe('ToolController', () => {
     tc.setTool({ kind: 'build', typeId: 'sawmill' });
     tc.pointerMove({ x: 10, y: 10 });
     const g = tc.ghost();
-    expect(g).toMatchObject({ kind: 'building', typeId: 'sawmill', valid: false, label: 'Wrong terrain' });
+    expect(g).toMatchObject({ kind: 'building', typeId: 'sawmill', valid: false, label: "Can't build on water" });
     // the footprint is centred on the cursor
     expect(g?.kind === 'building' ? g.pos : null).toEqual({ x: 9, y: 9 });
     const snapshot = JSON.stringify(ctx.state);
     tc.pointerDown({ x: 10, y: 10 });
     tc.pointerUp({ x: 10, y: 10 });
     expect(JSON.stringify(ctx.state)).toBe(snapshot);
-    expect(toasts()).toEqual([{ type: 'toast', message: 'Wrong terrain', tone: 'bad' }]);
+    expect(toasts()).toEqual([{ type: 'toast', message: "Can't build on water", tone: 'bad' }]);
   });
 
   it('valid build places and labels the ghost with name and cost', () => {
@@ -131,13 +131,13 @@ describe('ToolController', () => {
     expect(ctx.state.buildings[b.id]).toBeUndefined();
   });
 
-  it('inspect selects a building when no panel is registered', () => {
+  it('inspect selects a building and opens the building panel', () => {
     const { ctx, tc, renderer, game } = setup();
     const b = must(placeBuilding(ctx, 'player', 'sawmill', { x: 5, y: 5 }));
     tc.pointerDown({ x: 5, y: 5 });
     tc.pointerUp({ x: 5, y: 5 });
     expect(renderer.selection).toEqual({ buildingId: b.id });
-    expect(game.openPanel).not.toHaveBeenCalled();
+    expect(game.openPanel).toHaveBeenCalledWith('building', b.id);
   });
 
   it('pickStop forwards the building id to onPick', () => {

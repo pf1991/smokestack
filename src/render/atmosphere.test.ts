@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { GameDate } from '../sim/types';
-import { lightLevel, eraGrade, seasonTint, applyAtmosphere, cssFilterFor } from './atmosphere';
+import { lightLevel, eraGrade, seasonTint, applyAtmosphere, cssFilterFor, easeLight, FAST_MIN_LIGHT } from './atmosphere';
 
 interface Call {
   op: string;
@@ -112,5 +112,31 @@ describe('applyAtmosphere', () => {
     applyAtmosphere(ctx, 800, 600, date(12, 4));
     expect(calls.some((c) => c.comp === 'multiply')).toBe(false);
     expect(balanced()).toBe(true);
+  });
+});
+
+describe('easeLight', () => {
+  it('snaps on the first frame and eases with a ~1.5 s time constant', () => {
+    expect(easeLight(null, 12, 16, 1)).toBe(1);
+    // one time constant covers ~63% of the gap from 1 to 0.25
+    expect(easeLight(1, 23, 1500, 1)).toBeCloseTo(1 - 0.75 * (1 - Math.exp(-1)), 5);
+    // a single 16 ms frame barely moves it
+    expect(easeLight(1, 23, 16, 1)).toBeGreaterThan(0.99);
+  });
+
+  it('never flashes at speed 8: stays at or above the floor through whole days', () => {
+    let l: number | null = null;
+    let min = 1;
+    let maxStep = 0;
+    // one game day per 250 ms at speed 8, 60 fps for ~5 s
+    for (let f = 0; f < 300; f++) {
+      const hour = Math.floor(((f * 16) / 250) * 24) % 24;
+      const next: number = easeLight(l, hour, 16, 8);
+      if (l !== null) maxStep = Math.max(maxStep, Math.abs(next - l));
+      l = next;
+      min = Math.min(min, l);
+    }
+    expect(min).toBeGreaterThanOrEqual(FAST_MIN_LIGHT);
+    expect(maxStep).toBeLessThan(0.01);
   });
 });

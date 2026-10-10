@@ -10,7 +10,7 @@ import { connectToRoads } from '../sim/testkit';
 import type { Building, City, SimContext, Vec2 } from '../sim/types';
 import { runTicks } from '../sim/simulation';
 import { buyTruck, createRoute } from '../sim/vehicles';
-import { suggestStops } from './routeSuggest';
+import { suggestStops } from '../sim/routeHelpers';
 
 export function biggestCity(cities: City[]): City | undefined {
   return [...cities].sort((a, b) => b.population - a.population)[0];

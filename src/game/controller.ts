@@ -11,6 +11,7 @@ import { PANELS } from '../ui/panels/index';
 import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
+import { attachStuckToasts } from './feedback';
 import { Input } from './input';
 import { ToolController } from './toolController';
 import { biggestCity } from './autoplay';
@@ -58,6 +59,9 @@ export class GameController {
   readonly sfx = new Sfx();
   private readonly input: Input;
   private readonly g2d: CanvasRenderingContext2D;
+  /** unfiltered canvas above the world for ghost, selection and floaters */
+  readonly overlay: HTMLCanvasElement;
+  private readonly o2d: CanvasRenderingContext2D;
   private dpr = 1;
   private busOffs: (() => void)[] = [];
   private toolListeners: ((t: ToolSpec) => void)[] = [];
@@ -72,6 +76,12 @@ export class GameController {
   private ended = false;
   private audioOn = false;
   private readonly onResize = () => this.resize();
+  private dprQuery: MediaQueryList | null = null;
+  private hudObserver: ResizeObserver | null = null;
+  private readonly onDprChange = () => {
+    this.resize();
+    this.watchDpr();
+  };
   private readonly onGesture = () => this.enableAudio();
 
   constructor(
@@ -81,6 +91,13 @@ export class GameController {
     const g = canvas.getContext('2d');
     if (!g) throw new Error('2D canvas not supported');
     this.g2d = g;
+    this.overlay = document.createElement('canvas');
+    this.overlay.id = 'world-overlay';
+    Object.assign(this.overlay.style, { position: 'fixed', inset: '0', pointerEvents: 'none', display: 'block' });
+    canvas.insertAdjacentElement('afterend', this.overlay);
+    const o = this.overlay.getContext('2d');
+    if (!o) throw new Error('2D canvas not supported');
+    this.o2d = o;
     this.tools = new ToolController(this);
     this.hud = new Hud(uiRoot, {
       onSpeed: (s) => this.setSpeed(s),
@@ -88,10 +105,12 @@ export class GameController {
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
     this.input = new Input(canvas, this);
+    this.trackHudHeight();
     window.addEventListener('resize', this.onResize);
     window.addEventListener('pointerdown', this.onGesture, true);
     window.addEventListener('keydown', this.onGesture, true);
     this.resize();
+    this.watchDpr();
   }
 
   get map(): GameMap {
@@ -111,11 +130,15 @@ export class GameController {
     for (const off of this.busOffs) off();
     const bus = new EventBus();
     this.ctx = { state, bus };
-    if (!this.renderer) this.renderer = new WorldRenderer(this.canvas, state);
+    if (!this.renderer) {
+      this.renderer = new WorldRenderer(this.canvas, state);
+      this.renderer.attachOverlay(this.overlay);
+    }
     this.renderer.setSelection(null);
     this.busOffs = [
       this.renderer.attachEffects(bus),
       Toasts.attach(this.uiRoot, bus),
+      attachStuckToasts(this.ctx),
       bus.on('unlock', () => this.toolbar.update(this.state)),
       bus.on('monthEnd', () => this.toolbar.update(this.state)),
       bus.on('gameOver', (e) => this.end(`Game over — ${e.reason}`, 'bad')),
@@ -192,6 +215,10 @@ export class GameController {
     this.toolbar.toggle();
   }
 
+  closeDrawer(): void {
+    this.toolbar.closeDrawer();
+  }
+
   /** Opens a registered panel; unregistered ids show a "coming soon" toast. */
   openPanel(id: string, arg?: unknown): void {
     if (this.tryOpenPanel(id, arg)) return;
@@ -219,14 +246,36 @@ export class GameController {
 
   // ------------------------------------------------------------------ loop
 
+  /** Publishes the HUD bar's height as --hud-height so toasts and corner widgets sit below it. */
+  private trackHudHeight(): void {
+    const bar = this.uiRoot.querySelector<HTMLElement>('.hud-bar');
+    if (!bar) return;
+    const publish = () => document.documentElement.style.setProperty('--hud-height', `${bar.offsetHeight}px`);
+    publish();
+    if (typeof ResizeObserver === 'function') {
+      this.hudObserver = new ResizeObserver(publish);
+      this.hudObserver.observe(bar);
+    }
+  }
+
+  /** Re-runs resize() when the device pixel ratio changes (zoom, moving between monitors). */
+  private watchDpr(): void {
+    this.dprQuery?.removeEventListener('change', this.onDprChange);
+    if (typeof window.matchMedia !== 'function') return;
+    this.dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    this.dprQuery.addEventListener('change', this.onDprChange);
+  }
+
   private resize(): void {
     this.dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.canvas.width = Math.round(w * this.dpr);
-    this.canvas.height = Math.round(h * this.dpr);
-    this.canvas.style.width = `${w}px`;
-    this.canvas.style.height = `${h}px`;
+    for (const c of [this.canvas, this.overlay]) {
+      c.width = Math.round(w * this.dpr);
+      c.height = Math.round(h * this.dpr);
+      c.style.width = `${w}px`;
+      c.style.height = `${h}px`;
+    }
     // keep the centre of the view fixed
     const cam = this.camera;
     const cx = cam.x + cam.viewW / cam.zoom / 2;
@@ -279,12 +328,13 @@ export class GameController {
 
   private readonly frame = (now: number): void => {
     if (!this.running) return;
-    const dt = this.lastFrame === null ? 0 : now - this.lastFrame;
+    const dt = this.lastFrame === null ? 0 : Math.max(0, now - this.lastFrame);
     this.lastFrame = now;
     this.input.update(Math.min(dt, 100));
     if (this.advance(dt) > 0) this.tools.refreshGhost();
     clampCamera(this.camera, this.map);
     this.g2d.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.o2d.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.renderer.render(this.state, this.camera, this.alpha, now);
     if (now - this.lastHud >= HUD_INTERVAL_MS) {
       this.lastHud = now;
@@ -302,9 +352,12 @@ export class GameController {
     this.busOffs = [];
     this.input.destroy();
     window.removeEventListener('resize', this.onResize);
+    this.dprQuery?.removeEventListener('change', this.onDprChange);
+    this.hudObserver?.disconnect();
     window.removeEventListener('pointerdown', this.onGesture, true);
     window.removeEventListener('keydown', this.onGesture, true);
     this.uiRoot.replaceChildren();
+    this.overlay.remove();
     this.uiRoot.classList.remove('tb-root');
   }
 }

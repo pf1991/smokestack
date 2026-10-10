@@ -1,6 +1,7 @@
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
+import { isUnlocked } from '../sim/eras';
 import { ROAD_COST } from '../sim/state';
 import type { GameState, Inventory } from '../sim/types';
 import { h } from './dom';
@@ -39,11 +40,16 @@ function flow(def: BuildingDef): string {
   return ins ? `${ins} → ${outs}` : `⛏ → ${outs}`;
 }
 
+/** Buildings shown but not yet buildable (their system arrives in a later task, e.g. railways). */
+const COMING_SOON = new Set(['train_station']);
+
 interface Card {
   el: HTMLButtonElement;
   def: BuildingDef;
   locked: boolean | null;
   tab: TabId;
+  /** permanently disabled until its feature ships */
+  soon: boolean;
 }
 
 export class Toolbar {
@@ -83,19 +89,22 @@ export class Toolbar {
       if (!tab) continue;
       const cost = h('span', { class: 'tc-cost' }, formatMoney(def.cost));
       const maint = h('span', { class: 'tc-maint' }, `+${formatMoney(def.maintenance)}/mo`);
-      const lock = h('div', { class: 'tc-lock' }, `Invented in ${def.era}`);
-      lock.hidden = true;
+      const soon = COMING_SOON.has(def.id);
+      const lock = h('div', { class: 'tc-lock' }, soon ? 'Coming soon' : `Invented in ${def.era}`);
+      lock.hidden = !soon;
       const el = h('button', {
         class: 'tool-card',
         'data-building': def.id,
         title: def.description,
-        onClick: () => this.select({ kind: 'build', typeId: def.id }),
+        disabled: soon,
+        onClick: () => !soon && this.select({ kind: 'build', typeId: def.id }),
       },
         h('div', { class: 'tc-name' }, def.name),
         h('div', { class: 'tc-flow' }, flow(def)),
         h('div', { class: 'tc-nums' }, cost, maint),
         lock) as HTMLButtonElement;
-      this.cards.push({ el, def, locked: null, tab });
+      if (soon) el.classList.add('locked');
+      this.cards.push({ el, def, locked: soon ? true : null, tab, soon });
       this.panels.get(tab)!.appendChild(el);
     }
 
@@ -141,9 +150,15 @@ export class Toolbar {
     this.onSelect(t);
   }
 
-  /** Esc: back to inspecting. */
+  /** Esc: back to inspecting, closing any open build drawer. */
   cancel(): void {
+    this.closeDrawer();
     this.select({ kind: 'inspect' });
+  }
+
+  /** Closes the open build drawer (tab panel), if any. */
+  closeDrawer(): void {
+    if (this.activeTab !== null) this.openTab(this.activeTab);
   }
 
   /** Delete: pick the bulldozer. */
@@ -157,9 +172,9 @@ export class Toolbar {
   }
 
   update(state: GameState): void {
-    const unlocked = new Set(state.unlocked);
     for (const c of this.cards) {
-      const locked = !unlocked.has(c.def.id);
+      if (c.soon) continue;
+      const locked = !isUnlocked(state, c.def.id);
       if (locked === c.locked) continue;
       c.locked = locked;
       c.el.disabled = locked;
