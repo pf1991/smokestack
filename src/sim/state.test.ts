@@ -136,7 +136,8 @@ describe('placement', () => {
     expect(msg('car_plant', { x: 2, y: 2 })).toBe('Not invented yet');
     // terrain: water and wrong land type
     setTerrain(s, 0, 20, 4, 4, 'water');
-    expect(msg('sawmill', { x: 0, y: 20 })).toBe('Wrong terrain');
+    expect(msg('sawmill', { x: 0, y: 20 })).toBe("Can't build on water");
+    expect(msg('sawmill', { x: 3, y: 22 })).toBe("Can't build on water"); // partly on water
     expect(msg('lumber_camp', { x: 2, y: 2 })).toBe('Wrong terrain');
     // other buildings and roads
     const placed = placeBuilding(testCtx(s), 'player', 'sawmill', { x: 2, y: 2 });
@@ -477,6 +478,26 @@ describe('roads', () => {
     expect(buildRoad(ctx, 'player', [{ x: 0, y: 4 }]).ok).toBe(true);
     expect(tile(s, 0, 4).roadOwner).toBe('player');
     expect(s.companies.player.roadTiles).toBe(6);
+  });
+
+  it('removeRoad refuses pre-built city streets but not rural links or own urban road', () => {
+    const s = testState({ cities: [{ x: 10, y: 10, population: 6000 }], streets: true });
+    const ctx = testCtx(s);
+    const street = { x: 10, y: 10 };
+    expect(tile(s, 10, 10).road).toBe(true);
+    expect(tile(s, 10, 10).cityId).toBe(0);
+    tile(s, 30, 25).road = true; // pre-built rural link
+    const before = snapshot(s);
+    expect(removeRoad(ctx, 'player', [{ x: 30, y: 25 }, street])).toEqual({
+      ok: false,
+      error: 'City streets belong to the town',
+    });
+    expect(s).toEqual(before);
+    expect(removeRoad(ctx, 'player', [{ x: 30, y: 25 }]).ok).toBe(true);
+    // a street the player rebuilt is the player's to remove
+    tile(s, 10, 10).road = false;
+    expect(buildRoad(ctx, 'player', [street]).ok).toBe(true);
+    expect(removeRoad(ctx, 'player', [street]).ok).toBe(true);
   });
 });
 

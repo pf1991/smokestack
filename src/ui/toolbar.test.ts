@@ -55,4 +55,27 @@ describe('Toolbar', () => {
     tb.toggle();
     expect(root.querySelector('.toolbar')!.classList.contains('collapsed')).toBe(true);
   });
+
+  it('train station is coming soon and stays disabled', () => {
+    const { root, onSelect, tb, state } = setup();
+    tab(root, 'retail');
+    const card = root.querySelector('[data-building="train_station"]') as HTMLButtonElement;
+    expect(card.disabled).toBe(true);
+    expect(card.textContent).toContain('Coming soon');
+    tb.update(state); // unlocked in 1900, still disabled
+    expect(card.disabled).toBe(true);
+    card.click();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('cancel closes the open build drawer', () => {
+    const { root, tb } = setup();
+    tab(root, 'refine');
+    expect((root.querySelector('[data-panel-tab="refine"]') as HTMLElement).hidden).toBe(false);
+    tb.cancel();
+    expect((root.querySelector('[data-panel-tab="refine"]') as HTMLElement).hidden).toBe(true);
+    expect(root.querySelector('.toolbar')!.classList.contains('open')).toBe(false);
+    tb.closeDrawer(); // no-op when already closed
+    expect((root.querySelector('[data-panel-tab="refine"]') as HTMLElement).hidden).toBe(true);
+  });
 });

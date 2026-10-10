@@ -3,6 +3,9 @@
  *
  * Layer order: terrain → roads → houses → buildings (y-sorted) → vehicles → particles →
  * selection / route polyline → ghost → overlays → atmosphere → night lights (additive).
+ * With `attachOverlay`, selection, ghost, ghost label and sale floaters move to a second, unfiltered
+ * canvas drawn last, so the era sepia does not wash out their colours. The rendered light level is
+ * eased in real time (`easeLight`) so fast speeds never strobe between day and night.
  *
  * Roads, bridges, street lamps, garden trees and houses are static between invalidations, so they
  * are painted into per-chunk cached surfaces (one day and one night variant per chunk, lazily, with a
@@ -14,7 +17,7 @@ import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { accessTiles } from '../sim/state';
 import type { Building, GameMap, GameState, Tile, Vec2, Vehicle } from '../sim/types';
-import { applyAtmosphere, cssFilterFor, lightLevel } from './atmosphere';
+import { applyAtmosphere, cssFilterFor, easeLight } from './atmosphere';
 import { TILE, type Camera, visibleTileRange } from './camera';
 import { OVERLAYS } from './overlays';
 import { ParticleSystem } from './particles';
@@ -105,6 +108,9 @@ const RIVAL_FLOAT = '#b5302f';
 const LANE_OFFSET = 4;
 
 const MONEY = (n: number): string => '$' + Math.round(n).toLocaleString('en-US');
+/** Sales per building are summed and shown as at most one floater per this many real ms. */
+export const FLOAT_FLUSH_MS = 800;
+const FLOAT_JITTER_PX = 14;
 
 // ---------------------------------------------------------------- road painter
 
@@ -424,6 +430,12 @@ export class WorldRenderer {
   private selection: Selection | null = null;
   private vehicleDir = new Map<number, Dir>();
   private sortBuf: Building[] = [];
+  /** sale floaters live apart from smoke/sparks so they can be drawn on the unfiltered overlay */
+  private readonly floaters = new ParticleSystem();
+  private pendingSales = new Map<number, { revenue: number; ownerId: Building['ownerId'] }>();
+  private lastFloat = new Map<number, number>();
+  private light: number | null = null;
+  private overlay: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -435,6 +447,16 @@ export class WorldRenderer {
     this.state = state;
     this.terrain = new TerrainRenderer(state.map, state.seed);
     this.chunkCols = Math.ceil(state.map.width / CHUNK);
+  }
+
+  /**
+   * Draws selection, ghost, ghost label and sale floaters on a separate canvas stacked above the
+   * world canvas (same size and transform), so the era CSS filter does not wash their colours out.
+   */
+  attachOverlay(canvas: HTMLCanvasElement): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('2D canvas not supported');
+    this.overlay = { canvas, ctx };
   }
 
   setGhost(g: Ghost | null): void {
@@ -468,12 +490,10 @@ export class WorldRenderer {
   attachEffects(bus: EventBus): () => void {
     const offs = [
       bus.on('sale', (e) => {
-        const b = this.state.buildings[e.buildingId];
-        if (!b) return;
-        const def = BUILDINGS[b.typeId];
-        const wx = (b.pos.x + def.size.w / 2) * TILE;
-        const wy = b.pos.y * TILE - 4;
-        this.particles.emitFloatText(wx, wy, `+${MONEY(e.revenue)}`, e.ownerId === 'player' ? PLAYER_FLOAT : RIVAL_FLOAT);
+        // summed per store and flushed by render() at most every FLOAT_FLUSH_MS
+        const p = this.pendingSales.get(e.buildingId);
+        if (p) p.revenue += e.revenue;
+        else this.pendingSales.set(e.buildingId, { revenue: e.revenue, ownerId: e.ownerId });
       }),
       bus.on('buildingPlaced', (e) => {
         const b = e.building;
@@ -499,6 +519,9 @@ export class WorldRenderer {
       this.chunks.clear();
       this.surfaceCount = 0;
       this.vehicleDir.clear();
+      this.pendingSales.clear();
+      this.lastFloat.clear();
+      this.light = null;
     }
     this.state = state;
     this.frame++;
@@ -516,7 +539,8 @@ export class WorldRenderer {
 
     const ctx = this.ctx;
     const z = cam.zoom;
-    const light = lightLevel(date.hour);
+    this.light = easeLight(this.light, date.hour, dt, state.speed);
+    const light = this.light;
     const nightK = Math.min(1, Math.max(0, (0.8 - light) / 0.55));
     const lit = light < 0.8;
 
@@ -541,14 +565,11 @@ export class WorldRenderer {
 
     this.particles.update(dt);
     this.particles.draw(ctx, cam);
+    this.flushFloaters(state, nowMs);
+    this.floaters.update(dt);
 
-    ctx.save();
-    ctx.scale(z, z);
-    ctx.translate(-cam.x, -cam.y);
-    this.drawSelection(ctx, state, alpha, nowMs, z);
-    this.drawGhost(ctx, z);
-    ctx.restore();
-    this.drawGhostLabel(ctx, cam);
+    // with an overlay canvas these go on top, unfiltered, after the atmosphere (see below)
+    if (!this.overlay) this.drawUi(ctx, state, cam, alpha, nowMs);
 
     for (const o of OVERLAYS) {
       if (!o.enabled) continue;
@@ -557,9 +578,51 @@ export class WorldRenderer {
       ctx.restore();
     }
 
-    applyAtmosphere(ctx, cam.viewW, cam.viewH, date);
+    applyAtmosphere(ctx, cam.viewW, cam.viewH, date, light);
     if (nightK > 0) this.drawNightLights(ctx, cam, r, visBuildings, state, alpha, nightK);
     ctx.restore();
+
+    if (this.overlay) {
+      const o = this.overlay.ctx;
+      // the caller sets the same (DPR) transform on both canvases
+      o.save();
+      o.setTransform(1, 0, 0, 1, 0, 0);
+      o.clearRect(0, 0, this.overlay.canvas.width, this.overlay.canvas.height);
+      o.restore();
+      this.drawUi(o, state, cam, alpha, nowMs);
+    }
+  }
+
+  /** Selection, ghost, ghost label and sale floaters. */
+  private drawUi(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera, alpha: number, nowMs: number): void {
+    const z = cam.zoom;
+    ctx.save();
+    ctx.scale(z, z);
+    ctx.translate(-cam.x, -cam.y);
+    this.drawSelection(ctx, state, alpha, nowMs, z);
+    this.drawGhost(ctx, z);
+    ctx.restore();
+    this.drawGhostLabel(ctx, cam);
+    this.floaters.draw(ctx, cam);
+  }
+
+  /** Emits one summed floater per building whose last one is at least FLOAT_FLUSH_MS old. */
+  private flushFloaters(state: GameState, nowMs: number): void {
+    for (const [id, p] of this.pendingSales) {
+      const last = this.lastFloat.get(id);
+      if (last !== undefined && nowMs - last < FLOAT_FLUSH_MS && nowMs >= last) continue;
+      this.pendingSales.delete(id);
+      const b = state.buildings[id];
+      if (!b) continue;
+      this.lastFloat.set(id, nowMs);
+      const def = BUILDINGS[b.typeId];
+      const wx = (b.pos.x + def.size.w / 2) * TILE + (Math.random() - 0.5) * 2 * FLOAT_JITTER_PX;
+      const wy = b.pos.y * TILE - 4;
+      this.floaters.emitFloatText(wx, wy, `+${MONEY(p.revenue)}`, p.ownerId === 'player' ? PLAYER_FLOAT : RIVAL_FLOAT);
+    }
+    if (this.lastFloat.size > 256) {
+      for (const [id, t] of this.lastFloat) if (nowMs - t > FLOAT_FLUSH_MS) this.lastFloat.delete(id);
+    }
   }
 
   // -------------------------------------------------------------- chunks
