@@ -2,6 +2,7 @@ import { contractsSystem } from './contracts';
 import { checkUnlocks, eraBanner, fadeWarnings } from './eras';
 import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
+import { pollutionSystem } from './pollution';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import type { OwnerId, SimContext } from './types';
@@ -58,6 +59,9 @@ export const SYSTEMS: SimSystem[] = [
   finance,
   contractsSystem,
   { id: 'events', onDay: eventsDay, onMonth: eventsMonth },
+  // after upkeep: onDay refreshes city.pollution on the month's last day (before growthMonth reads it),
+  // onMonth then owns the final happiness value
+  pollutionSystem,
   {
     id: 'eras',
     onDay(ctx) {
