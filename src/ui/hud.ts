@@ -1,4 +1,5 @@
 import type { GameState, Speed } from '../sim/types';
+import { setOverlay } from '../render/overlays';
 import { h } from './dom';
 import { formatMoney } from './format';
 import './hud.css';
@@ -71,6 +72,19 @@ export class Hud {
         'data-panel': p.id,
         onClick: () => handlers.onOpenPanel(p.id),
       }, p.label)));
+
+    const smog = h('button', {
+      class: 'hud-panel-btn hud-smog',
+      title: 'Toggle pollution map',
+      'aria-pressed': 'false',
+      onClick: () => {
+        const on = smog.getAttribute('aria-pressed') !== 'true';
+        smog.setAttribute('aria-pressed', String(on));
+        smog.classList.toggle('active', on);
+        setOverlay('pollution', on);
+      },
+    }, '☁ Smog');
+    panels.appendChild(smog);
 
     const bar = h('div', { class: 'hud-bar' },
       h('div', { class: 'hud-brand' }, this.company, this.era),

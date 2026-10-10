@@ -123,6 +123,7 @@
 }
 
 .hud-speed.active,
+.hud-smog.active,
 .tb-tab.active {
   color: var(--walnut);
   background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
