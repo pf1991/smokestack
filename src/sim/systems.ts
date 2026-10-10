@@ -1,4 +1,5 @@
 import { contractsSystem } from './contracts';
+import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
@@ -55,4 +56,5 @@ export const SYSTEMS: SimSystem[] = [
   },
   finance,
   contractsSystem,
+  { id: 'events', onDay: eventsDay, onMonth: eventsMonth },
 ];
