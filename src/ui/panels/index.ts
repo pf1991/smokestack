@@ -11,3 +11,11 @@ export interface PanelDef {
  * (e.g. `PANELS.building = buildingPanel`). On merge conflicts keep both sides.
  */
 export const PANELS: Record<string, PanelDef> = {};
+
+import { buildingPanel } from './building';
+import { cityPanel } from './city';
+import { vehiclePanel } from './vehicle';
+
+PANELS.building = buildingPanel;
+PANELS.city = cityPanel;
+PANELS.vehicle = vehiclePanel;

@@ -131,13 +131,13 @@ describe('ToolController', () => {
     expect(ctx.state.buildings[b.id]).toBeUndefined();
   });
 
-  it('inspect selects a building when no panel is registered', () => {
+  it('inspect selects a building and opens the building panel', () => {
     const { ctx, tc, renderer, game } = setup();
     const b = must(placeBuilding(ctx, 'player', 'sawmill', { x: 5, y: 5 }));
     tc.pointerDown({ x: 5, y: 5 });
     tc.pointerUp({ x: 5, y: 5 });
     expect(renderer.selection).toEqual({ buildingId: b.id });
-    expect(game.openPanel).not.toHaveBeenCalled();
+    expect(game.openPanel).toHaveBeenCalledWith('building', b.id);
   });
 
   it('pickStop forwards the building id to onPick', () => {

@@ -1,0 +1,195 @@
+/* Inspector panels (building, city, vehicle). Builds on theme.css variables. */
+
+.insp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.insp-head {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.insp-badge {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--brass-dark);
+  background: var(--walnut);
+  color: var(--paper);
+}
+
+.insp-badge.owner-player {
+  background: var(--player);
+}
+
+.insp-badge.owner-rival {
+  background: var(--rival);
+}
+
+.insp-badge.status-ok {
+  background: var(--good);
+}
+
+.insp-badge.status-no_input,
+.insp-badge.status-idle {
+  background: #8a6d17;
+}
+
+.insp-badge.status-output_full,
+.insp-badge.status-halted {
+  background: var(--bad);
+}
+
+.insp-reason {
+  font-style: italic;
+  color: var(--paper-shade);
+}
+
+.insp-warn {
+  background: rgba(181, 48, 47, 0.25);
+  border: 1px solid var(--bad);
+  border-radius: 3px;
+  padding: 4px 8px;
+}
+
+.insp-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+}
+
+.insp-muted {
+  color: var(--paper-shade);
+  opacity: 0.85;
+}
+
+.insp-section,
+.insp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insp-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.insp-stat .insp-bar {
+  width: 55%;
+}
+
+.insp-recipe {
+  font: inherit;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--brass-dark);
+  padding: 4px;
+  max-width: 100%;
+}
+
+.insp-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.insp-bar {
+  position: relative;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.insp-bar-fill {
+  height: 100%;
+  transition: width 0.4s;
+}
+
+.insp-bar-label {
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  line-height: 16px;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+
+.insp-route {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch,
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+}
+
+.dot {
+  border-radius: 50%;
+  margin-right: 3px;
+}
+
+.insp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.insp-table th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+  padding: 2px 4px;
+}
+
+.insp-table td {
+  padding: 3px 4px;
+  border-top: 1px solid rgba(201, 162, 39, 0.25);
+}
+
+.insp-table td.num {
+  text-align: right;
+}
+
+.insp-table .insp-bar {
+  min-width: 70px;
+}
+
+.insp-crave {
+  color: var(--brass-light);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.insp-trend.up {
+  color: #7fd17f;
+}
+
+.insp-trend.down {
+  color: #f08080;
+}
+
+.insp-demolish.confirm {
+  background: linear-gradient(180deg, #e06a5a, var(--bad));
+  color: #fff;
+}
