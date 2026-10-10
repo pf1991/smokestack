@@ -132,6 +132,19 @@ export class Sfx {
     }
   }
 
+  /** Releases the AudioContext (browsers cap how many may exist). The Sfx stays silent afterwards. */
+  dispose(): void {
+    const ctx = this.ctx;
+    this.ctx = null;
+    this.master = null;
+    this.broken = true;
+    try {
+      void ctx?.close();
+    } catch {
+      /* already closed */
+    }
+  }
+
   startAmbience(): void {
     this.ambienceWanted = true;
     if (this.muted || this.ambienceStarted) return;

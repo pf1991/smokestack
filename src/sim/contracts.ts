@@ -1,3 +1,4 @@
+import { recordContractDone } from './scenarios';
 import type { EventBus } from '../core/events';
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
@@ -109,6 +110,7 @@ export function contractsDay(ctx: SimContext): void {
       c.status = 'done';
       earn(state.companies.player, 'contracts', c.reward, state.date);
       if (city) city.population = Math.round(city.population * 1.05);
+      recordContractDone(state);
       bus.emit({ type: 'contract', contractId: c.id, status: 'done' });
       bus.emit({ type: 'toast', message: `Contract complete: ${city?.name} thanks you for the ${name}! +$${c.reward.toLocaleString('en-US')}`, tone: 'good' });
     } else if (compareDates(state.date, c.deadline) > 0) {

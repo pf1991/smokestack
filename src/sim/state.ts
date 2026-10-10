@@ -10,6 +10,7 @@ import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, roadBuildable, waterAvoidingCost } from './pathfinding';
 import { pick } from './rng';
+import { SCENARIOS } from './scenarios';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
 
 export const ROAD_COST = 500;
@@ -259,6 +260,13 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     rivalProject: null,
     flags: {},
   };
+  const scenario = SCENARIOS[state.scenarioId];
+  if (scenario) {
+    state.date.year = scenario.startYear;
+    state.unlocked = unlockedAt(scenario.startYear);
+    state.companies.player.money = scenario.money;
+    if (scenario.startYear >= 1910) state.flags.oilRevealed = true;
+  }
   refreshUrbanTiles(state);
   return state;
 }

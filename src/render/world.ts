@@ -616,6 +616,10 @@ export class WorldRenderer {
     this.ghost = g;
   }
 
+  hasSelection(): boolean {
+    return this.selection !== null;
+  }
+
   setSelection(sel: Selection | null): void {
     this.selection = sel;
   }

@@ -29,3 +29,7 @@ PANELS.city = cityPanel;
 PANELS.vehicle = vehiclePanel;
 PANELS.routes = routesPanel;
 PANELS.finance = financePanel;
+
+import { goalsPanel } from './goals';
+
+PANELS.goals = goalsPanel;
