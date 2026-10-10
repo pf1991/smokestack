@@ -67,6 +67,27 @@ describe('ToolController', () => {
     expect(after?.kind === 'tiles' ? after.tiles : []).toHaveLength(1);
   });
 
+  it('rail drag lays track over a road crossing; bulldoze lifts the rail and keeps the road', () => {
+    const { ctx, tc } = setup();
+    const W = ctx.state.map.width;
+    must(buildRoad(ctx, 'player', [{ x: 4, y: 3 }]));
+    tc.setTool({ kind: 'rail' });
+    const before = ctx.state.companies.player.money;
+    tc.pointerDown({ x: 2, y: 3 });
+    tc.pointerMove({ x: 7, y: 3 });
+    const g = tc.ghost();
+    expect(g?.kind === 'tiles' && g.valid).toBe(true);
+    expect(g?.label).toBe(`Rail $7,200`);
+    tc.pointerUp({ x: 7, y: 3 });
+    expect(ctx.state.map.tiles[3 * W + 4].rail).toBe(true);
+    expect(ctx.state.companies.player.money).toBe(before - 7200);
+    tc.setTool({ kind: 'bulldoze' });
+    tc.pointerDown({ x: 4, y: 3 });
+    tc.pointerUp({ x: 4, y: 3 });
+    expect(ctx.state.map.tiles[3 * W + 4].rail).toBe(false);
+    expect(ctx.state.map.tiles[3 * W + 4].road).toBe(true);
+  });
+
   it('invalid build emits bad toast and changes nothing', () => {
     const ctx = testCtx(testState({ terrain: 'water' }));
     const { tc, toasts } = setup(ctx);

@@ -44,8 +44,9 @@ describe('Toolbar', () => {
   it('transport tab, bulldoze, keyboard helpers', () => {
     const { root, onSelect, tb } = setup();
     tab(root, 'transport');
-    expect((root.querySelector('[data-tool="rail"]') as HTMLButtonElement).disabled).toBe(true);
-    expect(root.textContent).toContain('Coming soon');
+    expect((root.querySelector('[data-tool="rail"]') as HTMLButtonElement).disabled).toBe(false);
+    (root.querySelector('[data-tool="rail"]') as HTMLElement).click();
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'rail' });
     (root.querySelector('[data-tool="road"]') as HTMLElement).click();
     expect(onSelect).toHaveBeenLastCalledWith({ kind: 'road' });
     tb.selectBulldoze();
@@ -56,16 +57,14 @@ describe('Toolbar', () => {
     expect(root.querySelector('.toolbar')!.classList.contains('collapsed')).toBe(true);
   });
 
-  it('train station is coming soon and stays disabled', () => {
+  it('train station is buildable from the logistics tab', () => {
     const { root, onSelect, tb, state } = setup();
     tab(root, 'retail');
+    tb.update(state);
     const card = root.querySelector('[data-building="train_station"]') as HTMLButtonElement;
-    expect(card.disabled).toBe(true);
-    expect(card.textContent).toContain('Coming soon');
-    tb.update(state); // unlocked in 1900, still disabled
-    expect(card.disabled).toBe(true);
+    expect(card.disabled).toBe(false);
     card.click();
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'train_station' });
   });
 
   it('cancel closes the open build drawer', () => {

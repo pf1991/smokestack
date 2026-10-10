@@ -4,6 +4,7 @@ import { RECIPES } from '../data/recipes';
 import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
+import { RAIL_UPKEEP } from './rail';
 import { computeDailySales, monthlyDemand, monthlyGrowth, satisfaction, updateMarketDay, type StoreStock } from './market';
 import { footprint, refreshUrbanTiles } from './state';
 import type { Building, GameState, GoodId, SimContext } from './types';
@@ -131,7 +132,7 @@ export function maintenanceMonth(ctx: SimContext): void {
     const company = state.companies[owner];
     let total = 0;
     for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += BUILDINGS[b.typeId].maintenance;
-    total += company.roadTiles * 5 + company.railTiles * 0;
+    total += company.roadTiles * 5 + company.railTiles * RAIL_UPKEEP;
     if (total > 0) spend(company, 'maintenance', total, state.date);
   }
 }

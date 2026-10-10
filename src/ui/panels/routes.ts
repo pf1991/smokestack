@@ -3,9 +3,9 @@ import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import { isTyping } from '../../game/input';
 import { acceptedGoods, appendStop, legLength, offeredGoods, routeThroughput } from '../../sim/routeHelpers';
-import { accessTiles } from '../../sim/state';
+import { buyTrain, STATION_TYPE, TRAIN } from '../../sim/rail';
 import type { Building, GameState, GoodId, Route, RouteStop } from '../../sim/types';
-import { buyTruck, createRoute, deleteRoute, ROUTE_COLORS, sellVehicle, TRUCK, updateRoute } from '../../sim/vehicles';
+import { buyTruck, createRoute, deleteRoute, ROUTE_COLORS, sellVehicle, TRUCK, updateRoute, VEHICLE_KINDS } from '../../sim/vehicles';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
@@ -15,7 +15,10 @@ import './routes.css';
 /** The slice of the GameController this panel needs (lets tests use a small stub). */
 type Host = Pick<GameController, 'ctx' | 'tools' | 'renderer' | 'setTool' | 'onToolChange'>;
 
+type Kind = Route['kind'];
+
 interface Draft {
+  kind: Kind;
   stops: RouteStop[];
   name: string;
   buyFirst: boolean;
@@ -30,27 +33,41 @@ function routeTrucks(state: GameState, routeId: number) {
   return Object.values(state.vehicles).filter((v) => v.routeId === routeId && v.ownerId === 'player');
 }
 
+/** Words, icon and price for the vehicles of a route kind. */
+const KIND_INFO = {
+  truck: { one: 'truck', many: 'trucks', icon: '🚚', cost: TRUCK.cost, way: 'road', buy: buyTruck },
+  train: { one: 'train', many: 'trains', icon: '🚂', cost: TRAIN.cost, way: 'track', buy: buyTrain },
+} as const;
+
+/** Access tiles for a stop of a route kind (road for trucks, rail for trains). */
+function stopAccess(state: GameState, b: Building, kind: Kind) {
+  return VEHICLE_KINDS[kind]?.access(state, b) ?? [];
+}
+
 /** Human-readable problems with a route, most serious first. */
 export function routeWarnings(state: GameState, route: Route): string[] {
   const out: string[] = [];
+  const info = KIND_INFO[route.kind] ?? KIND_INFO.truck;
   const bs = route.stops.map((s) => state.buildings[s.buildingId]);
   if (route.stops.length < 2) out.push('needs at least two stops');
   if (bs.some((b) => !b)) out.push('a stop building is gone');
-  if (bs.some((b) => b && accessTiles(state, b).length === 0)) out.push('a stop has no road access');
+  if (bs.some((b) => b && stopAccess(state, b, route.kind).length === 0)) {
+    out.push(route.kind === 'train' ? 'a station has no rail access' : 'a stop has no road access');
+  }
   else if (bs.every((b) => b)) {
     const legs = bs.length === 2 ? 1 : bs.length;
     for (let i = 0; i < legs && bs.length >= 2; i++) {
       const a = bs[i] as Building;
       const b = bs[(i + 1) % bs.length] as Building;
-      if (legLength(state, a, b) === null) {
-        out.push(`no road between ${buildingName(a)} and ${buildingName(b)}`);
+      if (legLength(state, a, b, route.kind) === null) {
+        out.push(`no ${info.way} between ${buildingName(a)} and ${buildingName(b)}`);
         break;
       }
     }
   }
   const stuck = routeTrucks(state, route.id).filter((v) => v.state === 'stuck').length;
-  if (stuck > 0) out.push(`trucks stuck: ${stuck}`);
-  if (routeTrucks(state, route.id).length === 0) out.push('no trucks assigned');
+  if (stuck > 0) out.push(`${info.many} stuck: ${stuck}`);
+  if (routeTrucks(state, route.id).length === 0) out.push(`no ${info.many} assigned`);
   return out;
 }
 
@@ -107,8 +124,9 @@ class RoutesPanel {
 
   // ------------------------------------------------------------------ draft
 
-  private startDraft(): void {
-    this.draft = { stops: [], name: `Route ${Object.keys(this.state.routes).length + 1}`, buyFirst: true };
+  private startDraft(kind: Kind = 'truck'): void {
+    const n = Object.keys(this.state.routes).length + 1;
+    this.draft = { kind, stops: [], name: kind === 'train' ? `Line ${n}` : `Route ${n}`, buyFirst: true };
     this.selected = null;
     this.game.tools.onPick = (id) => this.pick(id);
     this.game.setTool({ kind: 'pickStop', routeId: null });
@@ -121,7 +139,10 @@ class RoutesPanel {
     const b = this.state.buildings[id];
     if (!d || !b) return;
     if (b.ownerId !== 'player') return this.toast('Not your building');
-    if (accessTiles(this.state, b).length === 0) return this.toast(`${buildingName(b)} has no road access`);
+    if (d.kind === 'train') {
+      if (b.typeId !== STATION_TYPE) return this.toast('Trains only stop at train stations');
+      if (stopAccess(this.state, b, 'train').length === 0) return this.toast(`${buildingName(b)} has no rail access`);
+    } else if (stopAccess(this.state, b, 'truck').length === 0) return this.toast(`${buildingName(b)} has no road access`);
     if (d.stops[d.stops.length - 1]?.buildingId === id) return;
     d.stops = appendStop(this.state, d.stops, id);
     this.syncSelection();
@@ -153,12 +174,13 @@ class RoutesPanel {
     if (!d) return;
     if (d.stops.length < 2) return this.toast('Pick at least two of your buildings first');
     const name = d.name.trim() || 'Route';
-    const r = createRoute(this.ctx, 'player', name, d.stops);
+    const r = createRoute(this.ctx, 'player', name, d.stops, d.kind);
     if (!r.ok) return this.toast(r.error);
+    const info = KIND_INFO[d.kind];
     if (d.buyFirst) {
-      const t = buyTruck(this.ctx, 'player', r.value.id);
-      if (!t.ok) this.toast(`${name} created, but no truck: ${t.error}`);
-      else this.toast(`${name} created with a truck`, 'good');
+      const t = info.buy(this.ctx, 'player', r.value.id);
+      if (!t.ok) this.toast(`${name} created, but no ${info.one}: ${t.error}`);
+      else this.toast(`${name} created with a ${info.one}`, 'good');
     } else this.toast(`${name} created`, 'good');
     this.selected = r.value.id;
     this.endDraft(true);
@@ -181,7 +203,7 @@ class RoutesPanel {
   }
 
   private truckPlus(route: Route): void {
-    const r = buyTruck(this.ctx, 'player', route.id);
+    const r = (KIND_INFO[route.kind] ?? KIND_INFO.truck).buy(this.ctx, 'player', route.id);
     if (!r.ok) this.toast(r.error);
     this.render();
   }
@@ -228,9 +250,16 @@ class RoutesPanel {
       'div',
       null,
       h('div', { class: 'rt-top' },
-        h('button', { class: 'btn', 'data-act': 'new', onClick: () => this.startDraft() }, '+ New route')),
+        h('button', { class: 'btn', 'data-act': 'new', onClick: () => this.startDraft('truck') }, '+ New route'),
+        ' ',
+        h('button', {
+          class: 'btn',
+          'data-act': 'new-train',
+          title: 'A train line between your train stations (lay rail first)',
+          onClick: () => this.startDraft('train'),
+        }, '+ New rail line')),
       routes.length === 0 && h('p', { class: 'rt-empty' },
-        'No routes yet. Press New route, then click your buildings on the map in the order trucks should visit them.'),
+        'No routes yet. Press New route, then click your buildings on the map in the order trucks should visit them. Rail lines link train stations joined by track.'),
       routes.map((r) => this.routeCard(r)),
     );
   }
@@ -261,7 +290,7 @@ class RoutesPanel {
         nameInput,
         h('div', { class: 'rt-stops-line', title: names }, names || 'no stops')),
       h('div', { class: 'rt-stat' },
-        h('b', null, `${trucks.length} 🚚`),
+        h('b', null, `${trucks.length} ${(KIND_INFO[route.kind] ?? KIND_INFO.truck).icon}`),
         h('span', null, `~${formatNumber(thr)}/mo`)));
     const children: (HTMLElement | false)[] = [head];
     if (warnings.length > 0) {
@@ -273,7 +302,8 @@ class RoutesPanel {
 
   private routeDetail(route: Route, trucks: number): HTMLElement {
     const confirming = this.confirmDelete === route.id;
-    const refund = routeTrucks(this.state, route.id).length * TRUCK.cost * 0.5;
+    const info = KIND_INFO[route.kind] ?? KIND_INFO.truck;
+    const refund = routeTrucks(this.state, route.id).length * info.cost * 0.5;
     return h(
       'div',
       { class: 'rt-detail' },
@@ -281,10 +311,10 @@ class RoutesPanel {
         this.stopRow(s, i, route.stops.length, (next) => this.editStops(route, next), route.stops)),
       h('div', { class: 'rt-actions' },
         h('span', { class: 'rt-trucks' },
-          h('button', { class: 'btn rt-sq', 'data-act': 'truck-minus', title: 'Sell last truck (50% refund)', disabled: trucks === 0, onClick: () => this.truckMinus(route) }, '−'),
-          ` ${trucks} truck${trucks === 1 ? '' : 's'} `,
-          h('button', { class: 'btn rt-sq', 'data-act': 'truck-plus', title: `Buy a truck (${formatMoney(TRUCK.cost)})`, onClick: () => this.truckPlus(route) }, '+'),
-          h('small', null, ` ${formatMoney(TRUCK.cost)} each`)),
+          h('button', { class: 'btn rt-sq', 'data-act': 'truck-minus', title: `Sell last ${info.one} (50% refund)`, disabled: trucks === 0, onClick: () => this.truckMinus(route) }, '−'),
+          ` ${trucks} ${trucks === 1 ? info.one : info.many} `,
+          h('button', { class: 'btn rt-sq', 'data-act': 'truck-plus', title: `Buy a ${info.one} (${formatMoney(info.cost)})`, onClick: () => this.truckPlus(route) }, '+'),
+          h('small', null, ` ${formatMoney(info.cost)} each`)),
         h('button', {
           class: `btn rt-del${confirming ? ' confirm' : ''}`,
           'data-act': 'delete',
@@ -309,8 +339,10 @@ class RoutesPanel {
       null,
       h('p', { class: 'rt-hint' },
         d.stops.length === 0
-          ? 'Click your buildings on the map in the order trucks should visit them.'
-          : 'Keep clicking buildings to add stops. Enter saves, Esc cancels.'),
+          ? d.kind === 'train'
+            ? 'Click your train stations on the map in the order the train should visit them. Each needs track alongside.'
+            : 'Click your buildings on the map in the order trucks should visit them.'
+          : `Keep clicking ${d.kind === 'train' ? 'stations' : 'buildings'} to add stops. Enter saves, Esc cancels.`),
       h('div', { class: 'rt-draft-name' }, 'Name ', nameInput),
       d.stops.map((s, i) =>
         this.stopRow(s, i, d.stops.length, (next) => {
@@ -327,7 +359,7 @@ class RoutesPanel {
             d.buyFirst = (e.target as HTMLInputElement).checked;
           },
         }),
-        ` Buy first truck (${formatMoney(TRUCK.cost)})`),
+        ` Buy first ${KIND_INFO[d.kind].one} (${formatMoney(KIND_INFO[d.kind].cost)})`),
       h('div', { class: 'rt-actions' },
         h('button', { class: 'btn', 'data-act': 'done', onClick: () => this.saveDraft() }, 'Done'),
         h('button', { class: 'btn rt-cancel', 'data-act': 'cancel', onClick: () => this.endDraft(true) }, 'Cancel')),
