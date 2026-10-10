@@ -26,6 +26,7 @@ const PANELS: { id: string; label: string }[] = [
   { id: 'finance', label: 'Finance' },
   { id: 'newspaper', label: 'Newspaper' },
   { id: 'contracts', label: 'Contracts' },
+  { id: 'rival', label: 'Rival' },
 ];
 
 function setText(el: HTMLElement, text: string): void {
