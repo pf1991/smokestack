@@ -156,6 +156,11 @@ export class Toolbar {
     this.select({ kind: 'inspect' });
   }
 
+  /** True while a build drawer (tab panel) is open. */
+  get drawerOpen(): boolean {
+    return this.activeTab !== null;
+  }
+
   /** Closes the open build drawer (tab panel), if any. */
   closeDrawer(): void {
     if (this.activeTab !== null) this.openTab(this.activeTab);

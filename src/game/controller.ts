@@ -11,7 +11,12 @@ import { PANELS } from '../ui/panels/index';
 import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
+import { attachAchievements } from './achievements';
 import { attachStuckToasts } from './feedback';
+import { attachAutosave } from './saves';
+import { loadSettings } from './settings';
+import { attachGoalTracking } from '../sim/scenarios';
+import { closeAllWindows } from '../ui/window';
 import { Input } from './input';
 import { ToolController } from './toolController';
 import { biggestCity } from './autoplay';
@@ -57,6 +62,8 @@ export class GameController {
   readonly hud: Hud;
   readonly toolbar: Toolbar;
   readonly sfx = new Sfx();
+  /** Called when Esc is pressed with no tool or drawer to cancel (the pause menu hooks in here). */
+  onPause: (() => void) | null = null;
   private readonly input: Input;
   private readonly g2d: CanvasRenderingContext2D;
   /** unfiltered canvas above the world for ghost, selection and floaters */
@@ -98,6 +105,9 @@ export class GameController {
     const o = this.overlay.getContext('2d');
     if (!o) throw new Error('2D canvas not supported');
     this.o2d = o;
+    const settings = loadSettings();
+    this.sfx.setVolume(settings.volume);
+    this.sfx.setMuted(settings.muted);
     this.tools = new ToolController(this);
     this.hud = new Hud(uiRoot, {
       onSpeed: (s) => this.setSpeed(s),
@@ -139,6 +149,9 @@ export class GameController {
       this.renderer.attachEffects(bus),
       Toasts.attach(this.uiRoot, bus),
       attachStuckToasts(this.ctx),
+      attachGoalTracking(bus, state),
+      attachAutosave(this.ctx),
+      attachAchievements(this.ctx),
       bus.on('unlock', () => this.toolbar.update(this.state)),
       bus.on('monthEnd', () => this.toolbar.update(this.state)),
       bus.on('gameOver', (e) => this.end(`Game over — ${e.reason}`, 'bad')),
@@ -209,6 +222,16 @@ export class GameController {
     return () => {
       this.toolListeners = this.toolListeners.filter((f) => f !== fn);
     };
+  }
+
+  /** Esc: cancels the active tool or open drawer; with nothing to cancel it asks for the pause menu. */
+  escape(): void {
+    if (this.tools.activeTool.kind !== 'inspect' || this.toolbar.drawerOpen) {
+      this.tools.cancel();
+      this.closeDrawer();
+      return;
+    }
+    this.onPause?.();
   }
 
   toggleToolbar(): void {
@@ -356,6 +379,9 @@ export class GameController {
     this.hudObserver?.disconnect();
     window.removeEventListener('pointerdown', this.onGesture, true);
     window.removeEventListener('keydown', this.onGesture, true);
+    closeAllWindows();
+    this.sfx.dispose();
+    this.onPause = null;
     this.uiRoot.replaceChildren();
     this.overlay.remove();
     this.uiRoot.classList.remove('tb-root');

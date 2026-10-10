@@ -20,6 +20,8 @@ export interface InputHost {
   toggleToolbar(): void;
   /** closes an open build drawer */
   closeDrawer(): void;
+  /** Esc: when provided it replaces the default cancel-tool behaviour (it must cancel the tool itself) */
+  escape?(): void;
   /** opens a registered panel; returns false when none is registered under `id` */
   tryOpenPanel(id: string): boolean;
 }
@@ -168,8 +170,12 @@ export class Input {
     } else if (key in SPEED_KEYS) {
       this.host.setSpeed(SPEED_KEYS[key]);
     } else if (key === 'escape') {
-      this.host.tools.cancel();
-      this.host.closeDrawer();
+      if (this.host.escape) {
+        this.host.escape();
+      } else {
+        this.host.tools.cancel();
+        this.host.closeDrawer();
+      }
     } else if (key === 'b') {
       this.host.toggleToolbar();
     } else if (key === 'delete') {

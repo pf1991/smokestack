@@ -6,6 +6,7 @@ import { pollutionSystem } from './pollution';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
+import { goalsMonth } from './scenarios';
 import type { OwnerId, SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
@@ -72,4 +73,5 @@ export const SYSTEMS: SimSystem[] = [
     },
     onYear: fadeWarnings,
   },
+  { id: 'goals', onMonth: goalsMonth },
 ];

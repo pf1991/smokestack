@@ -93,3 +93,8 @@ export function createWindow(opts: WindowOptions): GameWindow {
   document.body.appendChild(el);
   return win;
 }
+
+/** Closes every open window (used when the game is torn down). */
+export function closeAllWindows(): void {
+  for (const w of [...open.values()]) w.close();
+}

@@ -83,5 +83,8 @@ export function deserialize(json: string): Result<GameState> {
   if (!isObject(parsed)) return err('Save file is corrupted');
   if (parsed.version !== SAVE_VERSION) return err('Save from an incompatible version');
   if (!isComplete(parsed)) return err('Save file is incomplete');
+  // saves from before scenarios existed lack these; they play as sandbox
+  if (typeof parsed.scenarioId !== 'string') parsed.scenarioId = 'sandbox';
+  if (!isObject(parsed.flags)) parsed.flags = {};
   return ok(parsed as unknown as GameState);
 }
