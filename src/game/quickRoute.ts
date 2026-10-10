@@ -25,7 +25,7 @@ export class QuickRoute {
       style: {
         position: 'fixed',
         left: '12px',
-        top: '76px',
+        top: 'calc(var(--hud-height, 64px) + 12px)',
         zIndex: '60',
         fontSize: '12px',
         padding: '4px 10px',

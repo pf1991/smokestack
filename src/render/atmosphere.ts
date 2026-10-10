@@ -13,6 +13,25 @@ export function lightLevel(hour: number): number {
   return lerp(1, 0.25, (h - 17) / 4);
 }
 
+/** Real-time constant (ms) for easing the rendered light level toward the clock's light level. */
+export const LIGHT_EASE_MS = 1500;
+/** At the fastest speed the light never drops below this, so day/night cannot flash. */
+export const FAST_MIN_LIGHT = 0.7;
+
+/**
+ * Next rendered light level: eases `current` toward `lightLevel(hour)` with a ~1.5 s real-time
+ * constant (frame-rate independent), and at speed 8 keeps it at or above FAST_MIN_LIGHT.
+ * `current === null` (first frame) snaps to the target.
+ */
+export function easeLight(current: number | null, hour: number, dtMs: number, speed: number): number {
+  let target = lightLevel(hour);
+  if (speed >= 8) target = Math.max(target, FAST_MIN_LIGHT);
+  if (current === null) return target;
+  const k = 1 - Math.exp(-Math.max(0, dtMs) / LIGHT_EASE_MS);
+  const next = current + (target - current) * k;
+  return speed >= 8 ? Math.max(FAST_MIN_LIGHT, next) : next;
+}
+
 /** Era colour grading: sepia 0.8 -> 0 and saturate 0.6 -> 1.15 from 1900 to 1965. */
 export function eraGrade(year: number): { sepia: number; saturate: number } {
   const t = clamp01((year - 1900) / 65);
@@ -29,15 +48,16 @@ export function seasonTint(month: number): string | null {
   return null;
 }
 
-/** Draws the night overlay and season tint over the whole world viewport. */
+/** Draws the night overlay and season tint over the whole world viewport (`light` defaults to the hour's level). */
 export function applyAtmosphere(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
   date: GameDate,
+  light: number = lightLevel(date.hour),
 ): void {
   ctx.save();
-  const night = (1 - lightLevel(date.hour)) * 0.8;
+  const night = (1 - light) * 0.8;
   if (night > 0) {
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = `rgba(10, 20, 60, ${night.toFixed(3)})`;

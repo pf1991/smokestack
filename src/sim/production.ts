@@ -96,7 +96,9 @@ export function retailDay(ctx: SimContext): void {
     const mod = (g: GoodId) => demandModifier(state, city.id, g);
     const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset);
     const soldByGood: Record<GoodId, number> = {};
+    const soldStores = new Set<number>();
     for (const s of sales) {
+      if (s.qty > 0) soldStores.add(s.buildingId);
       const src = loadSource(state.buildings[s.buildingId]);
       src[s.goodId] = (src[s.goodId] ?? 0) - s.qty;
       const company = state.companies[s.ownerId];
@@ -114,6 +116,8 @@ export function retailDay(ctx: SimContext): void {
         buildingId: s.buildingId,
       });
     }
+    // a store is 'ok' on a day it sold anything, otherwise 'idle' (productionDay leaves it 'idle')
+    for (const b of stores) if (b.status !== 'halted') b.status = soldStores.has(b.id) ? 'ok' : 'idle';
     for (const g of goodIds) {
       const demandToday = monthlyDemand(city, g, state.date.year, mod(g)) / 30;
       if (demandToday > 0) updateMarketDay(city, g, soldByGood[g] ?? 0, demandToday);

@@ -18,6 +18,7 @@ import {
 import type { GameState, SimContext, Vec2 } from '../sim/types';
 import { formatMoney, formatNumber } from '../ui/format';
 import { PANELS } from '../ui/panels/index';
+import { reportLostStops, routesUsing } from './feedback';
 import type { ToolSpec } from '../ui/tools';
 
 /** The slice of the GameController the tool controller needs (lets tests use a small stub). */
@@ -179,8 +180,10 @@ export class ToolController {
     if (!t) return;
     if (t.buildingId !== null) {
       if (!explicit) return;
+      const affected = routesUsing(this.state, t.buildingId);
       const r = demolishBuilding(this.game.ctx, t.buildingId, 'player');
       if (!r.ok) this.toast(r.error, 'bad');
+      else reportLostStops(this.game.ctx, affected);
     } else if (t.road) {
       const r = removeRoad(this.game.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
@@ -278,8 +281,10 @@ export class ToolController {
         return { kind: 'tiles', tiles: footprint(b), valid: mine, label };
       }
       if (tile.road) {
-        const mine = tile.roadOwner === null || tile.roadOwner === 'player';
-        return { kind: 'tiles', tiles: [hover], valid: mine, label: mine ? 'Remove road' : 'Not your road' };
+        let label = 'Remove road';
+        if (tile.roadOwner !== null && tile.roadOwner !== 'player') label = 'Not your road';
+        else if (tile.roadOwner === null && tile.cityId !== null) label = 'City streets belong to the town';
+        return { kind: 'tiles', tiles: [hover], valid: label === 'Remove road', label };
       }
       return { kind: 'tiles', tiles: [hover], valid: false, label: 'Nothing to demolish' };
     }

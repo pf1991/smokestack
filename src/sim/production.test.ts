@@ -152,6 +152,18 @@ describe('production', () => {
     expect(sales).toEqual([store.id]);
   });
 
+  it('store is ok on a day it sells and idle on a day it does not', () => {
+    const { ctx, store } = storeCtx(10);
+    productionDay(ctx);
+    expect(store.status).toBe('idle');
+    retailDay(ctx);
+    expect(store.status).toBe('ok');
+    store.input.furniture = 0;
+    productionDay(ctx);
+    retailDay(ctx);
+    expect(store.status).toBe('idle');
+  });
+
   it('rival store revenue goes to the rival', () => {
     const { ctx, store } = storeCtx(10);
     store.ownerId = 'rival';

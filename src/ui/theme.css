@@ -145,11 +145,11 @@ input[type='text'] {
   overflow: auto;
 }
 
-/* Toasts stack in the top-right corner. */
+/* Toasts stack in the top-right corner, below the HUD bar (--hud-height is set by the game). */
 .toast-stack {
   position: fixed;
   pointer-events: auto;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  top: calc(var(--hud-height, env(safe-area-inset-top, 0px)) + 12px);
   right: 12px;
   display: flex;
   flex-direction: column;

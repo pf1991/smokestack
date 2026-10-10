@@ -296,6 +296,7 @@ function planPlacement(
   for (let y = pos.y; y < pos.y + h; y++) for (let x = pos.x; x < pos.x + w; x++) tiles.push(map.tiles[y * map.width + x]);
 
   if (tiles.some((t) => t.buildingId !== null || t.road || t.rail)) return err('Tile occupied');
+  if (!def.allowedTerrain.includes('water') && tiles.some((t) => t.terrain === 'water')) return err("Can't build on water");
   if (tiles.some((t) => !def.allowedTerrain.includes(t.terrain))) return err('Wrong terrain');
 
   let cityId: number | null = null;
@@ -495,7 +496,8 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
 /**
  * Removes road from the given tiles. Tiles without road, out of bounds or under a building are
  * skipped. Refuses (changing nothing) if any tile is another company's road ('Not your road') or a
- * vehicle currently stands on one of them. Pre-built/unowned road may be removed by anyone. Each
+ * vehicle currently stands on one of them. Pre-built streets on urban tiles are refused ('City streets
+ * belong to the town'); other pre-built/unowned road (rural links) may be removed by anyone. Each
  * removed owned tile decrements its builder's `roadTiles` (floored at 0); `roadOwner` is cleared.
  */
 export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Result {
@@ -509,6 +511,7 @@ export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resu
     const i = p.y * map.width + p.x;
     if (seen.has(i)) continue;
     if (t.roadOwner !== null && t.roadOwner !== owner) return err('Not your road');
+    if (t.roadOwner === null && t.cityId !== null) return err('City streets belong to the town');
     seen.add(i);
     todo.push({ x: p.x, y: p.y });
   }
