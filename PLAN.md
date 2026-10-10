@@ -134,7 +134,7 @@ Work proceeds in **waves**. Tasks within a wave are independent and run as **par
 | 2 | 9 State & construction · 10 Camera & terrain · 11 Sprite painter · 12 Atmosphere (all import `TILE`/`Camera` from `src/render/constants.ts`) | gameplay, world view |
 | 3 | 13 Production & retail · 14 Trucks & routes · 15 HUD & toolbar · 16 World renderer (shared inventory rules in `src/sim/inventory.ts`) | loop |
 | 4 | 17 Sim loop & saves → then 18 Bootstrap & tools (**playable milestone**) | features |
-| 5 | 19 Inspectors · 20 Route editor · 21 Finance dashboard · 22 Eras · 23 Newspaper & events · 24 Pollution · 25 Rival AI · 26 Contracts | polish |
+| 5 | 19 Inspectors · 20 Route editor · 21 Finance dashboard · 22 Eras · 23 Newspaper & events · 24 Pollution · 25 Rival AI · 26 Contracts (all post news via `src/sim/news.ts`) | polish |
 | 6 | 27 Railways · 28 Menu, scenarios & achievements → then 29 Tutorial & balance · 30 Deploy & final verification | ship |
 
 **Model per task** (pass as the Agent `model` parameter; every task also gets an Opus reviewer before merge, plus a whole-branch Opus review after Waves 4 and 6):
@@ -723,7 +723,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 **Interfaces:**
 - Consumes: Tasks 6 (modifiers), 13 (`haltedUntil`), 17, 22.
 - Produces:
-  - `publishNews(ctx, kind, headline, body): NewsItem` (keeps the last 200; emits `news`)
+  - `publishNews(ctx, kind, headline, body): NewsItem` already exists in `src/sim/news.ts` (keeps the last 200; emits `news`); import it, don't redefine it.
   - `HISTORIC_EVENTS`, fixed-date: 1914-08 Great War (steel and tools ×1.5 until 1918-11); 1929-10 Crash (`'*'` ×0.6 for 18 months); 1945-09 Post-war boom (`'*'` ×1.2 for 24 months); 1969-07 Moon landing (toys ×2 for 6 months); 1973-10 Oil crisis (fuel price note plus cars ×0.6 for 12 months); 1983 Home-computer craze (computers ×1.5 for 24 months).
   - `RANDOM_EVENTS: { id; weight; minYear; apply(ctx): NewsItem | null }[]`: `strike` (a random player factory halts for 10 days), `fire` (a factory loses its output stock), `bumper_harvest` (farms ×2 this month via flag), `festival` (one city ×1.3 on all goods for 30 days), `gold_rush` (a city gains 15% population), `inventor` (the next locked recipe unlocks 2 years early), `heatwave` (juice ×2 for 30 days, summer only), `rail_strike` (≥ 1930; trains halt 7 days; skipped if there are no trains). Rolled monthly with probability 0.35 via the rng.
   - `monthlyMarketReport(ctx)`: on month: the top-selling good with player revenue, plus one "Smogsworth says…" quip when the rival is active.
@@ -759,7 +759,7 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 - Test: `src/sim/rival.test.ts`
 
 **Interfaces:**
-- Consumes: Tasks 9 (`findPlacement`, `buildRoad`, `assetValue`), 14, 17, 23 (`publishNews`). Pass `'rival'` as owner everywhere; `sellVehicle`/`updateRoute`/`deleteRoute` don't check ownership, so only call them on the rival's own routes and vehicles.
+- Consumes: Tasks 9 (`findPlacement`, `buildRoad`, `assetValue`), 14, 17; `publishNews` from `src/sim/news.ts`. Pass `'rival'` as owner everywhere; `sellVehicle`/`updateRoute`/`deleteRoute` don't check ownership, so only call them on the rival's own routes and vehicles.
 - Produces:
   - `chainFor(goodId, state): BuildingTypeId[]`: the backward chain from extractor to factory using the first unlocked recipe per good. `furniture` → `['lumber_camp','sawmill','furniture_factory']`.
   - `rivalMonth(ctx)` (only when `companies.rival.active`): with at most one project in flight (`state.rivalProject`), it picks the (city, tier-2 good) with the highest `unmet demand × price` among chains costing ≤ money − $50,000. It builds a store in that city and the chain buildings via `findPlacement` near the city; connects each to the road network with `findPath(roadBuildable)` + `buildRoad`; and creates routes with 1–2 trucks per leg. It adds trucks to legs whose source output is ≥ 80% full. It never spends below its $50,000 reserve and takes loans only when money < $20,000.
