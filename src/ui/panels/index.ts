@@ -1,5 +1,7 @@
 import type { GameController } from '../../game/controller';
+import { contractsPanel } from './contracts';
 import { financePanel } from './finance';
+import { newspaperPanel } from './newspaper';
 
 /** A window the game can open by id (Task 19+ register building, city, vehicle, routes, finance, ...). */
 export interface PanelDef {
@@ -11,6 +13,8 @@ export interface PanelDef {
  * Panel registry. Append-only: later tasks add their entries here
  * (e.g. `PANELS.building = buildingPanel`). On merge conflicts keep both sides.
  */
-export const PANELS: Record<string, PanelDef> = {
-  finance: financePanel,
-};
+export const PANELS: Record<string, PanelDef> = {};
+
+PANELS.contracts = contractsPanel;
+PANELS.newspaper = newspaperPanel;
+PANELS.finance = financePanel;

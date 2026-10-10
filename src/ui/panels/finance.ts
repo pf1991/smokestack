@@ -1,13 +1,15 @@
+import type { Result } from '../../core/result';
 import type { GameController } from '../../game/controller';
 import { GOODS } from '../../data/goods';
-import type { Result } from '../../core/result';
 import { LOAN_RATE, LOAN_STEP, repayLoan, takeLoan } from '../../sim/finance';
-import type { Company, LedgerCategory, LedgerMonth } from '../../sim/types';
+import { assetValue } from '../../sim/state';
+import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
 import { barChart, cssColor, lineChart } from '../charts';
 import { h } from '../dom';
 import { formatMoney } from '../format';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
+import './finance.css';
 
 const REFRESH_MS = 1000;
 const STATEMENT_MONTHS = 12;
@@ -34,15 +36,9 @@ const sumCats = (rec: Partial<Record<LedgerCategory, number>>, cats: { cat: Ledg
 function statement(ledger: LedgerMonth[]): HTMLElement {
   const months = ledger.slice(-STATEMENT_MONTHS);
   if (months.length === 0) return h('p', { class: 'finance-empty' }, 'No history yet');
-  const row = (label: string, values: number[], cls?: string) =>
-    h(
-      'tr',
-      { class: cls },
-      h('th', { scope: 'row' }, label),
-      values.map((v) =>
-        h('td', { class: v < 0 ? 'neg' : v > 0 ? 'pos' : '' }, v === 0 ? '–' : formatMoney(v)),
-      ),
-    );
+  const cell = (v: number) => h('td', { class: v < 0 ? 'neg' : v > 0 ? 'pos' : '' }, v === 0 ? '–' : formatMoney(v));
+  const row = (label: string, values: number[]) =>
+    h('tr', null, h('th', { scope: 'row' }, label), values.map(cell));
   const profit = months.map((m) => sumCats(m.income, INCOME_CATS) - sumCats(m.expense, EXPENSE_CATS));
   return h(
     'div',
@@ -53,7 +49,7 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
       h(
         'thead',
         null,
-        h('tr', null, h('th', null, 'Ledger'), months.map((m) => h('th', { scope: 'col' }, monthLabel(m)))),
+        h('tr', null, h('th', { scope: 'col' }, 'Ledger'), months.map((m) => h('th', { scope: 'col' }, monthLabel(m)))),
       ),
       h(
         'tbody',
@@ -71,6 +67,17 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
   );
 }
 
+/**
+ * Cash and net worth for one company in one ledger month. The month the game is currently in is
+ * still open, so its stored values are zero until it closes; use the live figures for it instead.
+ */
+function monthValues(state: GameState, c: Company | undefined, key: number, m: LedgerMonth | undefined) {
+  if (key === monthKey(state.date) && c) {
+    return { cash: c.money, net: c.money - c.loan + assetValue(state, c.id) };
+  }
+  return { cash: m?.cashEnd ?? Number.NaN, net: m?.netWorthEnd ?? Number.NaN };
+}
+
 /** Windows that already have a refresh timer running (so a second open just re-raises them). */
 const timed = new WeakSet<HTMLElement>();
 
@@ -79,9 +86,10 @@ export const financePanel: PanelDef = {
   open(game: GameController) {
     const statementBox = h('div');
     const emptyCharts = h('p', { class: 'finance-empty' }, 'No history yet');
-    const cashCanvas = h('canvas', { class: 'finance-chart', height: 180 }) as HTMLCanvasElement;
-    const goodsCanvas = h('canvas', { class: 'finance-chart', height: 180 }) as HTMLCanvasElement;
-    const chartsBox = h('div', { class: 'finance-charts' }, cashCanvas, goodsCanvas);
+    const cashCanvas = h('canvas', { class: 'finance-chart' }) as HTMLCanvasElement;
+    const legend = h('div', { class: 'finance-legend' });
+    const chartsBox = h('div', { class: 'finance-charts' }, cashCanvas, legend);
+    const goodsCanvas = h('canvas', { class: 'finance-chart' }) as HTMLCanvasElement;
     const goodsEmpty = h('p', { class: 'finance-empty' }, 'No sales this year');
     const loanInfo = h('div', { class: 'finance-loan-info' });
 
@@ -103,7 +111,7 @@ export const financePanel: PanelDef = {
       chartsBox,
       h('h3', null, 'Sales this year'),
       goodsEmpty,
-      h('p', { class: 'finance-note' }, 'Revenue by good, current year'),
+      goodsCanvas,
       h('h3', null, 'Loans'),
       h(
         'div',
@@ -112,8 +120,8 @@ export const financePanel: PanelDef = {
         h(
           'div',
           { class: 'finance-loan-buttons' },
-          h('button', { type: 'button', onClick: borrow }, `Borrow ${formatMoney(LOAN_STEP)}`),
-          h('button', { type: 'button', onClick: repay }, `Repay ${formatMoney(LOAN_STEP)}`),
+          h('button', { type: 'button', class: 'btn', onClick: borrow }, `Borrow ${formatMoney(LOAN_STEP)}`),
+          h('button', { type: 'button', class: 'btn', onClick: repay }, `Repay ${formatMoney(LOAN_STEP)}`),
         ),
       ),
     );
@@ -134,14 +142,15 @@ export const financePanel: PanelDef = {
       const state = game.state;
       const player = state.companies.player;
       const rival = state.companies.rival;
+      const rivalActive = Boolean(rival?.active);
 
       statementBox.replaceChildren(statement(player.ledger));
 
-      // Cash and net worth: union of both companies' months, aligned on year/month.
-      const rivalActive = Boolean(rival?.active);
+      // Cash and net worth: union of both companies' months (plus the open month), aligned on year/month.
       const keys = new Set<number>();
       for (const m of player.ledger) keys.add(monthKey(m));
       if (rivalActive) for (const m of rival.ledger) keys.add(monthKey(m));
+      if (keys.size > 0) keys.add(monthKey(state.date));
       const sorted = [...keys].sort((a, b) => a - b);
       const hasHistory = sorted.length > 0;
       emptyCharts.hidden = hasHistory;
@@ -150,28 +159,37 @@ export const financePanel: PanelDef = {
         const byKey = (ledger: LedgerMonth[]) => new Map(ledger.map((m) => [monthKey(m), m]));
         const pm = byKey(player.ledger);
         const rm = byKey(rival?.ledger ?? []);
-        const pick = (map: Map<number, LedgerMonth>, f: (m: LedgerMonth) => number) =>
-          sorted.map((k) => {
-            const m = map.get(k);
-            return m ? f(m) : Number.NaN;
-          });
         const labels = sorted.map((k) => {
           const m = pm.get(k) ?? rm.get(k);
-          return m ? monthLabel(m) : '';
+          if (m) return monthLabel(m);
+          const year = Math.floor((k - 1) / 12);
+          return monthLabel({ year, month: k - year * 12 });
         });
+        const values = (c: Company | undefined, map: Map<number, LedgerMonth>, pick: 'cash' | 'net') =>
+          sorted.map((k) => monthValues(state, c, k, map.get(k))[pick]);
         const blue = cssColor('--player', '#2f6fb5');
         const crimson = cssColor('--rival', '#b5302f');
         const series = [
-          { label: 'Cash', color: blue, values: pick(pm, (m) => m.cashEnd) },
-          { label: 'Net worth', color: blue, values: pick(pm, (m) => m.netWorthEnd), dashed: true },
+          { label: 'Cash', color: blue, values: values(player, pm, 'cash') },
+          { label: 'Net worth', color: blue, values: values(player, pm, 'net'), dashed: true },
         ];
         if (rivalActive) {
           series.push(
-            { label: 'Rival cash', color: crimson, values: pick(rm, (m) => m.cashEnd) },
-            { label: 'Rival net worth', color: crimson, values: pick(rm, (m) => m.netWorthEnd), dashed: true },
+            { label: 'Rival cash', color: crimson, values: values(rival, rm, 'cash') },
+            { label: 'Rival net worth', color: crimson, values: values(rival, rm, 'net'), dashed: true },
           );
         }
         lineChart(cashCanvas, series, labels);
+        legend.replaceChildren(
+          ...series.map((s) =>
+            h(
+              'span',
+              { class: 'finance-legend-item' },
+              h('span', { class: `finance-swatch${s.dashed ? ' dashed' : ''}`, style: { borderTopColor: s.color } }),
+              s.label,
+            ),
+          ),
+        );
       }
 
       // Sales by good, summed over the current year.
@@ -202,3 +220,13 @@ export const financePanel: PanelDef = {
     timer = window.setInterval(update, REFRESH_MS);
   },
 };
+
+// Dev-only: `?panel=finance` opens the window once the game is running (for visual checks).
+if (import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).get('panel') === 'finance') {
+  const openWhenReady = () => {
+    const game = (window as unknown as { game?: GameController }).game;
+    if (game) financePanel.open(game);
+    else setTimeout(openWhenReady, 50);
+  };
+  setTimeout(openWhenReady, 0);
+}

@@ -7,11 +7,13 @@ const NICE_MANTISSAS = [1, 2, 5];
  * `count` intervals. Zero is always a tick when the range includes it.
  */
 export function niceTicks(min: number, max: number, count: number): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0];
   let lo = Math.min(min, max);
   let hi = Math.max(min, max);
   if (lo === hi) {
-    lo -= 1;
-    hi += 1;
+    const pad = Math.max(1, Math.abs(lo) * 0.1);
+    lo -= pad;
+    hi += pad;
   }
   const intervals = Math.max(1, Math.floor(count));
   for (let e = -12; e <= 15; e++) {
@@ -44,8 +46,9 @@ function prepare(canvas: HTMLCanvasElement): { g: CanvasRenderingContext2D; w: n
   const g = canvas.getContext('2d');
   if (!g) return null;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const w = canvas.clientWidth || canvas.width || 300;
-  const h = canvas.clientHeight || canvas.height || 160;
+  // CSS size, not the backing store: the store is rescaled by dpr on every draw.
+  const w = canvas.clientWidth || 300;
+  const h = canvas.clientHeight || 180;
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -53,14 +56,16 @@ function prepare(canvas: HTMLCanvasElement): { g: CanvasRenderingContext2D; w: n
   return { g, w, h };
 }
 
-const PAD = { left: 64, right: 12, top: 10, bottom: 24 };
+// right margin leaves room for the last x label, which is centred on the final point
+const PAD = { left: 64, right: 32, top: 10, bottom: 24 };
 
+/** Axis text is cream, since charts sit on the dark walnut window. */
 function textColor(): string {
-  return cssColor('--ink', '#1d1a16');
+  return cssColor('--paper', '#f3e9d2');
 }
 
 function gridColor(): string {
-  return 'rgba(29, 26, 22, 0.15)';
+  return 'rgba(243, 233, 210, 0.15)';
 }
 
 /**

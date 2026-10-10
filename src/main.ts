@@ -5,6 +5,8 @@ import { runAutoplay } from './game/autoplay';
 import { GameController } from './game/controller';
 import { QuickRoute } from './game/quickRoute';
 import { runDays, stepTick } from './sim/simulation';
+import { attachNewspaper } from './ui/panels/newspaper';
+import { Ticker } from './ui/ticker';
 import { createGame } from './sim/state';
 import type { Speed } from './sim/types';
 
@@ -63,6 +65,7 @@ if (params.has('speed') && [0, 1, 2, 4, 8].includes(speedParam)) state.speed = s
 const game = new GameController(canvas, ui);
 game.load(state);
 new QuickRoute(game, ui);
+Ticker.attach(document.getElementById('ticker')!, game.ctx.bus, game.state.news); attachNewspaper(game);
 if (focus) {
   game.camera.zoom = 1.25;
   game.centerOn(focus);
