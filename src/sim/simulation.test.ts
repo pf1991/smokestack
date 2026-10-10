@@ -25,7 +25,8 @@ function collect(ctx: SimContext): GameEvent[] {
 
 describe('stepTick', () => {
   it('SYSTEMS are seeded in the documented order', () => {
-    expect(SYSTEMS.map((s) => s.id)).toEqual(['vehicles', 'production', 'retail', 'upkeep', 'finance']);
+    // later tasks append their systems after these five
+    expect(SYSTEMS.slice(0, 5).map((s) => s.id)).toEqual(['vehicles', 'production', 'retail', 'upkeep', 'finance']);
   });
 
   it('the clock stops after victory', () => {

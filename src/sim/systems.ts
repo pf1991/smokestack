@@ -1,6 +1,7 @@
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
+import { rivalMonth, rivalTaunt } from './rival';
 import type { OwnerId, SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
@@ -53,4 +54,5 @@ export const SYSTEMS: SimSystem[] = [
     },
   },
   finance,
+  { id: 'rival', onMonth: (ctx) => { rivalMonth(ctx); rivalTaunt(ctx); } },
 ];
