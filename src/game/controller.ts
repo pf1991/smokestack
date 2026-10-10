@@ -1,0 +1,310 @@
+import { Sfx } from '../audio/sfx';
+import { EventBus } from '../core/events';
+import { clampCamera, TILE } from '../render/camera';
+import type { Camera } from '../render/constants';
+import { WorldRenderer } from '../render/world';
+import { stepTick } from '../sim/simulation';
+import { createGame } from '../sim/state';
+import type { GameMap, GameState, SimContext, Speed, Vec2 } from '../sim/types';
+import { Hud } from '../ui/hud';
+import { PANELS } from '../ui/panels/index';
+import { Toasts } from '../ui/toasts';
+import { Toolbar } from '../ui/toolbar';
+import type { ToolSpec } from '../ui/tools';
+import { Input } from './input';
+import { ToolController } from './toolController';
+import { biggestCity } from './autoplay';
+
+/** Real milliseconds per game day at speed 1. */
+const MS_PER_DAY = 2000;
+const TICKS_PER_DAY = 24;
+/** Backlog beyond this many ticks in one frame is dropped (e.g. after a background tab). */
+export const MAX_TICKS_PER_FRAME = 200;
+const HUD_INTERVAL_MS = 250;
+/** Clamp for one frame's real time so a long stall does not jump the sim. */
+const MAX_FRAME_MS = 1000;
+/** Fallback timer period used when animation frames stop arriving. */
+const WATCHDOG_MS = 50;
+
+export function msPerTick(speed: Speed): number {
+  return MS_PER_DAY / TICKS_PER_DAY / speed;
+}
+
+const PANEL_LABELS: Record<string, string> = {
+  routes: 'Routes window',
+  finance: 'Finance ledger',
+  newspaper: 'The Daily Smokestack',
+  contracts: "Mayor's contracts",
+};
+
+export interface NewGameOpts {
+  seed: number;
+  companyName?: string;
+  scenarioId?: string;
+  rival?: boolean;
+}
+
+/**
+ * Owns the running game: sim context, camera, world renderer, HUD/toolbar/toasts, audio, input and
+ * the fixed-timestep loop (msPerTick = 2000 / 24 / speed, at most 200 ticks per frame).
+ */
+export class GameController {
+  ctx!: SimContext;
+  readonly camera: Camera = { x: 0, y: 0, zoom: 1, viewW: 0, viewH: 0 };
+  renderer!: WorldRenderer;
+  readonly tools: ToolController;
+  readonly hud: Hud;
+  readonly toolbar: Toolbar;
+  readonly sfx = new Sfx();
+  private readonly input: Input;
+  private readonly g2d: CanvasRenderingContext2D;
+  private dpr = 1;
+  private busOffs: (() => void)[] = [];
+  private toolListeners: ((t: ToolSpec) => void)[] = [];
+  private raf = 0;
+  private watchdog = 0;
+  private running = false;
+  private lastFrame: number | null = null;
+  private acc = 0;
+  private alpha = 0;
+  private lastHud = -Infinity;
+  private resumeSpeed: Speed = 1;
+  private ended = false;
+  private audioOn = false;
+  private readonly onResize = () => this.resize();
+  private readonly onGesture = () => this.enableAudio();
+
+  constructor(
+    readonly canvas: HTMLCanvasElement,
+    readonly uiRoot: HTMLElement,
+  ) {
+    const g = canvas.getContext('2d');
+    if (!g) throw new Error('2D canvas not supported');
+    this.g2d = g;
+    this.tools = new ToolController(this);
+    this.hud = new Hud(uiRoot, {
+      onSpeed: (s) => this.setSpeed(s),
+      onOpenPanel: (id) => this.openPanel(id),
+    });
+    this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
+    this.input = new Input(canvas, this);
+    window.addEventListener('resize', this.onResize);
+    window.addEventListener('pointerdown', this.onGesture, true);
+    window.addEventListener('keydown', this.onGesture, true);
+    this.resize();
+  }
+
+  get map(): GameMap {
+    return this.ctx.state.map;
+  }
+
+  get state(): GameState {
+    return this.ctx.state;
+  }
+
+  newGame(opts: NewGameOpts): void {
+    this.load(createGame(opts));
+  }
+
+  /** Starts playing `state` with a fresh event bus (renderer, toasts and audio re-attach to it). */
+  load(state: GameState): void {
+    for (const off of this.busOffs) off();
+    const bus = new EventBus();
+    this.ctx = { state, bus };
+    if (!this.renderer) this.renderer = new WorldRenderer(this.canvas, state);
+    this.renderer.setSelection(null);
+    this.busOffs = [
+      this.renderer.attachEffects(bus),
+      Toasts.attach(this.uiRoot, bus),
+      bus.on('unlock', () => this.toolbar.update(this.state)),
+      bus.on('monthEnd', () => this.toolbar.update(this.state)),
+      bus.on('gameOver', (e) => this.end(`Game over — ${e.reason}`, 'bad')),
+      bus.on('victory', (e) => this.end(`Victory! ${e.reason}`, 'good')),
+    ];
+    if (this.audioOn) this.busOffs.push(this.sfx.attach(bus));
+    this.ended = false;
+    this.acc = 0;
+    this.alpha = 0;
+    if (state.speed > 0) this.resumeSpeed = state.speed;
+    const city = biggestCity(state.cities);
+    if (city) this.centerOn(city.center);
+    this.setTool({ kind: 'inspect' });
+    this.hud.update(state);
+    this.toolbar.update(state);
+    this.start();
+  }
+
+  /** Centres the view on a tile. */
+  centerOn(tile: Vec2): void {
+    const cam = this.camera;
+    cam.x = (tile.x + 0.5) * TILE - cam.viewW / cam.zoom / 2;
+    cam.y = (tile.y + 0.5) * TILE - cam.viewH / cam.zoom / 2;
+    if (this.ctx) clampCamera(cam, this.map);
+  }
+
+  // ------------------------------------------------------------------ speed
+
+  setSpeed(s: Speed): void {
+    if (!this.ctx) return;
+    if (s > 0 && this.ended) {
+      this.ctx.bus.emit({ type: 'toast', message: 'The game has ended', tone: 'bad' });
+      return;
+    }
+    if (s > 0) this.resumeSpeed = s;
+    this.state.speed = s;
+    this.hud.update(this.state);
+  }
+
+  /** Space: pause, or resume at the speed used before pausing. */
+  togglePause(): void {
+    this.setSpeed(this.state.speed === 0 ? this.resumeSpeed : 0);
+  }
+
+  private end(message: string, tone: 'good' | 'bad'): void {
+    this.ended = true;
+    this.state.speed = 0;
+    this.ctx.bus.emit({ type: 'toast', message, tone });
+    this.hud.update(this.state);
+  }
+
+  // ------------------------------------------------------------------ tools & panels
+
+  /** Selects a tool (highlighting it in the toolbar). */
+  setTool(t: ToolSpec): void {
+    this.toolbar.select(t); // calls back into applyTool
+  }
+
+  private applyTool(t: ToolSpec): void {
+    this.tools.setTool(t);
+    if (this.audioOn) this.sfx.play('click');
+    for (const fn of this.toolListeners) fn(t);
+  }
+
+  /** Subscribes to tool changes; returns an unsubscribe. */
+  onToolChange(fn: (t: ToolSpec) => void): () => void {
+    this.toolListeners.push(fn);
+    return () => {
+      this.toolListeners = this.toolListeners.filter((f) => f !== fn);
+    };
+  }
+
+  toggleToolbar(): void {
+    this.toolbar.toggle();
+  }
+
+  /** Opens a registered panel; unregistered ids show a "coming soon" toast. */
+  openPanel(id: string, arg?: unknown): void {
+    if (this.tryOpenPanel(id, arg)) return;
+    const label = PANEL_LABELS[id] ?? 'That window';
+    this.ctx.bus.emit({ type: 'toast', message: `${label} is still at the printers — coming soon`, tone: 'info' });
+  }
+
+  tryOpenPanel(id: string, arg?: unknown): boolean {
+    const panel = PANELS[id];
+    if (!panel) return false;
+    panel.open(this, arg);
+    return true;
+  }
+
+  // ------------------------------------------------------------------ audio
+
+  private enableAudio(): void {
+    window.removeEventListener('pointerdown', this.onGesture, true);
+    window.removeEventListener('keydown', this.onGesture, true);
+    if (this.audioOn) return;
+    this.audioOn = true;
+    if (this.ctx) this.busOffs.push(this.sfx.attach(this.ctx.bus));
+    this.sfx.startAmbience();
+  }
+
+  // ------------------------------------------------------------------ loop
+
+  private resize(): void {
+    this.dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.canvas.width = Math.round(w * this.dpr);
+    this.canvas.height = Math.round(h * this.dpr);
+    this.canvas.style.width = `${w}px`;
+    this.canvas.style.height = `${h}px`;
+    // keep the centre of the view fixed
+    const cam = this.camera;
+    const cx = cam.x + cam.viewW / cam.zoom / 2;
+    const cy = cam.y + cam.viewH / cam.zoom / 2;
+    cam.viewW = w;
+    cam.viewH = h;
+    cam.x = cx - w / cam.zoom / 2;
+    cam.y = cy - h / cam.zoom / 2;
+    if (this.ctx) clampCamera(cam, this.map);
+  }
+
+  private start(): void {
+    if (this.running) return;
+    this.running = true;
+    this.lastFrame = null;
+    this.raf = requestAnimationFrame(this.frame);
+    this.watchdog = window.setInterval(this.kick, WATCHDOG_MS);
+  }
+
+  /**
+   * Some environments (headless capture, embedded webviews) stop delivering animation frames while
+   * the page is visible; keep the game running from a timer then. Hidden tabs stay paused.
+   */
+  private readonly kick = (): void => {
+    if (!this.running || document.visibilityState !== 'visible') return;
+    const now = performance.now();
+    if (this.lastFrame === null || now - this.lastFrame > WATCHDOG_MS * 2) this.frame(now);
+  };
+
+  /** Advances the sim by the real time elapsed, honouring the fixed timestep. Returns ticks run. */
+  advance(dtMs: number): number {
+    const state = this.state;
+    const speed = state.speed;
+    if (speed === 0) return 0;
+    const step = msPerTick(speed);
+    this.acc += Math.min(dtMs, MAX_FRAME_MS);
+    let n = Math.floor(this.acc / step);
+    if (n > MAX_TICKS_PER_FRAME) {
+      n = MAX_TICKS_PER_FRAME;
+      this.acc = 0;
+    } else {
+      this.acc -= n * step;
+    }
+    let ran = 0;
+    for (; ran < n && state.speed !== 0; ran++) stepTick(this.ctx);
+    if (state.speed === 0) this.acc = 0;
+    this.alpha = state.speed === 0 ? 1 : Math.min(1, this.acc / step);
+    return ran;
+  }
+
+  private readonly frame = (now: number): void => {
+    if (!this.running) return;
+    const dt = this.lastFrame === null ? 0 : now - this.lastFrame;
+    this.lastFrame = now;
+    this.input.update(Math.min(dt, 100));
+    if (this.advance(dt) > 0) this.tools.refreshGhost();
+    clampCamera(this.camera, this.map);
+    this.g2d.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.renderer.render(this.state, this.camera, this.alpha, now);
+    if (now - this.lastHud >= HUD_INTERVAL_MS) {
+      this.lastHud = now;
+      this.hud.update(this.state);
+    }
+    cancelAnimationFrame(this.raf);
+    this.raf = requestAnimationFrame(this.frame);
+  };
+
+  destroy(): void {
+    this.running = false;
+    cancelAnimationFrame(this.raf);
+    clearInterval(this.watchdog);
+    for (const off of this.busOffs) off();
+    this.busOffs = [];
+    this.input.destroy();
+    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('pointerdown', this.onGesture, true);
+    window.removeEventListener('keydown', this.onGesture, true);
+    this.uiRoot.replaceChildren();
+    this.uiRoot.classList.remove('tb-root');
+  }
+}
