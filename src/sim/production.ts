@@ -1,3 +1,4 @@
+import { recordSale } from './scenarios';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
 import { RECIPES } from '../data/recipes';
@@ -106,6 +107,7 @@ export function retailDay(ctx: SimContext): void {
       const sbg = currentLedger(company, state.date).salesByGood;
       sbg[s.goodId] = (sbg[s.goodId] ?? 0) + s.revenue;
       soldByGood[s.goodId] = (soldByGood[s.goodId] ?? 0) + s.qty;
+      recordSale(state, { ownerId: s.ownerId, cityId: city.id, goodId: s.goodId, qty: s.qty });
       bus.emit({
         type: 'sale',
         cityId: city.id,

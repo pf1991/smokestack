@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { SCENARIOS, attachGoalTracking, evaluateGoals } from './scenarios';
+import { SCENARIOS, evaluateGoals, recordSale } from './scenarios';
 import { runDays } from './simulation';
+import { runAutoplay } from '../game/autoplay';
 import { createGame } from './state';
 import { testCtx, testState } from './testkit';
 
@@ -27,15 +28,24 @@ describe('scenarios', () => {
     expect(ctx.state.speed).toBe(0);
   });
 
-  it('goals system emits gameOver when the deadline passes', () => {
+  it('goals system emits gameOver at the end of December 1919, and a late $1M does not win', () => {
     const ctx = testCtx(testState({ year: 1919 }));
     ctx.state.scenarioId = 'lumber_baron';
-    ctx.state.date.month = 12;
+    ctx.state.date.month = 11;
     ctx.state.date.day = 1;
     const over: string[] = [];
+    const won: string[] = [];
     ctx.bus.on('gameOver', (e) => over.push(e.reason));
-    runDays(ctx, 65);
+    ctx.bus.on('victory', (e) => won.push(e.reason));
+    runDays(ctx, 59); // still in December
+    expect(over).toEqual([]);
+    runDays(ctx, 1); // end of December 1919
     expect(over.length).toBe(1);
+    expect(ctx.state.date.year).toBe(1920);
+    ctx.state.speed = 1;
+    ctx.state.companies.player.money = 1_000_000;
+    runDays(ctx, 70);
+    expect(won).toEqual([]);
   });
 
   it('sandbox and unknown scenarios have no goals; old saves without scenarioId act as sandbox', () => {
@@ -45,14 +55,14 @@ describe('scenarios', () => {
     expect(Object.keys(SCENARIOS)).toEqual(['sandbox', 'lumber_baron', 'motor_city', 'beat_the_baron', 'boomtown']);
   });
 
-  it('tracks sold:<good> from player sale events only', () => {
-    const ctx = testCtx(testState({ year: 1910 }));
-    attachGoalTracking(ctx.bus, ctx.state);
-    const sale = (ownerId: 'player' | 'rival', qty: number) =>
-      ctx.bus.emit({ type: 'sale', cityId: 0, goodId: 'cars', qty, revenue: 1, ownerId, buildingId: 1 });
-    sale('player', 3);
-    sale('rival', 5);
-    expect(ctx.state.flags['sold:cars']).toBe(3);
+  it('recordSale counts player units and per-city sellers; zero-qty sales are ignored', () => {
+    const s = testState({ year: 1910 });
+    recordSale(s, { ownerId: 'player', cityId: 0, goodId: 'cars', qty: 3 });
+    recordSale(s, { ownerId: 'rival', cityId: 0, goodId: 'cars', qty: 5 });
+    recordSale(s, { ownerId: 'rival', cityId: 1, goodId: 'cars', qty: 0 });
+    expect(s.flags['sold:cars']).toBe(3);
+    expect(s.flags['seller:0:cars']).toBe('both');
+    expect(s.flags['seller:1:cars']).toBeUndefined();
   });
 
   it('motor_city starts in 1910 with its own cash; takeover goal reads the flag', () => {
@@ -69,5 +79,16 @@ describe('scenarios', () => {
     const s = testState({ year: 1950, cities: [{ x: 5, y: 5, population: 50_000 }] });
     s.scenarioId = 'boomtown';
     expect(evaluateGoals(s).done).toEqual([true]);
+  });
+
+  it('headless runs count sales inside the sim (no listener needed)', () => {
+    const ctx = testCtx(createGame({ seed: 1 }));
+    expect(runAutoplay(ctx).ok).toBe(true);
+    let units = 0;
+    ctx.bus.on('sale', (e) => { if (e.ownerId === 'player') units += e.qty; });
+    runDays(ctx, 20);
+    expect(units).toBeGreaterThan(0);
+    const counted = Object.entries(ctx.state.flags).filter(([k]) => k.startsWith('sold:')).reduce((a, [, v]) => a + Number(v), 0);
+    expect(counted).toBe(units);
   });
 });

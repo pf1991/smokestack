@@ -1,7 +1,7 @@
 import type { GameState } from '../sim/types';
 import { Ticker } from '../ui/ticker';
 import { attachNewspaper } from '../ui/panels/newspaper';
-import { closePauseMenu, MainMenu, openPauseMenu, showEndScreen, type PauseHost } from '../ui/menu';
+import { closeModal, MainMenu, openPauseMenu, showEndScreen, type PauseHost } from '../ui/menu';
 import { GameController, type NewGameOpts } from './controller';
 import { createGame } from '../sim/state';
 
@@ -24,8 +24,7 @@ export class App implements PauseHost {
   }
 
   private teardown(): void {
-    closePauseMenu();
-    document.querySelectorAll('.mn-modal').forEach((el) => el.remove());
+    closeModal();
     this.menu?.destroy();
     this.menu = null;
     this.game?.destroy();

@@ -15,7 +15,6 @@ import { attachAchievements } from './achievements';
 import { attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
-import { attachGoalTracking } from '../sim/scenarios';
 import { closeAllWindows } from '../ui/window';
 import { Input } from './input';
 import { ToolController } from './toolController';
@@ -149,7 +148,6 @@ export class GameController {
       this.renderer.attachEffects(bus),
       Toasts.attach(this.uiRoot, bus),
       attachStuckToasts(this.ctx),
-      attachGoalTracking(bus, state),
       attachAutosave(this.ctx),
       attachAchievements(this.ctx),
       bus.on('unlock', () => this.toolbar.update(this.state)),
@@ -226,7 +224,7 @@ export class GameController {
 
   /** Esc: cancels the active tool or open drawer; with nothing to cancel it asks for the pause menu. */
   escape(): void {
-    if (this.tools.activeTool.kind !== 'inspect' || this.toolbar.drawerOpen) {
+    if (this.tools.activeTool.kind !== 'inspect' || this.toolbar.drawerOpen || this.renderer.hasSelection()) {
       this.tools.cancel();
       this.closeDrawer();
       return;

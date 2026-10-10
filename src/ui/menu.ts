@@ -113,6 +113,7 @@ export class MainMenu {
   private readonly root: HTMLElement;
   private readonly body: HTMLElement;
   private screen: Screen = 'home';
+  private status: HTMLElement = h('div');
   private form = { name: randomName(), seed: randomSeed(), scenario: 'sandbox', rival: true };
 
   constructor(
@@ -169,15 +170,17 @@ export class MainMenu {
 
   private home(): HTMLElement {
     const auto = listSaves().find((s) => s.slot === 'auto');
-    return h('div', { class: 'mn-home' },
+    this.status = h('div', { class: 'mn-status' });
+    return h('div', null, h('div', { class: 'mn-home' },
       button('New Game', () => this.show('new'), { cls: 'mn-primary' }),
       button(auto ? `Continue - ${auto.company}, ${auto.date}` : 'Continue', () => {
         const r = loadFrom('auto');
         if (r.ok) this.host.startLoaded(r.value);
+        else this.status.textContent = r.error;
       }, { disabled: !auto }),
       button('Load Game', () => this.show('load')),
       button('Achievements', () => this.show('achievements')),
-      button('Settings', () => this.show('settings')));
+      button('Settings', () => this.show('settings'))), this.status);
   }
 
   private newGame(): HTMLElement {
@@ -266,7 +269,20 @@ function parseSeed(text: string): number {
 // ---------------------------------------------------------------------------
 // in-game overlays
 
-function modal(content: HTMLElement[], onEsc: (() => void) | null): { close(): void } {
+interface ModalHandle {
+  close(): void;
+  kind: string;
+}
+/** The one open in-game overlay (pause menu or end card), if any. */
+let current: ModalHandle | null = null;
+
+/** Closes whatever overlay is open, releasing its key listener (safe to call anytime). */
+export function closeModal(): void {
+  current?.close();
+}
+
+function modal(kind: string, content: HTMLElement[], onEsc: (() => void) | null): ModalHandle {
+  closeModal();
   const root = h('div', { class: 'mn-root mn-modal' }, h('div', { class: 'mn-vignette' }), h('div', { class: 'mn-center' }, h('div', { class: 'mn-body' }, ...content)));
   const key = (e: KeyboardEvent) => {
     // the game's own hotkeys must not fire underneath the menu
@@ -279,26 +295,25 @@ function modal(content: HTMLElement[], onEsc: (() => void) | null): { close(): v
   };
   window.addEventListener('keydown', key, true);
   document.body.appendChild(root);
-  return {
+  const handle: ModalHandle = {
+    kind,
     close() {
       window.removeEventListener('keydown', key, true);
       root.remove();
+      if (current === handle) current = null;
     },
   };
+  current = handle;
+  return handle;
 }
-
-let pauseOpen: { close(): void } | null = null;
 
 /** Esc menu: Resume, Save to slot, Load, Settings, Quit to menu. Pauses the game while open. */
 export function openPauseMenu(game: GameController, host: PauseHost): void {
-  if (pauseOpen) return;
+  if (current) return;
   const resumeSpeed = game.state.speed;
   game.setSpeed(0);
-  let m: { close(): void };
-  const close = () => {
-    m.close();
-    pauseOpen = null;
-  };
+  let m: ModalHandle;
+  const close = () => m.close();
   const resume = () => {
     close();
     if (resumeSpeed > 0) game.setSpeed(resumeSpeed);
@@ -340,20 +355,13 @@ export function openPauseMenu(game: GameController, host: PauseHost): void {
     return b;
   };
   home();
-  m = modal([body], resume);
-  pauseOpen = m;
-}
-
-/** Closes the pause menu if open (used when the game is torn down). */
-export function closePauseMenu(): void {
-  pauseOpen?.close();
-  pauseOpen = null;
+  m = modal('pause', [body], resume);
 }
 
 /** Victory / game-over card. */
 export function showEndScreen(kind: 'victory' | 'gameOver', reason: string, host: { quitToMenu(): void }, onKeepLooking: () => void): void {
-  let m: { close(): void };
-  m = modal([
+  if (current?.kind === 'end') return; // victory and bankruptcy can land in the same tick: first one wins
+  const m: ModalHandle = modal('end', [
     h('h2', { class: kind === 'victory' ? 'mn-won' : 'mn-lost' }, kind === 'victory' ? 'Victory!' : 'Game Over'),
     h('p', { class: 'mn-reason' }, reason),
     h('div', { class: 'mn-actions' },

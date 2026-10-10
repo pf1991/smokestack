@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveTo } from '../game/saves';
 import { createGame } from '../sim/state';
-import { MainMenu } from './menu';
+import { closeModal, MainMenu, showEndScreen } from './menu';
 import { buildGoals } from './panels/goals';
 import { testState } from '../sim/testkit';
 
@@ -59,6 +59,34 @@ describe('main menu', () => {
     const { ui, menu } = mount();
     menu.destroy();
     expect(ui.querySelector('.mn-root')).toBeNull();
+  });
+});
+
+describe('menu error handling and overlays', () => {
+  it('Continue with a corrupt autosave shows the error', () => {
+    localStorage.setItem('smokestack:save:auto', '{nope');
+    localStorage.setItem('smokestack:save:auto:meta', JSON.stringify({ slot: 'auto', date: '1 Jan 1900', company: 'X', money: 1 }));
+    const { ui, host } = mount();
+    btn(ui, 'Continue').click();
+    expect(host.startLoaded).not.toHaveBeenCalled();
+    expect(ui.querySelector('.mn-status')?.textContent).toBe('Save file is corrupted');
+  });
+
+  it('two end events open one card; closing restores game hotkeys', () => {
+    const host = { quitToMenu: vi.fn() };
+    const seen: string[] = [];
+    const onKey = (e: KeyboardEvent) => seen.push(e.key);
+    window.addEventListener('keydown', onKey);
+    showEndScreen('victory', 'a', host, () => {});
+    showEndScreen('gameOver', 'b', host, () => {});
+    expect(document.querySelectorAll('.mn-modal')).toHaveLength(1);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'x' }));
+    expect(seen).toEqual([]); // swallowed while the card is open
+    closeModal();
+    expect(document.querySelectorAll('.mn-modal')).toHaveLength(0);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'x' }));
+    expect(seen).toEqual(['x']);
+    window.removeEventListener('keydown', onKey);
   });
 });
 

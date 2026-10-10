@@ -26,6 +26,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     test: (s) => Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && flagNum(s, k) > 0),
   },
   {
+    // approximation: owns an extractor and has sold a tier-2 good (no per-good provenance is tracked)
     id: 'chain_gang', name: 'Chain Gang', icon: '⛓️', desc: 'Sell a finished good made from your own extractor.',
     test: (s) =>
       Object.values(s.buildings).some((b) => b.ownerId === 'player' && BUILDINGS[b.typeId]?.category === 'extractor') &&
@@ -36,6 +37,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'fleet_50', name: 'Fleet of Fifty', icon: '🚚', desc: 'Run 50 vehicles at once.', test: (s) => playerVehicles(s).length >= 50 },
   { id: 'rail_baron', name: 'Rail Baron', icon: '🚂', desc: 'Run 10 trains at once.', test: (s) => playerVehicles(s).filter((v) => v.kind === 'train').length >= 10 },
   {
+    // approximation: checked from 1950 on, not continuously
     id: 'clean_hands', name: 'Clean Hands', icon: '🧼', desc: 'Be worth $1M in 1950 without a single heavy polluter.',
     test: (s) =>
       s.date.year >= 1950 &&
@@ -45,16 +47,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'contract_killer', name: 'Contract Killer', icon: '📜', desc: 'Complete 10 mayor\'s contracts.', test: (s) => flagNum(s, 'contractsDone') >= 10 },
   {
     id: 'crash_survivor', name: 'Crash Survivor', icon: '📉', desc: 'Keep your cash positive through 1929-1931.',
-    test: (s) => s.date.year >= 1932 && s.flags?.crashBroke !== true,
+    test: (s) => flagNum(s, 'crashMonths') >= 36 && s.flags?.crashBroke !== true, // months tracked by goalsMonth
   },
   { id: 'baron_busted', name: 'Baron Busted', icon: '🎩', desc: 'Take over Smogsworth Industries.', test: (s) => s.flags?.takeover === true },
   { id: 'centennial', name: 'Centennial', icon: '🎆', desc: 'Reach the year 2000.', test: (s) => s.date.year >= 2000 },
   {
     id: 'monopoly', name: 'Monopoly', icon: '👑', desc: 'Be the only seller of a good in every city.',
-    test: (s) => {
-      if (s.cities.length === 0) return false;
-      return Object.keys(GOODS).some((g) => s.cities.every((c) => s.flags?.[`seller:${c.id}:${g}`] === 'player'));
-    },
+    test: (s) => s.flags?.monopoly === true, // set (sticky) by goalsMonth from this month's seller flags
   },
 ];
 
@@ -104,6 +103,15 @@ export function attachAchievements(ctx: SimContext): () => void {
     ctx.bus.on('dayStart', run),
     ctx.bus.on('sale', () => {
       if (!unlocked.has('first_sale')) run();
+    }),
+    // ids announced elsewhere (the rival's takeover) count as unlocked; no second fanfare
+    ctx.bus.on('achievement', (e) => {
+      if (!unlocked.has(e.id)) {
+        unlocked.add(e.id);
+        persist(unlocked);
+        const def = ACHIEVEMENTS.find((a) => a.id === e.id);
+        if (def) ctx.bus.emit({ type: 'toast', message: `Achievement unlocked: ${def.icon} ${def.name}`, tone: 'good' });
+      }
     }),
   ];
   return () => offs.forEach((off) => off());

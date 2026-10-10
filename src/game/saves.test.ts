@@ -74,4 +74,30 @@ describe('saves', () => {
     expect(listSaves().map((s) => s.slot)).toEqual(['auto']);
     off();
   });
+
+  it('a failed meta write removes the stale meta key', () => {
+    saveTo('slot1', testState());
+    const real = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k.endsWith(':meta')) throw new Error('full');
+      real.call(this, k, v);
+    });
+    const next = testState();
+    next.companies.player.name = 'Second Co';
+    expect(saveTo('slot1', next).ok).toBe(true);
+    spy.mockRestore();
+    expect(localStorage.getItem('smokestack:save:slot1:meta')).toBeNull();
+    expect(listSaves()[0].company).toBe('Second Co');
+  });
+
+  it('malformed packed tiles load as corrupted', () => {
+    saveTo('slot1', createGame({ seed: 5 }));
+    const raw = JSON.parse(localStorage.getItem('smokestack:save:slot1')!);
+    raw.map.tiles[3] = [99, 0, 0, 0, 0, -1, -1, 0];
+    localStorage.setItem('smokestack:save:slot1', JSON.stringify(raw));
+    expect(loadFrom('slot1')).toEqual({ ok: false, error: 'Save file is corrupted' });
+    raw.map.tiles[3] = 'x';
+    localStorage.setItem('smokestack:save:slot1', JSON.stringify(raw));
+    expect(loadFrom('slot1').ok).toBe(false);
+  });
 });

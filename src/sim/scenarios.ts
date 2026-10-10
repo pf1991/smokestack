@@ -1,4 +1,4 @@
-import type { EventBus } from '../core/events';
+import { GOODS } from '../data/goods';
 import type { GameState, GoodId, SimContext } from './types';
 
 export type Goal =
@@ -89,10 +89,10 @@ function goalDone(state: GameState, g: Goal): boolean {
 }
 
 /** Which goals are met, and whether any unmet goal's deadline (1 Jan of `byYear`) has passed. */
-export function evaluateGoals(state: GameState): { done: boolean[]; failed: boolean } {
+export function evaluateGoals(state: GameState, asOfYear: number = state.date.year): { done: boolean[]; failed: boolean } {
   const goals = scenarioOf(state).goals;
   const done = goals.map((g) => goalDone(state, g));
-  const failed = goals.some((g, i) => !done[i] && state.date.year >= g.byYear);
+  const failed = goals.some((g, i) => !done[i] && asOfYear >= g.byYear);
   return { done, failed };
 }
 
@@ -115,40 +115,47 @@ export function goalProgress(state: GameState, g: Goal): { label: string; value:
 }
 
 /**
- * Subscribes the sim bookkeeping that needs events: units sold (`flags['sold:<good>']`, player only),
- * which companies sell each good in each city (`flags['seller:<city>:<good>']`) and finished contracts.
- * The controller calls this for every new bus; tests call it directly. Returns an unsubscribe.
+ * Sim-side bookkeeping, called where the sale happens (production.ts retailDay) so headless runs count
+ * too: units the player sold (`flags['sold:<good>']`) and which companies sold each good in each city
+ * this month (`flags['seller:<city>:<good>']`, reset monthly by goalsMonth).
  */
-export function attachGoalTracking(bus: EventBus, state: GameState): () => void {
-  const offSale = bus.on('sale', (e) => {
-    state.flags ??= {};
-    if (e.ownerId === 'player') {
-      const k = `sold:${e.goodId}`;
-      state.flags[k] = flagNum(state, k) + e.qty;
-    }
-    const sk = `seller:${e.cityId}:${e.goodId}`;
-    const prev = state.flags[sk];
-    state.flags[sk] = prev === undefined || prev === e.ownerId ? e.ownerId : 'both';
-  });
-  const offContract = bus.on('contract', (e) => {
-    if (e.status === 'done') state.flags.contractsDone = flagNum(state, 'contractsDone') + 1;
-  });
-  return () => {
-    offSale();
-    offContract();
-  };
+export function recordSale(state: GameState, e: { ownerId: string; cityId: number; goodId: GoodId; qty: number }): void {
+  if (e.qty <= 0) return;
+  state.flags ??= {};
+  if (e.ownerId === 'player') {
+    const k = `sold:${e.goodId}`;
+    state.flags[k] = flagNum(state, k) + e.qty;
+  }
+  const sk = `seller:${e.cityId}:${e.goodId}`;
+  const prev = state.flags[sk];
+  state.flags[sk] = prev === undefined || prev === e.ownerId ? e.ownerId : 'both';
+}
+
+/** Called by contracts.ts when a contract completes. */
+export function recordContractDone(state: GameState): void {
+  state.flags ??= {};
+  state.flags.contractsDone = flagNum(state, 'contractsDone') + 1;
 }
 
 /** Monthly: milestone bookkeeping for achievements, then victory / game-over for the scenario. */
 export function goalsMonth(ctx: SimContext): void {
   const { state, bus } = ctx;
   state.flags ??= {};
-  const { year } = state.date;
-  if (year >= 1929 && year <= 1931 && state.companies.player.money < 0) state.flags.crashBroke = true;
+  const { year, month } = state.date;
+  if (year >= 1929 && year <= 1931) {
+    state.flags.crashMonths = flagNum(state, 'crashMonths') + 1;
+    if (state.companies.player.money < 0) state.flags.crashBroke = true;
+  }
+  // monopoly: sole seller of some good in every city this month (sticky once earned), then start afresh
+  if (state.cities.length > 0 && Object.keys(GOODS).some((g) => state.cities.every((c) => state.flags[`seller:${c.id}:${g}`] === 'player'))) {
+    state.flags.monopoly = true;
+  }
+  for (const k of Object.keys(state.flags)) if (k.startsWith('seller:')) delete state.flags[k];
 
   const scenario = scenarioOf(state);
   if (scenario.goals.length === 0 || state.flags.scenarioOver) return;
-  const { done, failed } = evaluateGoals(state);
+  // hooks run while the date is still inside the closing month: December already counts as next year
+  const { done, failed } = evaluateGoals(state, year + (month === 12 ? 1 : 0));
   if (done.every(Boolean)) {
     state.flags.scenarioOver = true;
     bus.emit({ type: 'victory', reason: `${scenario.name} complete` });

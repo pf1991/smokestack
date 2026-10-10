@@ -37,6 +37,9 @@ function packTile(t: Tile): PackedTile {
 }
 
 function unpackTile(p: PackedTile): Tile {
+  if (!Array.isArray(p) || p.length < 8 || !Number.isInteger(p[0]) || p[0] < 0 || p[0] >= TERRAIN.length) {
+    throw new Error('bad tile');
+  }
   return {
     terrain: TERRAIN[p[0]],
     deposit: p[1] === 0 ? null : p[1],
@@ -70,7 +73,12 @@ export function saveTo(slot: SaveSlot, state: GameState): Result {
     try {
       localStorage.setItem(META_KEY(slot), JSON.stringify(meta));
     } catch {
-      /* metadata is a nicety; listSaves falls back to reading the save */
+      // a stale meta key would describe the previous save; listSaves then reads the save itself
+      try {
+        localStorage.removeItem(META_KEY(slot));
+      } catch {
+        /* nothing more to do */
+      }
     }
     return ok();
   } catch (e) {
@@ -91,6 +99,7 @@ export function loadFrom(slot: SaveSlot): Result<GameState> {
   const state = r.value;
   const tiles = state.map.tiles as unknown[];
   // a plain object tile means a save that predates tile packing
+  if (tiles.length > 0 && typeof tiles[0] !== 'object') return err('Save file is corrupted');
   if (Array.isArray(tiles[0])) {
     try {
       state.map.tiles = (tiles as PackedTile[]).map(unpackTile);

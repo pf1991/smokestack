@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, attachAchievements, checkAchievements, loadUnlocked } from './achievements';
-import { attachGoalTracking } from '../sim/scenarios';
+import { recordSale } from '../sim/scenarios';
 import { testCtx, testState } from '../sim/testkit';
 
 beforeEach(() => localStorage.clear());
 
-const sale = (ctx: ReturnType<typeof testCtx>) =>
+const sale = (ctx: ReturnType<typeof testCtx>) => {
+  recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'furniture', qty: 2 });
   ctx.bus.emit({ type: 'sale', cityId: 0, goodId: 'furniture', qty: 2, revenue: 100, ownerId: 'player', buildingId: 1 });
+};
 
 describe('achievements', () => {
   it('has the 12 achievements', () => {
@@ -18,7 +20,6 @@ describe('achievements', () => {
 
   it('first_sale achievement fires once', () => {
     const ctx = testCtx(testState());
-    attachGoalTracking(ctx.bus, ctx.state);
     const unlocked = new Set<string>();
     expect(checkAchievements(ctx.state, unlocked)).toEqual([]);
     sale(ctx);
@@ -28,7 +29,6 @@ describe('achievements', () => {
 
   it('attachAchievements toasts, persists and does not repeat', () => {
     const ctx = testCtx(testState());
-    attachGoalTracking(ctx.bus, ctx.state);
     const toasts: string[] = [];
     const ach: string[] = [];
     ctx.bus.on('toast', (e) => toasts.push(e.message));
@@ -48,5 +48,28 @@ describe('achievements', () => {
     s.flags.takeover = true;
     s.companies.player.money = 1_500_000;
     expect(checkAchievements(s, new Set())).toEqual(expect.arrayContaining(['baron_busted', 'millionaire', 'centennial']));
+  });
+
+  it('baron_busted announced by the takeover is recorded without a second fanfare', () => {
+    const ctx = testCtx(testState());
+    ctx.state.flags.takeover = true;
+    const ach: string[] = [];
+    ctx.bus.on('achievement', (e) => ach.push(e.id));
+    const off = attachAchievements(ctx);
+    ctx.bus.emit({ type: 'achievement', id: 'baron_busted' });
+    ctx.bus.emit({ type: 'dayStart', date: ctx.state.date });
+    expect(ach.filter((i) => i === 'baron_busted')).toHaveLength(1);
+    expect(loadUnlocked().has('baron_busted')).toBe(true);
+    off();
+  });
+
+  it('crash_survivor needs the crash window to have been played; monopoly is a sticky flag', () => {
+    const late = testState({ year: 1950 });
+    expect(checkAchievements(late, new Set())).not.toContain('crash_survivor');
+    late.flags.crashMonths = 36;
+    expect(checkAchievements(late, new Set())).toContain('crash_survivor');
+    const m = testState();
+    m.flags.monopoly = true;
+    expect(checkAchievements(m, new Set())).toContain('monopoly');
   });
 });
