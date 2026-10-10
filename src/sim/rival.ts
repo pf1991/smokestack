@@ -8,7 +8,7 @@ import { err, ok } from '../core/result';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000, GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
-import { repayLoan, spend, takeLoan, LOAN_STEP } from './finance';
+import { earn, repayLoan, spend, takeLoan, LOAN_STEP } from './finance';
 import { loadSource, storageLeft } from './inventory';
 import { monthlyDemand, salePrice, supplyRatio } from './market';
 import { publishNews } from './news';
@@ -17,7 +17,7 @@ import { chance, pick } from './rng';
 import { connectToRoads, ensureRoadLink } from './roads';
 import { assetValue, demolishBuilding, findPlacement, placeBuilding } from './state';
 import type { Building, BuildingTypeId, City, GameState, GoodId, OwnerId, SimContext, Vec2 } from './types';
-import { buyTruck, createRoute, TRUCK } from './vehicles';
+import { buyTruck, createRoute, deleteRoute, TRUCK } from './vehicles';
 
 export const RIVAL_RESERVE = 50000;
 const LOAN_BELOW = 20000;
@@ -37,6 +37,9 @@ const TAKEOVER_PREMIUM = 1.2;
 const F_BUILDINGS = 'rivalBuildings';
 const F_FAILS = 'rivalFails';
 const F_BLOCKED = 'rivalBlocked';
+const F_STALL = 'rivalStall';
+/** months a project may wait for money before it is finished as-is or abandoned */
+export const MAX_STALL_MONTHS = 6;
 
 // ---------------------------------------------------------------------------
 // chains
@@ -134,6 +137,12 @@ export function takeover(ctx: SimContext): Result<{ price: number }> {
   const rival = state.companies.rival;
   if (player.money < price) return err('Not enough money');
   spend(player, 'events', price, state.date);
+  // the deal includes the Baron's treasury and his debts: his cash minus his loan goes to the buyer
+  const cash = rival.money - rival.loan;
+  if (cash >= 0) earn(player, 'events', cash, state.date);
+  else spend(player, 'events', -cash, state.date);
+  rival.money = 0;
+  rival.loan = 0;
   for (const b of Object.values(state.buildings)) if (b.ownerId === 'rival') b.ownerId = 'player';
   for (const r of Object.values(state.routes)) if (r.ownerId === 'rival') r.ownerId = 'player';
   for (const v of Object.values(state.vehicles)) if (v.ownerId === 'rival') v.ownerId = 'player';
@@ -269,6 +278,7 @@ function projectIds(state: GameState): number[] {
 function clearProjectFlags(state: GameState): void {
   delete state.flags[F_BUILDINGS];
   delete state.flags[F_FAILS];
+  delete state.flags[F_STALL];
 }
 
 const centreOf = (b: Building): Vec2 => {
@@ -316,11 +326,17 @@ function cityName(state: GameState, cityId: number): string {
   return state.cities.find((c) => c.id === cityId)?.name ?? 'the provinces';
 }
 
-function abandon(ctx: SimContext, reason: string): void {
+function abandon(ctx: SimContext, reason: string, blockIt = true): void {
   const { state } = ctx;
   const project = state.rivalProject;
   if (!project) return;
-  block(state, `${project.cityId}:${project.goodId}`);
+  if (blockIt) block(state, `${project.cityId}:${project.goodId}`);
+  // routes of this project that never got a truck are dropped (only the rival's own)
+  const ids = projectIds(state);
+  for (const r of Object.values(state.routes)) {
+    if (r.ownerId !== 'rival' || trucksOn(state, r.id) > 0) continue;
+    if (r.stops.some((st) => ids.includes(st.buildingId))) deleteRoute(ctx, r.id);
+  }
   // tear down chain buildings nobody routes through (stores are kept for future ventures)
   for (const id of projectIds(state)) {
     const b = state.buildings[id];
@@ -363,6 +379,34 @@ function routeFor(state: GameState, from: Building, to: Building, good: GoodId) 
 const trucksOn = (state: GameState, routeId: number) =>
   Object.values(state.vehicles).filter((v) => v.routeId === routeId).length;
 
+function finishProject(ctx: SimContext, city: City, goodId: GoodId): void {
+  const good = GOODS[goodId]?.name ?? goodId;
+  publishNews(
+    ctx,
+    'rival',
+    `Smogsworth ${good} floods ${city.name}`,
+    `Smogsworth Consolidated has opened a ${good.toLowerCase()} line into ${city.name}. ` +
+      '"Prices will fall, and so will my competitors," the Baron declared.',
+  );
+  ctx.state.rivalProject = null;
+  clearProjectFlags(ctx.state);
+}
+
+/**
+ * The project waited a month for money. After MAX_STALL_MONTHS it is finished as-is when every
+ * leg already has a truck (`canFinish`), otherwise abandoned (without blacklisting the market).
+ */
+function stall(ctx: SimContext, city: City, canFinish: boolean): void {
+  const { state } = ctx;
+  const project = state.rivalProject;
+  if (!project) return;
+  const n = (typeof state.flags[F_STALL] === 'number' ? (state.flags[F_STALL] as number) : 0) + 1;
+  state.flags[F_STALL] = n;
+  if (n < MAX_STALL_MONTHS) return;
+  if (canFinish) finishProject(ctx, city, project.goodId);
+  else abandon(ctx, 'the money ran dry', false);
+}
+
 /** One step of the current project. Order of build: store, final factory, then back to the extractors. */
 function advanceProject(ctx: SimContext): void {
   const { state } = ctx;
@@ -391,7 +435,7 @@ function advanceProject(ctx: SimContext): void {
     if (project.stage === 0) {
       b = rivalStoreIn(state, city.id) ?? null;
       if (!b) {
-        if (!affordable(state, BUILDINGS.store.cost)) return;
+        if (!affordable(state, BUILDINGS.store.cost)) return stall(ctx, city, false);
         const pos = findPlacement(state, 'rival', 'store', city.center, city.urbanRadius + 2);
         b = pos ? unwrap(placeBuilding(ctx, 'rival', 'store', pos)) : null;
         if (!b) {
@@ -403,7 +447,7 @@ function advanceProject(ctx: SimContext): void {
     } else {
       const nodeIdx = order[project.stage - 1];
       const node = plan.nodes[nodeIdx];
-      if (!affordable(state, BUILDINGS[node.typeId].cost)) return;
+      if (!affordable(state, BUILDINGS[node.typeId].cost)) return stall(ctx, city, false);
       const consumer = plan.edges.find((e) => e.from === nodeIdx);
       const anchorB = consumer && consumer.to >= 0 ? nodeBuilding(consumer.to) : undefined;
       const anchor = anchorB ? centreOf(anchorB) : city.center;
@@ -415,6 +459,7 @@ function advanceProject(ctx: SimContext): void {
     }
     state.flags[F_BUILDINGS] = [...ids, b.id].join(',');
     state.flags[F_FAILS] = 0;
+    state.flags[F_STALL] = 0;
     project.stage += 1;
     return;
   }
@@ -428,6 +473,7 @@ function advanceProject(ctx: SimContext): void {
       const r = connectToRoads(ctx, b, { owner: 'rival', reserve: RIVAL_RESERVE });
       if (!r.ok) {
         if (r.error !== 'Not enough money') fail(ctx, 'no road could reach a site');
+        else stall(ctx, city, false);
         return;
       }
     }
@@ -436,16 +482,18 @@ function advanceProject(ctx: SimContext): void {
       const r = ensureRoadLink(ctx, 'rival', a, b, RIVAL_RESERVE);
       if (!r.ok) {
         if (r.error !== 'Not enough money') fail(ctx, 'the roads would not meet');
+        else stall(ctx, city, false);
         return;
       }
     }
     state.flags[F_FAILS] = 0;
+    state.flags[F_STALL] = 0;
     project.stage += 1;
     return;
   }
 
-  // routes and trucks: one route per leg, two trucks each when the reserve allows (at least one)
-  let complete = true;
+  // routes and trucks: one route per leg; every leg gets its first truck before any gets a second
+  const routes: number[] = [];
   for (const e of plan.edges) {
     const [a, b] = endpoints(e);
     let route = routeFor(state, a, b, e.good);
@@ -460,20 +508,19 @@ function advanceProject(ctx: SimContext): void {
       }
       route = r.value;
     }
-    for (let n = trucksOn(state, route.id); n < 2 && affordable(state, TRUCK.cost); n++) buyTruck(ctx, 'rival', route.id);
-    if (trucksOn(state, route.id) === 0) complete = false;
+    routes.push(route.id);
   }
-  if (!complete) return;
-  const good = GOODS[project.goodId]?.name ?? project.goodId;
-  publishNews(
-    ctx,
-    'rival',
-    `Smogsworth ${good} floods ${city.name}`,
-    `Smogsworth Consolidated has opened a ${good.toLowerCase()} line into ${city.name}. ` +
-      '"Prices will fall, and so will my competitors," the Baron declared.',
-  );
-  state.rivalProject = null;
-  clearProjectFlags(state);
+  const before = routes.map((id) => trucksOn(state, id));
+  for (const target of [1, 2]) {
+    for (const id of routes) if (trucksOn(state, id) < target && affordable(state, TRUCK.cost)) buyTruck(ctx, 'rival', id);
+  }
+  const allServed = routes.every((id) => trucksOn(state, id) > 0);
+  if (allServed) {
+    finishProject(ctx, city, project.goodId);
+    return;
+  }
+  if (routes.some((id, i) => trucksOn(state, id) > before[i])) state.flags[F_STALL] = 0;
+  else stall(ctx, city, false);
 }
 
 function unwrap<T>(r: Result<T>): T | null {

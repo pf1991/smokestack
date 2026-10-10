@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
 import { connectToRoads, roadCost } from './roads';
-import { canTakeover, chainFor, netWorth, RIVAL_RESERVE, rivalMonth, rivalTaunt, takeover, TAUNTS } from './rival';
+import { canTakeover, chainFor, MAX_STALL_MONTHS, netWorth, RIVAL_RESERVE, rivalMonth, rivalTaunt, takeover, TAUNTS } from './rival';
 import { runDays, serialize } from './simulation';
 import { buildRoad, createGame, lPath, placeBuilding } from './state';
 import { must, testCtx, testState } from './testkit';
@@ -179,6 +179,45 @@ describe('rivalMonth', () => {
   });
 });
 
+describe('rival projects never deadlock', () => {
+  /** Longest run of consecutive month-ends with the very same project in the very same stage. */
+  function longestStall(seed: number, months: number): { stall: number; routes: number } {
+    const ctx = rivalGame(seed);
+    let last = '';
+    let run = 0;
+    let worst = 0;
+    for (let m = 0; m < months; m++) {
+      runDays(ctx, 30);
+      const p = ctx.state.rivalProject;
+      const key = p ? `${JSON.stringify(p)}|${ctx.state.flags.rivalBuildings}` : '';
+      run = key && key === last ? run + 1 : 0;
+      worst = Math.max(worst, run);
+      last = key;
+    }
+    const routes = Object.values(ctx.state.routes).filter((r) => r.ownerId === 'rival').length;
+    return { stall: worst, routes };
+  }
+
+  it('seed 10: no project stalls more than 8 months over 180 months, ≥ 3 routes', () => {
+    const r = longestStall(10, 180);
+    // eslint-disable-next-line no-console
+    console.log(`seed 10: longest stall ${r.stall} months, rival routes ${r.routes}`);
+    expect(r.stall).toBeLessThanOrEqual(8);
+    expect(r.routes).toBeGreaterThanOrEqual(3);
+  }, 120000);
+
+  it('a project waiting for money is abandoned after MAX_STALL_MONTHS when legs lack trucks', () => {
+    const ctx = rivalGame(7);
+    for (let i = 0; i < 3; i++) rivalMonth(ctx); // store + factory + one more building
+    expect(ctx.state.rivalProject).not.toBeNull();
+    ctx.state.companies.rival.money = 45000; // above the loan trigger, below reserve + anything
+    for (let i = 0; i < MAX_STALL_MONTHS; i++) rivalMonth(ctx);
+    expect(ctx.state.rivalProject).toBeNull();
+    expect(ctx.state.flags.rivalStall).toBeUndefined();
+    expect(ctx.state.flags.rivalBlocked ?? '').toBe(''); // a money stall does not blacklist the market
+  });
+});
+
 describe('rivalTaunt', () => {
   it('has 20 quips and publishes rival news about 30% of months', () => {
     expect(TAUNTS).toHaveLength(20);
@@ -214,10 +253,16 @@ describe('takeover', () => {
     const events: string[] = [];
     ctx.bus.on('achievement', (e) => events.push(e.id));
     const playerMoney = state.companies.player.money;
+    state.companies.rival.loan = 50000;
+    const rivalCash = state.companies.rival.money - state.companies.rival.loan;
+    const priceWithLoan = Math.round(1.2 * netWorth(state, 'rival'));
     const playerRoads = state.companies.player.roadTiles;
     must(takeover(ctx));
 
-    expect(state.companies.player.money).toBe(playerMoney - price);
+    // pays 1.2 × his net worth, receives his cash net of his loan
+    expect(state.companies.player.money).toBe(playerMoney - priceWithLoan + rivalCash);
+    expect(state.companies.rival.money).toBe(0);
+    expect(state.companies.rival.loan).toBe(0);
     for (const id of rivalBuildings) expect(state.buildings[id].ownerId).toBe('player');
     for (const id of rivalRoutes) expect(state.routes[id].ownerId).toBe('player');
     for (const id of rivalTrucks) expect(state.vehicles[id].ownerId).toBe('player');
