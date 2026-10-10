@@ -1,3 +1,5 @@
+import { eraName } from '../sim/eras';
+export { eraName };
 import type { GameState, Speed } from '../sim/types';
 import { setOverlay } from '../render/overlays';
 import { h } from './dom';
@@ -10,15 +12,6 @@ export interface HudHandlers {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** Local era helper (Core rules). */
-export function eraName(year: number): string {
-  if (year < 1920) return 'Steam Age';
-  if (year < 1940) return 'Roaring Age';
-  if (year < 1960) return 'Atomic Age';
-  if (year < 1980) return 'Space Age';
-  return 'Silicon Age';
-}
 
 const SPEEDS: { speed: Speed; label: string; title: string }[] = [
   { speed: 0, label: '⏸', title: 'Pause' },

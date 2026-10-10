@@ -1,4 +1,5 @@
 import { contractsSystem } from './contracts';
+import { checkUnlocks, eraBanner, fadeWarnings } from './eras';
 import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { pollutionSystem } from './pollution';
@@ -61,4 +62,12 @@ export const SYSTEMS: SimSystem[] = [
   // after upkeep: onDay refreshes city.pollution on the month's last day (before growthMonth reads it),
   // onMonth then owns the final happiness value
   pollutionSystem,
+  {
+    id: 'eras',
+    onDay(ctx) {
+      checkUnlocks(ctx);
+      eraBanner(ctx);
+    },
+    onYear: fadeWarnings,
+  },
 ];

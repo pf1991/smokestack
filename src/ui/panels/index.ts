@@ -1,5 +1,6 @@
 import type { GameController } from '../../game/controller';
 import { contractsPanel } from './contracts';
+import { financePanel } from './finance';
 import { newspaperPanel } from './newspaper';
 import { routesPanel } from './routes';
 
@@ -25,3 +26,4 @@ PANELS.building = buildingPanel;
 PANELS.city = cityPanel;
 PANELS.vehicle = vehiclePanel;
 PANELS.routes = routesPanel;
+PANELS.finance = financePanel;
