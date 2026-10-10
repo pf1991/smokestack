@@ -1,3 +1,4 @@
+import { contractsSystem } from './contracts';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
@@ -53,4 +54,5 @@ export const SYSTEMS: SimSystem[] = [
     },
   },
   finance,
+  contractsSystem,
 ];
