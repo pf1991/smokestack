@@ -1,6 +1,7 @@
 import type { GameController } from '../../game/controller';
 import { contractsPanel } from './contracts';
 import { newspaperPanel } from './newspaper';
+import { routesPanel } from './routes';
 
 /** A window the game can open by id (Task 19+ register building, city, vehicle, routes, finance, ...). */
 export interface PanelDef {
@@ -23,3 +24,4 @@ import { vehiclePanel } from './vehicle';
 PANELS.building = buildingPanel;
 PANELS.city = cityPanel;
 PANELS.vehicle = vehiclePanel;
+PANELS.routes = routesPanel;
