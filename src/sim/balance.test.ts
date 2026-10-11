@@ -69,11 +69,40 @@ describe('economy balance', () => {
       runDays(ctx, 20 * 360);
       const r = ctx.state.companies.rival;
       const buildings = Object.values(ctx.state.buildings).filter((b) => b.ownerId === 'rival').length;
-      console.log(`[balance] rival seed ${seed} after 20y money=$${r.money} loan=$${r.loan} buildings=${buildings} worstRed=${worstRed}`);
+      const lines = Object.values(ctx.state.routes).filter((x) => x.ownerId === 'rival' && x.kind === 'train').length;
+      console.log(
+        `[balance] rival seed ${seed} after 20y money=$${r.money} loan=$${r.loan} buildings=${buildings} worstRed=${worstRed} ` +
+          `railLines=${lines} railTiles=${r.railTiles}`,
+      );
       expect(worstRed, `seed ${seed}`).toBeLessThan(BANKRUPT_MONTHS);
       expect(r.money - r.loan, `seed ${seed}`).toBeGreaterThan(0);
       expect(r.active).toBe(true);
       expect(buildings, `seed ${seed}: he actually played`).toBeGreaterThan(0);
+    }
+  }, 60_000);
+
+  it('the rival lays railways in real games and they run', () => {
+    // seeds whose rival has a long, busy wood haul (seeds 7 and 42 have none worth railing)
+    for (const seed of [3, 14]) {
+      const ctx: SimContext = { state: createGame({ seed, companyName: 'Acme Works', rival: true }), bus: new EventBus() };
+      const headlines: string[] = [];
+      ctx.bus.on('news', (e) => headlines.push(e.item.headline));
+      let worstRed = 0;
+      ctx.bus.on('monthEnd', () => {
+        worstRed = Math.max(worstRed, ctx.state.companies.rival.monthsInRed);
+      });
+      runDays(ctx, 6 * 360);
+      const { state } = ctx;
+      const line = Object.values(state.routes).find((r) => r.ownerId === 'rival' && r.kind === 'train');
+      console.log(`[balance] rival seed ${seed} after 6y railTiles=${state.companies.rival.railTiles} ${headlines.filter((h) => h.includes('IRON')).join('; ')}`);
+      expect(line, `seed ${seed}`).toBeDefined();
+      expect(state.companies.rival.railTiles).toBeGreaterThanOrEqual(10);
+      expect(headlines.some((h) => /^SMOGSWORTH LAYS IRON TO .+!$/.test(h))).toBe(true);
+      const trains = Object.values(state.vehicles).filter((v) => v.routeId === line!.id);
+      expect(trains).toHaveLength(1);
+      expect(trains[0].state).not.toBe('stuck');
+      expect((trains[0].trips30 ?? []).length, `seed ${seed}: the train delivers`).toBeGreaterThan(0);
+      expect(worstRed).toBeLessThan(BANKRUPT_MONTHS);
     }
   }, 60_000);
 

@@ -267,6 +267,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     speed: 1,
     scenarioId: opts.scenarioId ?? 'sandbox',
     rivalProject: null,
+    rivalRail: null,
     flags: {},
   };
   const scenario = SCENARIOS[state.scenarioId];

@@ -184,6 +184,30 @@ export interface RivalProject {
   stage: number;
 }
 
+/**
+ * The Baron's railway under construction: a long truck leg (`routeId`, source → dest hauling `goodId`)
+ * being replaced by truck feeder → train → truck feeder. Plain JSON; built one stage per month.
+ */
+export interface RivalRailProject {
+  routeId: number;
+  sourceId: number;
+  destId: number;
+  goodId: GoodId;
+  /** road length of the truck leg when the project began */
+  legTiles: number;
+  /** candidate station sites along the surveyed track, nearest each end first */
+  anchorsA: Vec2[];
+  anchorsB: Vec2[];
+  /** 0 station A, 1 station B, 2 track, 3 routes and train */
+  stage: number;
+  stationA: number | null;
+  stationB: number | null;
+  /** tile indices of the track this project laid (removed again if it is abandoned) */
+  railTiles: number[];
+  /** consecutive months spent waiting for money */
+  stall: number;
+}
+
 export type Speed = 0 | 1 | 2 | 4 | 8;
 
 export interface GameState {
@@ -206,6 +230,8 @@ export interface GameState {
   speed: Speed;
   scenarioId: string;
   rivalProject: RivalProject | null;
+  /** the Baron's railway in progress; absent in saves from before rival railways */
+  rivalRail?: RivalRailProject | null;
   /** primitives only; timed effects store dateToDays() numbers, e.g. flags.railStrikeUntil */
   flags: Record<string, number | boolean | string>;
 }
