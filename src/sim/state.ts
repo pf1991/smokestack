@@ -270,6 +270,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     rivalProject: null,
     rivalRail: null,
     flags: {},
+    layers: {},
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {

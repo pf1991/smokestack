@@ -236,6 +236,8 @@ export interface GameState {
   rivalRail?: RivalRailProject | null;
   /** primitives only; timed effects store dateToDays() numbers, e.g. flags.railStrikeUntil */
   flags: Record<string, number | boolean | string>;
+  /** per-tile numeric layers (width*height each); see sim/layers.ts. Packed in saves. */
+  layers: Record<string, number[]>;
 }
 
 export interface SimContext {

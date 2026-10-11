@@ -92,6 +92,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     scenarioId: 'test',
     rivalProject: null,
     flags: {},
+    layers: {},
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

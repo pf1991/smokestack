@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '../core/result';
 import { formatDate } from '../sim/clock';
 import { SAVE_VERSION } from '../sim/migrations';
+import { packLayer, unpackLayer } from '../sim/layers';
 import { deserialize, serialize } from '../sim/simulation';
 import type { GameState, OwnerId, SimContext, Terrain, Tile } from '../sim/types';
 
@@ -70,7 +71,9 @@ function errorText(e: unknown): string {
 export function packState(state: GameState): string {
   const owners: OwnerId[] = Object.keys(state.companies);
   const tiles = state.map.tiles.map((t) => packTile(t, owners));
-  const packed = { ...state, map: { ...state.map, tiles, owners } };
+  const layers: Record<string, number[]> = {};
+  for (const [id, l] of Object.entries(state.layers)) layers[id] = packLayer(l);
+  const packed = { ...state, map: { ...state.map, tiles, owners }, layers };
   return serialize(packed as unknown as GameState);
 }
 
@@ -91,6 +94,12 @@ export function unpackState(raw: string): Result<GameState> {
     } catch {
       return err('Save file is corrupted');
     }
+  }
+  try {
+    const n = state.map.width * state.map.height;
+    for (const id of Object.keys(state.layers)) state.layers[id] = unpackLayer(state.layers[id], n);
+  } catch {
+    return err('Save file is corrupted');
   }
   return ok(state);
 }

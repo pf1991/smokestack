@@ -129,4 +129,16 @@ describe('saves', () => {
     localStorage.setItem('smokestack:save:slot1', JSON.stringify(raw));
     expect(loadFrom('slot1').ok).toBe(false);
   });
+
+  it('round-trips layers and rejects a corrupted one', () => {
+    const s = testState({ width: 8, height: 6 });
+    s.layers.smog = Array.from({ length: 48 }, (_, i) => (i % 7 === 0 ? 1.5 : 0));
+    const r = unpackState(packState(s));
+    expect(r.ok && r.value.layers).toEqual(s.layers);
+    const raw = JSON.parse(packState(s));
+    raw.layers.smog = [-1, 99];
+    localStorage.setItem('smokestack:save:slot1', JSON.stringify(raw));
+    const bad = loadFrom('slot1');
+    expect(!bad.ok && bad.error).toBe('Save file is corrupted');
+  });
 });
