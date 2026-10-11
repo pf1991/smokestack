@@ -8,7 +8,7 @@ import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
-import { findPath, roadBuildable, waterAvoidingCost } from './pathfinding';
+import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
 import { pick } from './rng';
 import { SCENARIOS } from './scenarios';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
@@ -32,13 +32,20 @@ function tileOf(map: GameMap, x: number, y: number): Tile | undefined {
   return map.tiles[y * map.width + x];
 }
 
+const unlockedByYear = new Map<number, string[]>();
+
 /** Ids of goods, buildings and recipes available in `year`. */
 export function unlockedAt(year: number): string[] {
-  const ids: string[] = [];
-  for (const g of Object.values(GOODS)) if (g.era <= year) ids.push(g.id);
-  for (const b of Object.values(BUILDINGS)) if (b.era <= year) ids.push(b.id);
-  for (const id of Object.keys(RECIPES)) if (recipeEra(id) <= year) ids.push(id);
-  return ids;
+  // checkUnlocks asks every game day: memoise per year (the catalog is static), hand out copies
+  let ids = unlockedByYear.get(year);
+  if (!ids) {
+    ids = [];
+    for (const g of Object.values(GOODS)) if (g.era <= year) ids.push(g.id);
+    for (const b of Object.values(BUILDINGS)) if (b.era <= year) ids.push(b.id);
+    for (const id of Object.keys(RECIPES)) if (recipeEra(id) <= year) ids.push(id);
+    unlockedByYear.set(year, ids);
+  }
+  return [...ids];
 }
 
 /** True when (x,y) lies inside a circle of radius r around c (Euclidean, inclusive). */
@@ -146,6 +153,7 @@ export function layCityStreets(map: GameMap, city: City): void {
       t.road = true;
     }
   }
+  invalidatePaths(map);
 }
 
 const dist2 = (a: Vec2, b: Vec2) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
@@ -234,6 +242,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   const { map, cities } = generateMap(opts.seed);
   for (const c of cities) layCityStreets(map, c);
   linkCities(map, cities);
+  invalidatePaths(map);
   const rng = { rngState: opts.seed | 0 };
   const playerName = opts.companyName ?? pick(rng, COMPANY_NAMES);
   const rival = createCompany('rival', RIVAL_NAME);
@@ -495,6 +504,7 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
     t.road = true;
     t.roadOwner = owner;
   }
+  invalidatePaths(map);
   spend(company, 'construction', cost, state.date);
   company.roadTiles += todo.length;
   ctx.bus.emit({ type: 'roadChanged', tiles: todo });
@@ -538,6 +548,7 @@ export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resu
     t.road = false;
     t.roadOwner = null;
   }
+  invalidatePaths(map);
   ctx.bus.emit({ type: 'roadChanged', tiles: todo });
   return ok();
 }

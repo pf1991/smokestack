@@ -19,6 +19,7 @@ import type { Speed } from './sim/types';
  *  - `scenario=<id>`   start a scenario
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
  *  - `pause=1` (dev, with a debug start) open the pause menu
+ *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
  *  - `menu=1`          force the menu even when other parameters are present
  */
 const canvas = document.getElementById('world') as HTMLCanvasElement;
@@ -26,7 +27,7 @@ const ui = document.getElementById('ui') as HTMLElement;
 const params = new URLSearchParams(location.search);
 const app = new App(canvas, ui);
 
-const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts'];
+const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial'];
 const debugStart = !params.has('menu') && DEBUG_KEYS.some((k) => params.has(k));
 
 if (debugStart) {
@@ -77,6 +78,7 @@ if (debugStart) {
       g.centerOn(focus);
     }
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
+    if (params.get('tutorial') === '1') app.showTutorial(g);
     if (notice) g.ctx.bus.emit({ type: 'toast', ...notice });
     if (import.meta.env.DEV && params.get('pause') === '1') g.onPause?.();
   });

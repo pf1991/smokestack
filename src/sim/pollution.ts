@@ -1,7 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { footprint } from './state';
 import { publishNews } from './news';
-import type { GameState, SimContext } from './types';
+import type { GameMap, GameState, SimContext } from './types';
 
 export const POLLUTION_RADIUS = 3;
 export const POLLUTION_DECAY = 0.97;
@@ -26,6 +26,7 @@ for (let dy = -POLLUTION_RADIUS; dy <= POLLUTION_RADIUS; dy++) {
 export function pollutionDay(ctx: SimContext): void {
   const { map, buildings } = ctx.state;
   const { width, height, tiles } = map;
+  const dirty = dirtyTiles(map);
   for (const b of Object.values(buildings)) {
     if (b.status !== 'ok') continue;
     const amount = BUILDINGS[b.typeId].pollution * SOURCE_FACTOR;
@@ -40,15 +41,54 @@ export function pollutionDay(ctx: SimContext): void {
         if (x < 0 || x >= width) continue;
         const k = KERNEL[(dy + POLLUTION_RADIUS) * SIDE + dx + POLLUTION_RADIUS];
         if (k === 0) continue;
-        tiles[y * width + x].pollution += amount * k;
+        const i = y * width + x;
+        tiles[i].pollution += amount * k;
+        if (!dirty.member[i]) {
+          dirty.member[i] = 1;
+          dirty.list.push(i);
+        }
       }
     }
   }
-  for (let i = 0; i < tiles.length; i++) {
+  // decay only the tiles that hold any pollution (the same result as scanning the whole map)
+  const { list, member } = dirty;
+  let kept = 0;
+  for (let j = 0; j < list.length; j++) {
+    const i = list[j];
     const t = tiles[i];
     const p = t.pollution * POLLUTION_DECAY;
     t.pollution = p > POLLUTION_CAP ? POLLUTION_CAP : p < 1e-4 ? 0 : p;
+    if (t.pollution !== 0) list[kept++] = i;
+    else member[i] = 0;
   }
+  list.length = kept;
+}
+
+interface DirtySet {
+  list: number[];
+  member: Uint8Array;
+}
+
+/**
+ * Indices of tiles with non-zero pollution, per map (not part of GameState). Built by a full scan the
+ * first time a map is seen (new game, loaded save, test fixture), then kept up to date by pollutionDay,
+ * the only sim code that writes tile pollution.
+ */
+const dirtyByMap = new WeakMap<GameMap, DirtySet>();
+
+function dirtyTiles(map: GameMap): DirtySet {
+  let d = dirtyByMap.get(map);
+  if (!d) {
+    d = { list: [], member: new Uint8Array(map.tiles.length) };
+    for (let i = 0; i < map.tiles.length; i++) {
+      if (map.tiles[i].pollution !== 0) {
+        d.member[i] = 1;
+        d.list.push(i);
+      }
+    }
+    dirtyByMap.set(map, d);
+  }
+  return d;
 }
 
 /** Mean tile pollution over the city's urban tiles, 0..1. */
@@ -65,7 +105,21 @@ export function cityPollution(state: GameState, cityId: number): number {
 
 /** Writes `city.pollution` for every city. */
 export function refreshCityPollution(state: GameState): void {
-  for (const c of state.cities) c.pollution = cityPollution(state, c.id);
+  // one pass over the map for all cities; sums run in tile order, so results equal cityPollution()
+  let maxId = -1;
+  for (const c of state.cities) maxId = Math.max(maxId, c.id);
+  if (maxId < 0) return;
+  const sum = new Float64Array(maxId + 1);
+  const n = new Float64Array(maxId + 1);
+  const { tiles } = state.map;
+  for (let i = 0; i < tiles.length; i++) {
+    const t = tiles[i];
+    const id = t.cityId;
+    if (id === null || id < 0 || id > maxId) continue;
+    sum[id] += t.pollution;
+    n[id]++;
+  }
+  for (const c of state.cities) c.pollution = n[c.id] === 0 ? 0 : Math.min(1, sum[c.id] / n[c.id] / POLLUTION_CAP);
 }
 
 const HEADLINES: ((city: string) => [string, string])[] = [

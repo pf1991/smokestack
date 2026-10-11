@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
 import { connectToRoads, roadCost } from './roads';
-import { canTakeover, chainFor, MAX_STALL_MONTHS, netWorth, RIVAL_RESERVE, rivalMonth, rivalTaunt, takeover, TAUNTS } from './rival';
+import { canTakeover, chainFor, MAX_STALL_MONTHS, maxRivalChains, netWorth, RIVAL_RESERVE, rivalChainCount, rivalMonth, rivalTaunt, takeover, TAUNTS } from './rival';
 import { runDays, serialize } from './simulation';
 import { buildRoad, createGame, lPath, placeBuilding } from './state';
 import { must, testCtx, testState } from './testkit';
@@ -94,6 +94,16 @@ describe('rivalMonth', () => {
         `stores ${stores.length}, routes ${routes.length}, trucks ${trucks.length}, ` +
         `sales ${sales.length} ($${sales.reduce((a, b) => a + b, 0)})`,
     );
+  });
+
+  it('chain ceiling grows by era and is never exceeded', () => {
+    expect([1900, 1919, 1920, 1940, 1960, 1980, 2000].map(maxRivalChains)).toEqual([3, 3, 4, 5, 6, 7, 7]);
+    const ctx = rivalGame(42);
+    for (let year = 0; year < 25; year++) {
+      runDays(ctx, 360);
+      expect(rivalChainCount(ctx.state)).toBeLessThanOrEqual(maxRivalChains(ctx.state.date.year));
+    }
+    expect(rivalChainCount(ctx.state)).toBeGreaterThanOrEqual(3);
   });
 
   it('rival never dips below reserve from construction', () => {

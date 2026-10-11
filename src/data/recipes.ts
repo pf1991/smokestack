@@ -30,8 +30,8 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_plastic: { id: 'r_plastic', inputs: { oil: 8 }, outputs: { plastic: 4 }, days: 1 },
 
   // Manufacturing
-  r_furniture: { id: 'r_furniture', inputs: { lumber: 4 }, outputs: { furniture: 2 }, days: 1 },
-  r_bread: { id: 'r_bread', inputs: { flour: 4, milk: 2 }, outputs: { bread: 6 }, days: 1 },
+  r_furniture: { id: 'r_furniture', inputs: { lumber: 5 }, outputs: { furniture: 3 }, days: 1 },
+  r_bread: { id: 'r_bread', inputs: { flour: 6, milk: 3 }, outputs: { bread: 9 }, days: 1 },
   r_tools: { id: 'r_tools', inputs: { steel: 2, lumber: 2 }, outputs: { tools: 2 }, days: 1 },
   r_clothes: { id: 'r_clothes', inputs: { fabric: 4 }, outputs: { clothes: 2 }, days: 1 },
   r_cheese: { id: 'r_cheese', inputs: { milk: 6 }, outputs: { cheese: 2 }, days: 1 },

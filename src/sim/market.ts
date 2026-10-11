@@ -16,6 +16,8 @@ export interface Sale {
 }
 
 const EPS = 1e-9;
+/** the goods with city demand, in catalog order (static) */
+const DEMAND_GOODS = Object.keys(DEMAND_PER_1000);
 
 export function lifecycleFactor(goodId: GoodId, year: number): number {
   const g = GOODS[goodId];
@@ -51,7 +53,7 @@ export function computeDailySales(
   dayOffset = 0,
 ): Sale[] {
   const out: Sale[] = [];
-  const goodIds = Object.keys(DEMAND_PER_1000);
+  const goodIds = DEMAND_GOODS;
   for (let gi = 0; gi < goodIds.length; gi++) {
     const goodId = goodIds[gi];
     const monthly = monthlyDemand(city, goodId, year, demandMod(goodId));
@@ -66,6 +68,15 @@ export function computeDailySales(
     entry.pending = Math.min(entry.pending + daily, Math.max(daily * 3, 1));
     let units = Math.floor(entry.pending + EPS);
     if (units <= 0) continue;
+    // fast path: no store has a whole unit of this good (the common case), so nothing sells
+    let anyStock = false;
+    for (const s of stores) {
+      if ((s.stock[goodId] ?? 0) >= 1) {
+        anyStock = true;
+        break;
+      }
+    }
+    if (!anyStock) continue;
     const avail = stores.map((s) => Math.floor(s.stock[goodId] ?? 0));
     const got = stores.map(() => 0);
     // equal split; shares a store cannot fill go to stores that still have stock

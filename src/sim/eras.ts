@@ -45,13 +45,21 @@ const INVENTIONS: Record<string, [headline: string, body: string]> = {
 
 const unlockKind = (id: string): 'good' | 'building' | 'recipe' => (GOODS[id] ? 'good' : BUILDINGS[id] ? 'building' : 'recipe');
 
+/** Last complete check per `state.unlocked` array (outside GameState; see checkUnlocks). */
+const checkedUnlocks = new WeakMap<string[], { year: number; length: number }>();
+
 /** On day: unlock anything newly eligible for the current year; announce notable inventions. */
 export function checkUnlocks(ctx: SimContext): void {
   const { state, bus } = ctx;
   const year = state.date.year;
+  if (year >= 1910 && !state.flags.oilRevealed) state.flags.oilRevealed = true;
+  // runs daily but unlocks only change with the year: skip when this very list was already complete
+  // for this year (same array, same length as after the last check)
+  const seen = checkedUnlocks.get(state.unlocked);
+  if (seen && seen.year === year && seen.length === state.unlocked.length) return;
   const have = new Set(state.unlocked);
   const fresh = unlockedAt(year).filter((id) => !have.has(id));
-  if (year >= 1910 && !state.flags.oilRevealed) state.flags.oilRevealed = true;
+  checkedUnlocks.set(state.unlocked, { year, length: state.unlocked.length + fresh.length });
   if (fresh.length === 0) return;
   state.unlocked.push(...fresh);
   const told = new Set<string>();

@@ -12,7 +12,7 @@ import { err, ok } from '../core/result';
 import { BUILDINGS } from '../data/buildings';
 import { dateToDays } from './clock';
 import { canAfford, spend } from './finance';
-import { railPassable } from './pathfinding';
+import { invalidatePaths, railPassable } from './pathfinding';
 import type { Building, BuildingTypeId, GameMap, GameState, OwnerId, SimContext, Tile, Vec2, Vehicle } from './types';
 import { buyVehicle, VEHICLE_KINDS, type VehicleSpec } from './vehicles';
 
@@ -75,6 +75,7 @@ export function buildRail(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
     t.rail = true;
     t.railOwner = owner;
   }
+  invalidatePaths(map);
   const company = state.companies[owner];
   spend(company, 'construction', q.cost, state.date);
   company.railTiles += todo.length;
@@ -117,6 +118,7 @@ export function removeRail(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resu
     t.rail = false;
     t.railOwner = null;
   }
+  invalidatePaths(map);
   ctx.bus.emit({ type: 'railChanged', tiles: todo });
   return ok();
 }

@@ -2,7 +2,7 @@ import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { canAfford, earn, spend } from './finance';
 import { acceptsGood, loadSource, storageLeft } from './inventory';
-import { findPath, roadPassable, type Passable } from './pathfinding';
+import { findPath, pathMemo, pathStillPassable, roadPassable, type Passable } from './pathfinding';
 import { accessTiles, nextId } from './state';
 import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -190,6 +190,7 @@ export function sellVehicle(ctx: SimContext, id: number): Result {
   const cost = VEHICLE_KINDS[veh.kind]?.spec.cost ?? 0;
   earn(state.companies[veh.ownerId], 'vehicles', cost * SELL_REFUND, state.date);
   delete state.vehicles[id];
+  fleetRemovals++;
   return ok();
 }
 
@@ -229,6 +230,18 @@ function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building):
   const k = goods.length;
   let free = veh.capacity - cargoTotal(veh);
   if (k === 0 || free <= 0) return;
+  if (k === 1) {
+    // single good: the unit-by-unit loop below takes min(free, floor(avail)) units, and subtracting
+    // whole units from a stock below 2^53 is exact, so this is the same result in one step
+    const g = goods[0];
+    if (unloaded?.includes(g)) return;
+    const avail = src[g] ?? 0;
+    if (avail < 1) return;
+    const n = Math.min(free, Math.floor(avail));
+    src[g] = avail - n;
+    veh.cargo[g] = (veh.cargo[g] ?? 0) + n;
+    return;
+  }
   // whole units, one at a time round-robin; the starting good rotates with the clock so remainders
   // are not always given to the first listed good. Goods just unloaded here are not reloaded.
   const start = state.tick % k;
@@ -273,9 +286,19 @@ function plan(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef):
     veh.stopIndex = (veh.stopIndex + 1) % n;
   }
   if (!b) return goStuck(ctx, veh);
-  const targets = def.access(state, b);
+  const { map } = state;
   const from = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };
-  const path = targets.length > 0 ? findPath(state.map, from, targets, def.passable) : null;
+  // memoised per (start tile, building): access tiles depend only on road/rail tiles, and any change
+  // to those drops the memo (see invalidatePaths), so this equals a fresh search
+  const memo = pathMemo(map, def.passable);
+  const key = (from.y * map.width + from.x) * 2 ** 32 + b.id;
+  let path = memo.get(key);
+  if (path && !pathStillPassable(map, path, def.passable)) path = undefined;
+  if (path === undefined) {
+    const targets = def.access(state, b);
+    path = targets.length > 0 ? findPath(map, from, targets, def.passable) : null;
+    memo.set(key, path);
+  }
   if (!path) return goStuck(ctx, veh);
   veh.path = path;
   veh.pathIndex = 0;
@@ -391,6 +414,24 @@ function tickVehicle(ctx: SimContext, veh: Vehicle): void {
 
 /** The vehicle state machine: moving → loading → moving, with stuck/idle side states. Ids ascending. */
 export function vehiclesTick(ctx: SimContext): void {
-  const { vehicles } = ctx.state;
-  for (const id in vehicles) tickVehicle(ctx, vehicles[id]);
+  for (const veh of fleet(ctx.state)) tickVehicle(ctx, veh);
+}
+
+/**
+ * The vehicles in ascending id order, cached per `state.vehicles` object (outside GameState).
+ * Vehicle ids are sparse, so the record is a dictionary and enumerating it every tick is costly.
+ * The cache is reused while `state.nextId` is unchanged (no entity was created, so no vehicle was
+ * added) and no vehicle was sold (`fleetRemovals`, bumped by sellVehicle, the only code that removes
+ * vehicles). A new or loaded GameState has a new `vehicles` object and so starts a fresh cache.
+ */
+let fleetRemovals = 0;
+const fleetCache = new WeakMap<Record<number, Vehicle>, { nextId: number; removals: number; list: Vehicle[] }>();
+
+function fleet(state: GameState): Vehicle[] {
+  const { vehicles } = state;
+  const c = fleetCache.get(vehicles);
+  if (c && c.nextId === state.nextId && c.removals === fleetRemovals) return c.list;
+  const list = Object.values(vehicles);
+  fleetCache.set(vehicles, { nextId: state.nextId, removals: fleetRemovals, list });
+  return list;
 }
