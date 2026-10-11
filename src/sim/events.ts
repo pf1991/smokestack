@@ -1,7 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { getGood } from '../data/goods';
 import { RECIPES, recipeEra } from '../data/recipes';
-import { addDays, dateToDays } from './clock';
+import { addDays, compareDates, dateToDays } from './clock';
 import { currentLedger } from './finance';
 import { publishNews } from './news';
 import { chance, pick, random } from './rng';
@@ -253,7 +253,16 @@ export function eventsDay(ctx: SimContext): void {
   historicDay(ctx);
 }
 
+/** Drops expired demand modifiers (demandModifier already ignores them) so the list cannot grow forever. */
+export function pruneModifiers(ctx: SimContext): void {
+  const { state } = ctx;
+  if (state.modifiers.some((m) => compareDates(m.until, state.date) <= 0)) {
+    state.modifiers = state.modifiers.filter((m) => compareDates(m.until, state.date) > 0);
+  }
+}
+
 export function eventsMonth(ctx: SimContext): void {
+  pruneModifiers(ctx);
   monthlyMarketReport(ctx);
   randomMonth(ctx);
 }

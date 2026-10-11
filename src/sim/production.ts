@@ -6,7 +6,7 @@ import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
-import { computeDailySales, monthlyDemand, monthlyGrowth, satisfaction, updateMarketDay, type StoreStock } from './market';
+import { computeDailySales, monthlyDemand, monthlyGrowth, satisfaction, updateMarketDay, urbanRadius, type StoreStock } from './market';
 import { footprint, refreshUrbanTiles } from './state';
 import type { Building, GameState, GoodId, SimContext } from './types';
 
@@ -90,10 +90,16 @@ export function retailDay(ctx: SimContext): void {
   const { state, bus } = ctx;
   const dayOffset = dateToDays(state.date);
   const goodIds = Object.keys(DEMAND_PER_1000);
+  // stores grouped by city in one pass (id order, as a per-city filter would give)
+  const storesByCity = new Map<number, Building[]>();
+  for (const b of Object.values(state.buildings)) {
+    if (b.cityId === null || BUILDINGS[b.typeId].category !== 'retail') continue;
+    const list = storesByCity.get(b.cityId);
+    if (list) list.push(b);
+    else storesByCity.set(b.cityId, [b]);
+  }
   for (const city of state.cities) {
-    const stores = Object.values(state.buildings).filter(
-      (b) => b.cityId === city.id && BUILDINGS[b.typeId].category === 'retail',
-    );
+    const stores = storesByCity.get(city.id) ?? [];
     const stocks: StoreStock[] = stores.map((b) => ({ buildingId: b.id, ownerId: b.ownerId, stock: loadSource(b) }));
     const mod = (g: GoodId) => demandModifier(state, city.id, g);
     const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset);
@@ -141,6 +147,8 @@ export function maintenanceMonth(ctx: SimContext): void {
 
 export function growthMonth(ctx: SimContext): void {
   const { state } = ctx;
+  // urban tiles depend only on each city's radius: re-mark them only when some radius changes
+  let radiusChanged = false;
   for (const city of state.cities) {
     const sats = Object.keys(DEMAND_PER_1000)
       .filter((g) => monthlyDemand(city, g, state.date.year, demandModifier(state, city.id, g)) > 0)
@@ -149,7 +157,8 @@ export function growthMonth(ctx: SimContext): void {
     city.prevPopulation = city.population;
     city.population = monthlyGrowth(city.population, avg, city.pollution);
     city.happiness = avg;
+    if (urbanRadius(city.population) !== city.urbanRadius) radiusChanged = true;
   }
-  refreshUrbanTiles(state);
+  if (radiusChanged) refreshUrbanTiles(state);
   for (const b of Object.values(state.buildings)) b.producedThisMonth = {};
 }

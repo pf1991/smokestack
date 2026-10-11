@@ -8,7 +8,8 @@ export const START_DATE: GameDate = { year: 1900, month: 1, day: 1, hour: 0 };
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function advanceHour(d: GameDate): { date: GameDate; newDay: boolean; newMonth: boolean; newYear: boolean } {
-  const date = { ...d, hour: d.hour + 1 };
+  // a plain literal (not a spread): this runs every tick, and a fixed shape keeps it cheap
+  const date: GameDate = { year: d.year, month: d.month, day: d.day, hour: d.hour + 1 };
   let newDay = false;
   let newMonth = false;
   let newYear = false;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dateToDays } from './clock';
 import { MAX_NEWS, publishNews } from './news';
 import { demandModifier } from './production';
-import { historicDay, monthlyMarketReport, randomMonth, RANDOM_EVENTS } from './events';
+import { historicDay, monthlyMarketReport, pruneModifiers, randomMonth, RANDOM_EVENTS } from './events';
 import { placeBuilding } from './state';
 import { runDays } from './simulation';
 import { currentLedger } from './finance';
@@ -40,6 +40,25 @@ describe('historic events', () => {
     historicDay(ctx);
     expect(demandModifier(ctx.state, 0, 'cars')).toBeCloseTo(0.6);
     expect(demandModifier(ctx.state, 0, 'bread')).toBe(1);
+  });
+});
+
+describe('pruneModifiers', () => {
+  it('drops expired modifiers monthly and keeps active ones', () => {
+    const ctx = at(1929, 10);
+    historicDay(ctx); // the crash: 18 months
+    ctx.state.modifiers.push({ id: 'short', goodId: 'bread', cityId: null, factor: 2, until: { year: 1929, month: 11, day: 1, hour: 0 } });
+    pruneModifiers(ctx);
+    expect(ctx.state.modifiers).toHaveLength(2);
+    ctx.state.date = { year: 1929, month: 12, day: 1, hour: 0 };
+    const before = demandModifier(ctx.state, 0, 'bread');
+    pruneModifiers(ctx);
+    expect(ctx.state.modifiers.map((m) => m.id)).not.toContain('short');
+    expect(ctx.state.modifiers).toHaveLength(1);
+    expect(demandModifier(ctx.state, 0, 'bread')).toBe(before);
+    ctx.state.date = { year: 1935, month: 1, day: 1, hour: 0 };
+    pruneModifiers(ctx);
+    expect(ctx.state.modifiers).toEqual([]);
   });
 });
 

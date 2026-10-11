@@ -70,6 +70,8 @@ export class GameController {
   private readonly o2d: CanvasRenderingContext2D;
   private dpr = 1;
   private busOffs: (() => void)[] = [];
+  /** extra teardown run by destroy() (e.g. the tutorial card and its timer) */
+  private disposers: (() => void)[] = [];
   private toolListeners: ((t: ToolSpec) => void)[] = [];
   private raf = 0;
   private watchdog = 0;
@@ -365,7 +367,13 @@ export class GameController {
     this.raf = requestAnimationFrame(this.frame);
   };
 
+  /** Registers cleanup that must run when this game is destroyed (quit, load, new game). */
+  addDisposer(fn: () => void): void {
+    this.disposers.push(fn);
+  }
+
   destroy(): void {
+    for (const fn of this.disposers.splice(0)) fn();
     this.running = false;
     cancelAnimationFrame(this.raf);
     clearInterval(this.watchdog);

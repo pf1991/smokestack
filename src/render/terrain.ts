@@ -244,6 +244,7 @@ export class TerrainRenderer {
 
     if (terr === 'water') {
       this.drawWaterTile(ctx, tx, ty);
+      this.roundCoast(ctx, tx, ty, true, winter);
       return;
     }
     if (terr === 'mountain') {
@@ -252,6 +253,7 @@ export class TerrainRenderer {
         ctx.fillStyle = k < 0.5 ? 'rgba(60,56,56,0.35)' : 'rgba(140,134,130,0.3)';
         ctx.fillRect(Math.floor(h01(tx, ty, s, 560 + i) * 8) * 4, Math.floor(h01(tx, ty, s, 620 + i) * 8) * 4, 4, 4);
       }
+      this.softenRockEdges(ctx, tx, ty, winter);
     } else {
       this.blendNeighbours(ctx, tx, ty, terr);
       this.scree(ctx, tx, ty);
@@ -302,6 +304,137 @@ export class TerrainRenderer {
         ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.8)' : 'rgba(170,190,215,0.35)';
         ctx.fillRect(x, y, 4, 2);
       }
+    }
+    if (terr !== 'mountain') this.roundCoast(ctx, tx, ty, false, winter);
+  }
+
+  /** Ground colour of `terr` as it reads on the map (snow-covered in winter where it snows). */
+  private groundTone(terr: Terrain, winter: boolean, alpha = 1): string {
+    const b = BASE[terr];
+    const snowy = winter && (terr === 'grass' || terr === 'forest' || terr === 'hills');
+    const mix = (c: number, w: number) => Math.round(snowy ? c * 0.22 + w * 0.78 : c);
+    return `rgba(${mix(b[0], 240)},${mix(b[1], 246)},${mix(b[2], 252)},${alpha})`;
+  }
+
+  /** Smooth 1-D value noise in [0, 1) along a world-pixel coordinate (continuous across tiles). */
+  private noise1(u: number, salt: number, period = 9): number {
+    const i = Math.floor(u / period);
+    const f = u / period - i;
+    const t = f * f * (3 - 2 * f);
+    return h01(i, salt, this.seed, 800) * (1 - t) + h01(i + 1, salt, this.seed, 800) * t;
+  }
+
+  /**
+   * Rounds the corners of coastlines so diagonal shores read as curves instead of staircases (most
+   * visible zoomed out). On water tiles, a corner whose two side neighbours are land gets a quarter
+   * disc of beach; on land tiles, a corner whose two side neighbours are water is cut away to water.
+   */
+  private roundCoast(ctx: Ctx, tx: number, ty: number, isWater: boolean, winter: boolean): void {
+    const corners: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+    const isW = (t: Terrain | undefined) => t === 'water';
+    // a corner is rounded when both side neighbours are the "other" kind (land for water, water for land)
+    const rounds = (dx: number, dy: number) => {
+      const a = this.terrainAt(tx, ty + dy);
+      const b = this.terrainAt(tx + dx, ty);
+      return a !== undefined && b !== undefined && isW(a) !== isWater && isW(b) !== isWater;
+    };
+    // one-tile islands and ponds would turn into four-pointed stars: keep their bites small
+    const many = corners.filter(([dx, dy]) => rounds(dx, dy)).length >= 3;
+    for (const [dx, dy] of corners) {
+      const a = this.terrainAt(tx, ty + dy);
+      const b = this.terrainAt(tx + dx, ty);
+      if (a === undefined || b === undefined) continue;
+      const px = dx < 0 ? 0 : TILE;
+      const py = dy < 0 ? 0 : TILE;
+      const r = many ? 9 : 14 + h01(tx, ty, this.seed, 820 + (dy + 1) * 2 + (dx + 1)) * 4;
+      // angles of the quarter disc inside this tile
+      const a0 = dx < 0 ? (dy < 0 ? 0 : -Math.PI / 2) : dy < 0 ? Math.PI / 2 : Math.PI;
+      const arc = (rad: number) => {
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.arc(px, py, rad, a0, a0 + Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+      };
+      if (isWater) {
+        if (a === 'water' || b === 'water') continue;
+        // shallows hugging the new curve, then the beach itself, then its wet rim
+        ctx.fillStyle = 'rgba(120,200,215,0.22)';
+        arc(r + 9);
+        ctx.fillStyle = 'rgba(120,200,215,0.3)';
+        arc(r + 4);
+        const bothSand = a === 'sand' && b === 'sand';
+        ctx.fillStyle = 'rgba(150,120,70,0.45)';
+        arc(r + 1.5);
+        ctx.fillStyle = bothSand ? this.groundTone('sand', false) : winter && a !== 'sand' && b !== 'sand' ? 'rgb(236,240,244)' : 'rgb(226,208,150)';
+        arc(r);
+      } else {
+        if (a !== 'water' || b !== 'water') continue;
+        const terr = this.terrainAt(tx, ty)!;
+        // a beach band along the new curve (sand tiles are beach already), then the water bite
+        if (terr !== 'sand') {
+          ctx.fillStyle = winter ? 'rgb(236,240,244)' : 'rgb(226,208,150)';
+          arc(r + 6);
+        }
+        ctx.fillStyle = 'rgba(150,120,70,0.45)';
+        arc(r + 1.5);
+        const w = BASE.water;
+        ctx.fillStyle = rgb(w[0], w[1], w[2]);
+        arc(r);
+        ctx.fillStyle = 'rgba(120,200,215,0.45)';
+        arc(r);
+        ctx.fillStyle = rgb(w[0], w[1], w[2]);
+        arc(r - 7);
+        ctx.fillStyle = 'rgba(120,200,215,0.2)';
+        arc(r - 7);
+      }
+    }
+  }
+
+  /**
+   * Mountain tiles are a square of bare rock; where the range meets lower land, eat into that square
+   * with the neighbour's ground in a wavy band (continuous along the edge) and round off convex
+   * corners, so the range ends in an irregular foot instead of a block.
+   */
+  private softenRockEdges(ctx: Ctx, tx: number, ty: number, winter: boolean): void {
+    const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const lower: (Terrain | null)[] = dirs.map(([dx, dy]) => {
+      const t = this.terrainAt(tx + dx, ty + dy);
+      return t !== undefined && t !== 'mountain' && t !== 'water' ? t : null;
+    });
+    for (let i = 0; i < 4; i++) {
+      const n = lower[i];
+      if (!n) continue;
+      const along = i === 0 || i === 2 ? tx * TILE : ty * TILE;
+      for (let k = 0; k < TILE; k += 2) {
+        const u = along + k;
+        const depth = 3 + this.noise1(u, i * 31 + (i === 0 || i === 2 ? ty : tx) * 7) * 9 + this.noise1(u, 97 + i, 3) * 3;
+        ctx.fillStyle = this.groundTone(n, winter);
+        this.edgeRect(ctx, i, k, Math.round(depth));
+        // a dark crumb line where the rock starts
+        ctx.fillStyle = 'rgba(70,66,64,0.35)';
+        const d = Math.round(depth);
+        if (i === 0) ctx.fillRect(k, d, 2, 1);
+        else if (i === 2) ctx.fillRect(k, TILE - d - 1, 2, 1);
+        else if (i === 3) ctx.fillRect(d, k, 1, 2);
+        else ctx.fillRect(TILE - d - 1, k, 1, 2);
+      }
+    }
+    // convex corners: both side neighbours are lower land
+    const pairs: [number, number, number, number][] = [[0, 3, 0, 0], [0, 1, TILE, 0], [2, 3, 0, TILE], [2, 1, TILE, TILE]];
+    for (const [v, hz, px, py] of pairs) {
+      const n = lower[v] ?? lower[hz];
+      if (!lower[v] || !lower[hz] || !n) continue;
+      const r = 12 + h01(tx, ty, this.seed, 840 + v * 4 + hz) * 8;
+      const sx = px === 0 ? 1 : -1;
+      const sy = py === 0 ? 1 : -1;
+      ctx.fillStyle = this.groundTone(n, winter);
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + sx * r, py);
+      ctx.quadraticCurveTo(px + sx * r * 0.35, py + sy * r * 0.35, px, py + sy * r);
+      ctx.closePath();
+      ctx.fill();
     }
   }
 
@@ -441,21 +574,35 @@ export class TerrainRenderer {
     }
   }
 
-  /** 1-2 soft hill mounds per tile; radius 12-18, may overhang tile edges. */
+  /**
+   * Soft hill mounds that vary in size, so hills read as rolling country rather than a repeated
+   * pattern: each tile picks a size class (from a fine and a coarse hash, so sizes come in patches):
+   * one broad swell (radius 17-23), a pair of mid mounds (11-17) or a cluster of three hummocks
+   * (7-11). Mounds may overhang tile edges by less than a tile.
+   */
   private drawMounds(ctx: Ctx, ox: number, oy: number, tx: number, ty: number, winter: boolean): void {
     const s = this.seed;
-    const n = 1 + (hash(tx, ty, s, 40) % 2);
+    const size = h01(tx, ty, s, 45) * 0.6 + h01(tx >> 1, ty >> 1, s, 46) * 0.4;
+    const [n, rMin, rSpan] = size > 0.66 ? [1, 17, 6] : size > 0.36 ? [2, 11, 6] : [3, 7, 4];
     const base = BASE.hills;
+    const mounds: { cx: number; cy: number; rad: number; flat: number; j: number }[] = [];
     for (let i = 0; i < n; i++) {
-      const cx = ox + 6 + h01(tx, ty, s, 41 + i * 5) * 20;
-      const cy = oy + 10 + h01(tx, ty, s, 42 + i * 5) * 16;
-      const rad = 12 + h01(tx, ty, s, 43 + i * 5) * 6;
-      const j = (h01(tx, ty, s, 44 + i * 5) - 0.5) * 10;
+      const spread = n === 1 ? 8 : 20;
+      mounds.push({
+        cx: ox + 16 - spread / 2 + h01(tx, ty, s, 41 + i * 5) * spread,
+        cy: oy + 18 - spread / 2.5 + h01(tx, ty, s, 42 + i * 5) * (spread * 0.8),
+        rad: rMin + h01(tx, ty, s, 43 + i * 5) * rSpan,
+        flat: 0.5 + h01(tx, ty, s, 47 + i * 5) * 0.2,
+        j: (h01(tx, ty, s, 44 + i * 5) - 0.5) * 12,
+      });
+    }
+    mounds.sort((p, q) => p.cy - q.cy); // nearer (lower) mounds overlap farther ones
+    for (const { cx, cy, rad, flat, j } of mounds) {
       const tone = (d: number): string => {
         const c = [base[0] + j + d, base[1] + j + d, base[2] + j * 0.6 + d * 0.6];
         return winter ? rgb(c[0] * 0.25 + 240 * 0.75, c[1] * 0.25 + 245 * 0.75, c[2] * 0.25 + 250 * 0.75) : rgb(c[0], c[1], c[2]);
       };
-      const ry = rad * 0.6;
+      const ry = rad * flat;
       ctx.fillStyle = winter ? 'rgba(120,140,170,0.12)' : 'rgba(40,40,15,0.22)';
       ctx.beginPath();
       ctx.ellipse(cx + 3, cy + 3, rad, ry, 0, 0, Math.PI * 2);

@@ -121,3 +121,43 @@ export function findPath(
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// vehicle path cache
+
+const MAX_CACHED_PATHS = 4096;
+const pathCaches = new WeakMap<GameMap, Map<Passable, Map<number, Vec2[] | null>>>();
+
+/**
+ * Forgets every memoised path on `map`. Must be called whenever road or rail tiles change (buildRoad,
+ * removeRoad, buildRail, removeRail, street laying), so memoised results always equal a fresh search.
+ */
+export function invalidatePaths(map: GameMap): void {
+  pathCaches.delete(map);
+}
+
+/**
+ * Memo of path searches on `map` for one passability predicate (kept outside GameState). Vehicles
+ * re-plan the same legs over and over, so `plan` in vehicles.ts keys it by start tile and destination
+ * building. Entries are valid only while road/rail tiles are unchanged: `invalidatePaths` drops the
+ * whole memo whenever they change, so results equal a fresh `findPath` and determinism and save/load
+ * replays are unaffected. Cached arrays are shared between vehicles and must not be mutated.
+ */
+export function pathMemo(map: GameMap, passable: Passable): Map<number, Vec2[] | null> {
+  let byPassable = pathCaches.get(map);
+  if (!byPassable) pathCaches.set(map, (byPassable = new Map()));
+  let memo = byPassable.get(passable);
+  if (!memo) byPassable.set(passable, (memo = new Map()));
+  if (memo.size >= MAX_CACHED_PATHS) memo.clear();
+  return memo;
+}
+
+/** Safety net for memoised paths: every tile after the start is still passable. */
+export function pathStillPassable(map: GameMap, path: Vec2[], passable: Passable): boolean {
+  // the start tile is the vehicle's own tile and need not be passable (findPath allows that too)
+  for (let k = 1; k < path.length; k++) {
+    const p = path[k];
+    if (!passable(map.tiles[p.y * map.width + p.x], p.x, p.y)) return false;
+  }
+  return true;
+}

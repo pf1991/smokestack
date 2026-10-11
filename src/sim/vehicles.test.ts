@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { GameEvent } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
-import { buildRoad, demolishBuilding, lPath, placeBuilding, removeRoad } from './state';
+import { accessTiles, buildRoad, demolishBuilding, lPath, placeBuilding, removeRoad } from './state';
+import { findPath, roadPassable } from './pathfinding';
 import { testCtx, testState } from './testkit';
 import type { Building, GameState, SimContext, Terrain, Vehicle } from './types';
 import {
@@ -191,6 +192,29 @@ describe('vehiclesTick', () => {
     expect(v.stuckNotified).toBe(false);
     tickUntil(ctx, () => v.state === 'loading' && v.stopIndex === 1);
     expect(events).toHaveLength(1);
+  });
+
+  it('memoised paths follow a new shortcut road', () => {
+    const { s, ctx, camp, mill } = world();
+    // cut the straight road and detour around the gap via y=12
+    must(removeRoad(ctx, 'player', [{ x: 8, y: 10 }]));
+    must(buildRoad(ctx, 'player', [...lPath({ x: 7, y: 10 }, { x: 7, y: 12 }), ...lPath({ x: 7, y: 12 }, { x: 9, y: 12 }), { x: 9, y: 11 }]));
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    // two full round trips on the detour (every leg planned, then re-planned from the memo)
+    for (let trip = 0; trip < 4; trip++) {
+      const stop = v.stopIndex;
+      tickUntil(ctx, () => v.state === 'loading' && v.stopIndex === stop, 1000);
+      tickUntil(ctx, () => v.state === 'moving', 1000);
+      expect(v.path.some((p) => p.y === 12)).toBe(true);
+    }
+    must(buildRoad(ctx, 'player', [{ x: 8, y: 10 }]));
+    const stop = v.stopIndex;
+    tickUntil(ctx, () => v.state === 'loading' && v.stopIndex === stop, 1000);
+    tickUntil(ctx, () => v.state === 'moving', 1000);
+    expect(v.path.some((p) => p.y === 12)).toBe(false);
+    const target = s.buildings[r.stops[v.stopIndex].buildingId];
+    expect(v.path).toEqual(findPath(s.map, v.path[0], accessTiles(s, target), roadPassable));
   });
 
   it('vehicle idles when route drops below two stops', () => {

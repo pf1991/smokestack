@@ -563,13 +563,34 @@ function repayLoans(ctx: SimContext): void {
   if (rival.money > REPAY_ABOVE && rival.loan > 0) repayLoan(rival, LOAN_STEP);
 }
 
+/**
+ * Most manufacturing chains the Baron runs at once: 3 in the Steam Age, one more per later era (7 in
+ * the Silicon Age). Without a ceiling his chains feed city growth, which justifies more chains, and the
+ * empire snowballs (≈120 buildings and 300 trucks by 1930 in balance runs), out of reach for a
+ * takeover and slow to simulate.
+ */
+export function maxRivalChains(year: number): number {
+  return 3 + Math.max(0, Math.min(4, Math.floor((year - 1900) / 20)));
+}
+
+/** Chains the rival runs: his buildings making a consumer (tier-2) good. */
+export function rivalChainCount(state: GameState): number {
+  let n = 0;
+  for (const b of Object.values(state.buildings)) {
+    if (b.ownerId !== 'rival' || !b.recipeId) continue;
+    const rec = RECIPES[b.recipeId];
+    if (rec && Object.keys(rec.outputs).some((g) => GOODS[g]?.tier === 2)) n++;
+  }
+  return n;
+}
+
 /** The Baron's monthly turn (no-op once he is inactive). */
 export function rivalMonth(ctx: SimContext): void {
   const { state } = ctx;
   const rival = state.companies.rival;
   if (!rival.active) return;
   manageLoans(ctx);
-  if (!state.rivalProject) {
+  if (!state.rivalProject && rivalChainCount(state) < maxRivalChains(state.date.year)) {
     const pick = chooseProject(state);
     if (pick) {
       state.rivalProject = { cityId: pick.city.id, goodId: pick.goodId, stage: 0 };

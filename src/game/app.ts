@@ -4,6 +4,7 @@ import { attachNewspaper } from '../ui/panels/newspaper';
 import { closeModal, MainMenu, openPauseMenu, showEndScreen, type PauseHost } from '../ui/menu';
 import { GameController, type NewGameOpts } from './controller';
 import { createGame } from '../sim/state';
+import { shouldOfferTutorial, Tutorial } from '../ui/tutorial';
 
 /**
  * Application shell: owns the canvas and UI root and switches between the main menu and a running
@@ -42,7 +43,16 @@ export class App implements PauseHost {
   }
 
   startNew(opts: NewGameOpts): void {
-    this.start(createGame(opts));
+    const game = this.start(createGame(opts));
+    // new Free Play games get the tutorial until it has been skipped or finished once
+    if (shouldOfferTutorial(game.state.scenarioId)) this.showTutorial(game);
+  }
+
+  /** Shows the tutorial card for `game`; it is torn down with the game. */
+  showTutorial(game: GameController): Tutorial {
+    const tutorial = new Tutorial(game.uiRoot, () => game.state);
+    game.addDisposer(() => tutorial.destroy());
+    return tutorial;
   }
 
   startLoaded(state: GameState): void {
