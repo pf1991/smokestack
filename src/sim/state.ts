@@ -6,6 +6,7 @@ import { COMPANY_NAMES } from '../data/names';
 import { getRecipe, RECIPES, recipeEra } from '../data/recipes';
 import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
+import { SAVE_VERSION } from './migrations';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
@@ -248,7 +249,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   const rival = createCompany('rival', RIVAL_NAME);
   rival.active = opts.rival ?? true;
   const state: GameState = {
-    version: 1,
+    version: SAVE_VERSION,
     seed: opts.seed,
     rngState: rng.rngState,
     date: { ...START_DATE },

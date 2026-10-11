@@ -1,10 +1,11 @@
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
+import { migrateSave } from './migrations';
 import { advanceHour, TICKS_PER_DAY } from './clock';
 import { FINANCE_SYSTEM_ID, SYSTEMS } from './systems';
 import type { GameState, SimContext } from './types';
 
-export const SAVE_VERSION = 1;
+export { SAVE_VERSION } from './migrations';
 const END_YEAR = 2001;
 
 /**
@@ -82,7 +83,8 @@ export function deserialize(json: string): Result<GameState> {
     return err('Save file is corrupted');
   }
   if (!isObject(parsed)) return err('Save file is corrupted');
-  if (parsed.version !== SAVE_VERSION) return err('Save from an incompatible version');
+  const m = migrateSave(parsed);
+  if (!m.ok) return m;
   if (!isComplete(parsed)) return err('Save file is incomplete');
   // saves from before scenarios existed lack these; they play as sandbox
   if (typeof parsed.scenarioId !== 'string') parsed.scenarioId = 'sandbox';

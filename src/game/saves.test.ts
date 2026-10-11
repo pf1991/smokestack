@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachAutosave, listSaves, loadFrom, saveTo, SLOTS } from './saves';
+import { attachAutosave, listSaves, loadFrom, packState, saveTo, SLOTS, unpackState } from './saves';
 import { runDays } from '../sim/simulation';
 import { createGame } from '../sim/state';
 import { testCtx, testState } from '../sim/testkit';
@@ -8,6 +8,22 @@ import { testCtx, testState } from '../sim/testkit';
 beforeEach(() => localStorage.clear());
 
 describe('saves', () => {
+  it('packState/unpackState round-trip', () => {
+    const state = createGame({ seed: 7 });
+    const r = unpackState(packState(state));
+    expect(r.ok && r.value).toEqual(state);
+  });
+
+  it('a SMOKESTACK I save is refused by loadFrom and skipped by listSaves', () => {
+    const v1 = JSON.stringify({ version: 1, map: { tiles: [] } });
+    localStorage.setItem('smokestack:save:slot1', v1);
+    localStorage.setItem('smokestack:save:slot1:meta', JSON.stringify({ slot: 'slot1', date: '1 Jan 1900', company: 'Old', money: 5 }));
+    localStorage.setItem('smokestack:save:slot2', v1);
+    expect(loadFrom('slot1')).toEqual({ ok: false, error: 'Save from SMOKESTACK I cannot be loaded in this version' });
+    expect(() => listSaves()).not.toThrow();
+    expect(listSaves()).toEqual([]);
+  });
+
   it('save/load round-trip in jsdom localStorage', () => {
     const state = createGame({ seed: 11, companyName: 'Round Trip Ltd' });
     state.companies.player.money = 123_456;

@@ -211,7 +211,7 @@ export interface RivalRailProject {
 export type Speed = 0 | 1 | 2 | 4 | 8;
 
 export interface GameState {
-  version: 1;
+  version: number;
   seed: number;
   rngState: number;
   date: GameDate;

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { SAVE_VERSION } from '../sim/migrations';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveTo } from '../game/saves';
 import { createGame } from '../sim/state';
@@ -65,7 +66,7 @@ describe('main menu', () => {
 describe('menu error handling and overlays', () => {
   it('Continue with a corrupt autosave shows the error', () => {
     localStorage.setItem('smokestack:save:auto', '{nope');
-    localStorage.setItem('smokestack:save:auto:meta', JSON.stringify({ slot: 'auto', date: '1 Jan 1900', company: 'X', money: 1 }));
+    localStorage.setItem('smokestack:save:auto:meta', JSON.stringify({ v: SAVE_VERSION, slot: 'auto', date: '1 Jan 1900', company: 'X', money: 1 }));
     const { ui, host } = mount();
     btn(ui, 'Continue').click();
     expect(host.startLoaded).not.toHaveBeenCalled();

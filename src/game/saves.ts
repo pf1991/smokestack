@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '../core/result';
 import { formatDate } from '../sim/clock';
+import { SAVE_VERSION } from '../sim/migrations';
 import { deserialize, serialize } from '../sim/simulation';
 import type { GameState, OwnerId, SimContext, Terrain, Tile } from '../sim/types';
 
@@ -59,12 +60,36 @@ function errorText(e: unknown): string {
   return 'Browser storage is unavailable';
 }
 
+/** Serializes a state to the compact save format (tiles as tuples). */
+export function packState(state: GameState): string {
+  const packed = { ...state, map: { ...state.map, tiles: state.map.tiles.map(packTile) } };
+  return serialize(packed as unknown as GameState);
+}
+
+/** Parses, migrates and validates a save string, expanding packed tiles. */
+export function unpackState(raw: string): Result<GameState> {
+  const r = deserialize(raw);
+  if (!r.ok) return r;
+  const state = r.value;
+  const tiles = state.map.tiles as unknown[];
+  // a plain object tile means a save that predates tile packing
+  if (tiles.length > 0 && typeof tiles[0] !== 'object') return err('Save file is corrupted');
+  if (Array.isArray(tiles[0])) {
+    try {
+      state.map.tiles = (tiles as PackedTile[]).map(unpackTile);
+    } catch {
+      return err('Save file is corrupted');
+    }
+  }
+  return ok(state);
+}
+
 /** Writes `state` to a slot. Never throws; a full or blocked storage returns an error. */
 export function saveTo(slot: SaveSlot, state: GameState): Result {
   try {
-    const packed = { ...state, map: { ...state.map, tiles: state.map.tiles.map(packTile) } };
-    localStorage.setItem(KEY(slot), serialize(packed as unknown as GameState));
-    const meta: SaveInfo = {
+    localStorage.setItem(KEY(slot), packState(state));
+    const meta: SaveInfo & { v: number } = {
+      v: SAVE_VERSION,
       slot,
       date: formatDate(state.date),
       company: state.companies.player.name,
@@ -94,28 +119,16 @@ export function loadFrom(slot: SaveSlot): Result<GameState> {
     return err('Browser storage is unavailable');
   }
   if (raw === null) return err('Empty slot');
-  const r = deserialize(raw);
-  if (!r.ok) return r;
-  const state = r.value;
-  const tiles = state.map.tiles as unknown[];
-  // a plain object tile means a save that predates tile packing
-  if (tiles.length > 0 && typeof tiles[0] !== 'object') return err('Save file is corrupted');
-  if (Array.isArray(tiles[0])) {
-    try {
-      state.map.tiles = (tiles as PackedTile[]).map(unpackTile);
-    } catch {
-      return err('Save file is corrupted');
-    }
-  }
-  return ok(state);
+  return unpackState(raw);
 }
 
 function readInfo(slot: SaveSlot): SaveInfo | null {
   try {
     const meta = localStorage.getItem(META_KEY(slot));
     if (meta !== null) {
-      const m = JSON.parse(meta) as SaveInfo;
-      if (typeof m.company === 'string' && typeof m.date === 'string' && typeof m.money === 'number' && localStorage.getItem(KEY(slot)) !== null) {
+      const m = JSON.parse(meta) as SaveInfo & { v?: number };
+      // metas without the current version (e.g. SMOKESTACK I) are not trusted; the full read decides
+      if (m.v === SAVE_VERSION && typeof m.company === 'string' && typeof m.date === 'string' && typeof m.money === 'number' && localStorage.getItem(KEY(slot)) !== null) {
         return { slot, date: m.date, company: m.company, money: m.money };
       }
     }
