@@ -2,9 +2,9 @@ import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import { isTyping } from '../../game/input';
-import { acceptedGoods, appendStop, legLength, offeredGoods, routeThroughput, suggestStop } from '../../sim/routeHelpers';
+import { acceptedGoods, appendStop, legLength, offeredGoods, routeThroughput } from '../../sim/routeHelpers';
 import type { Building, GameState, GoodId, Route, RouteStop } from '../../sim/types';
-import { createRoute, deleteRoute, ROUTE_COLORS, sellVehicle, updateRoute } from '../../sim/vehicles';
+import { createRoute, deleteRoute, insertStop, ROUTE_COLORS, sellVehicle, updateRoute } from '../../sim/vehicles';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
@@ -109,7 +109,11 @@ class RoutesPanel {
   }
 
   private dispose(): void {
-    this.leavePick(false, false);
+    try {
+      this.leavePick(true, false); // return to inspect if our pick handler was still active
+    } catch {
+      /* the controller is being torn down */
+    }
     this.game.renderer.setSelection(null);
     for (const off of this.offs) off();
     clearInterval(this.timer);
@@ -165,13 +169,14 @@ class RoutesPanel {
     if (bad) return this.toast(bad);
     const at = Math.min(a.after, route.stops.length - 1);
     if (route.stops[at]?.buildingId === id) return;
-    let stops: RouteStop[];
-    if (at === route.stops.length - 1) stops = appendStop(this.state, route.stops, id);
-    else {
-      stops = route.stops.map((s) => ({ ...s, load: [...s.load], unload: [...s.unload] }));
-      stops.splice(at + 1, 0, suggestStop(this.state, id, stops.slice(0, at + 1)));
-    }
-    const r = updateRoute(this.ctx, route.id, { stops });
+    // Pre-fill against ALL other stops: rotate so the insert point is last, append, rotate back.
+    const k = route.stops.length - (at + 1);
+    const rotated = [...route.stops.slice(at + 1), ...route.stops.slice(0, at + 1)];
+    const filled = appendStop(this.state, rotated, id);
+    const created = filled[filled.length - 1];
+    const old = filled.slice(0, -1);
+    const retuned = [...old.slice(k), ...old.slice(0, k)];
+    const r = insertStop(this.ctx, route.id, at, created, retuned);
     if (!r.ok) return this.toast(r.error);
     a.after = at + 1;
     this.syncSelection();
@@ -249,7 +254,7 @@ class RoutesPanel {
   }
 
   private select(id: number): void {
-    if (this.adding && this.adding.routeId !== id) this.leavePick(true, false);
+    if (this.adding) this.leavePick(true, false);
     this.selected = this.selected === id ? null : id;
     this.confirmDelete = null;
     this.syncSelection();

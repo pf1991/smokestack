@@ -9,7 +9,7 @@ import type { PanelDef } from './index';
 import './fleet.css';
 
 /** The slice of the GameController this panel needs (lets tests use a small stub). */
-type Host = Pick<GameController, 'ctx' | 'renderer' | 'centerOn' | 'openPanel'>;
+type Host = Pick<GameController, 'ctx' | 'renderer' | 'centerOn' | 'openPanel'> & { follow?: GameController['follow'] };
 
 export type FleetFilter = 'all' | 'truck' | 'train' | 'problem';
 
@@ -157,6 +157,7 @@ class FleetPanel {
   private locate(id: number): void {
     const v = this.ctx.state.vehicles[id];
     if (!v) return;
+    this.game.follow?.(null); // an explicit jump overrides camera follow
     this.game.centerOn({ x: v.pos.x, y: v.pos.y });
     this.game.renderer.setSelection({ vehicleId: id });
     this.game.openPanel('vehicle', id);

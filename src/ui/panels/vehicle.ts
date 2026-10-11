@@ -24,6 +24,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       view.update();
     },
   }) as HTMLSelectElement;
+  const routeText = h('span');
   let optSig = '\0';
   const follow = h('button', {
     class: 'btn insp-follow',
@@ -54,7 +55,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     },
   });
   const view: InspectorView = {
-    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner), stat('Route', routeSel), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), follow, sell),
+    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner), stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), follow, sell),
     update() {
       const s = host.ctx.state;
       const v = s.vehicles[id];
@@ -73,7 +74,10 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       }
       const want = v.routeId === null ? '' : String(v.routeId);
       if (!focused && routeSel.value !== want) routeSel.value = want;
-      routeSel.disabled = v.ownerId !== 'player';
+      const mine = v.ownerId === 'player';
+      routeSel.hidden = !mine;
+      routeText.hidden = mine;
+      setText(routeText, route ? route.name : 'No route');
       const following = game.followId === id;
       follow.classList.toggle('active', following);
       follow.setAttribute('aria-pressed', String(following));

@@ -89,4 +89,14 @@ describe('fleet panel', () => {
       vi.useRealTimers();
     }
   });
+
+  it('locate clears camera follow', () => {
+    const { ctx, r1, game, host } = setup();
+    must(buyTruck(ctx, 'player', r1.id));
+    const follow = vi.fn();
+    (game as unknown as { follow: typeof follow }).follow = follow;
+    PANELS.fleet.open(host);
+    click('[data-act="locate"]');
+    expect(follow).toHaveBeenCalledWith(null);
+  });
 });

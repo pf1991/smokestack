@@ -140,6 +140,53 @@ export function updateRoute(
   return ok();
 }
 
+/**
+ * Inserts `stop` after index `afterIndex` of a route. Vehicles heading for a later stop keep that
+ * target (their index is bumped); `retuned` optionally replaces the load/unload of the existing
+ * stops (same buildings, same order). Paths are replaced, never mutated, and only cleared when a
+ * vehicle's target building changed (a path to an unchanged target stays valid).
+ */
+export function insertStop(
+  ctx: SimContext,
+  routeId: number,
+  afterIndex: number,
+  stop: RouteStop,
+  retuned?: RouteStop[],
+): Result {
+  const { state } = ctx;
+  const route = state.routes[routeId];
+  if (!route) return err('No such route');
+  if (afterIndex < -1 || afterIndex >= route.stops.length) return err('No such stop');
+  const v = validateStops(state, route.ownerId, route.kind, [stop]);
+  if (!v.ok) return v;
+  const oldStops = route.stops;
+  const base =
+    retuned && retuned.length === oldStops.length && retuned.every((s, i) => s.buildingId === oldStops[i].buildingId)
+      ? retuned
+      : oldStops;
+  const next = base.map(copyStop);
+  next.splice(afterIndex + 1, 0, copyStop(stop));
+  route.stops = next;
+  const n = next.length;
+  for (const veh of Object.values(state.vehicles)) {
+    if (veh.routeId !== routeId) continue;
+    const oldBuilding = oldStops[veh.stopIndex]?.buildingId;
+    if (veh.stopIndex > afterIndex) veh.stopIndex++;
+    veh.stopIndex = veh.stopIndex % n;
+    if (veh.state !== 'loading' && next[veh.stopIndex]?.buildingId !== oldBuilding) {
+      veh.path = [];
+      veh.pathIndex = 0;
+    }
+    if (veh.state === 'idle' || veh.state === 'stuck') {
+      veh.state = 'moving';
+      veh.stuckNotified = false;
+      veh.path = [];
+      veh.pathIndex = 0;
+    }
+  }
+  return ok();
+}
+
 /** Sells the route's vehicles (50% refund each), then removes the route. */
 export function deleteRoute(ctx: SimContext, routeId: number): Result {
   const { state } = ctx;

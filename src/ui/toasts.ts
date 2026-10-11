@@ -30,9 +30,11 @@ export const Toasts = {
         el.append(' ', btn);
       }
       container.appendChild(el);
-      timers.set(el, setTimeout(() => dismiss(el), LIFETIME_MS));
+      timers.set(el, setTimeout(() => dismiss(el), e.duration ?? LIFETIME_MS));
+      if (e.action) el.dataset.keep = '1';
       while (container.childElementCount > MAX_VISIBLE) {
-        const oldest = container.firstElementChild;
+        // toasts carrying an action (Undo) outlive plain ones when the stack is full
+        const oldest = (Array.from(container.children).find((c) => (c as HTMLElement).dataset.keep !== '1') ?? container.firstElementChild) as Element | null;
         if (!(oldest instanceof HTMLElement)) break;
         dismiss(oldest);
       }

@@ -77,7 +77,7 @@ export function sendTargets(state: GameState, src: Building): PickSet & { kind: 
 /** The slice of the GameController the send-goods flow needs. */
 export type SendHost = Pick<GameController, 'ctx' | 'tools' | 'renderer' | 'setTool' | 'onToolChange'>;
 
-const UNDO_MS = 10_000;
+export const UNDO_MS = 10_000;
 
 /**
  * Pick mode started from a building inspector: click one of the green buildings to create a
@@ -85,8 +85,8 @@ const UNDO_MS = 10_000;
  */
 export function startSendGoods(game: SendHost, sourceId: number): void {
   const { ctx } = game;
-  const toast = (message: string, tone: 'info' | 'good' | 'bad', action?: { label: string; run: () => void }) =>
-    ctx.bus.emit({ type: 'toast', message, tone, action });
+  const toast = (message: string, tone: 'info' | 'good' | 'bad', action?: { label: string; run: () => void }, duration?: number) =>
+    ctx.bus.emit({ type: 'toast', message, tone, action, duration });
   const src = ctx.state.buildings[sourceId];
   if (!src || src.ownerId !== 'player') return;
   const srcKind: Kind = src.typeId === STATION_TYPE ? 'train' : 'truck';
@@ -124,11 +124,12 @@ export function startSendGoods(game: SendHost, sourceId: number): void {
     }
     finish();
     game.setTool({ kind: 'inspect' });
+    game.renderer.setSelection({ routeId: r.value.id });
     const made = { routeId: r.value.id, vehicleId: v.value.id, at: Date.now(), stops: JSON.stringify(r.value.stops) };
     toast(`Route "${name}" created with a ${info.one}`, 'good', {
       label: 'Undo',
       run: () => undoSendGoods(game, made),
-    });
+    }, UNDO_MS);
   };
   const off = game.onToolChange((t) => {
     // another feature took over pick mode: just let go

@@ -11,6 +11,7 @@ import {
   buyTruck,
   createRoute,
   deleteRoute,
+  insertStop,
   sellVehicle,
   TRUCK,
   tripsLast30,
@@ -496,5 +497,25 @@ describe('assignVehicle', () => {
     expect(JSON.parse(JSON.stringify(v)).trips30).toHaveLength(1);
     s.tick += 30 * 24 + 1;
     expect(tripsLast30(s, v)).toBe(0);
+  });
+});
+describe('insertStop', () => {
+  it('keeps vehicles heading for their stop when a stop is inserted before it', () => {
+    const { s, ctx, camp, mill, camp2 } = world();
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    v.stopIndex = 1;
+    tick(ctx, 3);
+    const path = v.path;
+    must(insertStop(ctx, r.id, 0, { buildingId: camp2.id, load: ['wood'], unload: [] }));
+    expect(s.routes[r.id].stops.map((x) => x.buildingId)).toEqual([camp.id, camp2.id, mill.id]);
+    expect(v.stopIndex).toBe(2);
+    expect(s.routes[r.id].stops[v.stopIndex].buildingId).toBe(mill.id);
+    expect(v.path).toBe(path); // same target building: path untouched
+    const w = must(buyTruck(ctx, 'player', r.id));
+    expect(w.stopIndex).toBe(0);
+    must(insertStop(ctx, r.id, 0, { buildingId: mill.id, load: [], unload: [] }));
+    expect(w.stopIndex).toBe(0);
+    expect(insertStop(ctx, r.id, 9, { buildingId: mill.id, load: [], unload: [] }).ok).toBe(false);
   });
 });
