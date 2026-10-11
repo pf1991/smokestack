@@ -171,6 +171,7 @@ export class Tutorial {
       return;
     }
     this.render();
+    this.refreshHighlight();
   }
 
   private next(): void {
@@ -210,11 +211,15 @@ export class Tutorial {
         h('button', { class: 'tut-skip', 'data-act': 'skip', title: 'Hide the tutorial for good', onClick: () => this.skip() }, 'Skip tutorial'),
         step.manual ? h('button', { class: 'btn', 'data-act': 'next', onClick: () => this.next() }, 'Next ›') : null),
     );
+  }
+
+  /** Re-queried on every poll, so controls inside windows opened later (e.g. Routes) glow too. */
+  private refreshHighlight(): void {
     this.clearHighlight();
-    if (step.highlight) {
-      this.highlighted = [...this.root.querySelectorAll(step.highlight)];
-      for (const el of this.highlighted) el.classList.add(HIGHLIGHT);
-    }
+    const sel = TUTORIAL_STEPS[this.index]?.highlight;
+    if (!sel) return;
+    this.highlighted = [...this.root.querySelectorAll(sel)];
+    for (const el of this.highlighted) el.classList.add(HIGHLIGHT);
   }
 
   private show(key: string, ...children: HTMLElement[]): void {

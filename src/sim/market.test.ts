@@ -104,13 +104,16 @@ describe('market', () => {
   });
 
   it('growth', () => {
-    expect(monthlyGrowth(10000, 0.9, 0)).toBe(10135);
+    expect(monthlyGrowth(10000, 0.9, 0)).toBe(10118);
+    expect(monthlyGrowth(100_000, 1, 0)).toBe(80_000);
+    expect(monthlyGrowth(80_000, 1, 0)).toBe(80_000);
     expect(monthlyGrowth(10000, 0, 1)).toBe(9900);
     expect(monthlyGrowth(500, 0, 1)).toBe(500);
   });
 
   it('urbanRadius', () => {
     expect(urbanRadius(9000)).toBe(6);
+    expect(urbanRadius(200_000)).toBe(10);
   });
 
   it('rotates odd units between stores across days', () => {

@@ -215,7 +215,7 @@ describe('production', () => {
     b.producedThisMonth.grain = 5;
     growthMonth(ctx);
     expect(city.prevPopulation).toBe(6000);
-    expect(city.population).toBe(Math.round(6000 * (1 + 0.015)));
+    expect(city.population).toBe(Math.round(6000 * (1 + 0.015 * (1 - 6000 / 80_000))));
     expect(city.happiness).toBe(1);
     expect(b.producedThisMonth).toEqual({});
   });

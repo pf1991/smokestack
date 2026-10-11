@@ -39,7 +39,7 @@ It is 1900. You are a young industrialist with $300,000 and a map full of forest
 - **Production:** every building runs its current recipe; one cycle takes `days` days and requires all inputs present and output storage not full. Output per good is capped at the building's `storage`.
 - **Farms:** grain, cotton and fruit produce ×0 in Dec–Feb and ×1.5 in Jul–Sep. Milk is unaffected.
 - **Market:** monthly demand = `population / 1000 × DEMAND_PER_1000[good] × lifecycle(good, year) × modifiers`. Sale price = `basePrice × clamp(1.5 − 0.75 × supplyRatio, 0.5, 1.5)`, where supplyRatio = sold30 / demand30. Stores in the same city split daily demand equally among those holding stock.
-- **Growth (monthly):** `pop × (1 + 0.015 × avgSatisfaction − 0.01 × pollution)`, minimum 500. Pollution is in 0..1. (Rebalanced after Wave 3 review: unsupplied, clean cities hold steady; supplied cities grow.)
+- **Growth (monthly):** `pop × (1 + 0.015 × avgSatisfaction × (1 − pop/80000) − 0.01 × pollution)`, clamped to 500..80,000; urban radius capped at 10 tiles (capped after Task 29 found million-person cities). Pollution is in 0..1. (Rebalanced after Wave 3 review: unsupplied, clean cities hold steady; supplied cities grow.)
 - **Lifecycle:** factor 0 before `era`, 1 from `era`, and after `fadeYear` it falls linearly to 0.2 over 10 years.
 - **Eras:** Steam Age 1900–1919, Roaring Age 1920–1939, Atomic Age 1940–1959, Space Age 1960–1979, Silicon Age 1980–2000.
 
