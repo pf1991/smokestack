@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "soak": "tsx scripts/soak.ts"
+    "soak": "tsx scripts/soak.ts",
+    "fixture": "tsx scripts/make-fixture.ts"
   },
   "devDependencies": {
     "jsdom": "25.0.1",
