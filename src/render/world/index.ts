@@ -186,6 +186,7 @@ export class WorldRenderer {
       bus.on('buildingRemoved', () => this.invalidate()),
       bus.on('roadChanged', (e) => this.invalidate(e.tiles)),
       bus.on('railChanged', (e) => this.invalidate(e.tiles)),
+      bus.on('ownershipChanged', () => this.invalidate()),
       bus.on('monthEnd', () => this.invalidate()),
     ];
     return () => offs.forEach((f) => f());

@@ -1,4 +1,4 @@
-import type { Company, CompanyKind, GameState, OwnerId } from './types';
+import type { Company, CompanyKind, GameState, OwnerId, SimContext } from './types';
 
 export type { CompanyKind };
 
@@ -29,4 +29,37 @@ export function addCompany(
   const company: Company = { ...c, ledger: [], monthsInRed: 0, roadTiles: 0, railTiles: 0, active: true };
   state.companies[c.id] = company;
   return company;
+}
+
+/**
+ * The single funnel for moving assets between companies (takeovers, heirs).
+ * Moves buildings, routes, vehicles and road/rail tile ownership plus tile counts.
+ * Does not touch money, loans or `active`: the caller decides those.
+ */
+export function transferOwnership(
+  ctx: SimContext,
+  from: OwnerId,
+  to: OwnerId,
+): { buildings: number; routes: number; vehicles: number; roadTiles: number; railTiles: number } {
+  const { state } = ctx;
+  let buildings = 0;
+  let routes = 0;
+  let vehicles = 0;
+  for (const b of Object.values(state.buildings)) if (b.ownerId === from) (b.ownerId = to), buildings++;
+  for (const r of Object.values(state.routes)) if (r.ownerId === from) (r.ownerId = to), routes++;
+  for (const v of Object.values(state.vehicles)) if (v.ownerId === from) (v.ownerId = to), vehicles++;
+  for (const t of state.map.tiles) {
+    if (t.roadOwner === from) t.roadOwner = to;
+    if (t.railOwner === from) t.railOwner = to;
+  }
+  const src = state.companies[from];
+  const dst = state.companies[to];
+  const roadTiles = src.roadTiles;
+  const railTiles = src.railTiles;
+  dst.roadTiles += roadTiles;
+  dst.railTiles += railTiles;
+  src.roadTiles = 0;
+  src.railTiles = 0;
+  ctx.bus.emit({ type: 'ownershipChanged', from, to });
+  return { buildings, routes, vehicles, roadTiles, railTiles };
 }

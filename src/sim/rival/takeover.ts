@@ -1,5 +1,6 @@
 import type { Result } from '../../core/result';
 import { err, ok } from '../../core/result';
+import { transferOwnership } from '../companies';
 import { earn, spend } from '../finance';
 import { publishNews } from '../news';
 import { assetValue } from '../state';
@@ -40,17 +41,7 @@ export function takeover(ctx: SimContext): Result<{ price: number }> {
   else spend(player, 'events', -cash, state.date);
   rival.money = 0;
   rival.loan = 0;
-  for (const b of Object.values(state.buildings)) if (b.ownerId === 'rival') b.ownerId = 'player';
-  for (const r of Object.values(state.routes)) if (r.ownerId === 'rival') r.ownerId = 'player';
-  for (const v of Object.values(state.vehicles)) if (v.ownerId === 'rival') v.ownerId = 'player';
-  for (const t of state.map.tiles) {
-    if (t.roadOwner === 'rival') t.roadOwner = 'player';
-    if (t.railOwner === 'rival') t.railOwner = 'player';
-  }
-  player.roadTiles += rival.roadTiles;
-  player.railTiles += rival.railTiles;
-  rival.roadTiles = 0;
-  rival.railTiles = 0;
+  transferOwnership(ctx, 'rival', 'player');
   rival.active = false;
   state.rivalProject = null;
   state.rivalRail = null;
