@@ -186,9 +186,10 @@ const MAX_RAIL_STARTS = 3;
  */
 export function planRail(state: GameState, owner: OwnerId, a: { typeId: BuildingTypeId; pos: Vec2 }, b: { typeId: BuildingTypeId; pos: Vec2 }): Vec2[] | null {
   const { map } = state;
-  const fromAccess = stationAccess(state, a);
   const passable = railPlannable(owner);
   const ok1 = (p: Vec2) => passable(map.tiles[p.y * map.width + p.x], p.x, p.y);
+  // never build on from another company's track: if it were lifted, our trains would be stranded
+  const fromAccess = stationAccess(state, a).filter(ok1);
   const bw = BUILDINGS[b.typeId].size;
   const bc = { x: b.pos.x + bw.w / 2, y: b.pos.y + bw.h / 2 };
   const starts =
@@ -229,9 +230,12 @@ export function ensureRailLink(
 ): Result<{ built: number; cost: number; tiles: Vec2[] }> {
   const { state } = ctx;
   const { map } = state;
-  const fromAccess = stationAccess(state, a);
-  const toAccess = stationAccess(state, b);
-  if (fromAccess.length > 0 && toAccess.length > 0 && findPath(map, fromAccess[0], toAccess, railPassable)) {
+  // "already linked" only counts track the owner may rely on (its own or unowned)
+  const passable = railPlannable(owner);
+  const mine = (p: Vec2) => passable(map.tiles[p.y * map.width + p.x], p.x, p.y);
+  const fromAccess = stationAccess(state, a).filter(mine);
+  const toAccess = stationAccess(state, b).filter(mine);
+  if (fromAccess.length > 0 && toAccess.length > 0 && findPath(map, fromAccess[0], toAccess, passable)) {
     return ok({ built: 0, cost: 0, tiles: [] });
   }
   const best = planRail(state, owner, a, b);

@@ -178,18 +178,43 @@ export function takeover(ctx: SimContext): Result<{ price: number }> {
 const tier2Goods = (state: GameState): GoodId[] =>
   Object.keys(DEMAND_PER_1000).filter((g) => GOODS[g]?.tier === 2 && state.unlocked.includes(g));
 
-/** Monthly output the rival already delivers of `goodId` into `cityId` (by its routes' sources). */
-function rivalSupply(state: GameState, cityId: number, goodId: GoodId): number {
+/** Hops followed back through stations/warehouses when tracing where a good comes from. */
+const SUPPLY_DEPTH = 3;
+
+/**
+ * Monthly output of `goodId` that reaches `b`'s loading bay: its own recipe output, or, for a
+ * station or warehouse, whatever the rival's routes unload there, traced back (≤ SUPPLY_DEPTH hops)
+ * to the producing buildings. `seen` keeps every producer counted once.
+ */
+function sourceRate(state: GameState, b: Building | undefined, goodId: GoodId, depth: number, seen: Set<number>): number {
+  if (!b || seen.has(b.id)) return 0;
+  seen.add(b.id);
+  const rec = b.recipeId ? RECIPES[b.recipeId] : undefined;
+  if (rec?.outputs[goodId]) return (rec.outputs[goodId] / rec.days) * 30;
+  if (BUILDINGS[b.typeId]?.category !== 'logistics' || depth <= 0) return 0;
   let total = 0;
+  for (const r of Object.values(state.routes)) {
+    if (r.ownerId !== 'rival' || !r.stops.some((s) => s.buildingId === b.id && s.unload.includes(goodId))) continue;
+    for (const s of r.stops) {
+      if (s.load.includes(goodId)) total += sourceRate(state, state.buildings[s.buildingId], goodId, depth - 1, seen);
+    }
+  }
+  return total;
+}
+
+/**
+ * Monthly output the rival already delivers of `goodId` into `cityId` (by its routes' sources,
+ * followed back through railway stations to the factories feeding them).
+ */
+export function rivalSupply(state: GameState, cityId: number, goodId: GoodId): number {
+  let total = 0;
+  const seen = new Set<number>();
   for (const r of Object.values(state.routes)) {
     if (r.ownerId !== 'rival') continue;
     const intoCity = r.stops.some((s) => s.unload.includes(goodId) && state.buildings[s.buildingId]?.cityId === cityId);
     if (!intoCity) continue;
     for (const s of r.stops) {
-      if (!s.load.includes(goodId)) continue;
-      const b = state.buildings[s.buildingId];
-      const rec = b?.recipeId ? RECIPES[b.recipeId] : undefined;
-      if (rec?.outputs[goodId]) total += (rec.outputs[goodId] / rec.days) * 30;
+      if (s.load.includes(goodId)) total += sourceRate(state, state.buildings[s.buildingId], goodId, SUPPLY_DEPTH, seen);
     }
   }
   return total;
@@ -230,7 +255,7 @@ interface Candidate {
 }
 
 /** The best (city, good) the rival can afford while keeping its reserve, or null. */
-function chooseProject(state: GameState): Candidate | null {
+export function chooseProject(state: GameState): Candidate | null {
   const money = state.companies.rival.money;
   const blockedKeys = blocked(state);
   const plans = new Map<GoodId, { plan: ChainPlan; cost: number; upkeep: number; capacity: number }>();
@@ -593,6 +618,7 @@ export function rivalMonth(ctx: SimContext): void {
   const rival = state.companies.rival;
   if (!rival.active) return;
   manageLoans(ctx);
+  retryScrap(ctx);
   if (!state.rivalProject && !state.rivalRail && rivalChainCount(state) < maxRivalChains(state.date.year)) {
     const pick = chooseProject(state);
     if (pick) {
@@ -627,6 +653,31 @@ const MIN_STATION_GAP = 8;
 const F_RAIL_BLOCKED = 'rivalRailBlocked';
 /** route ids of legs measured shorter than RAIL_MIN_LEG (roads only get added, so they stay short) */
 const F_RAIL_SHORT = 'rivalRailShort';
+/** tile indices of abandoned track that could not be lifted yet (a train stood on it); retried monthly */
+const F_RAIL_SCRAP = 'rivalRailScrap';
+
+/**
+ * Lifts the Baron's track tile by tile (removeRail refuses a whole batch if any tile has a train on
+ * it); tiles still occupied are remembered in F_RAIL_SCRAP and retried next month, so dead track
+ * never lingers and `railTiles` stays exact.
+ */
+function scrapTrack(ctx: SimContext, tiles: number[]): void {
+  const { state } = ctx;
+  const { map } = state;
+  const left: number[] = [];
+  for (const i of tiles) {
+    const t = map.tiles[i];
+    if (!t?.rail || t.railOwner !== 'rival') continue;
+    if (!removeRail(ctx, 'rival', [{ x: i % map.width, y: Math.floor(i / map.width) }]).ok) left.push(i);
+  }
+  if (left.length > 0) state.flags[F_RAIL_SCRAP] = left.join(',');
+  else delete state.flags[F_RAIL_SCRAP];
+}
+
+function retryScrap(ctx: SimContext): void {
+  const pending = flagList(ctx.state, F_RAIL_SCRAP);
+  if (pending.length > 0) scrapTrack(ctx, pending.map(Number));
+}
 
 /** The Baron's railway lines: his train routes. */
 export function rivalRailLines(state: GameState): number {
@@ -776,11 +827,7 @@ function abandonRail(ctx: SimContext, reason: string): void {
   const p = state.rivalRail;
   if (!p) return;
   flagAdd(state, F_RAIL_BLOCKED, `${p.sourceId}>${p.destId}`);
-  const { map } = state;
-  const track = p.railTiles
-    .filter((i) => map.tiles[i]?.rail && map.tiles[i].railOwner === 'rival')
-    .map((i) => ({ x: i % map.width, y: Math.floor(i / map.width) }));
-  if (track.length > 0) removeRail(ctx, 'rival', track);
+  scrapTrack(ctx, [...flagList(state, F_RAIL_SCRAP).map(Number), ...p.railTiles]);
   for (const id of [p.stationA, p.stationB]) {
     const b = id === null ? undefined : state.buildings[id];
     if (!b || b.ownerId !== 'rival') continue;
@@ -876,6 +923,12 @@ function advanceRail(ctx: SimContext): void {
     const station = state.buildings[id];
     if (!station || station.ownerId !== 'rival') {
       abandonRail(ctx, 'a station was lost');
+      return;
+    }
+    const first = p.stage === 1 && p.stationA !== null ? state.buildings[p.stationA] : undefined;
+    if (first && manhattan(centreOf(first), centreOf(station)) < MIN_STATION_GAP) {
+      // checked before paying for station B's roads
+      abandonRail(ctx, 'the two stations ended up side by side');
       return;
     }
     // feeder A drives source → station A, feeder B drives station B → destination
