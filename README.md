@@ -13,7 +13,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Rival AI:** Baron Smogsworth builds his own chains, undercuts your markets and taunts you in print. Reach 3× his net worth to launch a **Hostile Takeover**.
 - **Mayor's Contracts:** time-limited delivery contracts paid in cash and population growth.
 - **Product lifecycle:** inventions arrive by year (automobiles and oil 1910, radios 1925, plastic 1935, television 1950, computers 1980); radios fade after 1965 and the newspaper warns you first.
-- **Fleet and routes:** trucks on routes, trains on rail (Task 27), a Fleet window to manage vehicles, and route editing that is easier to build and change.
+- **Fleet and routes:** trucks on routes, trains on rail, a Fleet window to manage vehicles, and route editing that is easier to build and change.
 - **Finance:** loans in $50,000 steps, monthly charges, and charts of the ledger.
 - **Main menu, scenarios, achievements and save slots:** New Game, Load Game (Autosave plus three manual slots), Achievements and Settings. Progress is saved in the browser's local storage.
 - **Procedural everything:** no image or audio files. Sprites are painted on canvas and sound (cash-register "ka-ching", steam whistles, factory hum) is synthesized with WebAudio.
