@@ -107,8 +107,14 @@ export function unpackState(raw: string): Result<GameState> {
 
 /** Writes `state` to a slot. Never throws; a full or blocked storage returns an error. */
 export function saveTo(slot: SaveSlot, state: GameState): Result {
+  let packed: string;
   try {
-    localStorage.setItem(KEY(slot), packState(state));
+    packed = packState(state);
+  } catch {
+    return err('Game data is invalid and could not be saved');
+  }
+  try {
+    localStorage.setItem(KEY(slot), packed);
     const meta: SaveInfo & { v: number } = {
       v: SAVE_VERSION,
       slot,
@@ -143,30 +149,62 @@ export function loadFrom(slot: SaveSlot): Result<GameState> {
   return unpackState(raw);
 }
 
-function readInfo(slot: SaveSlot): SaveInfo | null {
+type SlotScan = { info: SaveInfo } | { error: string } | null;
+
+// Unreadable saves (SMOKESTACK I, corrupt) have no trusted meta, so each scan would fully parse them.
+// Remember the verdict per slot, keyed by the raw string, so repeated menu repaints parse only once.
+const unreadableCache = new Map<SaveSlot, { raw: string; error: string }>();
+
+function scanSlot(slot: SaveSlot): SlotScan {
   try {
     const meta = localStorage.getItem(META_KEY(slot));
     if (meta !== null) {
       const m = JSON.parse(meta) as SaveInfo & { v?: number };
       // metas without the current version (e.g. SMOKESTACK I) are not trusted; the full read decides
       if (m.v === SAVE_VERSION && typeof m.company === 'string' && typeof m.date === 'string' && typeof m.money === 'number' && localStorage.getItem(KEY(slot)) !== null) {
-        return { slot, date: m.date, company: m.company, money: m.money };
+        return { info: { slot, date: m.date, company: m.company, money: m.money } };
       }
     }
   } catch {
     /* fall through to the full read */
   }
-  const r = loadFrom(slot);
-  if (!r.ok) return null;
-  return { slot, date: formatDate(r.value.date), company: r.value.companies.player.name, money: r.value.companies.player.money };
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(KEY(slot));
+  } catch {
+    return null;
+  }
+  if (raw === null) {
+    unreadableCache.delete(slot);
+    return null;
+  }
+  const cached = unreadableCache.get(slot);
+  if (cached && cached.raw === raw) return { error: cached.error };
+  const r = unpackState(raw);
+  if (!r.ok) {
+    unreadableCache.set(slot, { raw, error: r.error });
+    return { error: r.error };
+  }
+  unreadableCache.delete(slot);
+  return { info: { slot, date: formatDate(r.value.date), company: r.value.companies.player.name, money: r.value.companies.player.money } };
 }
 
 /** Metadata of every non-empty, readable slot, in SLOTS order. */
 export function listSaves(): SaveInfo[] {
   const out: SaveInfo[] = [];
   for (const slot of SLOTS) {
-    const info = readInfo(slot);
-    if (info) out.push(info);
+    const r = scanSlot(slot);
+    if (r && 'info' in r) out.push(r.info);
+  }
+  return out;
+}
+
+/** Slots that hold data which cannot be loaded (e.g. a SMOKESTACK I save), with the reason. */
+export function unreadableSlots(): { slot: SaveSlot; error: string }[] {
+  const out: { slot: SaveSlot; error: string }[] = [];
+  for (const slot of SLOTS) {
+    const r = scanSlot(slot);
+    if (r && 'error' in r) out.push({ slot, error: r.error });
   }
   return out;
 }

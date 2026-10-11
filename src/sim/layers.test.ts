@@ -30,4 +30,11 @@ describe('layers', () => {
     expect(() => unpackLayer([1, -2], 2)).toThrow('bad layer');
     expect(() => unpackLayer([1, 2], 3)).toThrow('bad layer');
   });
+
+  it('packLayer rejects values unpackLayer would refuse', () => {
+    expect(() => packLayer([0.5, -0.2])).toThrow('bad layer value');
+    expect(() => packLayer([NaN])).toThrow('bad layer value');
+    expect(() => packLayer([1, Infinity])).toThrow('bad layer value');
+    expect(() => packLayer([-1])).toThrow('bad layer value');
+  });
 });

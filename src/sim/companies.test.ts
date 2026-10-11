@@ -56,4 +56,31 @@ describe('companies', () => {
     expect(state.companies.player.railTiles).toBe(3);
     expect(events).toEqual([{ type: 'ownershipChanged', from: 'rival', to: 'player' }]);
   });
+
+  it('transferOwnership to the same company is a no-op without an event', () => {
+    const ctx = testCtx(testState());
+    const { state } = ctx;
+    state.buildings[1] = { id: 1, ownerId: 'rival' } as Building;
+    state.map.tiles[0].roadOwner = 'rival';
+    state.companies.rival.roadTiles = 4;
+    const events: GameEvent[] = [];
+    ctx.bus.on('ownershipChanged', (e) => events.push(e));
+    expect(transferOwnership(ctx, 'rival', 'rival')).toEqual({ buildings: 0, routes: 0, vehicles: 0, roadTiles: 0, railTiles: 0 });
+    expect(state.companies.rival.roadTiles).toBe(4);
+    expect(state.buildings[1].ownerId).toBe('rival');
+    expect(events).toEqual([]);
+  });
+
+  it('transferOwnership with an unknown company throws before mutating anything', () => {
+    const ctx = testCtx(testState());
+    const { state } = ctx;
+    state.buildings[1] = { id: 1, ownerId: 'rival' } as Building;
+    state.map.tiles[0].roadOwner = 'rival';
+    state.companies.rival.roadTiles = 4;
+    expect(() => transferOwnership(ctx, 'rival', 'ghost')).toThrow();
+    expect(() => transferOwnership(ctx, 'ghost', 'player')).toThrow();
+    expect(state.buildings[1].ownerId).toBe('rival');
+    expect(state.map.tiles[0].roadOwner).toBe('rival');
+    expect(state.companies.rival.roadTiles).toBe(4);
+  });
 });

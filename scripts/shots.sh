@@ -18,7 +18,7 @@ mkdir -p shots
 rm -f shots/*.png
 VLOG=/tmp/shots-vite.log
 
-npx vite --port "$PORT" --strictPort >"$VLOG" 2>&1 &
+node_modules/.bin/vite --port "$PORT" --strictPort >"$VLOG" 2>&1 &
 VITE_PID=$!
 trap 'kill $VITE_PID 2>/dev/null; wait $VITE_PID 2>/dev/null' EXIT
 

@@ -148,3 +148,4 @@
 .mn-compact .mn-cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 .mn-compact .mn-card { padding: 7px 10px; gap: 2px; }
 .mn-compact .mn-ach { max-height: none; overflow: visible; }
+.mn-bad { color: #d96a5b; font-style: normal; }

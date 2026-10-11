@@ -42,6 +42,10 @@ export function transferOwnership(
   to: OwnerId,
 ): { buildings: number; routes: number; vehicles: number; roadTiles: number; railTiles: number } {
   const { state } = ctx;
+  if (from === to) return { buildings: 0, routes: 0, vehicles: 0, roadTiles: 0, railTiles: 0 };
+  const src = state.companies[from];
+  const dst = state.companies[to];
+  if (!src || !dst) throw new Error(`transferOwnership: unknown company ${!src ? from : to}`);
   let buildings = 0;
   let routes = 0;
   let vehicles = 0;
@@ -52,8 +56,6 @@ export function transferOwnership(
     if (t.roadOwner === from) t.roadOwner = to;
     if (t.railOwner === from) t.railOwner = to;
   }
-  const src = state.companies[from];
-  const dst = state.companies[to];
   const roadTiles = src.roadTiles;
   const railTiles = src.railTiles;
   dst.roadTiles += roadTiles;

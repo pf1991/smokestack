@@ -21,6 +21,7 @@ export function layerAt(state: GameState, id: LayerId, x: number, y: number): nu
 
 /** Rounds to 3 decimals; a run of k>=2 zeros becomes `-1, k`. Layers hold non-negative values only. */
 export function packLayer(a: number[]): number[] {
+  for (const x of a) if (typeof x !== 'number' || !Number.isFinite(x) || x < 0) throw new Error('bad layer value');
   const out: number[] = [];
   let i = 0;
   while (i < a.length) {

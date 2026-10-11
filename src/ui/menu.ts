@@ -1,7 +1,7 @@
 import { COMPANY_NAMES } from '../data/names';
 import { ACHIEVEMENTS, loadUnlocked } from '../game/achievements';
 import type { GameController, NewGameOpts } from '../game/controller';
-import { listSaves, loadFrom, saveTo, SLOTS, type SaveInfo, type SaveSlot } from '../game/saves';
+import { listSaves, loadFrom, saveTo, SLOTS, unreadableSlots, type SaveInfo, type SaveSlot } from '../game/saves';
 import { loadSettings, saveSettings } from '../game/settings';
 import { goalProgress, SCENARIOS, type Goal } from '../sim/scenarios';
 import type { GameState } from '../sim/types';
@@ -40,12 +40,15 @@ function slotList(mode: 'load' | 'save', onPick: (slot: SaveSlot) => string | vo
   const list = h('div', { class: 'mn-slots' });
   const fill = () => {
     const infos = new Map<SaveSlot, SaveInfo>(listSaves().map((i) => [i.slot, i]));
+    const bad = new Map<SaveSlot, string>(unreadableSlots().map((u) => [u.slot, u.error]));
     list.replaceChildren(
       ...SLOTS.filter((s) => mode === 'load' || s !== 'auto').map((slot) => {
         const info = infos.get(slot);
         const meta = info
           ? h('span', { class: 'mn-slot-meta' }, h('b', null, info.company), ` - ${info.date} - ${formatMoney(info.money)}`)
-          : h('span', { class: 'mn-slot-meta mn-empty' }, 'Empty slot');
+          : bad.has(slot)
+            ? h('span', { class: 'mn-slot-meta mn-empty mn-bad' }, `Unreadable save - ${bad.get(slot)}`)
+            : h('span', { class: 'mn-slot-meta mn-empty' }, 'Empty slot');
         return h('div', { class: 'mn-slot' },
           h('span', { class: 'mn-slot-name' }, SLOT_LABEL[slot]),
           meta,
@@ -176,7 +179,8 @@ export class MainMenu {
 
   private home(): HTMLElement {
     const auto = listSaves().find((s) => s.slot === 'auto');
-    this.status = h('div', { class: 'mn-status' });
+    const badAuto = unreadableSlots().find((u) => u.slot === 'auto');
+    this.status = h('div', { class: 'mn-status' }, badAuto ? `Autosave cannot be loaded - ${badAuto.error}` : '');
     return h('div', null, h('div', { class: 'mn-home' },
       button('New Game', () => this.show('new'), { cls: 'mn-primary' }),
       button(auto ? `Continue - ${auto.company}, ${auto.date}` : 'Continue', () => {

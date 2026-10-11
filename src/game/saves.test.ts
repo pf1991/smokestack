@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachAutosave, listSaves, loadFrom, packState, saveTo, SLOTS, unpackState } from './saves';
+import { attachAutosave, listSaves, loadFrom, packState, saveTo, SLOTS, unpackState, unreadableSlots } from './saves';
 import { runDays, serialize } from '../sim/simulation';
 import { addCompany } from '../sim/companies';
 import { createGame } from '../sim/state';
@@ -41,6 +41,24 @@ describe('saves', () => {
     expect(loadFrom('slot1')).toEqual({ ok: false, error: 'Save from SMOKESTACK I cannot be loaded in this version' });
     expect(() => listSaves()).not.toThrow();
     expect(listSaves()).toEqual([]);
+  });
+
+  it('unreadableSlots lists a SMOKESTACK I slot with the reason, and not empty or good slots', () => {
+    localStorage.setItem('smokestack:save:slot1', JSON.stringify({ version: 1, map: { tiles: [] } }));
+    saveTo('slot2', createGame({ seed: 3 }));
+    expect(unreadableSlots()).toEqual([{ slot: 'slot1', error: 'Save from SMOKESTACK I cannot be loaded in this version' }]);
+    expect(unreadableSlots()).toHaveLength(1); // second call served from the cache
+    localStorage.removeItem('smokestack:save:slot1');
+    expect(unreadableSlots()).toEqual([]);
+  });
+
+  it('saveTo returns an error Result (does not throw) when a layer holds an invalid value', () => {
+    const state = createGame({ seed: 3 });
+    state.layers.smog = state.map.tiles.map(() => 0);
+    state.layers.smog[5] = -0.5;
+    const r = saveTo('slot1', state);
+    expect(r.ok).toBe(false);
+    expect(localStorage.getItem('smokestack:save:slot1')).toBeNull();
   });
 
   it('save/load round-trip in jsdom localStorage', () => {
