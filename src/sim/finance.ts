@@ -13,6 +13,7 @@ const MAX_LEDGER_MONTHS = 120;
 export function createCompany(id: OwnerId, name: string, money = STARTING_MONEY): Company {
   return {
     id,
+    kind: id === 'player' ? 'player' : id === 'rival' ? 'baron' : 'regional',
     name,
     money,
     loan: 0,

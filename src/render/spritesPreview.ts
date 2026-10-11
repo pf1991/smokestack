@@ -13,7 +13,7 @@ const items: Item[] = [];
 
 // layout pass
 let y = 4;
-for (const owner of ['player', 'rival'] as const) {
+for (const owner of ['player', 'rival']) {
   let x = 4, rowH = 0;
   for (const def of Object.values(BUILDINGS)) {
     const variants = def.id === 'farm' ? ['grain', 'cotton', 'fruit'] : [''];

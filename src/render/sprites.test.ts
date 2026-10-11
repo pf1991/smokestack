@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BUILDINGS } from '../data/buildings';
 import { TILE } from './constants';
-import { chimneyOffsets, spriteKey, houseStyle, windowRects, HEADROOM } from './sprites';
+import { chimneyOffsets, spriteKey, houseStyle, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS } from './sprites';
 
 describe('sprites pure helpers', () => {
   it('chimneyOffsets and windowRects inside sprite bounds for every building', () => {
@@ -41,5 +41,14 @@ describe('sprites pure helpers', () => {
     expect(houseStyle(1930)).toBe('brick');
     expect(houseStyle(1950)).toBe('deco');
     expect(houseStyle(1990)).toBe('modern');
+  });
+});
+
+describe('ownerColor', () => {
+  it('keeps player colour and gives regionals a stable palette colour', () => {
+    expect(ownerColor('player')).toBe('#2f6fb5');
+    expect(ownerColor('rival')).toBe('#b5302f');
+    expect(REGIONAL_COLORS).toContain(ownerColor('r_a'));
+    expect(ownerColor('r_a')).toBe(ownerColor('r_a'));
   });
 });

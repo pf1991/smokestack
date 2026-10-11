@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { attachAutosave, listSaves, loadFrom, packState, saveTo, SLOTS, unpackState } from './saves';
 import { runDays } from '../sim/simulation';
+import { addCompany } from '../sim/companies';
 import { createGame } from '../sim/state';
 import { testCtx, testState } from '../sim/testkit';
 
@@ -12,6 +13,18 @@ describe('saves', () => {
     const state = createGame({ seed: 7 });
     const r = unpackState(packState(state));
     expect(r.ok && r.value).toEqual(state);
+  });
+
+  it('round-trips arbitrary owner ids on tiles', () => {
+    const s = createGame({ seed: 5 });
+    addCompany(s, { id: 'r_a', name: 'R', money: 1, loan: 0, kind: 'regional' });
+    for (let i = 0; i < 3; i++) { s.map.tiles[i].road = true; s.map.tiles[i].roadOwner = 'r_a'; }
+    const r = unpackState(packState(s));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const idx = r.value.map.tiles.flatMap((t, i) => (t.roadOwner === 'r_a' ? [i] : []));
+      expect(idx).toEqual([0, 1, 2]);
+    }
   });
 
   it('a SMOKESTACK I save is refused by loadFrom and skipped by listSaves', () => {

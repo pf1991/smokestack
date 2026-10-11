@@ -2,7 +2,8 @@ import type { EventBus } from '../core/events';
 
 export type GoodId = string;
 export type BuildingTypeId = string;
-export type OwnerId = 'player' | 'rival';
+export type OwnerId = string;
+export type CompanyKind = 'player' | 'baron' | 'regional';
 export type Vec2 = { x: number; y: number };
 export type Inventory = Record<GoodId, number>;
 
@@ -139,6 +140,7 @@ export interface LedgerMonth {
 
 export interface Company {
   id: OwnerId;
+  kind: CompanyKind;
   name: string;
   money: number;
   loan: number;

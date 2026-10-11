@@ -21,7 +21,18 @@ export const HEADROOM = 16;
 const WALL = 7;
 const SHADOW = 4;
 
-export const OWNER_COLOR: Record<OwnerId, string> = { player: '#2f6fb5', rival: '#b5302f' };
+const OWNER_COLOR: Record<string, string> = { player: '#2f6fb5', rival: '#b5302f' };
+export const REGIONAL_COLORS = ['#3f8f5a', '#8a5aa8', '#c07a2a'];
+
+function strHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+export function ownerColor(id: OwnerId): string {
+  return OWNER_COLOR[id] ?? REGIONAL_COLORS[strHash(id) % REGIONAL_COLORS.length];
+}
 
 type Ctx = CanvasRenderingContext2D;
 type Dir = 'N' | 'E' | 'S' | 'W';
@@ -163,7 +174,7 @@ function windows(g: Ctx, typeId: string, c = '#2b3a4a'): void {
 function pennant(g: Ctx, W: number, owner: OwnerId): void {
   const x = W - 9, y = HEADROOM;
   rect(g, x, y - 9, 1, 11, '#222');
-  poly(g, [[x + 1, y - 9], [x + 8, y - 6.5], [x + 1, y - 4]], OWNER_COLOR[owner]);
+  poly(g, [[x + 1, y - 9], [x + 8, y - 6.5], [x + 1, y - 4]], ownerColor(owner));
 }
 function sawtooth(g: Ctx, b: Box, tint: string, teeth: number): void {
   const th = b.roofH / teeth;
@@ -482,7 +493,7 @@ function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: Own
 }
 
 function paintStore(g: Ctx, def: BuildingDef, W: number, H: number, owner: OwnerId): void {
-  const ownerC = OWNER_COLOR[owner];
+  const ownerC = ownerColor(owner);
   const b = building(g, W, H, shade(def.color, -0.2), '#e8dcc0');
   const yw = b.y + b.roofH; // seam; body bottom is yw + WALL
   // parapet
@@ -668,7 +679,7 @@ export function drawTruck(g: Ctx, px: number, py: number, dir: Dir, ownerId: Own
   rect(g, -7, -3, 16, 9, 'rgba(0,0,0,0.22)'); // shadow
   rect(g, -9, -4, 11, 8, cargoColor ? shade(cargoColor, -0.2) : '#8d8a84'); // cargo box
   rect(g, -8, -3, 9, 6, cargoColor ?? '#b9b5ac');
-  rect(g, 3, -4, 6, 8, OWNER_COLOR[ownerId]); // cab
+  rect(g, 3, -4, 6, 8, ownerColor(ownerId)); // cab
   rect(g, 6, -3, 2, 6, '#bfe3f2'); // windscreen
   rect(g, 8, -3, 1, 1, '#fff6c0'); rect(g, 8, 2, 1, 1, '#fff6c0');
   g.restore();
@@ -685,7 +696,7 @@ export const LOCO_STACK = { steam: { x: 8, y: 0 }, diesel: { x: -3, y: 2.5 } } a
  * tender, owner-coloured cab and brass dome. Diesel: a streamlined hood unit in owner colours.
  */
 export function drawLocomotive(g: Ctx, px: number, py: number, angle: number, ownerId: OwnerId, diesel: boolean): void {
-  const oc = OWNER_COLOR[ownerId];
+  const oc = ownerColor(ownerId);
   g.save();
   g.translate(px, py);
   g.rotate(angle);

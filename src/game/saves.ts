@@ -20,24 +20,30 @@ const META_KEY = (slot: string) => `smokestack:save:${slot}:meta`;
 // A raw GameState is ~1.7 MB (12,288 tile objects), so four slots would not fit the usual 5 MB
 // localStorage quota. Tiles are stored as small tuples instead and expanded again on load.
 const TERRAIN: Terrain[] = ['water', 'sand', 'grass', 'forest', 'hills', 'mountain'];
-const OWNERS: (OwnerId | null)[] = [null, 'player', 'rival'];
 
 type PackedTile = [number, string | 0, number, number, number, number, number, number];
 
-function packTile(t: Tile): PackedTile {
+function ownerIndex(owners: OwnerId[], id: OwnerId | null): number {
+  if (id === null) return -1;
+  let i = owners.indexOf(id);
+  if (i < 0) i = owners.push(id) - 1;
+  return i;
+}
+
+function packTile(t: Tile, owners: OwnerId[]): PackedTile {
   return [
     TERRAIN.indexOf(t.terrain),
     t.deposit ?? 0,
     (t.road ? 1 : 0) | (t.rail ? 2 : 0),
-    OWNERS.indexOf(t.roadOwner),
-    OWNERS.indexOf(t.railOwner),
+    ownerIndex(owners, t.roadOwner),
+    ownerIndex(owners, t.railOwner),
     t.buildingId ?? -1,
     t.cityId ?? -1,
     t.pollution,
   ];
 }
 
-function unpackTile(p: PackedTile): Tile {
+function unpackTile(p: PackedTile, owners: OwnerId[]): Tile {
   if (!Array.isArray(p) || p.length < 8 || !Number.isInteger(p[0]) || p[0] < 0 || p[0] >= TERRAIN.length) {
     throw new Error('bad tile');
   }
@@ -46,8 +52,8 @@ function unpackTile(p: PackedTile): Tile {
     deposit: p[1] === 0 ? null : p[1],
     road: (p[2] & 1) !== 0,
     rail: (p[2] & 2) !== 0,
-    roadOwner: OWNERS[p[3]] ?? null,
-    railOwner: OWNERS[p[4]] ?? null,
+    roadOwner: owners[p[3]] ?? null,
+    railOwner: owners[p[4]] ?? null,
     buildingId: p[5] < 0 ? null : p[5],
     cityId: p[6] < 0 ? null : p[6],
     pollution: p[7],
@@ -62,7 +68,9 @@ function errorText(e: unknown): string {
 
 /** Serializes a state to the compact save format (tiles as tuples). */
 export function packState(state: GameState): string {
-  const packed = { ...state, map: { ...state.map, tiles: state.map.tiles.map(packTile) } };
+  const owners: OwnerId[] = Object.keys(state.companies);
+  const tiles = state.map.tiles.map((t) => packTile(t, owners));
+  const packed = { ...state, map: { ...state.map, tiles, owners } };
   return serialize(packed as unknown as GameState);
 }
 
@@ -76,7 +84,10 @@ export function unpackState(raw: string): Result<GameState> {
   if (tiles.length > 0 && typeof tiles[0] !== 'object') return err('Save file is corrupted');
   if (Array.isArray(tiles[0])) {
     try {
-      state.map.tiles = (tiles as PackedTile[]).map(unpackTile);
+      const raw = (state.map as unknown as { owners?: unknown }).owners;
+      if (!Array.isArray(raw) || !raw.every((o) => typeof o === 'string')) throw new Error('bad owners');
+      state.map.tiles = (tiles as PackedTile[]).map((p) => unpackTile(p, raw as OwnerId[]));
+      delete (state.map as unknown as { owners?: unknown }).owners;
     } catch {
       return err('Save file is corrupted');
     }
