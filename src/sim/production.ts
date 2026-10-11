@@ -1,4 +1,5 @@
 import { recordSale } from './scenarios';
+import { onSale } from './contracts';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
 import { RECIPES } from '../data/recipes';
@@ -115,6 +116,7 @@ export function retailDay(ctx: SimContext): void {
       sbg[s.goodId] = (sbg[s.goodId] ?? 0) + s.revenue;
       soldByGood[s.goodId] = (soldByGood[s.goodId] ?? 0) + s.qty;
       recordSale(state, { ownerId: s.ownerId, cityId: city.id, goodId: s.goodId, qty: s.qty });
+      onSale(state, { ownerId: s.ownerId, cityId: city.id, goodId: s.goodId, qty: s.qty });
       bus.emit({
         type: 'sale',
         cityId: city.id,

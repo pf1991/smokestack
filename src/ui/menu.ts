@@ -168,6 +168,12 @@ export class MainMenu {
     }
   }
 
+  /** Shows a message in the home screen's status line (e.g. a save that failed to start). */
+  showError(message: string): void {
+    this.show('home');
+    this.status.textContent = message;
+  }
+
   private home(): HTMLElement {
     const auto = listSaves().find((s) => s.slot === 'auto');
     this.status = h('div', { class: 'mn-status' });

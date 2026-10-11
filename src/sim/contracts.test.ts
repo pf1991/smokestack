@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { GOODS } from '../data/goods';
 import { addDays } from './clock';
 import { acceptContract, contractsDay, offerContracts, onSale } from './contracts';
-import { SYSTEMS } from './systems';
 import { testCtx, testState } from './testkit';
 import type { Contract, SimContext } from './types';
 
@@ -67,16 +66,6 @@ describe('contracts', () => {
     expect(c.delivered).toBe(0);
     onSale(ctx.state, { cityId: 0, goodId: 'bread', qty: 7, ownerId: 'player' });
     expect(c.delivered).toBe(7);
-  });
-
-  it('counts sales arriving over the bus once the system has run', () => {
-    const ctx = setup();
-    const c = mk(ctx, { status: 'active' });
-    const sys = SYSTEMS.find((s) => s.id === 'contracts')!;
-    sys.onDay!(ctx);
-    sys.onDay!(ctx); // second run must not double-subscribe
-    ctx.bus.emit({ type: 'sale', cityId: 0, goodId: 'bread', qty: 4, revenue: 80, ownerId: 'player', buildingId: 1 });
-    expect(c.delivered).toBe(4);
   });
 
   it('completion pays and grows city', () => {

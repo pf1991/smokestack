@@ -253,8 +253,8 @@ export function sellVehicle(ctx: SimContext, id: number): Result {
 
 /**
  * Moves a vehicle onto another of its owner's routes of the same kind (or off all routes with
- * `null`). Restarts it at the route's first stop; never deletes the vehicle, and replaces
- * (never mutates) its path.
+ * `null`). Restarts it at the route's first stop with an empty hold (old cargo would otherwise
+ * never be unloaded on the new route); never deletes the vehicle, and replaces (never mutates) its path.
  */
 export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: number | null): Result {
   const { state } = ctx;
@@ -267,6 +267,7 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
     if (route.ownerId !== veh.ownerId) return err('Not your route');
     if (route.kind !== veh.kind) return err(veh.kind === 'train' ? 'Trains only run on rail lines' : 'Trucks cannot run rail lines');
   }
+  if (veh.routeId !== routeId) veh.cargo = {};
   veh.routeId = routeId;
   veh.stopIndex = 0;
   veh.path = [];

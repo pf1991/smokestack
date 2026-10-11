@@ -459,6 +459,13 @@ describe('assignVehicle', () => {
     expect(v.path).not.toBe(oldPath);
     expect(v.state).toBe('moving');
     expect(s.vehicles[v.id]).toBe(v);
+    // cargo from the old route would never be unloaded on the new one
+    v.cargo = { wood: 20 };
+    must(assignVehicle(ctx, v.id, a.id));
+    expect(v.cargo).toEqual({});
+    v.cargo = { wood: 5 };
+    must(assignVehicle(ctx, v.id, a.id)); // same route: keeps its load
+    expect(v.cargo).toEqual({ wood: 5 });
     must(assignVehicle(ctx, v.id, null));
     expect(v.routeId).toBeNull();
     expect(v.state).toBe('idle');

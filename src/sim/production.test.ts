@@ -152,6 +152,16 @@ describe('production', () => {
     expect(sales).toEqual([store.id]);
   });
 
+  it('retail sales count toward an active contract without any bus listener (first day after a load)', () => {
+    const { ctx } = storeCtx(10);
+    ctx.state.contracts.push({
+      id: ctx.state.nextId++, cityId: 0, goodId: 'furniture', qty: 100, delivered: 0,
+      deadline: { ...ctx.state.date, year: ctx.state.date.year + 1 }, reward: 5000, status: 'active',
+    });
+    retailDay(ctx);
+    expect(ctx.state.contracts[0].delivered).toBe(4);
+  });
+
   it('store is ok on a day it sells and idle on a day it does not', () => {
     const { ctx, store } = storeCtx(10);
     productionDay(ctx);

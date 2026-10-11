@@ -1,5 +1,4 @@
 import { recordContractDone } from './scenarios';
-import type { EventBus } from '../core/events';
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { GOODS } from '../data/goods';
@@ -19,12 +18,6 @@ export const CONTRACT_DAYS = 120;
 
 /** Phrases per good for the mayor's plea headline. */
 const PLEAS: Record<string, string> = { bread: 'bread' };
-
-/**
- * Lazily-subscribed bus listeners. Systems have no init hook, so the `contracts` system subscribes to
- * `sale` events on its first `onDay` for a given bus. Sales before that first day are not counted.
- */
-const subscribed = new WeakMap<EventBus, true>();
 
 export interface SaleLike {
   cityId: number;
@@ -135,11 +128,8 @@ export function contractsDay(ctx: SimContext): void {
 
 export const contractsSystem = {
   id: 'contracts',
+  // deliveries are counted by retailDay calling onSale directly, so no bus listener is needed
   onDay(ctx: SimContext): void {
-    if (!subscribed.has(ctx.bus)) {
-      subscribed.set(ctx.bus, true);
-      ctx.bus.on('sale', (e) => onSale(ctx.state, e));
-    }
     contractsDay(ctx);
   },
 };

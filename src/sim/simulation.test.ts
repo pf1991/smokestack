@@ -244,6 +244,8 @@ describe('saves', () => {
     expect(deserialize(variant((o) => delete o.map))).toEqual(incomplete);
     expect(deserialize(variant((o) => ((o.map as Record<string, unknown>).tiles = 'x')))).toEqual(incomplete);
     expect(deserialize(variant((o) => delete (o.companies as Record<string, unknown>).player))).toEqual(incomplete);
+    expect(deserialize(variant((o) => delete (o.companies as Record<string, unknown>).rival))).toEqual(incomplete);
+    expect(deserialize(variant((o) => ((o.map as Record<string, unknown>).tiles = [])))).toEqual(incomplete);
     expect(deserialize(variant((o) => delete o.date))).toEqual(incomplete);
     expect(deserialize(variant((o) => ((o.date as Record<string, unknown>).year = '1900')))).toEqual(incomplete);
     expect(deserialize(variant((o) => (o.buildings = null)))).toEqual(incomplete);

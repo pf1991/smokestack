@@ -55,8 +55,13 @@ export class App implements PauseHost {
     return tutorial;
   }
 
+  /** Starts a loaded save; if it still breaks the game while starting, falls back to the menu with a message. */
   startLoaded(state: GameState): void {
-    this.start(state);
+    try {
+      this.start(state);
+    } catch {
+      this.showMenu().showError('Save file is corrupted');
+    }
   }
 
   /** Builds a fresh controller around `state`; `setup` runs after it is loaded (debug hooks). */
