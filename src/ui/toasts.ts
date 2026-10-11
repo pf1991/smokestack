@@ -21,10 +21,20 @@ export const Toasts = {
 
     const off = bus.on('toast', (e) => {
       const el = h('div', { class: `toast ${e.tone}` }, e.message);
+      if (e.action) {
+        const { run, label } = e.action;
+        const btn = h('button', { class: 'toast-action', onClick: () => {
+          run();
+          dismiss(el);
+        } }, label);
+        el.append(' ', btn);
+      }
       container.appendChild(el);
-      timers.set(el, setTimeout(() => dismiss(el), LIFETIME_MS));
+      timers.set(el, setTimeout(() => dismiss(el), e.duration ?? LIFETIME_MS));
+      if (e.action) el.dataset.keep = '1';
       while (container.childElementCount > MAX_VISIBLE) {
-        const oldest = container.firstElementChild;
+        // toasts carrying an action (Undo) outlive plain ones when the stack is full
+        const oldest = (Array.from(container.children).find((c) => (c as HTMLElement).dataset.keep !== '1') ?? container.firstElementChild) as Element | null;
         if (!(oldest instanceof HTMLElement)) break;
         dismiss(oldest);
       }

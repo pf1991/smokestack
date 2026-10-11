@@ -15,6 +15,8 @@ import type { Speed } from './sim/types';
  *  - `hour=<0-23>`   advance the clock to that hour on load (pauses unless `speed` is also given)
  *  - `speed=<0|1|2|4|8>` starting speed
  *  - `panel=<id>`      open a panel (e.g. `routes`) on load
+ *  - `openroute=1` (dev) open the routes window on the first player route
+ *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
  *  - `scenario=<id>`   start a scenario
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
@@ -78,6 +80,13 @@ if (debugStart) {
       g.centerOn(focus);
     }
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
+    if (import.meta.env.DEV && params.get('openroute') === '1') {
+      const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');
+      if (r) g.openPanel('routes', r.id);
+    }
+    if (import.meta.env.DEV && params.get('send') === '1') {
+      window.setTimeout(() => document.querySelector<HTMLElement>('[data-act="send-goods"]')?.click(), 5500);
+    }
     if (params.get('tutorial') === '1') app.showTutorial(g);
     if (notice) g.ctx.bus.emit({ type: 'toast', ...notice });
     if (import.meta.env.DEV && params.get('pause') === '1') g.onPause?.();

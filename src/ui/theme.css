@@ -180,3 +180,15 @@ input[type='text'] {
 .toast.bad {
   border-left-color: var(--bad);
 }
+
+.toast-action {
+  margin-left: 8px;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+  padding: 0 8px;
+}

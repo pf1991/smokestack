@@ -193,3 +193,37 @@
   background: linear-gradient(180deg, #e06a5a, var(--bad));
   color: #fff;
 }
+
+.insp-route-link {
+  font: inherit;
+  color: var(--paper);
+  background: transparent;
+  border: 0;
+  padding: 1px 0;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline dotted;
+}
+
+.insp-route-link:hover {
+  color: var(--brass-light);
+}
+
+.insp-send {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.insp-route-sel {
+  font: inherit;
+  color: var(--paper);
+  background: var(--walnut-light);
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+  max-width: 180px;
+}
+
+.insp-follow.active {
+  background: var(--brass-light);
+  color: var(--walnut);
+}

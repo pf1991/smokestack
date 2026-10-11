@@ -5,12 +5,16 @@ import { accessTiles, buildRoad, demolishBuilding, lPath, placeBuilding, removeR
 import { findPath, roadPassable } from './pathfinding';
 import { testCtx, testState } from './testkit';
 import type { Building, GameState, SimContext, Terrain, Vehicle } from './types';
+import { deserialize, serialize } from './simulation';
 import {
+  assignVehicle,
   buyTruck,
   createRoute,
   deleteRoute,
+  insertStop,
   sellVehicle,
   TRUCK,
+  tripsLast30,
   updateRoute,
   vehicleMaintenanceMonth,
   vehiclesTick,
@@ -437,5 +441,81 @@ describe('vehiclesTick', () => {
     tick(ctx);
     expect(v.state).toBe('idle');
     expect(v.stuckNotified).toBe(false);
+  });
+});
+
+describe('assignVehicle', () => {
+  it('assignVehicle moves a truck between routes', () => {
+    const { s, ctx, camp, mill, camp2 } = world();
+    const a = woodRoute(ctx, camp, mill);
+    const b = woodRoute(ctx, camp2, mill);
+    const v = must(buyTruck(ctx, 'player', a.id));
+    tick(ctx, 5);
+    const oldPath = v.path;
+    must(assignVehicle(ctx, v.id, b.id));
+    expect(v.routeId).toBe(b.id);
+    expect(v.stopIndex).toBe(0);
+    expect(v.path).toEqual([]);
+    expect(v.path).not.toBe(oldPath);
+    expect(v.state).toBe('moving');
+    expect(s.vehicles[v.id]).toBe(v);
+    must(assignVehicle(ctx, v.id, null));
+    expect(v.routeId).toBeNull();
+    expect(v.state).toBe('idle');
+    tick(ctx, 2);
+    expect(v.state).toBe('idle');
+  });
+
+  it('assignVehicle rejects wrong kind / foreign route', () => {
+    const { s, ctx, camp, mill } = world();
+    const a = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', a.id));
+    s.routes[900] = { id: 900, ownerId: 'rival', name: 'x', color: '#000', stops: [], kind: 'truck' };
+    s.routes[901] = { id: 901, ownerId: 'player', name: 'line', color: '#000', stops: [], kind: 'train' };
+    expect(assignVehicle(ctx, 999, a.id)).toEqual({ ok: false, error: 'No such vehicle' });
+    expect(assignVehicle(ctx, v.id, 12345)).toEqual({ ok: false, error: 'No such route' });
+    expect(assignVehicle(ctx, v.id, 900)).toEqual({ ok: false, error: 'Not your route' });
+    expect(assignVehicle(ctx, v.id, 901)).toEqual({ ok: false, error: 'Trucks cannot run rail lines' });
+    s.vehicles[v.id].kind = 'train';
+    expect(assignVehicle(ctx, v.id, a.id)).toEqual({ ok: false, error: 'Trains only run on rail lines' });
+    expect(v.routeId).toBe(a.id);
+  });
+
+  it('old save without trips30 loads', () => {
+    const { s, ctx, camp, mill } = world();
+    const v = must(buyTruck(ctx, 'player', woodRoute(ctx, camp, mill).id));
+    delete v.trips30;
+    const back = must(deserialize(serialize(s)));
+    expect(tripsLast30(back, back.vehicles[v.id])).toBe(0);
+  });
+
+  it('counts completed unloads over the last 30 days only', () => {
+    const { s, ctx, camp, mill } = world();
+    camp.output.wood = 100;
+    const v = must(buyTruck(ctx, 'player', woodRoute(ctx, camp, mill).id));
+    tickUntil(ctx, () => tripsLast30(s, v) === 1, 400);
+    expect(JSON.parse(JSON.stringify(v)).trips30).toHaveLength(1);
+    s.tick += 30 * 24 + 1;
+    expect(tripsLast30(s, v)).toBe(0);
+  });
+});
+describe('insertStop', () => {
+  it('keeps vehicles heading for their stop when a stop is inserted before it', () => {
+    const { s, ctx, camp, mill, camp2 } = world();
+    const r = woodRoute(ctx, camp, mill);
+    const v = must(buyTruck(ctx, 'player', r.id));
+    v.stopIndex = 1;
+    tick(ctx, 3);
+    const path = v.path;
+    must(insertStop(ctx, r.id, 0, { buildingId: camp2.id, load: ['wood'], unload: [] }));
+    expect(s.routes[r.id].stops.map((x) => x.buildingId)).toEqual([camp.id, camp2.id, mill.id]);
+    expect(v.stopIndex).toBe(2);
+    expect(s.routes[r.id].stops[v.stopIndex].buildingId).toBe(mill.id);
+    expect(v.path).toBe(path); // same target building: path untouched
+    const w = must(buyTruck(ctx, 'player', r.id));
+    expect(w.stopIndex).toBe(0);
+    must(insertStop(ctx, r.id, 0, { buildingId: mill.id, load: [], unload: [] }));
+    expect(w.stopIndex).toBe(0);
+    expect(insertStop(ctx, r.id, 9, { buildingId: mill.id, load: [], unload: [] }).ok).toBe(false);
   });
 });

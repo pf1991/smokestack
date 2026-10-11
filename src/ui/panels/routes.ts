@@ -3,19 +3,17 @@ import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import { isTyping } from '../../game/input';
 import { acceptedGoods, appendStop, legLength, offeredGoods, routeThroughput } from '../../sim/routeHelpers';
-import { buyTrain, STATION_TYPE, TRAIN } from '../../sim/rail';
 import type { Building, GameState, GoodId, Route, RouteStop } from '../../sim/types';
-import { buyTruck, createRoute, deleteRoute, ROUTE_COLORS, sellVehicle, TRUCK, updateRoute, VEHICLE_KINDS } from '../../sim/vehicles';
+import { createRoute, deleteRoute, insertStop, ROUTE_COLORS, sellVehicle, updateRoute } from '../../sim/vehicles';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
+import { buildingIcon, buildingName, KIND_INFO, type Kind, stopAccess, stopPickSet, stopProblem, stopSummary } from './routeActions';
 import './routes.css';
 
 /** The slice of the GameController this panel needs (lets tests use a small stub). */
 type Host = Pick<GameController, 'ctx' | 'tools' | 'renderer' | 'setTool' | 'onToolChange'>;
-
-type Kind = Route['kind'];
 
 interface Draft {
   kind: Kind;
@@ -24,24 +22,14 @@ interface Draft {
   buyFirst: boolean;
 }
 
-const CATEGORY_ICON = { extractor: '⛏️', factory: '🏭', retail: '🏪', logistics: '📦' } as const;
-
-const buildingName = (b: Building | undefined): string => (b ? (BUILDINGS[b.typeId]?.name ?? b.typeId) : 'Missing building');
-const buildingIcon = (b: Building | undefined): string => (b ? (CATEGORY_ICON[BUILDINGS[b.typeId]?.category] ?? '🏭') : '❔');
+/** Adding stops to an existing route: new stops go after index `after`. */
+interface Adding {
+  routeId: number;
+  after: number;
+}
 
 function routeTrucks(state: GameState, routeId: number) {
   return Object.values(state.vehicles).filter((v) => v.routeId === routeId && v.ownerId === 'player');
-}
-
-/** Words, icon and price for the vehicles of a route kind. */
-const KIND_INFO = {
-  truck: { one: 'truck', many: 'trucks', icon: '🚚', cost: TRUCK.cost, way: 'road', buy: buyTruck },
-  train: { one: 'train', many: 'trains', icon: '🚂', cost: TRAIN.cost, way: 'track', buy: buyTrain },
-} as const;
-
-/** Access tiles for a stop of a route kind (road for trucks, rail for trains). */
-function stopAccess(state: GameState, b: Building, kind: Kind) {
-  return VEHICLE_KINDS[kind]?.access(state, b) ?? [];
 }
 
 /** Human-readable problems with a route, most serious first. */
@@ -76,6 +64,9 @@ class RoutesPanel {
   private readonly root = h('div', { class: 'rt' });
   private selected: number | null = null;
   private draft: Draft | null = null;
+  private adding: Adding | null = null;
+  private pickFn: ((id: number) => void) | null = null;
+  private sig = '';
   private confirmDelete: number | null = null;
   private confirmTimer = 0;
   private readonly offs: (() => void)[] = [];
@@ -84,7 +75,9 @@ class RoutesPanel {
   constructor(private readonly game: Host) {
     createWindow({ id: 'routes', title: 'Routes', content: this.root, width: 440, onClose: () => this.dispose() });
     this.offs.push(game.onToolChange((t) => {
-      if (t.kind !== 'pickStop' && this.draft) this.endDraft(false);
+      if (!this.draft && !this.adding) return;
+      // Esc / another tool, or another feature took over pick mode
+      if (t.kind !== 'pickStop' || this.game.tools.onPick !== this.pickFn) this.leavePick(false);
     }));
     const onKey = (e: KeyboardEvent) => {
       if (this.draft && e.key === 'Enter' && !isTyping(e.target)) {
@@ -94,9 +87,11 @@ class RoutesPanel {
     };
     window.addEventListener('keydown', onKey);
     this.offs.push(() => window.removeEventListener('keydown', onKey));
+    // Rebuild only when something structural changed, so a click is never swallowed by a refresh.
     this.timer = window.setInterval(() => {
-      // never rebuild under a focused text field
-      if (!this.root.contains(document.activeElement) || !isTyping(document.activeElement)) this.render();
+      if (this.draft) return;
+      if (this.root.contains(document.activeElement) && isTyping(document.activeElement)) return;
+      if (this.signature() !== this.sig) this.render();
     }, 1000);
     this.render();
   }
@@ -114,7 +109,11 @@ class RoutesPanel {
   }
 
   private dispose(): void {
-    if (this.draft) this.endDraft(false);
+    try {
+      this.leavePick(true, false); // return to inspect if our pick handler was still active
+    } catch {
+      /* the controller is being torn down */
+    }
     this.game.renderer.setSelection(null);
     for (const off of this.offs) off();
     clearInterval(this.timer);
@@ -125,12 +124,27 @@ class RoutesPanel {
   // ------------------------------------------------------------------ draft
 
   private startDraft(kind: Kind = 'truck'): void {
+    this.leavePick(false, false);
     const n = Object.keys(this.state.routes).length + 1;
     this.draft = { kind, stops: [], name: kind === 'train' ? `Line ${n}` : `Route ${n}`, buyFirst: true };
     this.selected = null;
-    this.game.tools.onPick = (id) => this.pick(id);
-    this.game.setTool({ kind: 'pickStop', routeId: null });
+    this.enterPick((id) => this.pick(id));
+    this.render();
+  }
+
+  private enterPick(fn: (id: number) => void): void {
+    this.pickFn = fn;
+    this.game.tools.onPick = fn;
+    this.game.setTool({ kind: 'pickStop', routeId: this.adding?.routeId ?? null });
     this.syncSelection();
+  }
+
+  /** Starts appending / inserting stops on an existing route (new stops go after index `after`). */
+  private startAdding(route: Route, after: number): void {
+    this.leavePick(false, false);
+    this.selected = route.id;
+    this.adding = { routeId: route.id, after };
+    this.enterPick((id) => this.pickForRoute(id));
     this.render();
   }
 
@@ -138,21 +152,51 @@ class RoutesPanel {
     const d = this.draft;
     const b = this.state.buildings[id];
     if (!d || !b) return;
-    if (b.ownerId !== 'player') return this.toast('Not your building');
-    if (d.kind === 'train') {
-      if (b.typeId !== STATION_TYPE) return this.toast('Trains only stop at train stations');
-      if (stopAccess(this.state, b, 'train').length === 0) return this.toast(`${buildingName(b)} has no rail access`);
-    } else if (stopAccess(this.state, b, 'truck').length === 0) return this.toast(`${buildingName(b)} has no road access`);
+    const bad = stopProblem(this.state, b, d.kind);
+    if (bad) return this.toast(bad);
     if (d.stops[d.stops.length - 1]?.buildingId === id) return;
     d.stops = appendStop(this.state, d.stops, id);
     this.syncSelection();
     this.render();
   }
 
+  private pickForRoute(id: number): void {
+    const a = this.adding;
+    const route = a ? this.state.routes[a.routeId] : undefined;
+    const b = this.state.buildings[id];
+    if (!a || !route || !b) return;
+    const bad = stopProblem(this.state, b, route.kind);
+    if (bad) return this.toast(bad);
+    const at = Math.min(a.after, route.stops.length - 1);
+    if (route.stops[at]?.buildingId === id) return;
+    // Pre-fill against ALL other stops: rotate so the insert point is last, append, rotate back.
+    const k = route.stops.length - (at + 1);
+    const rotated = [...route.stops.slice(at + 1), ...route.stops.slice(0, at + 1)];
+    const filled = appendStop(this.state, rotated, id);
+    const created = filled[filled.length - 1];
+    const old = filled.slice(0, -1);
+    const retuned = [...old.slice(k), ...old.slice(0, k)];
+    const r = insertStop(this.ctx, route.id, at, created, retuned);
+    if (!r.ok) return this.toast(r.error);
+    a.after = at + 1;
+    this.syncSelection();
+    this.render();
+  }
+
   private syncSelection(): void {
     const d = this.draft;
+    const a = this.adding;
+    const route = a ? this.state.routes[a.routeId] : undefined;
     if (d) {
-      this.game.renderer.setSelection({ draftRoute: { color: ROUTE_COLORS[0], stops: d.stops } });
+      this.game.renderer.setSelection({
+        draftRoute: { color: ROUTE_COLORS[0], stops: d.stops },
+        pick: stopPickSet(this.state, d.kind, d.stops[d.stops.length - 1]?.buildingId ?? null),
+      });
+    } else if (a && route) {
+      this.game.renderer.setSelection({
+        routeId: route.id,
+        pick: stopPickSet(this.state, route.kind, route.stops[a.after]?.buildingId ?? null),
+      });
     } else if (this.selected !== null && this.state.routes[this.selected]) {
       this.game.renderer.setSelection({ routeId: this.selected });
     } else {
@@ -161,12 +205,22 @@ class RoutesPanel {
   }
 
   /** Leaves pick mode. `switchTool` also returns to the inspect tool (not needed when the tool already changed). */
-  private endDraft(switchTool: boolean): void {
+  private leavePick(switchTool: boolean, redraw = true): void {
+    const was = this.draft !== null || this.adding !== null;
     this.draft = null;
-    this.game.tools.onPick = null;
+    this.adding = null;
+    if (this.game.tools.onPick === this.pickFn) this.game.tools.onPick = null;
+    this.pickFn = null;
+    if (!was) return;
     if (switchTool) this.game.setTool({ kind: 'inspect' });
-    this.syncSelection();
-    this.render();
+    if (redraw) {
+      this.syncSelection();
+      this.render();
+    }
+  }
+
+  private endDraft(switchTool: boolean): void {
+    this.leavePick(switchTool);
   }
 
   private saveDraft(): void {
@@ -189,7 +243,18 @@ class RoutesPanel {
 
   // ------------------------------------------------------------------ actions
 
+  /** Opens the window on this route (from the building inspector). */
+  focusRoute(id: number): void {
+    if (this.draft || !this.state.routes[id]) return;
+    this.leavePick(true, false);
+    this.selected = id;
+    this.confirmDelete = null;
+    this.syncSelection();
+    this.render();
+  }
+
   private select(id: number): void {
+    if (this.adding) this.leavePick(true, false);
     this.selected = this.selected === id ? null : id;
     this.confirmDelete = null;
     this.syncSelection();
@@ -209,9 +274,11 @@ class RoutesPanel {
   }
 
   private truckMinus(route: Route): void {
+    // sell an idle vehicle first, then a stuck one, then the newest
     const trucks = routeTrucks(this.state, route.id);
-    const last = trucks[trucks.length - 1];
-    if (last) sellVehicle(this.ctx, last.id);
+    const pickBy = (st: string) => trucks.filter((v) => v.state === st).pop();
+    const victim = pickBy('idle') ?? pickBy('stuck') ?? trucks[trucks.length - 1];
+    if (victim) sellVehicle(this.ctx, victim.id);
     this.render();
   }
 
@@ -239,8 +306,18 @@ class RoutesPanel {
   // ------------------------------------------------------------------ views
 
   private render(): void {
+    this.sig = this.signature();
     const body = this.draft ? this.draftView(this.draft) : this.listView();
     this.root.replaceChildren(body);
+  }
+
+  /** Everything the list view shows; the window is rebuilt only when this changes. */
+  private signature(): string {
+    const state = this.state;
+    const routes = Object.values(state.routes).filter((r) => r.ownerId === 'player');
+    const parts = routes.map((r) =>
+      [r.id, r.name, r.color, r.kind, JSON.stringify(r.stops), routeTrucks(state, r.id).length, Math.round(routeThroughput(state, r.id)), routeWarnings(state, r).join(';')].join('|'));
+    return [this.selected, this.confirmDelete, this.adding ? `${this.adding.routeId}:${this.adding.after}` : '', ...parts].join('\n');
   }
 
   private listView(): HTMLElement {
@@ -285,7 +362,21 @@ class RoutesPanel {
       },
     });
     const head = h('div', { class: 'rt-head', onClick: () => this.select(route.id) },
-      h('span', { class: 'rt-swatch', style: { background: route.color } }),
+      h('button', {
+        class: 'rt-swatch',
+        'data-act': 'color',
+        title: 'Click to change the route colour',
+        'aria-label': 'Change route colour',
+        style: { background: route.color },
+        onClick: (e: Event) => {
+          e.stopPropagation();
+          const i = ROUTE_COLORS.indexOf(route.color);
+          const r = updateRoute(this.ctx, route.id, { color: ROUTE_COLORS[(i + 1) % ROUTE_COLORS.length] });
+          if (!r.ok) this.toast(r.error);
+          this.syncSelection();
+          this.render();
+        },
+      }),
       h('div', { class: 'rt-title' },
         nameInput,
         h('div', { class: 'rt-stops-line', title: names }, names || 'no stops')),
@@ -308,10 +399,21 @@ class RoutesPanel {
       'div',
       { class: 'rt-detail' },
       route.stops.map((s, i) =>
-        this.stopRow(s, i, route.stops.length, (next) => this.editStops(route, next), route.stops)),
+        this.stopRow(s, i, route.stops.length, (next) => this.editStops(route, next), route.stops, route)),
+      this.adding?.routeId === route.id
+        ? h('div', { class: 'rt-adding' },
+          h('span', null, this.adding.after < route.stops.length - 1
+            ? `Click a green building to insert after stop ${this.adding.after + 1}.`
+            : 'Click green buildings on the map to add stops.'),
+          h('button', { class: 'btn', 'data-act': 'add-done', onClick: () => this.leavePick(true) }, 'Done adding'))
+        : h('button', {
+          class: 'btn rt-add',
+          'data-act': 'add-stop',
+          onClick: () => this.startAdding(route, route.stops.length - 1),
+        }, '+ Add stop'),
       h('div', { class: 'rt-actions' },
         h('span', { class: 'rt-trucks' },
-          h('button', { class: 'btn rt-sq', 'data-act': 'truck-minus', title: `Sell last ${info.one} (50% refund)`, disabled: trucks === 0, onClick: () => this.truckMinus(route) }, '−'),
+          h('button', { class: 'btn rt-sq', 'data-act': 'truck-minus', title: `Sell an idle ${info.one} first (50% refund)`, disabled: trucks === 0, onClick: () => this.truckMinus(route) }, '−'),
           ` ${trucks} ${trucks === 1 ? info.one : info.many} `,
           h('button', { class: 'btn rt-sq', 'data-act': 'truck-plus', title: `Buy a ${info.one} (${formatMoney(info.cost)})`, onClick: () => this.truckPlus(route) }, '+'),
           h('small', null, ` ${formatMoney(info.cost)} each`)),
@@ -393,6 +495,7 @@ class RoutesPanel {
     n: number,
     commit: (stops: RouteStop[]) => void,
     stops: RouteStop[],
+    route?: Route,
   ): HTMLElement {
     const b = this.state.buildings[stop.buildingId];
     const set = (patch: Partial<RouteStop>) =>
@@ -414,9 +517,11 @@ class RoutesPanel {
         h('span', { class: 'rt-bicon' }, buildingIcon(b)),
         h('span', { class: 'rt-bname' }, buildingName(b)),
         h('span', { class: 'rt-ctl' },
+          route && h('button', { class: 'rt-mini', 'data-act': 'insert', title: 'Insert a stop after this one', onClick: () => this.startAdding(route, i) }, '＋'),
           h('button', { class: 'rt-mini', 'data-act': 'up', title: 'Move earlier', disabled: i === 0, onClick: () => move(i - 1) }, '↑'),
           h('button', { class: 'rt-mini', 'data-act': 'down', title: 'Move later', disabled: i === n - 1, onClick: () => move(i + 1) }, '↓'),
           h('button', { class: 'rt-mini', 'data-act': 'remove', title: 'Remove stop', onClick: () => commit(stops.filter((_, j) => j !== i).map((s) => ({ ...s }))) }, '✕'))),
+      h('div', { class: 'rt-summary' }, stopSummary(stop)),
       this.chips('load', stop, loadGoods, (load) => set({ load })),
       this.chips('unload', stop, unloadGoods, (unload) => set({ unload })),
     );
@@ -427,11 +532,12 @@ let current: RoutesPanel | null = null;
 
 export const routesPanel: PanelDef = {
   id: 'routes',
-  open(game: GameController) {
+  open(game: GameController, arg?: unknown) {
     if (current) {
       createWindow({ id: 'routes', title: 'Routes', content: h('div') }); // raises the existing window
-      return;
+    } else {
+      current = new RoutesPanel(game);
     }
-    current = new RoutesPanel(game);
+    if (typeof arg === 'number') current.focusRoute(arg);
   },
 };

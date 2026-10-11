@@ -1,0 +1,20 @@
+/* Fleet manager window. */
+.fl { font-size: 13px; min-width: 520px; }
+.fl-summary { color: var(--paper-shade); margin-bottom: 6px; }
+.fl-filters { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+.fl-filter { padding: 2px 9px; }
+.fl-filter.active { background: var(--brass-light); color: var(--walnut); }
+.fl-body { max-height: 52vh; overflow-y: auto; }
+.fl-row { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px minmax(60px, 1fr) 34px auto; gap: 6px; align-items: center; padding: 4px 6px; background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; margin-bottom: 4px; }
+.fl-row.problem { border-color: #f0a35a; }
+.fl-route { font: inherit; min-width: 0; width: 100%; color: var(--paper); background: var(--walnut-light); border: 1px solid var(--brass-dark); border-radius: 2px; padding: 2px; }
+.fl-status.st-stuck { color: #f0a35a; font-weight: bold; }
+.fl-status.st-idle { color: var(--paper-shade); font-style: italic; }
+.fl-trips { text-align: right; }
+.fl-head { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px minmax(60px, 1fr) 34px auto; gap: 6px; padding: 0 6px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--paper-shade); }
+.fl-head span:nth-child(5) { text-align: right; }
+.fl-head span:last-child { width: 100px; }
+.fl-actions { display: flex; gap: 3px; }
+.fl-btn { padding: 1px 7px; font-size: 12px; }
+.fl-sell { background: var(--walnut-light); color: var(--paper); }
+.fl-empty { color: var(--paper-shade); font-style: italic; margin: 6px 0; }

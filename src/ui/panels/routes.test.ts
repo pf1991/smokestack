@@ -162,4 +162,174 @@ describe('routes panel', () => {
     (document.querySelector('.window-close') as HTMLElement).click();
     expect(game.renderer.setSelection).toHaveBeenLastCalledWith(null);
   });
+
+  it('route editor adds a stop to an existing route', () => {
+    const { s, ctx, camp, mill, game, host } = setup();
+    const mill2 = must(placeBuilding(ctx, 'player', 'sawmill', { x: 16, y: 7 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 15, y: 10 }, { x: 18, y: 10 })));
+    const r = must(createRoute(ctx, 'player', 'Wood run', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    PANELS.routes.open(host);
+    click('[data-route="' + r.id + '"] .rt-head');
+    click('[data-act="add-stop"]');
+    expect(game.setTool).toHaveBeenLastCalledWith({ kind: 'pickStop', routeId: r.id });
+    expect(game.renderer.setSelection).toHaveBeenLastCalledWith(
+      expect.objectContaining({ routeId: r.id, pick: expect.objectContaining({ valid: expect.arrayContaining([camp.id, mill2.id]) }) }),
+    );
+    game.tools.onPick!(mill2.id);
+    expect(s.routes[r.id].stops.map((x) => x.buildingId)).toEqual([camp.id, mill.id, mill2.id]);
+    expect(win().textContent).toContain('loads');
+    click('[data-act="add-done"]');
+    expect(game.tools.onPick).toBeNull();
+    // insert after the first stop
+    click('.rt-stop[data-i="0"] [data-act="insert"]');
+    game.tools.onPick!(mill2.id);
+    expect(s.routes[r.id].stops.map((x) => x.buildingId)).toEqual([camp.id, mill2.id, mill.id, mill2.id]);
+  });
+
+  it('minus sells an idle vehicle first', () => {
+    const { s, ctx, camp, mill, host } = setup();
+    const r = must(createRoute(ctx, 'player', 'Wood run', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    const a = must(buyTruck(ctx, 'player', r.id));
+    const b = must(buyTruck(ctx, 'player', r.id));
+    const c = must(buyTruck(ctx, 'player', r.id));
+    a.state = 'idle';
+    c.state = 'stuck';
+    PANELS.routes.open(host);
+    click('[data-route="' + r.id + '"] .rt-head');
+    click('[data-act="truck-minus"]');
+    expect(Object.keys(s.vehicles).map(Number).sort()).toEqual([b.id, c.id]);
+    click('[data-act="truck-minus"]');
+    expect(Object.keys(s.vehicles).map(Number)).toEqual([b.id]);
+  });
+
+  it('does not rebuild the window when nothing changed, and swatch cycles the colour', () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ctx, camp, mill, host } = setup();
+      const r = must(createRoute(ctx, 'player', 'Wood run', [
+        { buildingId: camp.id, load: ['wood'], unload: [] },
+        { buildingId: mill.id, load: [], unload: ['wood'] },
+      ]));
+      PANELS.routes.open(host);
+      click('[data-route="' + r.id + '"] .rt-head');
+      const chip = win().querySelector('[data-chip="load:wood"]');
+      vi.advanceTimersByTime(3000);
+      expect(win().querySelector('[data-chip="load:wood"]')).toBe(chip);
+      const before = s.routes[r.id].color;
+      click('[data-act="color"]');
+      expect(s.routes[r.id].color).not.toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('send goods to creates a 2-stop route with a truck, and Undo refunds it', () => {
+    const { s, ctx, camp, mill, game, host } = setup();
+    const toasts: { message: string; action?: { label: string; run: () => void } }[] = [];
+    ctx.bus.on('toast', (e) => toasts.push(e));
+    const money = s.companies.player.money;
+    PANELS.building.open(host, camp.id);
+    click('[data-act="send-goods"]');
+    expect(game.setTool).toHaveBeenLastCalledWith({ kind: 'pickStop', routeId: null });
+    expect(game.renderer.setSelection).toHaveBeenLastCalledWith(
+      expect.objectContaining({ buildingId: camp.id, pick: expect.objectContaining({ valid: [mill.id] }) }),
+    );
+    game.tools.onPick!(mill.id);
+    const routes = Object.values(s.routes);
+    expect(routes).toHaveLength(1);
+    expect(routes[0].name).toBe('Lumber Camp → Sawmill');
+    expect(routes[0].stops[0].load).toEqual(['wood']);
+    expect(routes[0].stops[1].unload).toEqual(['wood']);
+    expect(Object.values(s.vehicles)).toHaveLength(1);
+    expect(s.companies.player.money).toBe(money - TRUCK.cost);
+    expect(game.tools.onPick).toBeNull();
+    const undo = toasts.find((t) => t.action?.label === 'Undo')!;
+    undo.action!.run();
+    expect(Object.keys(s.routes)).toHaveLength(0);
+    expect(Object.keys(s.vehicles)).toHaveLength(0);
+    expect(s.companies.player.money).toBe(money);
+  });
+
+  it('insert pre-fills the inserted stop against all other stops', () => {
+    const { s, ctx, camp, mill, game, host } = setup();
+    for (let y = 8; y < 10; y++) for (let x = 20; x < 22; x++) s.map.tiles[y * s.map.width + x].terrain = 'forest';
+    const camp2 = must(placeBuilding(ctx, 'player', 'lumber_camp', { x: 20, y: 8 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 15, y: 10 }, { x: 21, y: 10 })));
+    const r = must(createRoute(ctx, 'player', 'Wood run', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    PANELS.routes.open(host);
+    click('[data-route="' + r.id + '"] .rt-head');
+    click('.rt-stop[data-i="0"] [data-act="insert"]');
+    game.tools.onPick!(camp2.id);
+    const stops = s.routes[r.id].stops;
+    expect(stops.map((x) => x.buildingId)).toEqual([camp.id, camp2.id, mill.id]);
+    expect(stops[1].load).toEqual(['wood']);
+    expect(stops[1].unload).toEqual([]);
+    expect(stops[2].unload).toEqual(['wood']);
+  });
+
+  it('collapsing the edited route leaves pick mode; closing the window mid-pick restores inspect', () => {
+    const { ctx, camp, mill, game, host } = setup();
+    const r = must(createRoute(ctx, 'player', 'Wood run', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    PANELS.routes.open(host);
+    click('[data-route="' + r.id + '"] .rt-head');
+    click('[data-act="add-stop"]');
+    expect(game.tools.onPick).not.toBeNull();
+    click('[data-route="' + r.id + '"] .rt-head');
+    expect(game.tools.onPick).toBeNull();
+    expect(game.setTool).toHaveBeenLastCalledWith({ kind: 'inspect' });
+    click('[data-route="' + r.id + '"] .rt-head');
+    click('[data-act="add-stop"]');
+    game.setTool.mockClear();
+    (document.querySelector('.window-close') as HTMLElement).click();
+    expect(game.tools.onPick).toBeNull();
+    expect(game.setTool).toHaveBeenCalledWith({ kind: 'inspect' });
+  });
+
+  it('send goods clears the pick outlines on success; Undo is refused when late or changed', () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ctx, camp, mill, game, host } = setup();
+      const toasts: { action?: { label: string; run: () => void }; duration?: number; message: string }[] = [];
+      ctx.bus.on('toast', (e) => toasts.push(e));
+      PANELS.building.open(host, camp.id);
+      click('[data-act="send-goods"]');
+      game.tools.onPick!(mill.id);
+      const last = game.renderer.setSelection.mock.calls.at(-1)![0];
+      expect(last.pick).toBeUndefined();
+      const undoToast = toasts.find((t) => t.action)!;
+      expect(undoToast.duration).toBeGreaterThanOrEqual(10_000);
+      vi.advanceTimersByTime(11_000);
+      undoToast.action!.run();
+      expect(Object.keys(s.routes)).toHaveLength(1);
+      expect(toasts.at(-1)!.message).toContain('Too late');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Undo is refused when the route changed', () => {
+    const { s, ctx, camp, mill, game, host } = setup();
+    const toasts: { action?: { label: string; run: () => void }; message: string }[] = [];
+    ctx.bus.on('toast', (e) => toasts.push(e));
+    PANELS.building.open(host, camp.id);
+    click('[data-act="send-goods"]');
+    game.tools.onPick!(mill.id);
+    const r = Object.values(s.routes)[0];
+    must(buyTruck(ctx, 'player', r.id));
+    toasts.find((t) => t.action)!.action!.run();
+    expect(Object.keys(s.routes)).toHaveLength(1);
+    expect(toasts.at(-1)!.message).toContain('changed');
+  });
 });
