@@ -862,6 +862,37 @@ src/game/controller.ts | input.ts | toolController.ts | saves.ts
 
 ---
 
+### Task 29b: Route & fleet usability (from playtest feedback)
+
+Playtest feedback: creating routes is not user friendly, an existing route cannot get new stops, and there is no friendly way to manage the fleet. Approved design:
+
+**Files:**
+- Create: `src/ui/panels/fleet.ts`, `src/ui/panels/fleet.css`, `src/ui/panels/fleet.test.ts`
+- Modify: `src/sim/vehicles.ts` (`assignVehicle`, trip counter), `src/ui/panels/routes.ts`, `src/ui/panels/building.ts`, `src/ui/panels/vehicle.ts`, `src/ui/panels/index.ts` (append `fleet`), `src/ui/hud.ts` (Fleet button), `src/game/input.ts` or controller hotkeys (V opens Fleet), `src/render/world.ts` (pick-mode outlines)
+- Test: `src/sim/vehicles.test.ts`, `src/ui/panels/routes.test.ts`, `src/ui/panels/fleet.test.ts`
+
+**A. Creating routes**
+- Building inspector: a **🚚 Send goods to…** button (🚂 for train stations). It enters pick mode with the map outlining in green every own building that accepts this building's offered goods (and has access); clicking one creates a 2-stop route via `appendStop` suggestions, named "<Source> → <Destination>", buys one vehicle, and toasts the result with an **Undo** action (deletes the route and refunds the vehicle fully, only within 10 s and if nothing else changed). Esc or right-click cancels.
+- The inspector's route list entries become links that open the Routes window with that route selected.
+- Routes window draft mode: valid next stops are outlined green, buildings without access greyed; each stop row shows a one-line summary "loads 🪵 · unloads —".
+
+**B. Editing routes**
+- Every open route has **+ Add stop** (append via pick mode, pre-filled with `appendStop`) and a per-stop **insert after** action; edits go through `updateRoute`.
+- Stop the 1-second full rebuild: update numbers in place (or only rebuild when a structural signature changes) so clicks on chips/arrows are never lost.
+- Clicking the colour swatch cycles `ROUTE_COLORS` via `updateRoute`.
+- The route's − button sells an idle vehicle first (then stuck, then the newest).
+
+**C. Fleet window (hotkey V; HUD button "Fleet")**
+- `assignVehicle(ctx, vehicleId, routeId | null): Result`: own route of the same kind only; resets stopIndex/path, state `moving` (or `idle` when the route has < 2 stops or routeId is null). Errors: 'No such vehicle', 'No such route', 'Not your route', 'Trains only run on rail lines' / 'Trucks cannot run rail lines'.
+- Per-vehicle `trips30` (completed unload stops over the last 30 days, JSON-safe; old saves default to 0).
+- Table, one row per player vehicle: icon, route dropdown (reassign), status (Driving / Loading / Idle / Stuck), cargo, trips (30d), **Locate** (pans camera to it and selects it), **Sell**. Filters: All / Trucks / Trains / ⚠ Idle or stuck. Summary line: "12 trucks · 2 trains · 2 idle · 1 stuck · $X/mo upkeep". Updates in place without losing clicks.
+- Vehicle inspector: the same route dropdown and a **Follow** camera toggle.
+- [ ] **Step 1: Write failing tests:** `assignVehicle moves a truck between routes`; `assignVehicle rejects wrong kind / foreign route`; `old save without trips30 loads`; `route editor adds a stop to an existing route`; `minus sells an idle vehicle first`; `fleet filter shows only idle or stuck`; `fleet reassign via dropdown`; `send goods to creates a 2-stop route with a truck`.
+- [ ] **Step 2:** Run. Expected: FAIL. **Step 3:** Implement. **Step 4:** Run `npm test && npx tsc --noEmit`. Expected: PASS.
+- [ ] **Step 5:** Commit `feat: friendlier route creation, route editing and fleet manager`.
+
+---
+
 ### Task 30: Deploy & final verification
 
 **Files:**
