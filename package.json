@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "soak": "tsx scripts/soak.ts"
   },
   "devDependencies": {
     "jsdom": "25.0.1",

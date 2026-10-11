@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { attachAutosave, listSaves, loadFrom, packState, saveTo, SLOTS, unpackState } from './saves';
-import { runDays } from '../sim/simulation';
+import { runDays, serialize } from '../sim/simulation';
 import { addCompany } from '../sim/companies';
 import { createGame } from '../sim/state';
 import { testCtx, testState } from '../sim/testkit';
@@ -13,6 +13,12 @@ describe('saves', () => {
     const state = createGame({ seed: 7 });
     const r = unpackState(packState(state));
     expect(r.ok && r.value).toEqual(state);
+  });
+
+  it('a loaded state serializes byte-identically (tile key order included)', () => {
+    const state = createGame({ seed: 7 });
+    const r = unpackState(packState(state));
+    expect(r.ok && serialize(r.value)).toBe(serialize(state));
   });
 
   it('round-trips arbitrary owner ids on tiles', () => {

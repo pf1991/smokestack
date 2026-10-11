@@ -53,11 +53,12 @@ function unpackTile(p: PackedTile, owners: OwnerId[]): Tile {
     deposit: p[1] === 0 ? null : p[1],
     road: (p[2] & 1) !== 0,
     rail: (p[2] & 2) !== 0,
-    roadOwner: owners[p[3]] ?? null,
-    railOwner: owners[p[4]] ?? null,
+    // same key order as mapgen's tiles, so a loaded state serializes (and hashes) identically
     buildingId: p[5] < 0 ? null : p[5],
     cityId: p[6] < 0 ? null : p[6],
     pollution: p[7],
+    roadOwner: owners[p[3]] ?? null,
+    railOwner: owners[p[4]] ?? null,
   };
 }
 
