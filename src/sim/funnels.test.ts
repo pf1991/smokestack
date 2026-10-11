@@ -14,6 +14,13 @@ function writers(re: RegExp): string[] {
 }
 
 describe('single-writer funnels', () => {
+  it('scans a non-empty file set that includes subfolders', () => {
+    expect(files.length).toBeGreaterThan(0);
+    expect(files.map((f) => f.rel)).toContain('rival/index.ts');
+  });
+  it('state.buildings is assigned or deleted only by state.ts', () => {
+    expect(writers(/\bstate\.buildings\[[^\]]*\]\s*=(?!=)|delete\s+state\.buildings\[/)).toEqual(['state.ts']);
+  });
   it('ownerId is reassigned only by companies.ts', () => {
     expect(writers(/\.ownerId\s*[-+*/]?=(?!=)/)).toEqual(['companies.ts']);
   });
