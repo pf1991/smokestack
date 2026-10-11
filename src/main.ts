@@ -2,6 +2,7 @@ import './ui/theme.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
+import { MAX_ZOOM, MIN_ZOOM } from './render/camera';
 import { runAutoplay } from './game/autoplay';
 import { runDays, stepTick } from './sim/simulation';
 import { createGame } from './sim/state';
@@ -22,6 +23,8 @@ import type { Speed } from './sim/types';
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
  *  - `pause=1` (dev, with a debug start) open the pause menu
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
+ *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
+ *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
  *  - `menu=1`          force the menu even when other parameters are present
  */
 const canvas = document.getElementById('world') as HTMLCanvasElement;
@@ -29,7 +32,7 @@ const ui = document.getElementById('ui') as HTMLElement;
 const params = new URLSearchParams(location.search);
 const app = new App(canvas, ui);
 
-const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial'];
+const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom'];
 const debugStart = !params.has('menu') && DEBUG_KEYS.some((k) => params.has(k));
 
 if (debugStart) {
@@ -62,6 +65,11 @@ if (debugStart) {
     }
   }
 
+  const skipYears = Number(params.get('skipYears'));
+  if (import.meta.env.DEV && params.has('skipYears') && Number.isFinite(skipYears) && skipYears > 0) {
+    runDays(setup, Math.floor(skipYears) * 360);
+  }
+
   const hourParam = params.get('hour');
   if (hourParam !== null) {
     const hour = Math.floor(Number(hourParam));
@@ -78,6 +86,11 @@ if (debugStart) {
     if (focus) {
       g.camera.zoom = 1.25;
       g.centerOn(focus);
+    }
+    const zoomParam = Number(params.get('zoom'));
+    if (import.meta.env.DEV && params.has('zoom') && Number.isFinite(zoomParam) && zoomParam > 0) {
+      g.camera.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomParam));
+      if (focus) g.centerOn(focus);
     }
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
     if (import.meta.env.DEV && params.get('openroute') === '1') {
