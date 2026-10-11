@@ -40,6 +40,7 @@ const PANEL_LABELS: Record<string, string> = {
   finance: 'Finance ledger',
   newspaper: 'The Daily Smokestack',
   contracts: "Mayor's contracts",
+  fleet: 'Fleet manager',
 };
 
 export interface NewGameOpts {
@@ -73,6 +74,8 @@ export class GameController {
   /** extra teardown run by destroy() (e.g. the tutorial card and its timer) */
   private disposers: (() => void)[] = [];
   private toolListeners: ((t: ToolSpec) => void)[] = [];
+  /** vehicle the camera is following, if any */
+  followId: number | null = null;
   private raf = 0;
   private watchdog = 0;
   private running = false;
@@ -124,6 +127,19 @@ export class GameController {
     this.watchDpr();
   }
 
+  get activeToolKind(): string {
+    return this.tools.activeTool.kind;
+  }
+
+  /** Camera follows a vehicle until the player pans (or `null` stops following). */
+  follow(id: number | null): void {
+    this.followId = id;
+  }
+
+  onManualPan(): void {
+    this.followId = null;
+  }
+
   get map(): GameMap {
     return this.ctx.state.map;
   }
@@ -146,6 +162,7 @@ export class GameController {
       this.renderer.attachOverlay(this.overlay);
     }
     this.renderer.setSelection(null);
+    this.followId = null;
     this.busOffs = [
       this.renderer.attachEffects(bus),
       Toasts.attach(this.uiRoot, bus),
@@ -354,6 +371,11 @@ export class GameController {
     const dt = this.lastFrame === null ? 0 : Math.max(0, now - this.lastFrame);
     this.lastFrame = now;
     this.input.update(Math.min(dt, 100));
+    if (this.followId !== null) {
+      const v = this.state.vehicles[this.followId];
+      if (v) this.centerOn(v.pos);
+      else this.followId = null;
+    }
     if (this.advance(dt) > 0) this.tools.refreshGhost();
     clampCamera(this.camera, this.map);
     this.g2d.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);

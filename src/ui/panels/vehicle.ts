@@ -1,6 +1,8 @@
 import { BUILDINGS } from '../../data/buildings';
 import { getGood } from '../../data/goods';
-import { sellVehicle, VEHICLE_KINDS } from '../../sim/vehicles';
+import type { GameController } from '../../game/controller';
+import { assignVehicle, sellVehicle, VEHICLE_KINDS } from '../../sim/vehicles';
+import { routeOptions } from './fleet';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
@@ -12,7 +14,27 @@ const SELL_REFUND = 0.5;
 
 function buildView(host: InspectorHost, id: number): InspectorView {
   const owner = h('span', { class: 'insp-badge' });
-  const routeName = h('span');
+  const game = host as unknown as GameController;
+  const routeSel = h('select', {
+    class: 'insp-route-sel',
+    'aria-label': 'Route',
+    onChange: () => {
+      const r = assignVehicle(host.ctx, id, routeSel.value === '' ? null : Number(routeSel.value));
+      if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+      view.update();
+    },
+  }) as HTMLSelectElement;
+  let optSig = '\0';
+  const follow = h('button', {
+    class: 'btn insp-follow',
+    'data-act': 'follow',
+    'aria-pressed': 'false',
+    title: 'Keep the camera on this vehicle (panning stops it)',
+    onClick: () => {
+      game.follow(game.followId === id ? null : id);
+      view.update();
+    },
+  }, 'Follow');
   const state = h('span');
   const next = h('span');
   const cargo = h('span');
@@ -31,8 +53,8 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       );
     },
   });
-  return {
-    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner), stat('Route', routeName), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), sell),
+  const view: InspectorView = {
+    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner), stat('Route', routeSel), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), follow, sell),
     update() {
       const s = host.ctx.state;
       const v = s.vehicles[id];
@@ -42,7 +64,19 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const target = stop ? s.buildings[stop.buildingId] : undefined;
       setText(owner, v.ownerId === 'player' ? s.companies.player.name : s.companies.rival.name);
       owner.className = `insp-badge ${v.ownerId === 'player' ? 'owner-player' : 'owner-rival'}`;
-      setText(routeName, route ? route.name : 'No route');
+      const opts = routeOptions(s, v);
+      const sig = opts.map((o) => `${o.value}:${o.label}`).join('|');
+      const focused = document.activeElement === routeSel;
+      if (sig !== optSig && !focused) {
+        optSig = sig;
+        routeSel.replaceChildren(...opts.map((o) => h('option', { value: o.value }, o.label)));
+      }
+      const want = v.routeId === null ? '' : String(v.routeId);
+      if (!focused && routeSel.value !== want) routeSel.value = want;
+      routeSel.disabled = v.ownerId !== 'player';
+      const following = game.followId === id;
+      follow.classList.toggle('active', following);
+      follow.setAttribute('aria-pressed', String(following));
       setText(state, STATE_LABEL[v.state]);
       setText(next, target ? `${BUILDINGS[target.typeId].name} #${target.id}` : '—');
       const items = Object.entries(v.cargo).filter(([, q]) => q > 0.5);
@@ -57,7 +91,11 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       setText(sell, `Sell (+${formatMoney((VEHICLE_KINDS[v.kind]?.spec.cost ?? 0) * SELL_REFUND)})`);
       return true;
     },
+    dispose: () => {
+      if (game.followId === id) game.follow(null);
+    },
   };
+  return view;
 }
 
 export const vehiclePanel: PanelDef = {

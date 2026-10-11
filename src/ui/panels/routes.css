@@ -36,3 +36,8 @@
 .rt-draft-name { margin: 4px 0 8px; display: flex; align-items: center; gap: 6px; }
 .rt .rt-draft-name .rt-name { border-color: var(--brass-dark); background: rgba(0, 0, 0, 0.25); }
 .rt-buy { display: block; margin-top: 8px; cursor: pointer; }
+.rt-swatch { cursor: pointer; padding: 0; width: 14px; }
+.rt-swatch:hover { outline: 1px solid var(--brass-light); }
+.rt-summary { margin: 2px 0 0 24px; font-size: 11px; color: var(--paper-shade); }
+.rt-add { margin-top: 6px; }
+.rt-adding { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; padding: 5px 8px; border: 1px dashed #3fd05a; border-radius: 3px; color: #8fe6a0; font-size: 12px; }

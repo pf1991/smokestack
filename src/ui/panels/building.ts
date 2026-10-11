@@ -5,12 +5,15 @@ import { formatDate, isWinter } from '../../sim/clock';
 import { loadSource } from '../../sim/inventory';
 import { STATION_TYPE, stationAccess } from '../../sim/rail';
 import { accessTiles, DEMOLITION_REFUND, demolishBuilding, footprint } from '../../sim/state';
+import type { GameController } from '../../game/controller';
+import { offeredGoods } from '../../sim/routeHelpers';
 import type { Building, GameState, Route } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
 import { bar, type Bar, KeyedList, openInspector, setClass, setText, type InspectorHost, type InspectorView } from './inspect';
 import type { PanelDef } from './index';
+import { startSendGoods } from './routeActions';
 
 const STATUS_LABEL: Record<Building['status'], string> = {
   ok: 'Running',
@@ -125,6 +128,12 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const outSection = h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Output'), outBox);
   const produced = h('div', { class: 'insp-muted' });
   const routeBox = h('div', { class: 'insp-routes' });
+  const send = h('button', {
+    class: 'btn insp-send',
+    'data-act': 'send-goods',
+    title: 'Pick a destination on the map: creates a route and buys a vehicle',
+    onClick: () => startSendGoods(host as unknown as GameController, id),
+  });
   const inList = new KeyedList<Row>(inBox, makeRow);
   const outList = new KeyedList<Row>(outBox, makeRow);
 
@@ -165,7 +174,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     inSection,
     outSection,
     produced,
-    h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Routes'), routeBox),
+    h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Routes'), routeBox, send),
     demolish,
   );
 
@@ -243,11 +252,19 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         routeSig = rsig;
         routeBox.replaceChildren(
           ...(routes.length > 0
-            ? routes.map((r) => h('div', { class: 'insp-route' }, h('span', { class: 'swatch', style: { background: r.color } }), r.name))
+            ? routes.map((r) => h('button', {
+              class: 'insp-route insp-route-link',
+              'data-route': r.id,
+              title: 'Open this route in the Routes window',
+              onClick: () => (host as unknown as GameController).openPanel('routes', r.id),
+            }, h('span', { class: 'swatch', style: { background: r.color } }), r.name))
             : [h('span', { class: 'insp-muted' }, 'Not on any route')]),
         );
       }
 
+      const isStation = b.typeId === STATION_TYPE;
+      send.hidden = !mine || (!isStation && offeredGoods(b).length === 0);
+      setText(send, isStation ? '🚂 Send goods to…' : '🚚 Send goods to…');
       demolish.hidden = !mine;
       setText(
         demolish,

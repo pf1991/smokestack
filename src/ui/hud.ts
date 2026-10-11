@@ -23,6 +23,7 @@ const SPEEDS: { speed: Speed; label: string; title: string }[] = [
 
 const PANELS: { id: string; label: string }[] = [
   { id: 'routes', label: 'Routes' },
+  { id: 'fleet', label: 'Fleet' },
   { id: 'finance', label: 'Finance' },
   { id: 'newspaper', label: 'Newspaper' },
   { id: 'contracts', label: 'Contracts' },

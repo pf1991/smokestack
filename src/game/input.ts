@@ -24,6 +24,10 @@ export interface InputHost {
   escape?(): void;
   /** opens a registered panel; returns false when none is registered under `id` */
   tryOpenPanel(id: string): boolean;
+  /** the player panned by hand (cancels camera follow) */
+  onManualPan?(): void;
+  /** right-click without dragging: cancels pick mode */
+  readonly activeToolKind?: string;
 }
 
 const PAN_KEYS: Record<string, Vec2> = {
@@ -37,7 +41,7 @@ const PAN_KEYS: Record<string, Vec2> = {
   arrowright: { x: 1, y: 0 },
 };
 const SPEED_KEYS: Record<string, Speed> = { '1': 1, '2': 2, '3': 4, '4': 8 };
-const PANEL_KEYS: Record<string, string> = { r: 'routes', f: 'finance', n: 'newspaper' };
+const PANEL_KEYS: Record<string, string> = { r: 'routes', f: 'finance', n: 'newspaper', v: 'fleet' };
 /** screen pixels per millisecond for keyboard panning */
 const KEY_PAN_SPEED = 0.9;
 const WHEEL_STEP = 1.15;
@@ -56,7 +60,7 @@ export function isTyping(target: EventTarget | null): boolean {
  */
 export class Input {
   private held = new Set<string>();
-  private pan: { x: number; y: number; id: number } | null = null;
+  private pan: { x: number; y: number; id: number; moved: boolean } | null = null;
   private toolPointer: number | null = null;
   private readonly offs: (() => void)[] = [];
 
@@ -114,7 +118,7 @@ export class Input {
   private down(e: PointerEvent): void {
     if (e.button === 1 || e.button === 2) {
       e.preventDefault();
-      this.pan = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      this.pan = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
       this.capture(e.pointerId);
       return;
     }
@@ -127,6 +131,8 @@ export class Input {
   private move(e: PointerEvent): void {
     if (this.pan && e.pointerId === this.pan.id) {
       const cam = this.host.camera;
+      if (Math.abs(e.clientX - this.pan.x) + Math.abs(e.clientY - this.pan.y) > 0) this.pan.moved = true;
+      if (this.pan.moved) this.host.onManualPan?.();
       cam.x -= (e.clientX - this.pan.x) / cam.zoom;
       cam.y -= (e.clientY - this.pan.y) / cam.zoom;
       this.pan.x = e.clientX;
@@ -139,7 +145,9 @@ export class Input {
 
   private up(e: PointerEvent): void {
     if (this.pan && e.pointerId === this.pan.id) {
+      const click = !this.pan.moved && e.button === 2;
       this.pan = null;
+      if (click && this.host.activeToolKind === 'pickStop') this.host.tools.cancel();
       return;
     }
     if (this.toolPointer !== e.pointerId) return;
@@ -198,6 +206,7 @@ export class Input {
       }
     }
     if (dx === 0 && dy === 0) return;
+    this.host.onManualPan?.();
     const cam = this.host.camera;
     const len = Math.hypot(dx, dy);
     cam.x += ((dx / len) * KEY_PAN_SPEED * dtMs) / cam.zoom;

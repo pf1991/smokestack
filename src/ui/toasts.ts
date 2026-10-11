@@ -21,6 +21,14 @@ export const Toasts = {
 
     const off = bus.on('toast', (e) => {
       const el = h('div', { class: `toast ${e.tone}` }, e.message);
+      if (e.action) {
+        const { run, label } = e.action;
+        const btn = h('button', { class: 'toast-action', onClick: () => {
+          run();
+          dismiss(el);
+        } }, label);
+        el.append(' ', btn);
+      }
       container.appendChild(el);
       timers.set(el, setTimeout(() => dismiss(el), LIFETIME_MS));
       while (container.childElementCount > MAX_VISIBLE) {

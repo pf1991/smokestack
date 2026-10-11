@@ -113,6 +113,8 @@ export interface Vehicle {
   state: VehicleState;
   waitTicks: number;
   stuckNotified: boolean;
+  /** ticks at which this vehicle completed an unloading stop (pruned to the last 30 days); absent in old saves */
+  trips30?: number[];
 }
 
 export type LedgerCategory =

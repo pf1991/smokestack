@@ -42,6 +42,16 @@ export const ROUTE_COLORS = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f5823
 /** Ticks between path retries of a stuck vehicle (staggered by vehicle id). */
 export const STUCK_RETRY_TICKS = 24;
 const SELL_REFUND = 0.5;
+/** Window (30 days of 24 ticks) over which completed unloading stops are counted. */
+export const TRIP_WINDOW_TICKS = 30 * 24;
+
+/** Completed unloading stops of a vehicle in the last 30 days (0 for old saves without the log). */
+export function tripsLast30(state: GameState, veh: Vehicle): number {
+  const cutoff = state.tick - TRIP_WINDOW_TICKS;
+  let n = 0;
+  for (const t of veh.trips30 ?? []) if (t > cutoff) n++;
+  return n;
+}
 
 // ---------------------------------------------------------------------------
 // routes
@@ -194,6 +204,32 @@ export function sellVehicle(ctx: SimContext, id: number): Result {
   return ok();
 }
 
+/**
+ * Moves a vehicle onto another of its owner's routes of the same kind (or off all routes with
+ * `null`). Restarts it at the route's first stop; never deletes the vehicle, and replaces
+ * (never mutates) its path.
+ */
+export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: number | null): Result {
+  const { state } = ctx;
+  const veh = state.vehicles[vehicleId];
+  if (!veh) return err('No such vehicle');
+  let route: Route | undefined;
+  if (routeId !== null) {
+    route = state.routes[routeId];
+    if (!route) return err('No such route');
+    if (route.ownerId !== veh.ownerId) return err('Not your route');
+    if (route.kind !== veh.kind) return err(veh.kind === 'train' ? 'Trains only run on rail lines' : 'Trucks cannot run rail lines');
+  }
+  veh.routeId = routeId;
+  veh.stopIndex = 0;
+  veh.path = [];
+  veh.pathIndex = 0;
+  veh.waitTicks = 0;
+  veh.stuckNotified = false;
+  veh.state = route && route.stops.length >= 2 ? 'moving' : 'idle';
+  return ok();
+}
+
 export function vehicleMaintenanceMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const veh of Object.values(state.vehicles)) {
@@ -223,6 +259,12 @@ function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building):
     if (carried - n > 0) veh.cargo[g] = carried - n;
     else delete veh.cargo[g];
     (unloaded ??= []).push(g);
+  }
+  if (unloaded) {
+    const log = (veh.trips30 ??= []);
+    log.push(state.tick);
+    const cutoff = state.tick - TRIP_WINDOW_TICKS;
+    while (log.length > 0 && log[0] <= cutoff) log.shift();
   }
 
   const src = loadSource(b);

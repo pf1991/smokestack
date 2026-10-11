@@ -50,6 +50,8 @@ export interface Selection {
   /** A route still being drafted in the route editor (not in `state.routes` yet). */
   draftRoute?: { color: string; stops: { buildingId: number }[] };
   vehicleId?: number;
+  /** Pick mode: buildings to outline green (valid) or grey (unavailable). */
+  pick?: { valid: number[]; blocked: number[] };
 }
 
 type Dir = 'N' | 'E' | 'S' | 'W';
@@ -1177,10 +1179,32 @@ export class WorldRenderer {
     return { x: (b.pos.x + def.size.w / 2) * TILE, y: (b.pos.y + def.size.h / 2) * TILE };
   }
 
+  private drawPick(ctx: CanvasRenderingContext2D, state: GameState, pick: { valid: number[]; blocked: number[] }, nowMs: number, px: number): void {
+    const outline = (ids: number[], stroke: string, fill: string, alpha: number, dash: boolean) => {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 3 * px;
+      ctx.setLineDash(dash ? [6 * px, 4 * px] : []);
+      for (const id of ids) {
+        const b = state.buildings[id];
+        if (!b) continue;
+        const def = BUILDINGS[b.typeId];
+        ctx.fillRect(b.pos.x * TILE, b.pos.y * TILE, def.size.w * TILE, def.size.h * TILE);
+        ctx.strokeRect(b.pos.x * TILE, b.pos.y * TILE, def.size.w * TILE, def.size.h * TILE);
+      }
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    };
+    outline(pick.blocked, '#9a9a9a', 'rgba(120,120,120,0.35)', 0.8, true);
+    outline(pick.valid, '#3fd05a', 'rgba(63,208,90,0.18)', 0.7 + 0.3 * Math.sin(nowMs / 200), false);
+  }
+
   private drawSelection(ctx: CanvasRenderingContext2D, state: GameState, alpha: number, nowMs: number, z: number): void {
     const sel = this.selection;
     if (!sel) return;
     const px = 1 / z;
+    if (sel.pick) this.drawPick(ctx, state, sel.pick, nowMs, px);
     if (sel.routeId !== undefined || sel.draftRoute) {
       const route = sel.draftRoute ?? state.routes[sel.routeId!];
       if (route) {
