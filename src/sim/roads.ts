@@ -105,6 +105,24 @@ export function ensureRoadLink(
   const to = accessTiles(state, b);
   if (from.length === 0 || to.length === 0) return err('Stop has no road access');
   if (findPath(state.map, from[0], to, roadPassable)) return ok({ built: 0, cost: 0 });
+  return buildDirectRoad(ctx, owner, a, b, reserve);
+}
+
+/**
+ * Lays the cheapest direct road (roadBuildable, water-avoiding) between the access tiles of `a` and
+ * `b` even when the network already links them by a detour, paid by `owner`; atomic.
+ */
+export function buildDirectRoad(
+  ctx: SimContext,
+  owner: OwnerId,
+  a: Building,
+  b: Building,
+  reserve = 0,
+): Result<{ built: number; cost: number }> {
+  const { state } = ctx;
+  const from = accessTiles(state, a);
+  const to = accessTiles(state, b);
+  if (from.length === 0 || to.length === 0) return err('Stop has no road access');
   const path = findPath(state.map, from[0], to, roadBuildable, waterAvoidingCost);
   if (!path) return err('No road can link these buildings');
   const cost = roadCost(state, path);

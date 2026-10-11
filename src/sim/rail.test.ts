@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { GameEvent } from '../core/events';
 import { dateToDays } from './clock';
 import { maintenanceMonth } from './production';
-import { buildRail, buyTrain, RAIL_COST, RAIL_UPKEEP, removeRail, stationAccess, TRAIN } from './rail';
+import { buildRail, buyTrain, ensureRailLink, RAIL_COST, RAIL_UPKEEP, removeRail, stationAccess, TRAIN } from './rail';
+import { findPath, railPassable } from './pathfinding';
 import { buildRoad, demolishBuilding, lPath, placeBuilding } from './state';
 import { must, testCtx, testState } from './testkit';
 import type { GameState, SimContext, Terrain } from './types';
@@ -242,5 +243,54 @@ describe('railways', () => {
     must(buyTrain(ctx, 'player', coalRun(ctx, a.id, b.id).id));
     tick(ctx, 5);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+  });
+
+  it('ensureRailLink builds a connecting line across a road (level crossing) and refuses across water', () => {
+    const s = testState({ width: 50 });
+    const ctx = testCtx(s);
+    // a north–south road splits the map between the two stations
+    must(buildRoad(ctx, 'player', lPath({ x: 20, y: 0 }, { x: 20, y: 29 })));
+    const a = must(placeBuilding(ctx, 'rival', 'train_station', { x: 4, y: 10 }));
+    const b = must(placeBuilding(ctx, 'rival', 'train_station', { x: 36, y: 12 }));
+    const money = s.companies.rival.money;
+    const r = must(ensureRailLink(ctx, 'rival', a, b, 50000));
+    expect(r.built).toBeGreaterThan(25);
+    expect(s.companies.rival.money).toBe(money - r.cost);
+    expect(r.cost).toBe(r.built * RAIL_COST);
+    expect(r.tiles).toHaveLength(r.built);
+    expect(s.companies.rival.railTiles).toBe(r.built);
+    const from = stationAccess(s, a);
+    const to = stationAccess(s, b);
+    expect(from.length).toBeGreaterThan(0);
+    expect(to.length).toBeGreaterThan(0);
+    expect(findPath(s.map, from[0], to, railPassable)).not.toBeNull();
+    // the line crosses the road: one road tile now also carries rival track, and the road survives
+    const crossings = s.map.tiles.filter((t) => t.road && t.rail);
+    expect(crossings.length).toBeGreaterThanOrEqual(1);
+    expect(crossings.every((t) => t.railOwner === 'rival')).toBe(true);
+    for (let y = 0; y < 30; y++) expect(tile(s, 20, y).road).toBe(true);
+    // already linked: free no-op
+    expect(must(ensureRailLink(ctx, 'rival', a, b, 50000))).toEqual({ built: 0, cost: 0, tiles: [] });
+
+    // a river (bridged by the road) between two new stations: no track can be laid, nothing changes
+    const s2 = testState({ width: 50 });
+    const ctx2 = testCtx(s2);
+    setTerrain(s2, 24, 0, 2, 30, 'water');
+    must(buildRoad(ctx2, 'rival', lPath({ x: 0, y: 20 }, { x: 49, y: 20 })));
+    const c = must(placeBuilding(ctx2, 'rival', 'train_station', { x: 4, y: 10 }));
+    const d = must(placeBuilding(ctx2, 'rival', 'train_station', { x: 36, y: 12 }));
+    const snapshot = JSON.stringify(s2);
+    expect(ensureRailLink(ctx2, 'rival', c, d)).toEqual({ ok: false, error: 'No rail can link these stations' });
+    expect(JSON.stringify(s2)).toBe(snapshot);
+  });
+
+  it('ensureRailLink refuses when the track would break the reserve', () => {
+    const s = testState({ width: 50, rivalMoney: 100000 });
+    const ctx = testCtx(s);
+    const a = must(placeBuilding(ctx, 'rival', 'train_station', { x: 4, y: 10 }));
+    const b = must(placeBuilding(ctx, 'rival', 'train_station', { x: 36, y: 12 }));
+    const snapshot = JSON.stringify(s);
+    expect(ensureRailLink(ctx, 'rival', a, b, 50000)).toEqual({ ok: false, error: 'Not enough money' });
+    expect(JSON.stringify(s)).toBe(snapshot);
   });
 });

@@ -12,7 +12,7 @@ import { err, ok } from '../core/result';
 import { BUILDINGS } from '../data/buildings';
 import { dateToDays } from './clock';
 import { canAfford, spend } from './finance';
-import { invalidatePaths, railPassable } from './pathfinding';
+import { findPath, invalidatePaths, railPassable, type Passable } from './pathfinding';
 import type { Building, BuildingTypeId, GameMap, GameState, OwnerId, SimContext, Tile, Vec2, Vehicle } from './types';
 import { buyVehicle, VEHICLE_KINDS, type VehicleSpec } from './vehicles';
 
@@ -139,6 +139,110 @@ export function stationAccess(state: GameState, station: { typeId: BuildingTypeI
     }
   }
   return out;
+}
+
+/** Tiles orthogonally adjacent to a building's footprint (in bounds), scanned row by row. */
+function perimeter(state: GameState, b: { typeId: BuildingTypeId; pos: Vec2 }): Vec2[] {
+  const { w, h } = BUILDINGS[b.typeId].size;
+  const { x: bx, y: by } = b.pos;
+  const out: Vec2[] = [];
+  for (let y = by - 1; y <= by + h; y++) {
+    for (let x = bx - 1; x <= bx + w; x++) {
+      const insideX = x >= bx && x < bx + w;
+      const insideY = y >= by && y < by + h;
+      if (insideX === insideY) continue;
+      if (tileOf(state.map, x, y)) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+const plannerCache: Partial<Record<OwnerId, Passable>> = {};
+
+/**
+ * Where `owner` may run new track: its own (or unowned) existing rail, or any tile `buildRail`
+ * accepts (not water, mountain or a building; road tiles become level crossings).
+ */
+function railPlannable(owner: OwnerId): Passable {
+  let p = plannerCache[owner];
+  if (!p) {
+    p = (t: Tile) => (t.rail ? t.railOwner === null || t.railOwner === owner : !railBlocked(t));
+    plannerCache[owner] = p;
+  }
+  return p;
+}
+
+/** Existing track is cheapest; crossings and town land are discouraged so lines run beside roads, not on them. */
+const railStepCost = (t: Tile): number => (t.rail ? 1 : t.road || t.cityId !== null ? 3 : 2);
+
+/** Starting tiles tried from station `a` (the A* runs once per start, so keep this short). */
+const MAX_RAIL_STARTS = 3;
+
+/**
+ * The cheapest track `owner` could lay from the side of building `a` (from its first rail access tile
+ * when it has one, since that is where trains start) to a tile beside building `b`, or null. Existing
+ * own track counts as free; nothing is built. One A* per start tile (at most MAX_RAIL_STARTS), and
+ * the targets are only `b`'s perimeter tiles.
+ */
+export function planRail(state: GameState, owner: OwnerId, a: { typeId: BuildingTypeId; pos: Vec2 }, b: { typeId: BuildingTypeId; pos: Vec2 }): Vec2[] | null {
+  const { map } = state;
+  const fromAccess = stationAccess(state, a);
+  const passable = railPlannable(owner);
+  const ok1 = (p: Vec2) => passable(map.tiles[p.y * map.width + p.x], p.x, p.y);
+  const bw = BUILDINGS[b.typeId].size;
+  const bc = { x: b.pos.x + bw.w / 2, y: b.pos.y + bw.h / 2 };
+  const starts =
+    fromAccess.length > 0
+      ? [fromAccess[0]]
+      : perimeter(state, a)
+          .filter(ok1)
+          .map((p) => ({ p, d: Math.abs(p.x - bc.x) + Math.abs(p.y - bc.y) }))
+          .sort((p, q) => p.d - q.d)
+          .slice(0, MAX_RAIL_STARTS)
+          .map((e) => e.p);
+  const targets = perimeter(state, b).filter(ok1);
+  if (targets.length === 0) return null;
+  let best: { path: Vec2[]; fresh: number } | null = null;
+  for (const s of starts) {
+    const path = findPath(map, s, targets, passable, railStepCost);
+    if (!path) continue;
+    const fresh = path.filter((p) => !map.tiles[p.y * map.width + p.x].rail).length;
+    if (!best || fresh < best.fresh || (fresh === best.fresh && path.length < best.path.length)) best = { path, fresh };
+  }
+  return best?.path ?? null;
+}
+
+/**
+ * Makes sure a train can run from station `a` to station `b`, the rail analogue of `ensureRoadLink`:
+ * when `a`'s first rail access tile (where trains spawn) is not already linked to `b`'s, lays the
+ * cheapest track between the stations' sides (existing own track reused for free, road tiles crossed
+ * as level crossings, never water, mountains or buildings), paid by `owner`. Atomic; refuses with
+ * 'Not enough money' when the payer would be left with less than `reserve`. `tiles` lists the new
+ * track tiles.
+ */
+export function ensureRailLink(
+  ctx: SimContext,
+  owner: OwnerId,
+  a: Building,
+  b: Building,
+  reserve = 0,
+): Result<{ built: number; cost: number; tiles: Vec2[] }> {
+  const { state } = ctx;
+  const { map } = state;
+  const fromAccess = stationAccess(state, a);
+  const toAccess = stationAccess(state, b);
+  if (fromAccess.length > 0 && toAccess.length > 0 && findPath(map, fromAccess[0], toAccess, railPassable)) {
+    return ok({ built: 0, cost: 0, tiles: [] });
+  }
+  const best = planRail(state, owner, a, b);
+  if (!best) return err('No rail can link these stations');
+  const tiles = best.filter((p) => !map.tiles[p.y * map.width + p.x].rail);
+  const q = railQuote(state, owner, best);
+  if (q.error) return err(q.error);
+  if (!canAfford(state.companies[owner], q.cost + reserve)) return err('Not enough money');
+  const r = buildRail(ctx, owner, best);
+  if (!r.ok) return r;
+  return ok({ ...r.value, tiles });
 }
 
 export function isRailStrike(state: GameState): boolean {

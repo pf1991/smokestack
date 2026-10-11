@@ -3,11 +3,12 @@ import { EventBus } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
 import { connectToRoads, roadCost } from './roads';
 import { canTakeover, chainFor, MAX_STALL_MONTHS, maxRivalChains, netWorth, RIVAL_RESERVE, rivalChainCount, rivalMonth, rivalTaunt, takeover, TAUNTS } from './rival';
-import { runDays, serialize } from './simulation';
+import { deserialize, runDays, serialize } from './simulation';
 import { buildRoad, createGame, lPath, placeBuilding } from './state';
 import { must, testCtx, testState } from './testkit';
-import type { SimContext } from './types';
+import type { GameState, SimContext } from './types';
 import { buyTruck, createRoute } from './vehicles';
+import { stationAccess } from './rail';
 
 function rivalGame(seed = 7): SimContext {
   return { state: createGame({ seed, companyName: 'Acme Works', rival: true }), bus: new EventBus() };
@@ -298,5 +299,137 @@ describe('takeover', () => {
     expect(canTakeover(ctx.state)).toBe(false);
     ctx.state.companies.player.money = 1_000_000;
     expect(canTakeover(ctx.state)).toBe(true);
+  });
+});
+
+describe('rival railways', () => {
+  /**
+   * An 80×30 map: a road along y=10, the rival's sawmill at the west end and his furniture factory
+   * ~55 tiles east, joined by a lumber route with 3 trucks. A second factory makes him a two-chain
+   * baron (so one rail line is allowed). Ironton (south-east) is blacklisted for new chains, so his
+   * only possible project is the railway. `river` puts a 2-wide river (bridged by the road) mid-map.
+   */
+  function railGame(rivalMoney: number, river = false) {
+    const s = testState({ width: 80, height: 30, rivalMoney, cities: [{ x: 74, y: 26, population: 2000, name: 'Ironton' }] });
+    const ctx = testCtx(s);
+    if (river) for (let y = 0; y < 30; y++) for (const x of [38, 39]) s.map.tiles[y * 80 + x].terrain = 'water';
+    s.flags.rivalBlocked = '0:*';
+    must(buildRoad(ctx, 'rival', lPath({ x: 0, y: 10 }, { x: 79, y: 10 })));
+    const mill = must(placeBuilding(ctx, 'rival', 'sawmill', { x: 2, y: 11 }));
+    const fac = must(placeBuilding(ctx, 'rival', 'furniture_factory', { x: 60, y: 11 }));
+    must(placeBuilding(ctx, 'rival', 'furniture_factory', { x: 60, y: 6 }));
+    const route = must(
+      createRoute(ctx, 'rival', 'Smogsworth Lumber', [
+        { buildingId: mill.id, load: ['lumber'], unload: [] },
+        { buildingId: fac.id, load: [], unload: ['lumber'] },
+      ]),
+    );
+    const trucks = [0, 1, 2].map(() => must(buyTruck(ctx, 'rival', route.id)).id);
+    return { s, ctx, mill, fac, route, trucks };
+  }
+
+  const stations = (s: GameState) =>
+    Object.values(s.buildings).filter((b) => b.ownerId === 'rival' && b.typeId === 'train_station');
+
+  it('rival lays rail and runs a train on a long busy leg', () => {
+    const { s, ctx, mill, fac, route, trucks } = railGame(500000);
+    const reserve = watchReserve(ctx);
+    for (let i = 0; i < 8; i++) rivalMonth(ctx);
+    expect(reserve.low).toEqual([]);
+    expect(s.companies.rival.money).toBeGreaterThanOrEqual(RIVAL_RESERVE);
+
+    const st = stations(s);
+    expect(st).toHaveLength(2);
+    expect(s.companies.rival.railTiles).toBeGreaterThan(0);
+    expect(s.map.tiles.filter((t) => t.rail).every((t) => t.railOwner === 'rival')).toBe(true);
+    for (const b of st) expect(stationAccess(s, b).length).toBeGreaterThan(0);
+
+    const trainRoutes = Object.values(s.routes).filter((r) => r.kind === 'train');
+    expect(trainRoutes).toHaveLength(1);
+    const line = trainRoutes[0];
+    expect(line.ownerId).toBe('rival');
+    expect(line.stops[0].load).toEqual(['lumber']);
+    expect(line.stops[1].unload).toEqual(['lumber']);
+    const trains = Object.values(s.vehicles).filter((v) => v.kind === 'train');
+    expect(trains).toHaveLength(1);
+    expect(trains[0].routeId).toBe(line.id);
+    const [stA, stB] = [line.stops[0].buildingId, line.stops[1].buildingId];
+
+    // feeders: the original route now ends at station A, a new one runs station B → factory
+    expect(s.routes[route.id].stops.map((x) => x.buildingId)).toEqual([mill.id, stA]);
+    expect(s.routes[route.id].stops[0].load).toEqual(['lumber']);
+    expect(s.routes[route.id].stops[1].unload).toEqual(['lumber']);
+    const truckRoutes = Object.values(s.routes).filter((r) => r.kind === 'truck');
+    expect(truckRoutes).toHaveLength(2);
+    const feeder2 = truckRoutes.find((r) => r.id !== route.id)!;
+    expect(feeder2.stops.map((x) => x.buildingId)).toEqual([stB, fac.id]);
+    expect(feeder2.stops[0].load).toEqual(['lumber']);
+    expect(feeder2.stops[1].unload).toEqual(['lumber']);
+
+    // the original trucks were reassigned, not sold
+    for (const id of trucks) expect(s.vehicles[id]).toBeDefined();
+    const on = (rid: number) => trucks.filter((id) => s.vehicles[id].routeId === rid).length;
+    expect(on(route.id)).toBeGreaterThanOrEqual(1);
+    expect(on(feeder2.id)).toBeGreaterThanOrEqual(1);
+    expect(on(route.id) + on(feeder2.id)).toBe(3);
+
+    expect(s.news.some((n) => n.kind === 'rival' && n.headline === 'SMOGSWORTH LAYS IRON TO IRONTON!')).toBe(true);
+    expect(s.news.some((n) => n.body.includes('The age of the horse cart is over.'))).toBe(true);
+    expect(s.rivalRail ?? null).toBeNull();
+    expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+
+    // one line is all two chains allow: no second project
+    for (let i = 0; i < 6; i++) rivalMonth(ctx);
+    expect(stations(s)).toHaveLength(2);
+    expect(s.rivalRail ?? null).toBeNull();
+  });
+
+  it('the rival railway actually moves the goods to the factory', () => {
+    const { s, ctx, mill, fac } = railGame(500000);
+    for (let i = 0; i < 8; i++) rivalMonth(ctx);
+    mill.output.lumber = 120;
+    runDays(ctx, 25);
+    expect((fac.input.lumber ?? 0) + (fac.output.furniture ?? 0)).toBeGreaterThan(0);
+    expect(Object.values(s.vehicles).filter((v) => v.state === 'stuck')).toHaveLength(0);
+  });
+
+  it('rival does not build rail without the money', () => {
+    const { s, ctx, route } = railGame(150000);
+    for (let i = 0; i < 12; i++) rivalMonth(ctx);
+    expect(stations(s)).toHaveLength(0);
+    expect(s.companies.rival.railTiles).toBe(0);
+    expect(Object.values(s.routes).filter((r) => r.kind === 'train')).toHaveLength(0);
+    expect(s.routes[route.id].stops).toHaveLength(2);
+    expect(s.rivalRail ?? null).toBeNull();
+  });
+
+  it('rival abandons rail when no track can be laid and the truck leg keeps working', () => {
+    const { s, ctx, mill, fac, route, trucks } = railGame(500000, true);
+    const stopsBefore = JSON.stringify(s.routes[route.id].stops);
+    for (let i = 0; i < 12; i++) rivalMonth(ctx);
+    expect(s.rivalRail ?? null).toBeNull();
+    expect(stations(s)).toHaveLength(0); // what the project built is torn down again
+    expect(s.companies.rival.railTiles).toBe(0);
+    expect(Object.values(s.routes).filter((r) => r.kind === 'train')).toHaveLength(0);
+    expect(Object.values(s.routes)).toHaveLength(1);
+    expect(JSON.stringify(s.routes[route.id].stops)).toBe(stopsBefore);
+    for (const id of trucks) expect(s.vehicles[id].routeId).toBe(route.id);
+    expect(s.companies.rival.money).toBeGreaterThanOrEqual(RIVAL_RESERVE);
+    // it does not keep retrying the same leg
+    const money = s.companies.rival.money;
+    for (let i = 0; i < 6; i++) rivalMonth(ctx);
+    expect(stations(s)).toHaveLength(0);
+    expect(s.companies.rival.money).toBe(money);
+    // and the leg still delivers
+    mill.output.lumber = 60;
+    runDays(ctx, 25);
+    expect((fac.input.lumber ?? 0) + (fac.output.furniture ?? 0)).toBeGreaterThan(0);
+  });
+
+  it('old saves without rail project state still load and play', () => {
+    const { s, ctx } = railGame(500000);
+    delete (s as { rivalRail?: unknown }).rivalRail;
+    const loaded = must(deserialize(serialize(s)));
+    expect(() => rivalMonth({ state: loaded, bus: ctx.bus })).not.toThrow();
   });
 });
