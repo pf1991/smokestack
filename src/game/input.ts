@@ -9,7 +9,7 @@ export interface InputHost {
   readonly map: GameMap;
   tools: {
     pointerDown(t: Vec2, world?: Vec2): void;
-    pointerMove(t: Vec2): void;
+    pointerMove(t: Vec2, world?: Vec2): void;
     pointerUp(t: Vec2): void;
     leave(): void;
     cancel(): void;
@@ -150,7 +150,8 @@ export class Input {
       return;
     }
     if (this.host.photoActive) return;
-    this.host.tools.pointerMove(this.tileOf(e));
+    const p = this.local(e);
+    this.host.tools.pointerMove(this.tileOf(e), screenToWorld(this.host.camera, p.x, p.y));
   }
 
   private up(e: PointerEvent): void {

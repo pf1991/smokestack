@@ -75,6 +75,8 @@ export class ToolController {
   onPick: ((buildingId: number) => void) | null = null;
   private tool: ToolSpec = { kind: 'inspect' };
   private hover: Vec2 | null = null;
+  /** exact world-px pointer position, when known: the bulldoze ghost picks raised roofs with it */
+  private hoverWorld: Vec2 | null = null;
   private dragStart: Vec2 | null = null;
   private pressed = false;
   private current: Ghost | null = null;
@@ -110,12 +112,14 @@ export class ToolController {
   /** The pointer left the map canvas. */
   leave(): void {
     this.hover = null;
+    this.hoverWorld = null;
     if (!this.dragStart) this.refreshGhost();
   }
 
   /** `world` is the exact world-px point clicked (picks raised roofs); without it the tile centre is used. */
   pointerDown(tile: Vec2, world?: Vec2): void {
     this.hover = { ...tile };
+    this.hoverWorld = world ? { ...world } : null;
     this.pressed = true;
     const t = this.tool;
     switch (t.kind) {
@@ -141,8 +145,15 @@ export class ToolController {
     this.refreshGhost();
   }
 
-  pointerMove(tile: Vec2): void {
-    if (this.hover && this.hover.x === tile.x && this.hover.y === tile.y) return;
+  /** `world` is the exact world-px point: the bulldoze ghost then names what a click there would pick. */
+  pointerMove(tile: Vec2, world?: Vec2): void {
+    const sameTile = this.hover !== null && this.hover.x === tile.x && this.hover.y === tile.y;
+    this.hoverWorld = world ? { ...world } : null;
+    if (sameTile) {
+      // within one tile only the bulldozer's target can change (a raised roof over the tile)
+      if (this.tool.kind === 'bulldoze' && !this.pressed && world) this.refreshGhost();
+      return;
+    }
     this.hover = { ...tile };
     // drag-bulldozing clears roads and rails only; buildings need a deliberate click
     const under = tileAt(this.state, tile);
@@ -302,15 +313,18 @@ export class ToolController {
     }
     if (t.kind === 'bulldoze') {
       const tile = tileAt(this.state, hover);
-      if (!tile) return null;
-      if (tile.buildingId !== null) {
-        const b = this.state.buildings[tile.buildingId];
+      // a click picks the building drawn under the pointer (see bulldoze); a drag goes by tile
+      const picked = this.pressed ? null : this.buildingAt(hover, this.hoverWorld ?? undefined);
+      const buildingId = picked ?? tile?.buildingId ?? null;
+      if (buildingId !== null) {
+        const b = this.state.buildings[buildingId];
         if (!b) return null;
         const def = BUILDINGS[b.typeId];
         const mine = b.ownerId === 'player';
         const label = mine ? `Demolish ${def.name} +${formatMoney(def.cost * DEMOLITION_REFUND)}` : 'Not your building';
         return { kind: 'tiles', tiles: footprint(b), valid: mine, label };
       }
+      if (!tile) return null;
       if (tile.rail) {
         const mine = tile.railOwner === null || tile.railOwner === 'player';
         return { kind: 'tiles', tiles: [hover], valid: mine, label: mine ? 'Remove rail' : 'Not your rail' };

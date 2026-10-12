@@ -52,7 +52,7 @@ shot() {
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
 export -f shot
-MIN_SHOT_BYTES=2048
+MIN_SHOT_BYTES="${MIN_SHOT_BYTES:-2048}"
 export PORT CHROME_H_OFFSET MIN_SHOT_BYTES
 
 for size in 1366,768 1920,1080; do

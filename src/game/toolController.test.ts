@@ -220,6 +220,24 @@ describe('ToolController', () => {
       expect(ctx.state.buildings[b.id]).toBeUndefined();
       expect(ctx.state.map.tiles[4 * W + 6].road).toBe(true);
     });
+    it('the bulldoze ghost names the raised building the click would demolish, even within one tile', async () => {
+      const { BUILDING_HEIGHT } = await import('../render/sprites');
+      const { ctx, tc, game } = setup();
+      game.camera.zoom = 2;
+      must(placeBuilding(ctx, 'player', 'steel_mill', { x: 5, y: 5 }));
+      must(buildRoad(ctx, 'player', [{ x: 6, y: 4 }]));
+      tc.setTool({ kind: 'bulldoze' });
+      // top of tile (6,4), above the roof: the road
+      tc.pointerMove({ x: 6, y: 4 }, { x: 6 * TILE + 4, y: 4 * TILE + 1 });
+      expect(tc.ghost()?.label).toBe('Remove road');
+      // same tile, on the raised roof: the mill, as the click resolves it
+      tc.pointerMove({ x: 6, y: 4 }, { x: 6 * TILE + 4, y: 5 * TILE - BUILDING_HEIGHT.steel_mill + 2 });
+      expect(tc.ghost()?.label).toMatch(/^Demolish Steel Mill/);
+      // zoomed out to the survey map the roof is flat again
+      game.camera.zoom = 1;
+      tc.pointerMove({ x: 6, y: 4 }, { x: 6 * TILE + 4, y: 5 * TILE - 2 });
+      expect(tc.ghost()?.label).toBe('Remove road');
+    });
     it('drag-bulldozing keeps tile semantics: it lifts the road under a raised roof and spares the building', () => {
       const { ctx, tc, game } = setup();
       game.camera.zoom = 2;
