@@ -2,7 +2,7 @@ import type { LandmarkId } from '../../data/landmarks';
 import type { Vec2 } from '../../sim/types';
 import { TILE } from '../camera';
 import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
-import { chimneyOffsets, drawHouse, type HouseTier, windowRects } from '../sprites';
+import { HOUSE_HEADROOM, chimneyOffsets, drawHouse, type HouseTier, windowRects } from '../sprites';
 import { type Ctx, type Surface, makeSurface } from './shared';
 
 /** A small garden tree for empty urban tiles. */
@@ -43,24 +43,29 @@ const houseGlowCache = new Map<string, Surface>();
 /**
  * Glow mask for a lit house: |lit − unlit| leaves only the window pixels (warm orange on black),
  * which added with 'lighter' compositing makes exactly those windows shine. A blurred copy adds a halo.
+ * The mask is (TILE + 12) wide with the tile's top-left at (6, height − TILE − 6): towers get
+ * HOUSE_HEADROOM extra rows on top for the storeys that rise into the tile above.
  */
 export function getHouseGlow(style: string, variant: number, year: number, tier: HouseTier = 'house'): Surface {
   const key = `${style}|${variant}|${tier}`;
   let s = houseGlowCache.get(key);
   if (s) return s;
   const P = 6;
-  const sharp = makeSurface(TILE + P * 2, TILE + P * 2);
+  const W = TILE + P * 2;
+  const top = tier === 'tower' ? HOUSE_HEADROOM : 0;
+  const H = W + top;
+  const sharp = makeSurface(W, H);
   const g = (sharp as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D;
-  const unlit = makeSurface(TILE + P * 2, TILE + P * 2);
-  drawHouse((unlit as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, P, P, variant, year, false, tier);
-  drawHouse(g, P, P, variant, year, true, tier);
+  const unlit = makeSurface(W, H);
+  drawHouse((unlit as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, P, P + top, variant, year, false, tier);
+  drawHouse(g, P, P + top, variant, year, true, tier);
   // one image-level difference (per-primitive difference would also cancel overlapping strokes)
   g.globalCompositeOperation = 'difference';
   g.drawImage(unlit as CanvasImageSource, 0, 0);
-  s = makeSurface(TILE + P * 2, TILE + P * 2);
+  s = makeSurface(W, H);
   const o = (s as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D;
   o.fillStyle = '#000';
-  o.fillRect(0, 0, TILE + P * 2, TILE + P * 2);
+  o.fillRect(0, 0, W, H);
   o.globalCompositeOperation = 'lighter';
   o.filter = 'blur(2px)';
   o.drawImage(sharp as CanvasImageSource, 0, 0);

@@ -49,7 +49,10 @@ export function drawNightLights(
         // a building directly south is drawn over this house, so its windows must not glow through
         if (y + 1 < state.map.height && state.map.tiles[(y + 1) * state.map.width + x].buildingId !== null) continue;
         const glow = getHouseGlow(style, hs[i + 2], state.date.year, HOUSE_TIERS[hs[i + 4]]);
-        ctx.drawImage(glow as CanvasImageSource, toSX(x * TILE - 6), toSY(y * TILE - 6), (TILE + 12) * z, (TILE + 12) * z);
+        // taller masks (towers) extend upward: the tile sits at the bottom of the mask
+        const gw = (glow as HTMLCanvasElement).width;
+        const gh = (glow as HTMLCanvasElement).height;
+        ctx.drawImage(glow as CanvasImageSource, toSX(x * TILE - 6), toSY(y * TILE - 6 - (gh - gw)), gw * z, gh * z);
       }
       // street lamps
       ctx.globalAlpha = k;

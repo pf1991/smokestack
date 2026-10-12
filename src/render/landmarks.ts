@@ -9,6 +9,7 @@
  */
 import type { LandmarkId } from '../data/landmarks';
 import { TILE } from './constants';
+import type { ShadowCaster } from './shadows';
 import { circle, poly, rect, shade, softShadow } from './sprites';
 
 type Ctx = CanvasRenderingContext2D;
@@ -16,8 +17,18 @@ export type LandmarkPainter = (g: Ctx, lit: boolean) => void;
 
 /** Footprint side in px (2 tiles). */
 export const LANDMARK_PX = 2 * TILE;
-/** Px a landmark may rise above its footprint (spires, towers, floodlights). */
-export const LANDMARK_HEADROOM = 24;
+/** Px a landmark may rise above its footprint (spires, towers, floodlights, the skyscraper's crown). */
+export const LANDMARK_HEADROOM = 48;
+
+/** Height (px) of each landmark's tallest mass: spire, clock tower, dome, floodlights, the skyscraper's slab. */
+export const LANDMARK_HEIGHT: Record<LandmarkId, number> = {
+  church: 32,
+  town_hall: 28,
+  grand_station: 14,
+  library: 24,
+  stadium: 18,
+  skyscraper: 40,
+};
 
 const WALL = 7;
 const WARM = '#ffd27a';
@@ -322,35 +333,54 @@ function stadium(g: Ctx, lit: boolean): void {
   }
 }
 
+/** A ¾ block: ground rect (x, y, w, d) standing z0..z1 px above the ground; returns its roof top, facade top and base y. */
+function slab(g: Ctx, x: number, y: number, w: number, d: number, z0: number, z1: number, roof: string, face: string): { top: number; face: number; base: number } {
+  const top = y - z1;
+  const fTop = y + d - z1;
+  const base = y + d - z0;
+  rect(g, x, top, w, d, roof);
+  rect(g, x, top, w, 1, shade(roof, 0.3));
+  rect(g, x, fTop, w, base - fTop, face);
+  outline(g, x, top, w, base - top);
+  return { top, face: fTop, base };
+}
+
 function skyscraper(g: Ctx, lit: boolean): void {
   plaza(g);
   tree(g, 5, 60, 3);
   tree(g, 59, 60, 3);
   const facade = '#cfc6b2';
   const roof = '#8f8a80';
-  /** One setback tier: roof deck, a tall south facade with a window grid and a gold band. */
-  const tier = (x: number, y: number, w: number, roofH: number, faceH: number, seed: number): void => {
-    softShadow(g, x, y, w, roofH + faceH);
-    rect(g, x, y, w, roofH, roof);
-    rect(g, x + 2, y + 2, w - 4, roofH - 4, shade(roof, 0.12));
-    const fy = y + roofH;
-    rect(g, x, fy, w, faceH, facade);
+  const Z = LANDMARK_HEIGHT.skyscraper;
+  /** A storeyed facade: gold band at the top, piers, a window grid. */
+  const storeys = (x: number, fy: number, w: number, h: number, seed: number): void => {
     rect(g, x, fy, w, 1, GOLD);
-    for (let px = x + 2; px < x + w - 2; px += 4) rect(g, px + 3, fy + 1, 1, faceH - 1, shade(facade, -0.2)); // piers
+    for (let px = x + 2; px < x + w - 2; px += 4) rect(g, px + 3, fy + 1, 1, h - 1, shade(facade, -0.2)); // piers
     let n = seed;
-    for (let ry = fy + 3; ry + 2 <= fy + faceH - 1; ry += 3) {
+    for (let ry = fy + 3; ry + 2 <= fy + h - 1; ry += 3) {
       for (let px = x + 2; px + 2 <= x + w - 2; px += 4) rect(g, px, ry, 2, 2, win(lit, n++, 0.55));
     }
-    outline(g, x, y, w, roofH + faceH);
+    rect(g, x + w - 2, fy + 1, 2, h - 1, 'rgba(0,0,0,0.16)'); // corner shade
   };
-  tier(6, 16, 50, 16, 26, 100); // base block reaching the plaza
-  tier(14, 2, 34, 12, 16, 300); // middle setback
-  tier(21, -12, 20, 8, 12, 500); // crown
-  // stepped deco crown and spire
-  rect(g, 25, -16, 12, 4, '#d9d2bf');
-  rect(g, 28, -19, 6, 3, '#e8e0cc');
-  poly(g, [[29, -19], [31, -24], [33, -19]], '#c8ccd0');
-  rect(g, 30.5, -24, 1, 4, '#9aa4ae');
+  // the slab: a 36 × 24 plot at the back of the block, Z px tall
+  softShadow(g, 14, 12 + 24 - Z, 36, Z);
+  const shaft = slab(g, 14, 12, 36, 24, 0, Z, roof, facade);
+  rect(g, 16, shaft.top + 2, 32, 20, shade(roof, 0.12));
+  storeys(14, shaft.face, 36, shaft.base - shaft.face, 100);
+  // stepped deco crown on the slab's roof, then the spire
+  const crown = slab(g, 20, 16, 24, 14, Z, Z + 10, '#d9d2bf', '#e1d9c4');
+  storeys(20, crown.face, 24, crown.base - crown.face, 300);
+  rect(g, 27, crown.top + 4, 10, 6, '#e8e0cc');
+  rect(g, 27, crown.top + 10, 10, 2, shade('#e8e0cc', -0.25));
+  poly(g, [[29, crown.top + 5], [32, crown.top - 4], [35, crown.top + 5]], '#c8ccd0');
+  rect(g, 31.5, crown.top - 8, 1, 5, '#9aa4ae');
+  circle(g, 32, crown.top - 8, 1, lit ? '#ff6a5a' : '#b04a40');
+  // podium in front: a two-storey base along the plaza
+  softShadow(g, 6, 48, 52, 10);
+  const pod = slab(g, 6, 36, 52, 22, 0, 10, roof, facade);
+  rect(g, 8, pod.top + 2, 48, 18, shade(roof, 0.18));
+  for (let px = 12; px < 54; px += 10) rect(g, px, pod.top + 6, 6, 4, shade(roof, -0.15)); // roof lights
+  storeys(6, pod.face, 52, pod.base - pod.face, 500);
   // entrance canopy
   rect(g, 24, 56, 14, 3, '#2b2f36');
   rect(g, 28, 56, 6, 2, lit ? WARM : NIGHT_GLASS);
@@ -364,6 +394,37 @@ export const LANDMARK_PAINTERS: Record<LandmarkId, LandmarkPainter> = {
   library,
   stadium,
   skyscraper,
+};
+
+/** Sun-shadow casters per landmark, footprint-local px, roughly following each painter's masses. */
+export const LANDMARK_CASTERS: Record<LandmarkId, ShadowCaster[]> = {
+  church: [
+    { x: 21, y: 18, w: 22, d: 32, z: 12 },
+    { x: 10, y: 26, w: 44, d: 10, z: 8 },
+    { x: 25, y: 46, w: 14, d: 10, z: LANDMARK_HEIGHT.church, taper: true },
+  ],
+  town_hall: [
+    { x: 3, y: 26, w: 56, d: 24, z: 10 },
+    { x: 25, y: 18, w: 12, d: 8, z: LANDMARK_HEIGHT.town_hall },
+  ],
+  grand_station: [
+    { x: 4, y: 12, w: 56, d: 22, z: 8 },
+    { x: 2, y: 42, w: 58, d: 16, z: LANDMARK_HEIGHT.grand_station },
+  ],
+  library: [
+    { x: 8, y: 23, w: 48, d: 25, z: 9 },
+    { x: 21, y: 26, w: 22, d: 12, z: LANDMARK_HEIGHT.library, taper: true },
+  ],
+  stadium: [
+    { x: 3, y: 8, w: 56, d: 50, z: 4 },
+    ...[[4, 6], [58, 6], [4, 58], [58, 58]].map(([x, y]) => ({ x: x - 1, y: y - 1, w: 3, d: 2, z: LANDMARK_HEIGHT.stadium })),
+  ],
+  skyscraper: [
+    { x: 14, y: 12, w: 36, d: 24, z: LANDMARK_HEIGHT.skyscraper },
+    { x: 20, y: 16, w: 24, d: 14, z: LANDMARK_HEIGHT.skyscraper + 10 },
+    { x: 30, y: 21, w: 4, d: 4, z: LANDMARK_HEIGHT.skyscraper + 22, taper: true },
+    { x: 6, y: 36, w: 52, d: 22, z: 10 },
+  ],
 };
 
 /** Paints landmark `id` with its footprint's top-left corner at (px, py). */

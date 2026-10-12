@@ -50,4 +50,13 @@ describe('drawConstruction', () => {
     expect(g.drawImage).toHaveBeenCalledTimes(1);
     expect(g.drawImage).toHaveBeenCalledWith(sprite, 0, 50, 64, 50, 10, 70, 64, 50);
   });
+  it('stops the scaffold at scaffoldH above the sprite bottom', () => {
+    const g = {
+      drawImage: vi.fn(), fillRect: vi.fn(), save: vi.fn(), restore: vi.fn(),
+      fillStyle: '', globalAlpha: 1,
+    };
+    drawConstruction(g as unknown as CanvasRenderingContext2D, {} as CanvasImageSource, 10, 20, 64, 100, { scaffold: 1, reveal: 0, done: false }, 60);
+    // poles start at the scaffold top: y + h - 60
+    expect(g.fillRect).toHaveBeenCalledWith(10, 60, 3, 60);
+  });
 });

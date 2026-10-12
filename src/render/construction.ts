@@ -23,7 +23,10 @@ export function constructionStage(elapsedMs: number): ConstructionStage {
 const POLE = '#6b4423';
 const PLANK = '#9a6b3a';
 
-/** Draws the sprite clipped from the bottom up, plus brown poles and planks sized by `stage.scaffold`. */
+/**
+ * Draws the sprite clipped from the bottom up (rising from the footprint base), plus brown poles and
+ * planks sized by `stage.scaffold`, up to `scaffoldH` px above the sprite's bottom (default: all of it).
+ */
 export function drawConstruction(
   g: CanvasRenderingContext2D,
   sprite: CanvasImageSource,
@@ -32,6 +35,7 @@ export function drawConstruction(
   w: number,
   h: number,
   stage: ConstructionStage,
+  scaffoldH = h,
 ): void {
   if (stage.reveal > 0) {
     const vis = Math.round(h * stage.reveal);
@@ -41,7 +45,7 @@ export function drawConstruction(
   g.save();
   // while the scaffold comes down (reveal complete) it also fades
   g.globalAlpha = stage.reveal >= 1 ? stage.scaffold : 1;
-  const sh = Math.round(h * stage.scaffold);
+  const sh = Math.round(Math.min(h, scaffoldH) * stage.scaffold);
   const top = y + h - sh;
   g.fillStyle = POLE;
   const poles = [0, Math.round(w / 3), Math.round((2 * w) / 3), w - 3];

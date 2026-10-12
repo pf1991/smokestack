@@ -1,8 +1,14 @@
 /**
  * World renderer: composes everything the player sees on the map canvas.
  *
- * Layer order: terrain → roads → houses → buildings (y-sorted) → vehicles → particles →
+ * Layer order: terrain → roads → houses → sun shadows → vehicles → buildings (y-sorted) → particles →
  * selection / route polyline → ghost → overlays → atmosphere → night lights (additive).
+ * Vehicles go under buildings: they never drive on a footprint, so the only overlap is a raised roof
+ * or chimney in front of a road behind it, which must hide the vehicle.
+ * Sun shadows (render/shadows.ts) are one path per frame, filled once: every house, landmark and
+ * building in reach is traced from its casters for the eased sun vector. Houses and landmarks are
+ * already painted (chunk cache), so their own silhouettes are cut out of their shadows; buildings are
+ * drawn after the shadows and simply cover theirs.
  * Zoomed out (render/regime.ts) the diorama gives way to the engraved survey map: cached survey
  * chunks plus ink symbols (world/survey.ts) are drawn over it at alpha 1 − blend, and only the
  * regime(s) with non-zero weight are drawn at all. City names go on the overlay canvas.
@@ -26,8 +32,9 @@ import { OVERLAYS } from '../overlays';
 import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
-import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
-import { HEADROOM, HOUSE_TIERS, drawHouse, getBuildingSprite, houseStyle, houseTier } from '../sprites';
+import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
+import { MAX_CASTER_Z, MAX_SHADOW_LENGTH, SHADOW_ALPHA, SHADOW_COLOR, type SunVector, easeSun, traceShadow } from '../shadows';
+import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
 import { chimneysOf, paintGardenTree } from './glows';
 import { drawNightLights } from './night';
@@ -70,6 +77,8 @@ const MIN_SURFACE_CAP = 48;
 const VEHICLE_DIR_SWEEP = 600;
 const HOUSE_VARIANTS = 16;
 const HUD_RECTS_FRAMES = 30;
+/** Tiles beyond the view whose casters may still throw a shadow into it. */
+const SHADOW_REACH = Math.ceil((MAX_CASTER_Z * MAX_SHADOW_LENGTH) / TILE) + 1;
 
 const PLAYER_FLOAT = '#7ee07e';
 const RIVAL_FLOAT = '#b5302f';
@@ -124,6 +133,8 @@ export class WorldRenderer {
   private pendingSales = new Map<number, { revenue: number; ownerId: Building['ownerId'] }>();
   private lastFloat = new Map<number, number>();
   private light: number | null = null;
+  /** Rendered sun vector, eased toward the clock's like the light (see easeSun). */
+  private sun: SunVector | null = null;
   private overlay: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
   /** HUD chrome rects city labels avoid; re-measured every HUD_RECTS_FRAMES frames */
   private hud: ScreenRect[] = [];
@@ -220,9 +231,10 @@ export class WorldRenderer {
       bus.on('landmarkBuilt', (e) => {
         const l = this.state.cities.find((c) => c.id === e.cityId)?.landmarks.find((x) => x.id === e.id);
         if (!l) return this.invalidate();
-        // the 2×2 block plus the row above it (spires and floodlights rise into it)
+        // the 2×2 block plus the rows its spires, floodlights and the skyscraper's crown rise into
         const { x, y } = l.pos;
-        const block = [{ x, y: y - 1 }, { x: x + 1, y: y - 1 }, { x, y }, { x: x + 1, y }, { x, y: y + 1 }, { x: x + 1, y: y + 1 }];
+        const block: Vec2[] = [];
+        for (let dy = -Math.ceil(LANDMARK_HEADROOM / TILE); dy <= 1; dy++) block.push({ x, y: y + dy }, { x: x + 1, y: y + dy });
         this.invalidate(block);
         this.terrain.invalidateAround(block);
       }),
@@ -253,6 +265,7 @@ export class WorldRenderer {
       this.pendingSales.clear();
       this.lastFloat.clear();
       this.light = null;
+      this.sun = null;
     }
     this.state = state;
     this.frame++;
@@ -274,6 +287,7 @@ export class WorldRenderer {
     const z = cam.zoom;
     this.light = easeLight(this.light, date.hour, dt, state.speed);
     const light = this.light;
+    this.sun = easeSun(this.sun, date.hour, dt);
     const nightK = Math.min(1, Math.max(0, (0.8 - light) / 0.55));
     const lit = isLit(date.hour);
 
@@ -298,8 +312,9 @@ export class WorldRenderer {
     ctx.translate(-cam.x, -cam.y);
     const visBuildings = this.collectBuildings(state, r);
     if (diorama) {
-      this.drawBuildings(ctx, visBuildings);
+      this.drawShadows(ctx, state, r, light, blend);
       drawVehicles(ctx, this, state, r, alpha, dt, lit);
+      this.drawBuildings(ctx, visBuildings);
     }
     // smoke (and sparks, puffs) are hidden on the map side of the blend
     const smoke = blend >= 0.5;
@@ -436,12 +451,7 @@ export class WorldRenderer {
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         const c = this.chunkAt(cy * this.chunkCols + cx);
-        if (c.dirty || !c.meta) {
-          c.meta = this.computeMeta(cx, cy);
-          c.dirty = false;
-          c.version++;
-        }
-        if (c.meta.empty) continue;
+        if (this.metaOf(c, cx, cy).empty) continue;
         const fresh = c.surfVersion[v] === c.version && c.surfSig[v] === sig;
         if (!fresh && budget > 0) {
           budget--;
@@ -463,8 +473,7 @@ export class WorldRenderer {
 
   /** Decides which tiles of a chunk carry houses and lamps (cheap; no drawing). */
   private computeMeta(cx: number, cy: number): ChunkMeta {
-    const { map, cities, seed } = this.state;
-    const { year } = this.state.date;
+    const { map } = this.state;
     const houses: number[] = [];
     const lamps: number[] = [];
     let empty = true;
@@ -477,22 +486,39 @@ export class WorldRenderer {
         if (t.road && hasLamp(t, x, y)) lamps.push(x * TILE + 5, y * TILE - 2);
         if (t.cityId === null) continue;
         empty = false;
-        if (t.road || t.rail || t.buildingId !== null || t.terrain === 'water' || t.terrain === 'mountain') continue;
-        if (layerAt(this.state, LANDMARK_LAYER, x, y) > 0) continue; // the landmark painter covers it
-        const city = cities.find((c) => c.id === t.cityId);
-        if (!city) continue;
-        const d = Math.hypot(x - city.center.x, y - city.center.y) / Math.max(1, city.urbanRadius);
-        let p = 1.02 - 0.45 * d * d;
-        if (d > 0.85) p *= 0.75; // ragged outskirts
-        if (h01(x, y, seed, 31) >= p) continue;
-        const variant = hash(x, y, seed, 37) % HOUSE_VARIANTS;
-        const litHouse = h01(x, y, seed, 41) < 0.72 ? 1 : 0;
-        // tier inputs (population, year) change only at month end, which invalidates every chunk
-        const tier = HOUSE_TIERS.indexOf(houseTier(city.population, year, d));
-        houses.push(x, y, variant, litHouse, tier);
+        const h = this.houseAt(x, y);
+        if (h) houses.push(x, y, h[0], h[1], h[2]);
       }
     }
     return { houses, lamps, empty };
+  }
+
+  /** [variant, lit, tier index] of the house on tile (x, y), or null if it has none. */
+  private houseAt(x: number, y: number): [number, number, number] | null {
+    const { map, cities, seed } = this.state;
+    const t = map.tiles[y * map.width + x];
+    if (t.cityId === null || t.road || t.rail || t.buildingId !== null || t.terrain === 'water' || t.terrain === 'mountain') return null;
+    if (layerAt(this.state, LANDMARK_LAYER, x, y) > 0) return null; // the landmark painter covers it
+    const city = cities.find((c) => c.id === t.cityId);
+    if (!city) return null;
+    const d = Math.hypot(x - city.center.x, y - city.center.y) / Math.max(1, city.urbanRadius);
+    let p = 1.02 - 0.45 * d * d;
+    if (d > 0.85) p *= 0.75; // ragged outskirts
+    if (h01(x, y, seed, 31) >= p) return null;
+    const variant = hash(x, y, seed, 37) % HOUSE_VARIANTS;
+    const litHouse = h01(x, y, seed, 41) < 0.72 ? 1 : 0;
+    // tier inputs (population, year) change only at month end, which invalidates every chunk
+    return [variant, litHouse, HOUSE_TIERS.indexOf(houseTier(city.population, this.state.date.year, d))];
+  }
+
+  /** The chunk's meta, recomputed if it was invalidated. */
+  private metaOf(c: ChunkCache, cx: number, cy: number): ChunkMeta {
+    if (c.dirty || !c.meta) {
+      c.meta = this.computeMeta(cx, cy);
+      c.dirty = false;
+      c.version++;
+    }
+    return c.meta;
   }
 
   private renderChunk(c: ChunkCache, cx: number, cy: number, v: number, sig: string): void {
@@ -563,6 +589,17 @@ export class WorldRenderer {
         }
       }
     }
+    // towers in the first row of the chunk below rise past the padding into this one: paint them
+    // here too, after everything behind them
+    const yb = (cy + 1) * CHUNK;
+    if (yb < map.height) {
+      flushMarks(yb);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      for (let x = Math.max(0, cx * CHUNK - 1); x <= Math.min(map.width - 1, x1); x++) {
+        const h = this.houseAt(x, yb);
+        if (h && HOUSE_TIERS[h[2]] === 'tower') drawHouse(g as CanvasRenderingContext2D, x * TILE - ox, yb * TILE - oy, h[0], date.year, v === 1 && h[1] === 1, 'tower');
+      }
+    }
     flushMarks(Infinity);
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
@@ -627,6 +664,58 @@ export class WorldRenderer {
     return out;
   }
 
+  /**
+   * Sun shadows of every house, landmark and building within SHADOW_REACH of the view, traced into one
+   * path and filled once (nonzero), so overlaps never darken twice. Faded by the regime blend and by
+   * daylight; nothing at night.
+   */
+  private drawShadows(ctx: CanvasRenderingContext2D, state: GameState, r: TileRange, light: number, blend: number): void {
+    const sun = this.sun;
+    const k = SHADOW_ALPHA * blend * Math.min(1, Math.max(0, (light - 0.4) / 0.45));
+    if (!sun || k < 0.01 || Math.abs(sun.vx) + Math.abs(sun.vy) < 0.02) return;
+    const { vx, vy } = sun;
+    const R = SHADOW_REACH;
+    // shadows point west, north or east (never south): casters above the view cannot reach into it
+    const x0 = r.x0 - R, x1 = r.x1 + R, y0 = r.y0 - 1, y1 = r.y1 + R;
+    ctx.beginPath();
+    const { map } = state;
+    const cx0 = Math.floor(Math.max(0, x0) / CHUNK);
+    const cy0 = Math.floor(Math.max(0, y0) / CHUNK);
+    const cx1 = Math.floor(Math.min(map.width - 1, x1) / CHUNK);
+    const cy1 = Math.floor(Math.min(map.height - 1, y1) / CHUNK);
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const m = this.metaOf(this.chunkAt(cy * this.chunkCols + cx), cx, cy);
+        if (m.empty) continue;
+        const hs = m.houses;
+        for (let i = 0; i < hs.length; i += HOUSE_STRIDE) {
+          const x = hs[i];
+          const y = hs[i + 1];
+          if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+          traceShadow(ctx, houseCaster(HOUSE_TIERS[hs[i + 4]]), x * TILE, y * TILE, vx, vy, true);
+        }
+      }
+    }
+    for (const city of state.cities) {
+      for (const l of city.landmarks) {
+        if (l.pos.x + 1 < x0 || l.pos.x > x1 || l.pos.y + 1 < y0 || l.pos.y > y1) continue;
+        for (const c of LANDMARK_CASTERS[l.id]) traceShadow(ctx, c, l.pos.x * TILE, l.pos.y * TILE, vx, vy, true);
+      }
+    }
+    for (const id in state.buildings) {
+      const b = state.buildings[id];
+      const def = BUILDINGS[b.typeId];
+      if (!def || b.pos.x + def.size.w - 1 < x0 || b.pos.x > x1 || b.pos.y + def.size.h - 1 < y0 || b.pos.y > y1) continue;
+      if (this.isScaffolding(b.id)) continue;
+      for (const c of buildingCasters(b.typeId)) traceShadow(ctx, c, b.pos.x * TILE, b.pos.y * TILE, vx, vy, false);
+    }
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.fillStyle = SHADOW_COLOR;
+    ctx.fill('nonzero');
+    ctx.restore();
+  }
+
   private drawBuildings(ctx: CanvasRenderingContext2D, list: Building[]): void {
     for (const b of list) {
       const variant = b.typeId === 'farm' && b.recipeId ? b.recipeId.replace(/^r_/, '') : '';
@@ -645,7 +734,9 @@ export class WorldRenderer {
               this.particles.emitSparks((b.pos.x + fx) * TILE, (b.pos.y + fy) * TILE);
             }
           }
-          drawConstruction(ctx, sprite, x, y, sprite.width, sprite.height, stage);
+          // the scaffold rises to the raised roof, not to the top of the chimney headroom
+          const scaffoldH = sprite.height - HEADROOM + (BUILDING_HEIGHT[b.typeId] ?? 0) + 4;
+          drawConstruction(ctx, sprite, x, y, sprite.width, sprite.height, stage, scaffoldH);
           continue;
         }
       }

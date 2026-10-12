@@ -1,23 +1,61 @@
 /**
  * Procedural sprite painter. All art is drawn with Canvas 2D primitives.
  *
- * Viewpoint: top-down with a slight 3/4 tilt. Each building shows its roof plus a
- * visible south wall strip, and casts a soft drop shadow to the south-east.
+ * Viewpoint: ¾ diorama. Each building is a little prism: its roof is raised BUILDING_HEIGHT px above
+ * where a flat top-down sprite would put it, and the gap is filled by a south facade (brick, windows,
+ * cornice). Sun shadows are cast by render/shadows.ts from the casters below; the soft south-east
+ * drop shadow baked into the sprite stays as contact shading.
  *
- * Building sprite layout: canvas = (size.w*TILE) x (size.h*TILE + HEADROOM).
- * The top HEADROOM (16) px are free space for chimneys / derricks, so the tile
- * footprint starts at y = 16 in the sprite. Within the footprint the body box
- * occupies x 1..W-4, y 16..H-4; the last 4 px right/bottom hold the shadow, and
- * the bottom WALL (7) px of the body is the south wall strip.
+ * Painters work in a "flat" layout: canvas (size.w*TILE) x (size.h*TILE + HR0) with the footprint
+ * starting at y = HR0 (16) and chimneys / derricks in the rows above it. Within the footprint the body
+ * box occupies x 1..W-4, y HR0..H-4; the last 4 px right/bottom hold the shadow and the bottom WALL
+ * (7) px of the body is the south wall strip. The final sprite is (size.w*TILE) x (size.h*TILE +
+ * HEADROOM), footprint at y = HEADROOM: box buildings are split at the top of their facade, the part
+ * above is lifted by their height and the facade is grown to fill the gap; extractors paint their
+ * raised sheds, barns and silos directly (see `raised`).
  *
  * Nothing here touches `document` at import time; canvases are created lazily.
  */
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
-import type { OwnerId, Vec2 } from '../sim/types';
+import type { BuildingTypeId, OwnerId, Vec2 } from '../sim/types';
 import { TILE } from './constants';
 import { drawIcon } from './icons';
+import type { ShadowCaster } from './shadows';
 
-export const HEADROOM = 16;
+/** Extra height (px) a building rises above the flat top-down sprite: roofs and chimneys move up by it. */
+export const BUILDING_HEIGHT: Record<BuildingTypeId, number> = {
+  lumber_camp: 8,
+  farm: 6,
+  dairy_farm: 8,
+  mine: 10,
+  sand_pit: 6,
+  oil_well: 10,
+  sawmill: 14,
+  flour_mill: 16,
+  steel_mill: 22,
+  textile_mill: 18,
+  glassworks: 16,
+  refinery: 14,
+  furniture_factory: 16,
+  bakery: 14,
+  toolworks: 16,
+  clothing_factory: 18,
+  creamery: 14,
+  juice_plant: 14,
+  toy_factory: 14,
+  car_plant: 20,
+  electronics_plant: 22,
+  store: 10,
+  warehouse: 14,
+  train_station: 12,
+};
+
+/** Chimney room above the footprint in the flat layout the painters draw in. */
+const HR0 = 16;
+/** Rows above the footprint in a final sprite: the flat chimney room plus the tallest building. */
+export const HEADROOM = HR0 + Math.max(...Object.values(BUILDING_HEIGHT));
+/** Final-sprite y of flat-layout y 0. */
+const LIFT_ROOM = HEADROOM - HR0;
 const WALL = 7;
 const SHADOW = 4;
 
@@ -51,12 +89,37 @@ export function houseStyle(year: number): HouseStyle {
   return 'modern';
 }
 
+/** Flat painting layout: footprint at y = HR0. */
 function dims(def: BuildingDef): { W: number; H: number } {
-  return { W: def.size.w * TILE, H: def.size.h * TILE + HEADROOM };
+  return { W: def.size.w * TILE, H: def.size.h * TILE + HR0 };
 }
 
-/** Chimney tops, in sprite coordinates (y inside the headroom). Smoke emits here. */
-export function chimneyOffsets(typeId: string): Vec2[] {
+/** Final sprite size: footprint + HEADROOM rows above it. */
+export function spriteSize(typeId: string): { w: number; h: number } {
+  const def = BUILDINGS[typeId];
+  return { w: def.size.w * TILE, h: def.size.h * TILE + HEADROOM };
+}
+
+/** Box buildings (factories, shops, depots) are lifted whole above their facade; extractors paint raised parts themselves. */
+function isBox(def: BuildingDef): boolean {
+  return def.category !== 'extractor';
+}
+
+/** Flat-layout row where a box building's facade starts; everything above it is lifted. */
+function splitRow(def: BuildingDef): number {
+  const seam = dims(def).H - SHADOW - WALL;
+  // the shop sign, awning and glazed front are all facade
+  return def.id === 'store' ? seam - 21 : seam;
+}
+
+/** Final-sprite gap a box building's facade grows into: [top, top + lift). */
+function facadeGap(def: BuildingDef): { top: number; lift: number } {
+  const lift = BUILDING_HEIGHT[def.id] ?? 0;
+  return { top: LIFT_ROOM + splitRow(def) - lift, lift };
+}
+
+/** Chimney tops in the flat layout (y inside the HR0 rows). */
+function flatChimneys(typeId: string): Vec2[] {
   const def = BUILDINGS[typeId];
   if (!def) return [];
   const { W } = dims(def);
@@ -84,21 +147,62 @@ export function chimneyOffsets(typeId: string): Vec2[] {
   return t.map(([f, y]) => ({ x: Math.round(W * f), y }));
 }
 
-/** Rects (sprite coords) where lit windows are drawn at night. */
-export function windowRects(typeId: string): { x: number; y: number; w: number; h: number }[] {
+/** How far a type's chimneys rise with it: box roofs and the mine's engine house are lifted, the derrick is not. */
+function chimneyLift(def: BuildingDef): number {
+  if (isBox(def) || def.id === 'mine') return BUILDING_HEIGHT[def.id] ?? 0;
+  return 0;
+}
+
+/** Chimney tops, in sprite coordinates (y inside the headroom). Smoke emits here. */
+export function chimneyOffsets(typeId: string): Vec2[] {
+  const def = BUILDINGS[typeId];
+  if (!def) return [];
+  const dy = LIFT_ROOM - chimneyLift(def);
+  return flatChimneys(typeId).map((c) => ({ x: c.x, y: c.y + dy }));
+}
+
+type WinRect = { x: number; y: number; w: number; h: number };
+
+/** Window rects in the flat layout: one row along the south wall strip. */
+function flatWindowRects(typeId: string): WinRect[] {
   const def = BUILDINGS[typeId];
   if (!def) return [];
   if (['farm', 'sand_pit', 'oil_well', 'lumber_camp', 'warehouse'].includes(typeId)) return [];
   if (typeId === 'dairy_farm') {
-    return [10, 16, 38, 44].map(x => ({ x, y: HEADROOM + 17, w: 4, h: 3 }));
+    return [10, 16, 38, 44].map(x => ({ x, y: HR0 + 17, w: 4, h: 3 }));
   }
-  if (typeId === 'mine') return [{ x: 43, y: HEADROOM + 15, w: 4, h: 3 }];
+  if (typeId === 'mine') return [{ x: 43, y: HR0 + 15, w: 4, h: 3 }, { x: 51, y: HR0 + 15, w: 4, h: 3 }, { x: 43, y: HR0 + 9, w: 4, h: 3 }];
   const { W, H } = dims(def);
-  const out: { x: number; y: number; w: number; h: number }[] = [];
+  const out: WinRect[] = [];
   const y = H - SHADOW - WALL + 2;
   const step = typeId === 'car_plant' ? 8 : 10;
   for (let x = 5; x + 4 <= W - SHADOW - 3; x += step) out.push({ x, y, w: 4, h: 3 });
   return out;
+}
+
+/** Upper-storey window rows (final sprite coords) on a box building's grown facade. */
+function facadeWindowRects(typeId: string): WinRect[] {
+  const def = BUILDINGS[typeId];
+  if (!def || !isBox(def)) return [];
+  const { top, lift } = facadeGap(def);
+  const out: WinRect[] = [];
+  if (typeId === 'store') {
+    const { W } = dims(def);
+    for (let y = top + 3; y + 3 <= top + lift - 2; y += 6) {
+      for (let x = 6; x + 4 <= W - SHADOW - 5; x += 8) out.push({ x, y, w: 4, h: 3 });
+    }
+    return out;
+  }
+  const base = flatWindowRects(typeId);
+  if (!base.length) return out;
+  const y0 = base[0].y + LIFT_ROOM;
+  for (let y = y0 - 6; y >= top + 3; y -= 6) for (const r of base) out.push({ x: r.x, y, w: r.w, h: r.h });
+  return out;
+}
+
+/** Rects (sprite coords) where lit windows are drawn at night. */
+export function windowRects(typeId: string): WinRect[] {
+  return [...flatWindowRects(typeId).map((r) => ({ ...r, y: r.y + LIFT_ROOM })), ...facadeWindowRects(typeId)];
 }
 
 function hash(n: number): number {
@@ -145,7 +249,7 @@ export function softShadow(g: Ctx, x: number, y: number, w: number, h: number): 
 
 interface Box { x: number; y: number; w: number; h: number; roofH: number }
 function bodyBox(W: number, H: number): Box {
-  const x = 1, y = HEADROOM, w = W - SHADOW - 1, h = H - HEADROOM - SHADOW;
+  const x = 1, y = HR0, w = W - SHADOW - 1, h = H - HR0 - SHADOW;
   return { x, y, w, h, roofH: h - WALL };
 }
 /** Draws shadow, roof base and south wall strip; returns the box. */
@@ -169,10 +273,10 @@ function brickTexture(g: Ctx, b: Box, seed: number): void {
   }
 }
 function windows(g: Ctx, typeId: string, c = '#2b3a4a'): void {
-  for (const r of windowRects(typeId)) rect(g, r.x, r.y, r.w, r.h, c);
+  for (const r of flatWindowRects(typeId)) rect(g, r.x, r.y, r.w, r.h, c);
 }
 function pennant(g: Ctx, W: number, owner: OwnerId): void {
-  const x = W - 9, y = HEADROOM;
+  const x = W - 9, y = HR0;
   rect(g, x, y - 9, 1, 11, '#222');
   poly(g, [[x + 1, y - 9], [x + 8, y - 6.5], [x + 1, y - 4]], ownerColor(owner));
 }
@@ -196,20 +300,52 @@ function stack(g: Ctx, x: number, top: number, base: number, tint: string, w = 6
 }
 function stacks(g: Ctx, typeId: string, tint: string, base: number): void {
   const w = typeId === 'textile_mill' ? 3 : 6;
-  for (const c of chimneyOffsets(typeId)) stack(g, c.x, c.y, base, tint, w);
+  for (const c of flatChimneys(typeId)) stack(g, c.x, c.y, base, tint, w);
 }
 
 // ---------------------------------------------------------------- building painters
 
-function paintLumber(g: Ctx, _def: BuildingDef, W: number, H: number): void {
-  rect(g, 0, HEADROOM, W - SHADOW, H - HEADROOM - SHADOW, '#6f8a45'); // trampled clearing
-  rect(g, 2, HEADROOM + 2, W - 8, H - HEADROOM - 8, '#8a7048');
-  softShadow(g, 4, HEADROOM + 4, 24, 14);
-  // saw shed
-  rect(g, 4, HEADROOM + 4, 24, 12, '#7a4f2a');
-  rect(g, 4, HEADROOM + 16, 24, 6, '#5b3a1e');
-  for (let x = 6; x < 28; x += 4) rect(g, x, HEADROOM + 17, 1, 5, 'rgba(0,0,0,0.3)');
-  rect(g, 4, HEADROOM + 10, 24, 1, 'rgba(0,0,0,0.3)');
+/**
+ * A ¾ block drawn from its flat layout (roof at y, roofH deep, a wallH south wall) raised by `lift`:
+ * the roof moves up and the wall grows to meet the ground. Returns the new roof top and wall seam.
+ */
+function raised(g: Ctx, x: number, y: number, w: number, roofH: number, wallH: number, lift: number, roof: string, wall: string): { top: number; seam: number } {
+  const top = y - lift;
+  const seam = y + roofH - lift;
+  softShadow(g, x, top, w, roofH + wallH + lift);
+  rect(g, x, top, w, roofH, roof);
+  rect(g, x, top, w, 1, shade(roof, 0.25));
+  rect(g, x, seam, w, wallH + lift, wall);
+  rect(g, x, seam, w, 1, shade(wall, -0.4));
+  rect(g, x + w - 2, seam + 1, 2, wallH + lift - 1, 'rgba(0,0,0,0.18)');
+  return { top, seam };
+}
+/** Shadow caster (footprint-local px) for a `raised` block. */
+function raisedCaster(x: number, y: number, w: number, roofH: number, wallH: number, lift: number): ShadowCaster {
+  return { x, y: y - HR0 + wallH, w, d: roofH, z: wallH + lift };
+}
+
+/** A silo or tank `hgt` px tall standing on the ground circle (cx, gy) of radius r. */
+function silo(g: Ctx, cx: number, gy: number, r: number, hgt: number, color: string): void {
+  g.fillStyle = 'rgba(0,0,0,0.2)';
+  g.beginPath();
+  g.ellipse(cx + 2, gy + 1, r + 1, r * 0.6, 0, 0, Math.PI * 2);
+  g.fill();
+  circle(g, cx, gy, r, shade(color, -0.2));
+  rect(g, cx - r, gy - hgt, r * 2, hgt, color);
+  rect(g, cx - r, gy - hgt, Math.max(1, r * 0.6), hgt, shade(color, 0.18));
+  rect(g, cx + r * 0.45, gy - hgt, r * 0.55, hgt, shade(color, -0.18));
+  circle(g, cx, gy - hgt, r, shade(color, 0.3));
+  circle(g, cx - r * 0.3, gy - hgt - r * 0.3, r * 0.35, shade(color, 0.5));
+}
+function siloCaster(cx: number, gy: number, r: number, hgt: number): ShadowCaster {
+  return { x: cx - r, y: gy - HR0 - r, w: r * 2, d: r * 2, z: hgt };
+}
+
+function paintLumber(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  rect(g, 0, HR0, W - SHADOW, H - HR0 - SHADOW, '#6f8a45'); // trampled clearing
+  rect(g, 2, HR0 + 2, W - 8, H - HR0 - 8, '#8a7048');
   // log piles
   for (let row = 0; row < 3; row++) {
     for (let i = 0; i < 4 - row; i++) {
@@ -219,78 +355,90 @@ function paintLumber(g: Ctx, _def: BuildingDef, W: number, H: number): void {
     }
   }
   // standing felled logs
-  for (let i = 0; i < 3; i++) rect(g, 36 + i, HEADROOM + 6 + i * 5, 18, 3, i % 2 ? '#8b5a2b' : '#6b4423');
+  for (let i = 0; i < 3; i++) rect(g, 36 + i, HR0 + 6 + i * 5, 18, 3, i % 2 ? '#8b5a2b' : '#6b4423');
+  // saw shed: plank walls, an open bay, ridged roof
+  const b = raised(g, 4, HR0 + 4, 24, 12, 6, L, '#7a4f2a', '#5b3a1e');
+  for (let x = 6; x < 28; x += 4) rect(g, x, b.seam + 1, 1, 5 + L, 'rgba(0,0,0,0.3)');
+  rect(g, 4, b.top + 6, 24, 1, 'rgba(0,0,0,0.3)');
+  rect(g, 11, HR0 + 22 - 9, 10, 9, '#2a1c10');
+  rect(g, 12, HR0 + 22 - 3, 8, 2, '#c8a16e');
 }
 
-function paintFarm(g: Ctx, _def: BuildingDef, W: number, H: number, variant: string): void {
+function paintFarm(g: Ctx, def: BuildingDef, W: number, H: number, variant: string): void {
+  const L = BUILDING_HEIGHT[def.id];
   const pal: Record<string, [string, string, string]> = {
     grain: ['#d8bd4e', '#b89a2e', '#e9d77a'],
     cotton: ['#e9e6dc', '#7f9a55', '#ffffff'],
     fruit: ['#5f8f3a', '#437228', '#d9463b'],
   };
   const [a, b, dot] = pal[variant] ?? pal.grain;
-  const fx = 0, fy = HEADROOM, fw = W - SHADOW, fh = H - HEADROOM - SHADOW;
+  const fx = 0, fy = HR0, fw = W - SHADOW, fh = H - HR0 - SHADOW;
   rect(g, fx, fy, fw, fh, '#7a5a38');
   for (let i = 0; i < fh - 2; i += 4) {
     rect(g, fx + 1, fy + 1 + i, fw - 2, 3, i % 8 ? a : b);
     if (variant === 'fruit') for (let x = 5; x < fw - 4; x += 7) circle(g, fx + x, fy + 2 + i, 1.6, hash(x + i) > 0.5 ? dot : '#3f6b25');
     if (variant === 'cotton') for (let x = 4; x < fw - 3; x += 5) circle(g, fx + x, fy + 2 + i, 1.3, dot);
   }
-  // farmhouse in the SE... small, owner-neutral
-  softShadow(g, fx + 3, fy + 3, 16, 12);
-  rect(g, fx + 3, fy + 3, 16, 8, '#a8442f');
-  rect(g, fx + 3, fy + 11, 16, 4, '#e8dcc0');
+  // farmyard, farmhouse and silo in the NW corner, owner-neutral
+  rect(g, fx + 1, fy + 1, 32, 18, '#9a8456');
+  const h = raised(g, fx + 3, fy + 3, 16, 8, 4, L, '#a8442f', '#e8dcc0');
+  rect(g, fx + 3, h.top + 4, 16, 1, shade('#a8442f', -0.3));
+  rect(g, fx + 5, h.seam + 2, 3, 2, '#2b3a4a');
+  rect(g, fx + 13, h.seam + 2, 3, 2, '#2b3a4a');
   rect(g, fx + 5, fy + 12, 3, 2, '#2b3a4a');
-  rect(g, fx + 3, fy + 3, 16, 1, '#d56a50');
-  // silo
-  circle(g, fx + 25, fy + 8, 4, '#b8bcc4');
-  circle(g, fx + 24, fy + 7, 1.5, '#e4e7ec');
+  rect(g, fx + 10, fy + 11, 3, 4, '#5b3a1e');
+  silo(g, fx + 26, fy + 12, 4, L + 10, '#b8bcc4');
 }
 
-function paintDairy(g: Ctx, _def: BuildingDef, W: number, H: number): void {
-  rect(g, 0, HEADROOM, W - SHADOW, H - HEADROOM - SHADOW, '#8ec36a');
-  for (let i = 0; i < 12; i++) rect(g, 2 + hash(i) * (W - 10), HEADROOM + 24 + hash(i + 40) * 40, 2, 1, '#6fa34c');
+function paintDairy(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  rect(g, 0, HR0, W - SHADOW, H - HR0 - SHADOW, '#8ec36a');
+  for (let i = 0; i < 12; i++) rect(g, 2 + hash(i) * (W - 10), HR0 + 24 + hash(i + 40) * 40, 2, 1, '#6fa34c');
   // fenced paddock
   g.strokeStyle = '#8b6b43';
-  g.strokeRect(4.5, HEADROOM + 26.5, W - 16, H - HEADROOM - 36);
-  // barn
-  softShadow(g, 6, HEADROOM + 3, 44, 18);
-  rect(g, 6, HEADROOM + 3, 44, 12, '#b0392b');
-  poly(g, [[6, HEADROOM + 3], [28, HEADROOM - 1], [50, HEADROOM + 3]], '#7d2a20');
-  rect(g, 6, HEADROOM + 15, 44, 6, '#8a2a20');
-  rect(g, 24, HEADROOM + 15, 8, 6, '#f1e6d0'); // door
-  g.strokeStyle = '#f1e6d0';
-  g.strokeRect(24.5, HEADROOM + 15.5, 7, 5);
-  circle(g, W - 14, HEADROOM + 8, 4, '#c3c7cf'); // silo
+  g.strokeRect(4.5, HR0 + 26.5, W - 16, H - HR0 - 36);
   // cows
   for (let i = 0; i < 6; i++) {
-    const cx = 12 + (i % 3) * 20 + hash(i) * 6, cy = HEADROOM + 34 + Math.floor(i / 3) * 16;
+    const cx = 12 + (i % 3) * 20 + hash(i) * 6, cy = HR0 + 34 + Math.floor(i / 3) * 16;
     rect(g, cx, cy, 6, 4, '#f4f4f0');
     rect(g, cx + 1, cy + 1, 2, 2, '#2a2a2a');
     rect(g, cx + 5, cy, 2, 2, '#e0b8a0');
   }
+  // barn with a gabled roof, a tall door and a hayloft
+  const b = raised(g, 6, HR0 + 3, 44, 12, 6, L, '#b0392b', '#8a2a20');
+  poly(g, [[6, b.top], [28, b.top - 4], [50, b.top]], '#7d2a20');
+  rect(g, 6, b.top + 6, 44, 1, 'rgba(0,0,0,0.3)');
+  for (const r of flatWindowRects('dairy_farm')) rect(g, r.x, r.y, r.w, r.h, '#2b2320');
+  rect(g, 24, HR0 + 21 - 10, 8, 10, '#f1e6d0'); // door
+  g.strokeStyle = '#f1e6d0';
+  g.strokeRect(24.5, HR0 + 21 - 9.5, 7, 9);
+  rect(g, 25, HR0 + 21 - 9, 6, 8, '#6a2a20');
+  g.strokeStyle = '#f1e6d0';
+  g.beginPath(); g.moveTo(25, HR0 + 12); g.lineTo(31, HR0 + 20); g.moveTo(31, HR0 + 12); g.lineTo(25, HR0 + 20); g.stroke();
+  rect(g, 26, b.seam + 2, 4, 3, '#2b2320'); // hayloft
+  silo(g, W - 14, HR0 + 12, 4, L + 12, '#c3c7cf');
 }
 
 function paintMine(g: Ctx, def: BuildingDef, W: number, H: number): void {
-  rect(g, 0, HEADROOM, W - SHADOW, H - HEADROOM - SHADOW, '#7b746a');
-  for (let i = 0; i < 14; i++) circle(g, 3 + hash(i) * (W - 10), HEADROOM + 4 + hash(i + 9) * (H - HEADROOM - 12), 1.4, i % 2 ? '#4a4540' : '#a09a90');
+  const L = BUILDING_HEIGHT[def.id];
+  rect(g, 0, HR0, W - SHADOW, H - HR0 - SHADOW, '#7b746a');
+  for (let i = 0; i < 14; i++) circle(g, 3 + hash(i) * (W - 10), HR0 + 4 + hash(i + 9) * (H - HR0 - 12), 1.4, i % 2 ? '#4a4540' : '#a09a90');
   // headframe: A-frame with winding wheel
-  softShadow(g, 14, HEADROOM + 2, 20, 18);
+  softShadow(g, 14, HR0 + 2, 20, 18);
   g.strokeStyle = '#4a3322';
   g.lineWidth = 2;
   g.beginPath();
-  g.moveTo(14, HEADROOM + 22); g.lineTo(24, 4); g.lineTo(34, HEADROOM + 22);
-  g.moveTo(18, HEADROOM + 14); g.lineTo(30, HEADROOM + 14);
+  g.moveTo(14, HR0 + 22); g.lineTo(24, 4); g.lineTo(34, HR0 + 22);
+  g.moveTo(18, HR0 + 14); g.lineTo(30, HR0 + 14);
   g.stroke();
   g.lineWidth = 1;
   circle(g, 24, 7, 5, '#2d2d30');
   circle(g, 24, 7, 3.5, '#8b8f96');
   circle(g, 24, 7, 1, '#2d2d30');
   // engine house + chimney
-  rect(g, 40, HEADROOM + 4, 18, 9, '#5d4a3a');
-  rect(g, 40, HEADROOM + 13, 18, 6, '#3f3126');
-  rect(g, 43, HEADROOM + 15, 4, 3, '#2b3a4a');
-  stack(g, chimneyOffsets('mine')[0].x, 8, HEADROOM + 6, def.color);
+  raised(g, 40, HR0 + 4, 18, 9, 6, L, '#5d4a3a', '#3f3126');
+  for (const r of flatWindowRects('mine')) rect(g, r.x, r.y, r.w, r.h, '#2b3a4a');
+  stack(g, flatChimneys('mine')[0].x, 8 - L, HR0 + 6 - L, def.color);
   // ore cart on rails
   rect(g, 4, H - 16, W - 12, 1, '#3a3a3a');
   rect(g, 4, H - 12, W - 12, 1, '#3a3a3a');
@@ -299,25 +447,29 @@ function paintMine(g: Ctx, def: BuildingDef, W: number, H: number): void {
   circle(g, 12, H - 10, 2, '#111'); circle(g, 20, H - 10, 2, '#111');
 }
 
-function paintSandPit(g: Ctx, _def: BuildingDef, W: number, H: number): void {
-  const h = H - HEADROOM - SHADOW;
-  rect(g, 0, HEADROOM, W - SHADOW, h, '#e4cf94');
+function paintSandPit(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  const h = H - HR0 - SHADOW;
+  rect(g, 0, HR0, W - SHADOW, h, '#e4cf94');
   const cols = ['#d8bf85', '#c7a96c', '#b3935a', '#9c7c46'];
   for (let i = 0; i < 4; i++) {
     const inset = 3 + i * 5;
-    rect(g, inset, HEADROOM + inset, W - SHADOW - inset * 2, h - inset * 2, cols[i]);
-    rect(g, inset, HEADROOM + inset, W - SHADOW - inset * 2, 1, 'rgba(255,255,255,0.35)');
-    rect(g, inset, HEADROOM + h - inset - 1, W - SHADOW - inset * 2, 1, 'rgba(0,0,0,0.25)');
+    rect(g, inset, HR0 + inset, W - SHADOW - inset * 2, h - inset * 2, cols[i]);
+    rect(g, inset, HR0 + inset, W - SHADOW - inset * 2, 1, 'rgba(255,255,255,0.35)');
+    rect(g, inset, HR0 + h - inset - 1, W - SHADOW - inset * 2, 1, 'rgba(0,0,0,0.25)');
   }
   rect(g, W - 22, H - 18, 10, 6, '#c9a35a'); // sand heap + truck bed
   poly(g, [[W - 22, H - 12], [W - 17, H - 20], [W - 12, H - 12]], '#e9d6a0');
-  rect(g, 8, HEADROOM + 4, 8, 4, '#a8442f');
+  const hut = raised(g, 6, HR0 + 2, 12, 5, 4, L, '#a8442f', '#d9cfb8'); // weigh hut
+  rect(g, 9, hut.seam + 3, 3, 2, '#2b3a4a');
 }
 
-function paintOil(g: Ctx, _def: BuildingDef, W: number, H: number): void {
-  rect(g, 0, HEADROOM, W - SHADOW, H - HEADROOM - SHADOW, '#7d6e55');
+function paintOil(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  rect(g, 0, HR0, W - SHADOW, H - HR0 - SHADOW, '#7d6e55');
   circle(g, 12, H - 14, 7, '#26231f'); // oil pool
   circle(g, 10, H - 16, 2, '#4a4540');
+  silo(g, 10, HR0 + 12, 5, L + 6, '#5b6670'); // storage tank
   const cx = Math.round(W / 2), base = H - 14;
   softShadow(g, cx - 10, base - 4, 20, 4);
   g.strokeStyle = '#2f2a24';
@@ -337,14 +489,37 @@ function paintOil(g: Ctx, _def: BuildingDef, W: number, H: number): void {
   rect(g, W - 24, base - 8, 14, 3, '#3a3a40');
   circle(g, W - 10, base - 6, 3, '#3a3a40');
   rect(g, W - 17, base - 6, 3, 8, '#56565e');
-  // tank
-  rect(g, 4, HEADROOM + 4, 10, 8, '#5b6670');
-  rect(g, 4, HEADROOM + 4, 10, 2, '#8c97a0');
+}
+
+/** Shadow casters per extractor, matching the painters above (footprint-local px). */
+function extractorCasters(def: BuildingDef): ShadowCaster[] {
+  const L = BUILDING_HEIGHT[def.id];
+  const { W, H } = dims(def);
+  switch (def.id) {
+    case 'lumber_camp': return [raisedCaster(4, HR0 + 4, 24, 12, 6, L)];
+    case 'farm': return [raisedCaster(3, HR0 + 3, 16, 8, 4, L), siloCaster(26, HR0 + 12, 4, L + 10)];
+    case 'dairy_farm': return [raisedCaster(6, HR0 + 3, 44, 12, 6, L), siloCaster(W - 14, HR0 + 12, 4, L + 12)];
+    case 'mine': {
+      const c = flatChimneys('mine')[0];
+      return [
+        raisedCaster(40, HR0 + 4, 18, 9, 6, L),
+        { x: c.x - 3, y: 11, w: 6, d: 3, z: 6 + L + (HR0 + 6 - c.y) },
+        { x: 14, y: 20, w: 20, d: 3, z: HR0 + 22 - 4, taper: true },
+      ];
+    }
+    case 'sand_pit': return [raisedCaster(6, HR0 + 2, 12, 5, 4, L), { x: W - 22, y: H - HR0 - 14, w: 10, d: 2, z: 8, taper: true }];
+    case 'oil_well': return [siloCaster(10, HR0 + 12, 5, L + 6), { x: W / 2 - 10, y: H - HR0 - 17, w: 20, d: 3, z: H - 14 - 3, taper: true }];
+    default: return [];
+  }
+}
+
+function factoryBrick(id: string): string {
+  return id === 'sawmill' ? '#9b6e3f' : id === 'flour_mill' ? '#c9b99a' : id === 'creamery' ? '#e8dcc0' : '#a2513b';
 }
 
 function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: OwnerId): void {
   const id = def.id;
-  const brick = id === 'sawmill' ? '#9b6e3f' : id === 'flour_mill' ? '#c9b99a' : id === 'creamery' ? '#e8dcc0' : '#a2513b';
+  const brick = factoryBrick(id);
   let roofTint = mix(def.color, '#6e7b84', 0.6);
   if (id === 'creamery') roofTint = '#efe6cf';
   if (id === 'toy_factory') roofTint = '#e88ab0';
@@ -392,7 +567,7 @@ function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: Own
       g.strokeStyle = '#555'; g.lineWidth = 2;
       g.beginPath(); g.moveTo(24, b.y + 26); g.lineTo(24, b.y + 52); g.lineTo(40, b.y + 52); g.moveTo(58, b.y + 25); g.lineTo(58, b.y + 40); g.lineTo(50, b.y + 40); g.stroke();
       g.lineWidth = 1;
-      circle(g, chimneyOffsets(id)[1].x, 4, 2.5, '#ff9a3c');
+      circle(g, flatChimneys(id)[1].x, 4, 2.5, '#ff9a3c');
       break;
     }
     case 'car_plant': {
@@ -555,7 +730,7 @@ function paintStation(g: Ctx, _def: BuildingDef, W: number, H: number, owner: Ow
   rect(g, b.x + 4, b.y + b.roofH - 8, b.w - 8, 1, 'rgba(0,0,0,0.25)');
   windows(g, 'train_station', '#2b3a4a');
   // clock tower
-  rect(g, 8, 6, 10, HEADROOM + 4, '#9a7a5c');
+  rect(g, 8, 6, 10, HR0 + 4, '#9a7a5c');
   poly(g, [[7, 7], [13, 1], [19, 7]], '#4a2f25');
   circle(g, 13, 12, 3, '#f5f0e0');
   rect(g, 13, 10, 1, 2, '#222'); rect(g, 13, 12, 2, 1, '#222');
@@ -581,10 +756,96 @@ function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant: string
   pennant(g, W, owner);
 }
 
+// ---------------------------------------------------------------- ¾ facades and casters
+
+/** Wall colour of a box building's facade (matches its painter's south wall). */
+function facadeWall(def: BuildingDef): string {
+  if (def.id === 'store') return '#e8dcc0';
+  if (def.id === 'train_station') return '#c9bb9c';
+  if (def.category === 'factory') return factoryBrick(def.id);
+  return '#b8b2a2';
+}
+
+/** Fills a box building's grown facade: wall, texture, cornice under the eave, pilasters, upper windows. */
+function paintFacade(g: Ctx, def: BuildingDef, W: number, top: number, lift: number): void {
+  if (lift <= 0) return;
+  const bx = 1, bw = W - SHADOW - 1;
+  const wall = facadeWall(def);
+  const factory = def.category === 'factory';
+  rect(g, bx, top, bw, lift, wall);
+  if (factory) {
+    for (let x = bx + 1; x < bx + bw - 1; x += 4) {
+      for (let r = 0; r < lift; r += 2) if (hash(def.id.length * 31 + x * 7 + r * 13) > 0.55) rect(g, x + (r % 4 ? 2 : 0), top + r, 2, 1, 'rgba(0,0,0,0.16)');
+    }
+  } else if (def.id !== 'store' && def.id !== 'train_station') {
+    for (let x = bx + 2; x < bx + bw - 1; x += 3) rect(g, x, top, 1, lift, 'rgba(0,0,0,0.12)'); // corrugated
+  }
+  if (def.id !== 'store') for (let x = bx + 12; x < bx + bw - 8; x += 24) rect(g, x, top, 2, lift, shade(wall, -0.16)); // pilasters
+  for (const r of facadeWindowRects(def.id)) {
+    rect(g, r.x, r.y, r.w, r.h, '#2b3a4a');
+    rect(g, r.x, r.y + r.h, r.w, 1, shade(wall, 0.3));
+  }
+  // light from the sky above, ambient occlusion toward the street
+  const grd = g.createLinearGradient(0, top, 0, top + lift);
+  grd.addColorStop(0, 'rgba(255,255,255,0.08)');
+  grd.addColorStop(1, 'rgba(0,0,0,0.10)');
+  g.fillStyle = grd;
+  g.fillRect(bx, top, bw, lift);
+  rect(g, bx, top, bw, 2, shade(wall, -0.5)); // eave shadow
+  rect(g, bx, top + 2, bw, 1, shade(wall, 0.18));
+  if (factory) rect(g, bx, top + 3, bw, 1, def.color);
+  rect(g, bx + bw - 3, top, 2, lift, 'rgba(0,0,0,0.12)');
+  rect(g, bx, top, 1, lift, 'rgba(0,0,0,0.45)');
+  rect(g, bx + bw - 1, top, 1, lift, 'rgba(0,0,0,0.45)');
+}
+
+/** Lifts a box building's flat painting: facade base stays on the ground, roof and chimneys rise by its height. */
+function composeBox(out: Ctx, flat: CanvasImageSource, def: BuildingDef): void {
+  const { W, H } = dims(def);
+  const s = splitRow(def);
+  const { top, lift } = facadeGap(def);
+  out.drawImage(flat, 0, s, W, H - s, 0, LIFT_ROOM + s, W, H - s);
+  if (lift > 0) out.drawImage(flat, W - SHADOW, s + 1, SHADOW, 1, W - SHADOW, top, SHADOW, lift); // contact shadow down the east side
+  paintFacade(out, def, W, top, lift);
+  out.drawImage(flat, 0, 0, W, s, 0, top - s, W, s);
+}
+
+const casterCache = new Map<string, ShadowCaster[]>();
+/**
+ * Sun-shadow casters of a building type in footprint-local px (footprint top-left at 0, 0): its
+ * raised body plus chimneys, towers and masts, matching the sprite.
+ */
+export function buildingCasters(typeId: string): ShadowCaster[] {
+  const hit = casterCache.get(typeId);
+  if (hit) return hit;
+  const def = BUILDINGS[typeId];
+  let out: ShadowCaster[] = [];
+  if (def && !isBox(def)) out = extractorCasters(def);
+  else if (def) {
+    const { W, H } = dims(def);
+    const s = splitRow(def);
+    const lift = BUILDING_HEIGHT[def.id] ?? 0;
+    const z = H - SHADOW - s + lift;
+    const y0 = H - SHADOW - s;
+    out.push({ x: 1, y: y0, w: W - SHADOW - 1, d: s - HR0, z });
+    // things standing on the roof: their foot is on the roof at flat y = foot, so on the ground at foot - HR0 - lift + z
+    const ground = (foot: number): number => foot - HR0 - lift + z;
+    const cw = typeId === 'textile_mill' ? 3 : 6;
+    for (const c of flatChimneys(typeId)) out.push({ x: c.x - cw / 2, y: ground(HR0 + 6) - 2, w: cw, d: 4, z: z + HR0 + 6 - c.y });
+    if (typeId === 'steel_mill') { const fx = Math.round(W * 0.68); out.push({ x: fx - 10, y: ground(48) - 6, w: 18, d: 6, z: z + 40 }); }
+    // the radio mast is drawn lying along the roof; its shadow is a modest mast's, not a 100 px one
+    if (typeId === 'electronics_plant') { const mx = Math.round(W * 0.7); out.push({ x: mx - 1, y: ground(HR0 + 30) - 2, w: 3, d: 2, z: z + 34, taper: true }); }
+    if (typeId === 'glassworks') { const kx = Math.round(W * 0.68); out.push({ x: kx - 12, y: ground(HR0 + 36) - 8, w: 24, d: 8, z: z + 30, taper: true }); }
+    if (typeId === 'train_station') out.push({ x: 8, y: ground(HR0 + 10) - 6, w: 10, d: 6, z: z + 20 });
+  }
+  casterCache.set(typeId, out);
+  return out;
+}
+
 const cache = new Map<string, HTMLCanvasElement>();
 
 /**
- * Cached building sprite, W = size.w*TILE, H = size.h*TILE + 16 (footprint starts at y = 16).
+ * Cached building sprite, W = size.w*TILE, H = size.h*TILE + HEADROOM (footprint starts at y = HEADROOM).
  * `variant` only matters for farms: 'grain' | 'cotton' | 'fruit'.
  */
 export function getBuildingSprite(typeId: string, ownerId: OwnerId, variant = ''): HTMLCanvasElement {
@@ -594,12 +855,27 @@ export function getBuildingSprite(typeId: string, ownerId: OwnerId, variant = ''
   const key = spriteKey(typeId, ownerId, v);
   let c = cache.get(key);
   if (c) return c;
-  const { W, H } = dims(def);
+  const { w, h } = spriteSize(typeId);
   c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
+  c.width = w;
+  c.height = h;
   const g = c.getContext('2d');
-  if (g) paintBuilding(g, def, ownerId, v);
+  if (g && isBox(def)) {
+    const { W, H } = dims(def);
+    const flat = document.createElement('canvas');
+    flat.width = W;
+    flat.height = H;
+    const fg = flat.getContext('2d');
+    if (fg) {
+      paintBuilding(fg, def, ownerId, v);
+      composeBox(g, flat, def);
+    }
+  } else if (g) {
+    // extractors paint their raised sheds and silos themselves, in the flat layout shifted down
+    g.translate(0, LIFT_ROOM);
+    paintBuilding(g, def, ownerId, v);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
   cache.set(key, c);
   return c;
 }
@@ -614,6 +890,10 @@ const DARK_WIN = '#34465a';
 export type HouseTier = 'house' | 'terrace' | 'block' | 'tower';
 /** Index order of HouseTier in packed chunk data. */
 export const HOUSE_TIERS: readonly HouseTier[] = ['house', 'terrace', 'block', 'tower'];
+/** Wall height (px) of each house tier: the ¾ facade and its sun shadow. Towers rise 28 px. */
+export const HOUSE_TIER_HEIGHT: Record<HouseTier, number> = { house: 6, terrace: 8, block: 16, tower: 28 };
+/** Px a house may rise above its tile (the tower's roof deck reaches into the tile above). */
+export const HOUSE_HEADROOM = HOUSE_TIER_HEIGHT.tower - 6 + 2;
 /** Fraction of the urban radius that counts as the city core. */
 export const CORE_FRAC = 0.35;
 
@@ -664,21 +944,62 @@ function drawBlock(g: Ctx, style: HouseStyle, v: number, win: string): void {
   rect(g, x + 11, y + h - 4, 4, 4, '#3b2c22');
 }
 
-/** A tall tower seen from above; drawn flat until towers get height. */
+/**
+ * A tall tower in ¾: the 26 × 22 px plot at the back of the tile carries a HOUSE_TIER_HEIGHT.tower px
+ * high slab, so the roof deck rises into the tile above. Glass curtain wall with a window grid, a
+ * lobby at street level and plant on the roof.
+ */
 function drawTower(g: Ctx, v: number, lit: boolean): void {
-  const x = 2, y = 1, w = 28, h = 29;
-  softShadow(g, x, y, w, h);
-  const wall = v % 2 ? '#7f93a6' : '#9aa8b5';
-  rect(g, x, y, w, h, wall);
-  rect(g, x, y, w, 2, '#d9dee2');
-  rect(g, x + 3, y + 3, w - 6, 9, shade(wall, -0.18)); // roof deck
-  rect(g, x + 5 + (v % 3) * 4, y + 4, 6, 5, '#b8bec4'); // plant room
-  rect(g, x + w - 8, y + 5, 4, 4, '#555c63'); // water tank
-  for (let r = 0; r < 3; r++) for (let i = 0; i < 6; i++) {
-    rect(g, x + 2 + i * 4.2, y + 14 + r * 5, 3, 3, lit && hash(v * 17 + r * 7 + i) > 0.25 ? WARM : '#3f5870');
+  const Z = HOUSE_TIER_HEIGHT.tower;
+  const x = 3, w = 26, gy = 6, d = 22; // ground plot
+  const top = gy - Z, face = gy + d - Z, base = gy + d;
+  const wall = v % 2 ? '#8796a6' : '#a3adb6';
+  const deck = v % 2 ? '#6d7680' : '#7d858c';
+  softShadow(g, x, face, w, base - face);
+  // roof deck with parapet, plant room and water tank
+  rect(g, x, top, w, d, deck);
+  rect(g, x, top, w, 1, '#d9dee2');
+  rect(g, x, top, 1, d, shade(deck, 0.2));
+  rect(g, x + w - 1, top, 1, d, shade(deck, -0.3));
+  rect(g, x + 2, top + 2, w - 4, d - 4, shade(deck, 0.08));
+  const px = x + 4 + (v % 3) * 4;
+  rect(g, px, top + 6, 9, 5, '#b8bec4'); // plant room (roof + a face)
+  rect(g, px, top + 11, 9, 3, '#8d949b');
+  rect(g, x + w - 8, top + 4, 4, 3, '#555c63'); // water tank
+  rect(g, x + w - 8, top + 7, 4, 2, '#3f454b');
+  rect(g, x + w - 7, top + 9, 1, 2, '#2c3136');
+  rect(g, x + w - 5, top + 9, 1, 2, '#2c3136');
+  // curtain wall: a parapet band, then five storeys of windows between piers
+  rect(g, x, face, w, base - face, wall);
+  rect(g, x, face, w, 2, '#d9dee2');
+  rect(g, x, face + 2, w, 1, shade(wall, -0.35));
+  for (let r = 0; r < 5; r++) {
+    for (let i = 0; i < 6; i++) {
+      rect(g, x + 2 + i * 4, face + 4 + r * 4.4, 3, 3, lit && hash(v * 17 + r * 7 + i) > 0.25 ? WARM : '#3f5870');
+    }
   }
-  rect(g, x + 12, y + h - 3, 4, 3, '#2c3440');
+  rect(g, x, base - 5, w, 1, shade(wall, -0.3)); // lobby
+  rect(g, x, base - 4, w, 4, shade(wall, -0.15));
+  rect(g, x + 10, base - 4, 6, 4, lit ? '#e8c27a' : '#2c3440');
+  rect(g, x + w - 2, face + 2, 2, base - face - 2, 'rgba(0,0,0,0.18)'); // corner shade
+  g.strokeStyle = 'rgba(0,0,0,0.45)';
+  g.lineWidth = 1;
+  g.strokeRect(x + 0.5, top + 0.5, w - 1, base - top - 1);
 }
+
+/**
+ * Sun-shadow caster of a one-tile house of `tier`, in tile-local px (tile top-left at 0, 0), roughly
+ * matching drawHouse's silhouette: ground plot plus HOUSE_TIER_HEIGHT.
+ */
+export function houseCaster(tier: HouseTier): ShadowCaster {
+  return HOUSE_CASTERS[tier];
+}
+const HOUSE_CASTERS: Record<HouseTier, ShadowCaster> = {
+  house: { x: 4, y: 12, w: 22, d: 14, z: HOUSE_TIER_HEIGHT.house },
+  terrace: { x: 2, y: 14, w: 28, d: 11, z: HOUSE_TIER_HEIGHT.terrace },
+  block: { x: 3, y: 12, w: 26, d: 16, z: HOUSE_TIER_HEIGHT.block },
+  tower: { x: 3, y: 6, w: 26, d: 22, z: HOUSE_TIER_HEIGHT.tower },
+};
 
 /** Draw a one-tile house of `tier` with its top-left corner at (px, py). */
 export function drawHouse(g: Ctx, px: number, py: number, variant: number, year: number, lit: boolean, tier: HouseTier = 'house'): void {
