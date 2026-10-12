@@ -4,7 +4,7 @@ import { accessTiles } from '../../sim/state';
 import type { Building, GameState, Vec2 } from '../../sim/types';
 import type { Camera } from '../camera';
 import { TILE } from '../camera';
-import { HEADROOM, getBuildingSprite } from '../sprites';
+import { HEADROOM, VEHICLE_SCALE, getBuildingSprite } from '../sprites';
 import type { Ghost, Selection } from './index';
 import type { Dir } from './shared';
 import { vehiclePose } from './vehicles';
@@ -114,7 +114,7 @@ export function drawSelection(ctx: CanvasRenderingContext2D, state: GameState, s
     const v = state.vehicles[sel.vehicleId];
     if (v) {
       const p = vehiclePose(vehicleDir, v, alpha);
-      const rr = (14 + Math.sin(nowMs / 200) * 1.5) * px * Math.max(1, z * 0.6);
+      const rr = (14 * VEHICLE_SCALE + Math.sin(nowMs / 200) * 1.5) * px * Math.max(1, z * 0.6);
       ctx.beginPath();
       ctx.arc(p.x, p.y, rr, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(20,14,6,0.6)';

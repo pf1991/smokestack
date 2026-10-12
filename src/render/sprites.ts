@@ -671,6 +671,9 @@ export function drawHouse(g: Ctx, px: number, py: number, variant: number, year:
 
 /** Everything vehicle-sized is drawn at this multiple of the original geometry. */
 export const VEHICLE_SCALE = 1.8;
+/** Nose x (px, local frame facing +x) where the headlights sit. */
+export const TRUCK_NOSE = 9 * VEHICLE_SCALE;
+export const LOCO_NOSE = 15 * VEHICLE_SCALE;
 const HEADLIGHT = 'rgba(255,236,170,0.35)';
 
 /** Scaled rect / circle: coordinates are in unscaled vehicle units (facing +x). */

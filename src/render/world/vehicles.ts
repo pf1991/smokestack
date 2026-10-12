@@ -9,15 +9,18 @@ export const LANE_OFFSET = 6;
 /** Trucks puff exhaust from this year, one puff per this many ms of real time while moving. */
 export const TRUCK_EXHAUST_YEAR = 1920;
 export const EXHAUST_INTERVAL_MS = 900;
-/** Wagons behind every locomotive (40 units each at TRAIN capacity 120). */
 /** Distance from a truck's centre to its tail pipe, px. */
 const TRUCK_TAIL = 9 * VEHICLE_SCALE;
+/** Wagons behind every locomotive (40 units each at TRAIN capacity 120). */
 const TRAIN_WAGONS = 3;
 /** Steam gives way to diesel from this year. */
 export const DIESEL_YEAR = 1950;
 /** Minimum spacing (tiles) between recorded locomotive positions, and how many are kept. */
 const TRAIL_STEP = 0.2;
-const TRAIL_MAX = 16;
+/** Tiles from the locomotive centre to the far end of the last wagon's orientation sample (+0.25 tile). */
+export const TRAIL_REACH = (LOCO_HALF + 1 + WAGON_HALF + (TRAIN_WAGONS - 1) * (2 * WAGON_HALF + 1)) / TILE + 0.25;
+/** Enough samples to cover the whole consist, plus a 2-sample margin. */
+export const TRAIL_MAX = Math.ceil(TRAIL_REACH / TRAIL_STEP) + 2;
 const DIR_ANGLE: Record<Dir, number> = { E: 0, S: Math.PI / 2, W: Math.PI, N: -Math.PI / 2 };
 
 export interface TrainTrail {

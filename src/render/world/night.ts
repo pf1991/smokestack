@@ -1,6 +1,6 @@
 import type { Building, GameState } from '../../sim/types';
 import { type Camera, TILE } from '../camera';
-import { HEADROOM, houseStyle } from '../sprites';
+import { HEADROOM, LOCO_NOSE, TRUCK_NOSE, VEHICLE_SCALE, houseStyle } from '../sprites';
 import { CHUNK } from '../terrain';
 import { getHouseGlow, getLampGlow, getWindowGlow } from './glows';
 import type { ChunkMeta, Dir, TileRange } from './shared';
@@ -77,12 +77,13 @@ export function drawNightLights(
 
   // truck headlights
   ctx.globalAlpha = k * 0.8;
-  const HR = 9 * z;
+  const HR = 12 * z;
   for (const id in state.vehicles) {
     const v = state.vehicles[id];
     if (v.pos.x < r.x0 - 1 || v.pos.x > r.x1 + 1 || v.pos.y < r.y0 - 1 || v.pos.y > r.y1 + 1) continue;
     const p = vehiclePose(vehicleDir, v, alpha);
-    const f = v.kind === 'train' ? 14 : 11;
+    // centre the warm blob on the light cones, half a cone ahead of the nose
+    const f = (v.kind === 'train' ? LOCO_NOSE : TRUCK_NOSE) + 5 * VEHICLE_SCALE;
     const fx = p.dir === 'E' ? f : p.dir === 'W' ? -f : 0;
     const fy = p.dir === 'S' ? f : p.dir === 'N' ? -f : 0;
     ctx.drawImage(lamp as CanvasImageSource, toSX(p.x + fx) - HR, toSY(p.y + fy) - HR, HR * 2, HR * 2);
