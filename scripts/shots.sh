@@ -3,7 +3,7 @@
 # Usage: scripts/shots.sh [port]   (default 5199). Exits non-zero if any shot is missing or < 50 KB.
 #
 # The URL uses speed=0 (deviation from the original brief's speed=1, approved): the game starts
-# paused so the HUD date is deterministic (1900-01-01 + skipYears*360 + 20 autoplay days) instead of
+# paused so the HUD date is deterministic (1900-04-01 + skipYears*360 + 20 autoplay days) instead of
 # drifting with however much virtual time Chrome lets the sim run.
 # --headless=new counts browser chrome in --window-size: the page viewport is CHROME_H_OFFSET px
 # shorter than the window. The window is made taller by that offset so the viewport equals the

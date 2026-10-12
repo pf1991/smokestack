@@ -66,7 +66,7 @@ describe('stepTick', () => {
     withSpy(spy, () => runDays(ctx, 360));
     expect(seen[0]).toBe('day 4/1');
     expect(seen).toContain('month 1900/4');
-    expect(seen).toContain('year 1900');
+    expect(seen.indexOf('year 1900')).toBe(seen.indexOf('month 1900/12') + 1);
     expect(seen.at(-1)).toBe('month 1901/3');
     expect(seen.filter((s) => s.startsWith('month')).length).toBe(12);
     const dayStarts = events.filter((e) => e.type === 'dayStart');
@@ -85,10 +85,10 @@ describe('stepTick', () => {
     must(placeBuilding(ctx, 'player', 'sawmill', { x: 2, y: 2 }));
     const afterBuild = s.companies.player.money;
     runDays(ctx, 30);
-    const jan = s.companies.player.ledger.find((m) => m.year === 1900 && m.month === 4);
-    expect(jan?.expense.maintenance).toBe(BUILDINGS.sawmill.maintenance);
-    expect(jan?.cashEnd).toBe(afterBuild - BUILDINGS.sawmill.maintenance);
-    expect(jan?.netWorthEnd).toBe(jan!.cashEnd + BUILDINGS.sawmill.cost * 0.5);
+    const apr = s.companies.player.ledger.find((m) => m.year === 1900 && m.month === 4);
+    expect(apr?.expense.maintenance).toBe(BUILDINGS.sawmill.maintenance);
+    expect(apr?.cashEnd).toBe(afterBuild - BUILDINGS.sawmill.maintenance);
+    expect(apr?.netWorthEnd).toBe(apr!.cashEnd + BUILDINGS.sawmill.cost * 0.5);
     expect(s.companies.player.ledger.find((m) => m.month === 5)?.expense.maintenance ?? 0).toBe(0);
   });
 
