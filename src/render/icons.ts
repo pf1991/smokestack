@@ -336,6 +336,13 @@ const GOOD_PAINTERS: Record<string, Painter> = {
 };
 
 const UI_PAINTERS: Record<string, Painter> = {
+  camera: (g) => {
+    rrect(g, 1.5, 4.5, 13, 9, 1.5, C.paperShade);
+    rect(g, 5.5, 2.8, 4, 2.2, C.brassDark);
+    circ(g, 8, 9, 3.2, C.slate);
+    circ(g, 8, 9, 1.5, C.glass, false);
+    circ(g, 12.4, 6.6, 0.6, C.brass, false);
+  },
   close: (g) => {
     bar(g, [4, 4, 12, 12], C.paper, 2.2);
     bar(g, [12, 4, 4, 12], C.paper, 2.2);

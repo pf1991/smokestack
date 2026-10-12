@@ -13,6 +13,7 @@ import './hud.css';
 export interface HudHandlers {
   onSpeed(s: GameState['speed']): void;
   onOpenPanel(id: string): void;
+  onPhoto?(): void;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -91,6 +92,13 @@ export class Hud {
       },
     }, iconEl('smog', 16), ' Smog');
     panels.appendChild(smog);
+    const photo = h('button', {
+      class: 'hud-panel-btn hud-photo',
+      title: 'Photo mode (P)',
+      'aria-label': 'Photo mode',
+      onClick: () => handlers.onPhoto?.(),
+    }, iconEl('camera', 16), ' Photo');
+    panels.appendChild(photo);
 
     const bar = h('div', { class: 'hud-bar' },
       h('div', { class: 'hud-brand' }, this.company, this.era),

@@ -15,6 +15,7 @@ import { attachAchievements } from './achievements';
 import { attachMilestoneStamps, attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
+import { enterPhotoMode } from './photoMode';
 import { closeAllWindows } from '../ui/window';
 import { Input } from './input';
 import { ToolController } from './toolController';
@@ -118,6 +119,7 @@ export class GameController {
     this.hud = new Hud(uiRoot, {
       onSpeed: (s) => this.setSpeed(s),
       onOpenPanel: (id) => this.openPanel(id),
+      onPhoto: () => this.togglePhotoMode(),
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
     this.input = new Input(canvas, this);
@@ -254,6 +256,19 @@ export class GameController {
       return;
     }
     this.onPause?.();
+  }
+
+  private exitPhoto: (() => void) | null = null;
+
+  /** P / HUD camera button: enters photo mode, or leaves it when already in. */
+  togglePhotoMode(): void {
+    if (this.exitPhoto && document.body.classList.contains('photo-mode')) {
+      this.exitPhoto();
+      return;
+    }
+    if (!this.ctx || this.ended) return;
+    const exit = enterPhotoMode(this);
+    this.exitPhoto = exit;
   }
 
   toggleToolbar(): void {

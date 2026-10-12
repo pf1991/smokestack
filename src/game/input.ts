@@ -22,6 +22,8 @@ export interface InputHost {
   closeDrawer(): void;
   /** Esc: when provided it replaces the default cancel-tool behaviour (it must cancel the tool itself) */
   escape?(): void;
+  /** P: toggles photo mode */
+  togglePhotoMode?(): void;
   /** opens a registered panel; returns false when none is registered under `id` */
   tryOpenPanel(id: string): boolean;
   /** the player panned by hand (cancels camera follow) */
@@ -185,6 +187,8 @@ export class Input {
         this.host.tools.cancel();
         this.host.closeDrawer();
       }
+    } else if (key === 'p') {
+      this.host.togglePhotoMode?.();
     } else if (key === 'b') {
       this.host.toggleToolbar();
     } else if (key === 'delete') {
