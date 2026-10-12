@@ -13,6 +13,8 @@ import type { GameState, OwnerId, SimContext } from '../types';
 export const LOG_CAP = 200;
 /** Changes smaller than this (in either direction) are applied but not logged. */
 export const LOG_MIN_DELTA = 0.5;
+/** The Baron's Circle's monthly loss where the player outsells the Baron; against DRIFT it settles at 30. */
+export const BARON_LEAD_DELTA = -0.4;
 /** Fraction of the gap to 50 that every opinion closes each month. */
 export const DRIFT = 0.02;
 /** How far beyond a town's urban radius a player building still counts as "in" that town. */
@@ -22,9 +24,17 @@ const clamp = (v: number) => Math.min(100, Math.max(0, v));
 
 /**
  * The one way to change a faction's opinion of the player's company. `scope` is a city id or
- * 'national' (every city). Clamps to [0, 100] and logs changes of at least LOG_MIN_DELTA.
+ * 'national' (every city). Clamps to [0, 100] and logs changes of at least LOG_MIN_DELTA. Monthly
+ * ambient drivers (smog, Baron sales) pass `{ log: false }`: only one-off causes reach the log.
  */
-export function adjustOpinion(state: GameState, faction: FactionId, scope: number | 'national', delta: number, reason: string): void {
+export function adjustOpinion(
+  state: GameState,
+  faction: FactionId,
+  scope: number | 'national',
+  delta: number,
+  reason: string,
+  opts: { log?: boolean } = {},
+): void {
   if (!Number.isFinite(delta) || delta === 0) return;
   if (scope === 'national') {
     for (const c of state.cities) c.opinion[faction] = clamp(c.opinion[faction] + delta);
@@ -33,7 +43,7 @@ export function adjustOpinion(state: GameState, faction: FactionId, scope: numbe
     if (!city) return;
     city.opinion[faction] = clamp(city.opinion[faction] + delta);
   }
-  if (Math.abs(delta) < LOG_MIN_DELTA) return;
+  if (opts.log === false || Math.abs(delta) < LOG_MIN_DELTA) return;
   const log = state.politics.log;
   log.push({ date: { ...state.date }, faction, scope, delta, reason });
   if (log.length > LOG_CAP) log.splice(0, log.length - LOG_CAP);
@@ -115,7 +125,7 @@ function contractDrivers(state: GameState): void {
   track.contractsSeen = finished;
 }
 
-/** Monthly: drift toward 50, then smog, the Baron's Circle, and the state-diff drivers. */
+/** Monthly: drift toward 50, then smog, the Baron's Circle, and the state-diff drivers. Only the last are logged. */
 export function factionsMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const c of state.cities) {
@@ -123,11 +133,11 @@ export function factionsMonth(ctx: SimContext): void {
   }
   for (const c of state.cities) {
     if (c.pollution > 0) {
-      adjustOpinion(state, 'reformers', c.id, -4 * c.pollution, 'Smog');
-      adjustOpinion(state, 'workers', c.id, -2 * c.pollution, 'Smog');
+      adjustOpinion(state, 'reformers', c.id, -4 * c.pollution, 'Smog', { log: false });
+      adjustOpinion(state, 'workers', c.id, -2 * c.pollution, 'Smog', { log: false });
     }
     const s = state.politics.track.sales[c.id];
-    if (s && s.player > s.baron) adjustOpinion(state, 'baron', c.id, -1, 'Outselling the Baron');
+    if (s && s.player > s.baron) adjustOpinion(state, 'baron', c.id, BARON_LEAD_DELTA, 'Outselling the Baron', { log: false });
   }
   state.politics.track.sales = {};
   buildingDrivers(state);

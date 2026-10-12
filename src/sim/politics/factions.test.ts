@@ -67,6 +67,14 @@ describe('faction opinion', () => {
     factionsMonth(ctx);
     expect(c.opinion.reformers).toBeCloseTo(48, 10);
     expect(c.opinion.workers).toBeCloseTo(49, 10);
+    expect(ctx.state.politics.log).toEqual([]); // ambient drivers are not logged
+  });
+
+  it('adjustOpinion with { log: false } applies the change without logging it', () => {
+    const ctx = twoTowns();
+    adjustOpinion(ctx.state, 'church', 0, 5, 'quiet', { log: false });
+    expect(ctx.state.cities[0].opinion.church).toBe(55);
+    expect(ctx.state.politics.log).toEqual([]);
   });
 
   it("the Baron's Circle loses 1 where the player outsells the Baron", () => {
@@ -75,12 +83,24 @@ describe('faction opinion', () => {
     notePoliticsSale(ctx.state, 'rival', 0, 400);
     notePoliticsSale(ctx.state, 'rival', 1, 400);
     factionsMonth(ctx);
-    expect(ctx.state.cities[0].opinion.baron).toBeCloseTo(35.3 - 1, 10);
+    expect(ctx.state.cities[0].opinion.baron).toBeCloseTo(35.3 - 0.4, 10);
+    expect(ctx.state.politics.log).toEqual([]);
     expect(ctx.state.cities[1].opinion.baron).toBeCloseTo(35.3, 10);
     // sales reset each month
     factionsMonth(ctx);
     expect(ctx.state.cities[1].opinion.baron).toBeGreaterThan(35.3);
     expect(Object.keys(ctx.state.politics.track.sales)).toEqual([]);
+  });
+
+  it("300 months of a constant player lead keep the Baron's Circle at 25 or above (it settles at 30)", () => {
+    const ctx = twoTowns();
+    for (let m = 0; m < 300; m++) {
+      notePoliticsSale(ctx.state, 'player', 0, 1000);
+      notePoliticsSale(ctx.state, 'rival', 0, 10);
+      factionsMonth(ctx);
+      expect(ctx.state.cities[0].opinion.baron).toBeGreaterThanOrEqual(25);
+    }
+    expect(ctx.state.cities[0].opinion.baron).toBeCloseTo(30, 0);
   });
 
   it('a player factory near a town raises workers by 2 the next month; removing it lowers them by 4', () => {
