@@ -19,6 +19,7 @@ import { applyAtmosphere, cssFilterFor, easeLight, isLit } from '../atmosphere';
 import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
 import { ParticleSystem } from '../particles';
+import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { HEADROOM, drawHouse, getBuildingSprite, houseStyle } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
 import { chimneysOf, paintGardenTree } from './glows';
@@ -107,6 +108,8 @@ export class WorldRenderer {
   /** performance.now() of each truck's last exhaust puff (real time, render-only). */
   readonly lastPuff = new Map<number, number>();
   private sortBuf: Building[] = [];
+  /** Buildings placed live (buildingPlaced) and still animating; real-time start, render-only. */
+  private readonly constructing = new Map<number, { start: number; burst: boolean }>();
   /** sale floaters live apart from smoke/sparks so they can be drawn on the unfiltered overlay */
   private readonly floaters = new ParticleSystem();
   private pendingSales = new Map<number, { revenue: number; ownerId: Building['ownerId'] }>();
@@ -180,12 +183,14 @@ export class WorldRenderer {
         const b = e.building;
         const def = BUILDINGS[b.typeId];
         const { w, h } = def.size;
-        for (const [fx, fy] of [[0, 0], [w, 0], [0, h], [w, h], [w / 2, h / 2]]) {
-          this.particles.emitSparks((b.pos.x + fx) * TILE, (b.pos.y + fy) * TILE);
-        }
+        // only live placements animate; sparks fire when the reveal completes (see drawBuildings)
+        this.constructing.set(b.id, { start: performance.now(), burst: false });
         this.invalidate([b.pos, { x: b.pos.x + w - 1, y: b.pos.y + h - 1 }]);
       }),
-      bus.on('buildingRemoved', () => this.invalidate()),
+      bus.on('buildingRemoved', (e) => {
+        this.constructing.delete(e.buildingId);
+        this.invalidate();
+      }),
       bus.on('roadChanged', (e) => this.invalidate(e.tiles)),
       bus.on('railChanged', (e) => this.invalidate(e.tiles)),
       bus.on('ownershipChanged', () => this.invalidate()),
@@ -203,6 +208,7 @@ export class WorldRenderer {
       this.vehicleDir.clear();
       this.trainTrails.clear();
       this.lastPuff.clear();
+      this.constructing.clear();
       this.pendingSales.clear();
       this.lastFloat.clear();
       this.light = null;
@@ -211,6 +217,8 @@ export class WorldRenderer {
     this.frame++;
     if (this.frame % VEHICLE_DIR_SWEEP === 0) {
       for (const id of this.vehicleDir.keys()) if (!state.vehicles[id]) this.vehicleDir.delete(id);
+      const t = performance.now();
+      for (const [id, cs] of this.constructing) if (!state.buildings[id] || t - cs.start >= BUILD_MS) this.constructing.delete(id);
       for (const id of this.trainTrails.keys()) if (!state.vehicles[id]) this.trainTrails.delete(id);
     }
     const dt = this.lastNow === null ? 16 : Math.min(100, Math.max(0, nowMs - this.lastNow));
@@ -508,7 +516,25 @@ export class WorldRenderer {
     for (const b of list) {
       const variant = b.typeId === 'farm' && b.recipeId ? b.recipeId.replace(/^r_/, '') : '';
       const sprite = getBuildingSprite(b.typeId, b.ownerId, variant);
-      ctx.drawImage(sprite, b.pos.x * TILE, b.pos.y * TILE - HEADROOM);
+      const x = b.pos.x * TILE;
+      const y = b.pos.y * TILE - HEADROOM;
+      const cs = this.constructing.get(b.id);
+      if (cs) {
+        const stage = constructionStage(performance.now() - cs.start);
+        if (stage.done) this.constructing.delete(b.id);
+        else {
+          if (stage.reveal >= 1 && !cs.burst) {
+            cs.burst = true;
+            const { w, h } = BUILDINGS[b.typeId].size;
+            for (const [fx, fy] of [[0, 0], [w, 0], [0, h], [w, h], [w / 2, h / 2]]) {
+              this.particles.emitSparks((b.pos.x + fx) * TILE, (b.pos.y + fy) * TILE);
+            }
+          }
+          drawConstruction(ctx, sprite, x, y, sprite.width, sprite.height, stage);
+          continue;
+        }
+      }
+      ctx.drawImage(sprite, x, y);
       if (b.status === 'halted') {
         // boarded-up hint: a diagonal hazard band
         const def = BUILDINGS[b.typeId];
