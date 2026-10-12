@@ -217,8 +217,7 @@ export class WorldRenderer {
     this.frame++;
     if (this.frame % VEHICLE_DIR_SWEEP === 0) {
       for (const id of this.vehicleDir.keys()) if (!state.vehicles[id]) this.vehicleDir.delete(id);
-      const t = performance.now();
-      for (const [id, cs] of this.constructing) if (!state.buildings[id] || t - cs.start >= BUILD_MS) this.constructing.delete(id);
+      for (const [id, cs] of this.constructing) if (!state.buildings[id] || nowMs - cs.start >= BUILD_MS) this.constructing.delete(id);
       for (const id of this.trainTrails.keys()) if (!state.vehicles[id]) this.trainTrails.delete(id);
     }
     const dt = this.lastNow === null ? 16 : Math.min(100, Math.max(0, nowMs - this.lastNow));
@@ -272,7 +271,7 @@ export class WorldRenderer {
     }
 
     applyAtmosphere(ctx, cam.viewW, cam.viewH, date, light);
-    if (nightK > 0) drawNightLights(ctx, cam, r, visBuildings, state, this.chunks, this.chunkCols, this.vehicleDir, alpha, nightK);
+    if (nightK > 0) drawNightLights(ctx, cam, r, visBuildings.filter((b) => !this.isScaffolding(b.id)), state, this.chunks, this.chunkCols, this.vehicleDir, alpha, nightK);
     ctx.restore();
 
     if (this.overlay) {
@@ -544,6 +543,12 @@ export class WorldRenderer {
     }
   }
 
+  /** True while a live-placed building is still under scaffold (reveal < 1): no smoke or glow yet. */
+  private isScaffolding(id: number): boolean {
+    const cs = this.constructing.get(id);
+    return !!cs && constructionStage(performance.now() - cs.start).reveal < 1;
+  }
+
   private emitSmoke(state: GameState, cam: Camera, dt: number): void {
     const margin = 6 * TILE;
     const vx0 = cam.x - margin;
@@ -553,7 +558,7 @@ export class WorldRenderer {
     for (const id in state.buildings) {
       const b = state.buildings[id];
       const density = b.status === 'ok' ? 1 : b.status === 'no_input' ? 0.15 : 0;
-      if (density === 0) continue;
+      if (density === 0 || this.isScaffolding(b.id)) continue;
       const bx = b.pos.x * TILE;
       const by = b.pos.y * TILE - HEADROOM;
       if (bx < vx0 || bx > vx1 || by < vy0 || by > vy1) continue;

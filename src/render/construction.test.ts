@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { BUILD_MS, constructionStage } from './construction';
+import { vi } from 'vitest';
+import { BUILD_MS, constructionStage, drawConstruction } from './construction';
 
 describe('constructionStage', () => {
   it('starts empty', () => {
@@ -35,5 +36,18 @@ describe('constructionStage', () => {
     expect(constructionStage(600 - 0.001).reveal).toBe(0);
     expect(constructionStage(1200 - 0.001).reveal).toBeCloseTo(1, 3);
     expect(constructionStage(1200).reveal).toBe(1);
+  });
+});
+
+describe('drawConstruction', () => {
+  it('reveals the bottom half of the sprite at reveal 0.5', () => {
+    const g = {
+      drawImage: vi.fn(), fillRect: vi.fn(), save: vi.fn(), restore: vi.fn(),
+      fillStyle: '', globalAlpha: 1,
+    };
+    const sprite = {} as CanvasImageSource;
+    drawConstruction(g as unknown as CanvasRenderingContext2D, sprite, 10, 20, 64, 100, { scaffold: 1, reveal: 0.5, done: false });
+    expect(g.drawImage).toHaveBeenCalledTimes(1);
+    expect(g.drawImage).toHaveBeenCalledWith(sprite, 0, 50, 64, 50, 10, 70, 64, 50);
   });
 });
