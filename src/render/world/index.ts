@@ -34,7 +34,7 @@ import { drawNightLights } from './night';
 import { paintRailTile } from './rails';
 import { hasLamp, paintBridgeTile, paintRoadTile, roadEra, roadMask } from './roads';
 import { drawGhost, drawGhostLabel, drawSelection } from './selection';
-import { type ScreenRect, applySurveyNight, drawCityLabels, drawSurveySymbols, hudRects } from './survey';
+import { CityLabelCache, type ScreenRect, UrbanWatch, applySurveyNight, drawCityLabels, drawSurveySymbols, hudRects } from './survey';
 import { type ChunkMeta, type Ctx, HOUSE_STRIDE, type Dir, SPRITE_MARGIN, type Surface, type TileRange, h01, makeSurface } from './shared';
 import { type TrainTrail, drawVehicles } from './vehicles';
 
@@ -127,6 +127,10 @@ export class WorldRenderer {
   private overlay: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
   /** HUD chrome rects city labels avoid; re-measured every HUD_RECTS_FRAMES frames */
   private hud: ScreenRect[] = [];
+  private hudMeasured = false;
+  private readonly labels = new CityLabelCache();
+  /** city urban discs, so month end only redraws survey chunks whose town tint changed */
+  private urban: UrbanWatch;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -138,6 +142,7 @@ export class WorldRenderer {
     this.state = state;
     this.terrain = new TerrainRenderer(state.map, state.seed);
     this.chunkCols = Math.ceil(state.map.width / CHUNK);
+    this.urban = new UrbanWatch(state.cities);
   }
 
   /**
@@ -221,15 +226,13 @@ export class WorldRenderer {
         this.invalidate(block);
         this.terrain.invalidateAround(block);
       }),
-      // the survey chunks' town tint follows city tiles, which can grow at month end; the diorama
-      // terrain does not depend on either event, so only its survey surfaces are dropped
-      bus.on('ownershipChanged', () => {
-        this.invalidate();
-        this.terrain.invalidateAll('survey');
-      }),
+      // survey symbols are drawn per frame, so ownership needs no survey redraw
+      bus.on('ownershipChanged', () => this.invalidate()),
       bus.on('monthEnd', () => {
         this.invalidate();
-        this.terrain.invalidateAll('survey');
+        this.labels.invalidate();
+        // the survey town tint follows city tiles: redraw only around discs that changed
+        this.urban.update(this.state.cities, (x0, y0, x1, y1) => this.terrain.invalidateRect(x0 - 1, y0 - 1, x1 + 1, y1 + 1));
       }),
     ];
     return () => offs.forEach((f) => f());
@@ -241,6 +244,8 @@ export class WorldRenderer {
       this.chunkCols = Math.ceil(state.map.width / CHUNK);
       this.chunks.clear();
       this.surfaceCount = 0;
+      this.urban.reset(state.cities);
+      this.labels.invalidate();
       this.vehicleDir.clear();
       this.trainTrails.clear();
       this.lastPuff.clear();
@@ -342,7 +347,10 @@ export class WorldRenderer {
     }
     ctx.restore();
 
-    if (survey && (this.hud.length === 0 || this.frame % HUD_RECTS_FRAMES === 0)) this.hud = hudRects();
+    if (survey && (!this.hudMeasured || this.frame % HUD_RECTS_FRAMES === 0)) {
+      this.hud = hudRects();
+      this.hudMeasured = true;
+    }
 
     if (this.overlay) {
       const o = this.overlay.ctx;
@@ -353,7 +361,7 @@ export class WorldRenderer {
       o.restore();
       this.drawUi(o, state, cam, alpha, nowMs);
     }
-    if (survey) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud);
+    if (survey) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud, this.labels);
   }
 
   /** Selection, ghost, ghost label and sale floaters. */

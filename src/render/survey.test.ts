@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { flatMap } from '../sim/testkit';
-import { CHUNK } from './terrain';
+import { CHUNK } from './chunk';
 import { cityLabelFont, paintSurveyChunk } from './survey';
 
 /** A 2D context stand-in that counts every method call and accepts any property write. */

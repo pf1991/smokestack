@@ -1,24 +1,15 @@
 import { TILE, type Camera, visibleTileRange } from './camera';
 import type { GameMap, Terrain, Tile } from '../sim/types';
+import { CHUNK, hash } from './chunk';
 import { PAPER, SURVEY_TILE_PX, paintSurveyChunk } from './survey';
 
-export const CHUNK = 16;
+export { CHUNK, hash };
+
 const CHUNK_PX = CHUNK * TILE;
 const MAX_RENDERS_PER_FRAME = 4;
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 type Surface = HTMLCanvasElement | OffscreenCanvas;
-
-/** Seeded integer hash of (x, y, seed, salt) -> uint32. Deterministic, no Math.random. */
-export function hash(x: number, y: number, seed: number, salt = 0): number {
-  let h = Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul(y | 0, 0x165667b1) ^ Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(salt | 0, 0x85ebca6b);
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x2c1b3c6d);
-  h ^= h >>> 12;
-  h = Math.imul(h, 0x297a2d39);
-  h ^= h >>> 15;
-  return h >>> 0;
-}
 
 /** hash scaled to [0, 1) */
 function h01(x: number, y: number, seed: number, salt = 0): number {
@@ -218,6 +209,8 @@ export class TerrainRenderer {
     const cy0 = Math.floor(r.y0 / CHUNK);
     const cy1 = Math.floor(r.y1 / CHUNK);
     this.surveyCap = Math.max(MIN_SURVEY_CAP, 2 * (cx1 - cx0 + 1) * (cy1 - cy0 + 1) + 8);
+    // the cap shrinks when zooming in: drop surplus surfaces (never ones drawn this frame)
+    while (this.surveyCount > this.surveyCap && this.evictSurvey());
     ctx.save();
     ctx.globalAlpha = alpha;
     let budget = MAX_RENDERS_PER_FRAME;
@@ -267,17 +260,18 @@ export class TerrainRenderer {
   }
 
   /** Drops the least recently drawn survey surface not drawn this frame (it re-renders on demand). */
-  private evictSurvey(): void {
+  private evictSurvey(): boolean {
     let worst: Chunk | null = null;
     for (const c of this.chunks.values()) {
       if (!c.survey || c.surveyUsed >= this.frame) continue;
       if (!worst || c.surveyUsed < worst.surveyUsed) worst = c;
     }
-    if (!worst) return;
+    if (!worst) return false;
     worst.survey = null;
     worst.surveyPx = 0;
     worst.surveyDirty = true;
     this.surveyCount--;
+    return true;
   }
 
   // ---------------------------------------------------------------- water

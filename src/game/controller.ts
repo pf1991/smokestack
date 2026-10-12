@@ -1,6 +1,6 @@
 import { Sfx } from '../audio/sfx';
 import { EventBus } from '../core/events';
-import { clampCamera, TILE } from '../render/camera';
+import { DEFAULT_ZOOM, clampCamera, TILE } from '../render/camera';
 import type { Camera } from '../render/constants';
 import { WorldRenderer } from '../render/world';
 import { stepTick } from '../sim/simulation';
@@ -56,7 +56,7 @@ export interface NewGameOpts {
  */
 export class GameController {
   ctx!: SimContext;
-  readonly camera: Camera = { x: 0, y: 0, zoom: 1, viewW: 0, viewH: 0 };
+  readonly camera: Camera = { x: 0, y: 0, zoom: DEFAULT_ZOOM, viewW: 0, viewH: 0 };
   renderer!: WorldRenderer;
   readonly tools: ToolController;
   readonly hud: Hud;

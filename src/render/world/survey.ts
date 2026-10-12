@@ -5,11 +5,11 @@
  */
 import { BUILDINGS } from '../../data/buildings';
 import type { LandmarkId } from '../../data/landmarks';
-import type { Building, GameState } from '../../sim/types';
+import type { Building, City, GameState } from '../../sim/types';
 import { TILE, type Camera } from '../camera';
 import { LANDMARK_PX } from '../landmarks';
 import { ownerColor } from '../sprites';
-import { INK, PAPER, cityLabelFont } from '../survey';
+import { INK, PAPER, cityLabelFont, cityLabelSize } from '../survey';
 import type { Dir, TileRange } from './shared';
 import { SPRITE_MARGIN } from './shared';
 import { vehiclePose } from './vehicles';
@@ -186,38 +186,121 @@ export interface ScreenRect {
 
 const overlaps = (a: ScreenRect, b: ScreenRect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+interface CityLabel {
+  x: number;
+  y: number;
+  text: string;
+  font: string;
+  size: number;
+  /** measured text width, filled on first draw */
+  width: number;
+}
+
+/**
+ * Per-renderer cache of city labels, biggest city first. `invalidate()` it when populations or
+ * names may have changed (month end, a new game); it rebuilds on the next draw.
+ */
+export class CityLabelCache {
+  private cities: readonly City[] | null = null;
+  labels: CityLabel[] = [];
+  private placed: ScreenRect[] = [];
+
+  invalidate(): void {
+    this.cities = null;
+  }
+
+  /** Labels for `cities`, rebuilt only after invalidate() or when the city array changes. */
+  get(cities: readonly City[]): CityLabel[] {
+    if (this.cities !== cities || this.labels.length !== cities.length) {
+      this.cities = cities;
+      this.labels = [...cities]
+        .sort((a, b) => b.population - a.population || a.id - b.id)
+        .map((c) => ({
+          x: (c.center.x + 0.5) * TILE,
+          y: (c.center.y + 0.5) * TILE,
+          text: c.population >= 20000 ? c.name.toUpperCase() : c.name,
+          font: cityLabelFont(c.population),
+          size: cityLabelSize(c.population),
+          width: -1,
+        }));
+    }
+    return this.labels;
+  }
+
+  /** Scratch list of label boxes placed this frame (reused). */
+  scratch(): ScreenRect[] {
+    this.placed.length = 0;
+    return this.placed;
+  }
+}
+
 /**
  * City names in screen space at `alpha`: italic serif, sized by population, centred on the city
  * with a paper halo. Bigger cities claim space first; a label that would overlap a bigger one or
  * any `avoid` rect (HUD bar, toolbar, ticker) is skipped.
  */
-export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: number, avoid: readonly ScreenRect[]): void {
+export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: number, avoid: readonly ScreenRect[], cache: CityLabelCache): void {
   if (alpha <= 0) return;
-  const cities = [...state.cities].sort((a, b) => b.population - a.population || a.id - b.id);
-  const placed: ScreenRect[] = [];
+  const labels = cache.get(state.cities);
+  const placed = cache.scratch();
   g.save();
   g.globalAlpha = alpha;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.lineJoin = 'round';
-  for (const c of cities) {
-    const sx = ((c.center.x + 0.5) * TILE - cam.x) * cam.zoom;
-    const sy = ((c.center.y + 0.5) * TILE - cam.y) * cam.zoom;
+  for (const l of labels) {
+    const sx = (l.x - cam.x) * cam.zoom;
+    const sy = (l.y - cam.y) * cam.zoom;
     if (sx < -200 || sy < -50 || sx > cam.viewW + 200 || sy > cam.viewH + 50) continue;
-    g.font = cityLabelFont(c.population);
-    const size = parseInt(/(\d+)px/.exec(g.font)?.[1] ?? '12', 10);
-    const text = c.population >= 20000 ? c.name.toUpperCase() : c.name;
-    const w = g.measureText(text).width + 8;
-    const box = { x: sx - w / 2, y: sy - size * 0.7, w, h: size * 1.4 };
+    g.font = l.font;
+    if (l.width < 0) l.width = g.measureText(l.text).width + 8;
+    const box = { x: sx - l.width / 2, y: sy - l.size * 0.7, w: l.width, h: l.size * 1.4 };
     if (avoid.some((a) => overlaps(a, box)) || placed.some((p) => overlaps(p, box))) continue;
     placed.push(box);
     g.strokeStyle = 'rgba(239,228,200,0.9)';
-    g.lineWidth = Math.max(3, size * 0.28);
-    g.strokeText(text, sx, sy);
+    g.lineWidth = Math.max(3, l.size * 0.28);
+    g.strokeText(l.text, sx, sy);
     g.fillStyle = '#2e2418';
-    g.fillText(text, sx, sy);
+    g.fillText(l.text, sx, sy);
   }
   g.restore();
+}
+
+/**
+ * Watches each city's urban disc (centre and radius) so month end only dirties the survey chunks
+ * whose town tint can actually have changed. `update` calls `dirty` with the tile bounding box of
+ * every disc that appeared, vanished or changed (covering both the old and the new extent).
+ */
+export class UrbanWatch {
+  private discs = new Map<number, { x: number; y: number; r: number }>();
+
+  constructor(cities: readonly City[]) {
+    this.reset(cities);
+  }
+
+  reset(cities: readonly City[]): void {
+    this.discs.clear();
+    for (const c of cities) this.discs.set(c.id, { x: c.center.x, y: c.center.y, r: c.urbanRadius });
+  }
+
+  update(cities: readonly City[], dirty: (x0: number, y0: number, x1: number, y1: number) => void): void {
+    const seen = new Set<number>();
+    const box = (d: { x: number; y: number; r: number }) => dirty(d.x - d.r, d.y - d.r, d.x + d.r, d.y + d.r);
+    for (const c of cities) {
+      seen.add(c.id);
+      const old = this.discs.get(c.id);
+      const now = { x: c.center.x, y: c.center.y, r: c.urbanRadius };
+      if (old && old.x === now.x && old.y === now.y && old.r === now.r) continue;
+      if (old) box(old);
+      box(now);
+      this.discs.set(c.id, now);
+    }
+    for (const [id, d] of this.discs) {
+      if (seen.has(id)) continue;
+      box(d);
+      this.discs.delete(id);
+    }
+  }
 }
 
 /** Screen rects of the HUD chrome that labels must not cover (empty outside a browser). */

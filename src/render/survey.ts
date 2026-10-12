@@ -7,7 +7,7 @@
  * redraws is pixel-identical (no shimmer). No images are blitted.
  */
 import type { GameMap, Terrain, Tile } from '../sim/types';
-import { CHUNK, hash } from './terrain';
+import { CHUNK, hash } from './chunk';
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -376,6 +376,10 @@ export function paintSurveyChunk(g: CanvasRenderingContext2D | Ctx, map: GameMap
 
 /** Italic serif city label font, sized 12/15/19/24 px at populations 0 / 5k / 20k / 50k. */
 export function cityLabelFont(population: number): string {
-  const px = population >= 50000 ? 24 : population >= 20000 ? 19 : population >= 5000 ? 15 : 12;
-  return `italic ${px}px Georgia, 'Times New Roman', serif`;
+  return `italic ${cityLabelSize(population)}px Georgia, 'Times New Roman', serif`;
+}
+
+/** City label size in px: 12 / 15 / 19 / 24 at populations 0 / 5k / 20k / 50k. */
+export function cityLabelSize(population: number): number {
+  return population >= 50000 ? 24 : population >= 20000 ? 19 : population >= 5000 ? 15 : 12;
 }

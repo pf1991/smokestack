@@ -2,7 +2,7 @@ import './ui/theme.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
-import { MAX_ZOOM, MIN_ZOOM } from './render/camera';
+import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
 import { runAutoplay } from './game/autoplay';
 import { runDays, stepTick } from './sim/simulation';
 import { createGame } from './sim/state';
@@ -87,7 +87,7 @@ if (debugStart) {
 
   app.start(state, (g) => {
     if (focus) {
-      g.camera.zoom = 1.25;
+      g.camera.zoom = DEFAULT_ZOOM;
       g.centerOn(focus);
     }
     const zoomParam = Number(params.get('zoom'));
