@@ -60,6 +60,8 @@ export interface Building {
   cityId: number | null;
   haltedUntil: GameDate | null;
   producedThisMonth: Inventory;
+  /** 0..1 share of `workers` the building could hire, recomputed monthly (sim/politics/workforce.ts) */
+  staffing: number;
 }
 
 export interface MarketEntry {

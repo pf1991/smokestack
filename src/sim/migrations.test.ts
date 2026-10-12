@@ -128,6 +128,11 @@ describe('v4 -> v5: politics', () => {
     for (const c of o.cities as { opinion: unknown }[]) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
     expect(o.politics).toMatchObject({ edicts: { wage: 'fair', safety: 'standard', union: 'tolerate' }, cards: { pending: [], history: [] }, log: [] });
   });
+  it('sets staffing 1 on every raw building', () => {
+    const o: Record<string, unknown> = { version: 4, cities: [], buildings: { 3: { id: 3 }, 7: { id: 7 } } };
+    expect(migrateSave(o).ok).toBe(true);
+    for (const b of Object.values(o.buildings as Record<string, { staffing: unknown }>)) expect(b.staffing).toBe(1);
+  });
   for (const [name, raw] of [['phase0', phase0], ['phase1', phase1]] as const) {
     it(`${name}.save.json migrates to v5 with every city at 50 (Baron 35) and holds invariants`, () => {
       expect(raw).toBeDefined();
@@ -139,6 +144,8 @@ describe('v4 -> v5: politics', () => {
       expect(s.cities.length).toBeGreaterThan(0);
       for (const c of s.cities) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
       expect(s.politics.edicts).toEqual({ wage: 'fair', safety: 'standard', union: 'tolerate' });
+      expect(Object.keys(s.buildings).length).toBeGreaterThan(0);
+      for (const b of Object.values(s.buildings)) expect(b.staffing).toBe(1);
       expect(checkInvariants(s)).toEqual([]);
     });
     it(`${name}.save.json: its existing buildings do not count as new jobs in the first month`, () => {

@@ -67,7 +67,8 @@ export function productionDay(ctx: SimContext): void {
     }
     const outs = Object.keys(recipe.outputs);
     if (def.category === 'extractor') {
-      const eff = extractorEfficiency(state, b, outs);
+      // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
+      const eff = extractorEfficiency(state, b, outs) * b.staffing;
       for (const g of outs) addOutput(b, g, recipe.outputs[g] * eff, def.storage);
       b.status = outs.some((g) => (b.output[g] ?? 0) >= def.storage) ? 'output_full' : 'ok';
       continue;
@@ -81,7 +82,7 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     b.status = 'ok';
-    b.progress += 1 / recipe.days;
+    b.progress += b.staffing / recipe.days;
     if (b.progress >= 1 - 1e-9) {
       for (const [g, q] of Object.entries(recipe.inputs)) b.input[g] -= q;
       for (const g of outs) addOutput(b, g, recipe.outputs[g], def.storage);

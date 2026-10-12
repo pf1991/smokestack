@@ -43,14 +43,21 @@ export const MIGRATIONS: Migration[] = [
   },
   {
     // v5: Phase 2 politics. Every town gets the default faction opinion and the company default
-    // politics; the drivers' bookkeeping starts unprimed, so existing buildings and finished contracts
-    // are snapshotted at the first month rather than counted as new. Later Phase 2 tasks extend this.
+    // politics; every building starts at `staffing: 1`. The drivers' bookkeeping starts unprimed, so
+    // existing buildings and finished contracts are snapshotted at the first month rather than
+    // counted as new. Later Phase 2 tasks extend this.
     from: 4,
     migrate(o) {
       const cities = o.cities;
       if (!Array.isArray(cities)) throw new Error('bad cities');
       for (const c of cities as Record<string, unknown>[]) c.opinion = defaultOpinion();
       o.politics = defaultPolitics(false);
+      // workforce: every building starts fully staffed until the first monthly recompute
+      const buildings = o.buildings;
+      if (buildings !== undefined) {
+        if (typeof buildings !== 'object' || buildings === null) throw new Error('bad buildings');
+        for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) b.staffing = 1;
+      }
     },
   },
 ];

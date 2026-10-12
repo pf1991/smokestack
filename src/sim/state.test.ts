@@ -205,6 +205,7 @@ describe('placement', () => {
       cityId: null,
       haltedUntil: null,
       producedThisMonth: {},
+      staffing: 1,
     });
     expect(s.buildings[b.id]).toBe(b);
     expect(footprint(b)).toHaveLength(9);

@@ -18,10 +18,12 @@ export interface BuildingDef {
   pollution: number;
   color: string;
   description: string;
+  /** hands needed at full output; drawn from the nearest town (sim/politics/workforce.ts) */
+  workers: number;
 }
 
-const EX: Pick<BuildingDef, 'category' | 'requiresCity'> = { category: 'extractor', requiresCity: false };
-const FA: Pick<BuildingDef, 'category' | 'requiresCity'> = { category: 'factory', requiresCity: false };
+const EX: Pick<BuildingDef, 'category' | 'requiresCity' | 'workers'> = { category: 'extractor', requiresCity: false, workers: 20 };
+const FA: Pick<BuildingDef, 'category' | 'requiresCity' | 'workers'> = { category: 'factory', requiresCity: false, workers: 60 };
 
 export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   lumber_camp: {
@@ -65,7 +67,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
     color: '#e9dfc7', description: 'Great stones grind the harvest to white flour.',
   },
   steel_mill: {
-    id: 'steel_mill', name: 'Steel Mill', ...FA, size: { w: 3, h: 3 }, cost: 60000, maintenance: 750,
+    id: 'steel_mill', name: 'Steel Mill', ...FA, workers: 120, size: { w: 3, h: 3 }, cost: 60000, maintenance: 750,
     allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, recipes: ['r_steel'], storage: 120, era: 1900, pollution: 6,
     color: '#737d88', description: 'Blast furnaces roar; the sky turns the colour of iron.',
   },
@@ -120,7 +122,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
     color: '#ea6d9a', description: 'Tin soldiers and wooden trains for every nursery.',
   },
   car_plant: {
-    id: 'car_plant', name: 'Car Plant', ...FA, size: { w: 4, h: 4 }, cost: 150000, maintenance: 2000,
+    id: 'car_plant', name: 'Car Plant', ...FA, workers: 120, size: { w: 4, h: 4 }, cost: 150000, maintenance: 2000,
     allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_cars'], storage: 60, era: 1910, pollution: 5,
     color: '#b8322c', description: 'The moving line: a horseless carriage every few hours.',
   },
@@ -130,17 +132,17 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
     color: '#2aa198', description: 'Valves, circuits and glowing screens, assembled with care.',
   },
   store: {
-    id: 'store', name: 'Store', category: 'retail', size: { w: 2, h: 2 }, cost: 15000, maintenance: 200,
+    id: 'store', name: 'Store', category: 'retail', workers: 12, size: { w: 2, h: 2 }, cost: 15000, maintenance: 200,
     allowedTerrain: ['grass', 'sand'], requiresDeposit: false, requiresCity: true, recipes: [], storage: 300, era: 1900, pollution: 0,
     color: '#e3b04b', description: 'A bright shopfront where the city comes to buy.',
   },
   warehouse: {
-    id: 'warehouse', name: 'Warehouse', category: 'logistics', size: { w: 3, h: 3 }, cost: 20000, maintenance: 150,
+    id: 'warehouse', name: 'Warehouse', category: 'logistics', workers: 6, size: { w: 3, h: 3 }, cost: 20000, maintenance: 150,
     allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, requiresCity: false, recipes: [], storage: 1000, era: 1900, pollution: 0,
     color: '#8a8f99', description: 'Cavernous brick sheds holding goods until the wagons call.',
   },
   train_station: {
-    id: 'train_station', name: 'Train Station', category: 'logistics', size: { w: 3, h: 2 }, cost: 40000, maintenance: 500,
+    id: 'train_station', name: 'Train Station', category: 'logistics', workers: 6, size: { w: 3, h: 2 }, cost: 40000, maintenance: 500,
     allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, requiresCity: false, recipes: [], storage: 600, era: 1900, pollution: 0,
     color: '#4a4f5c', description: 'Iron girders, a clock tower and a whistle that carries for miles.',
   },

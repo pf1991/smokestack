@@ -49,6 +49,21 @@ describe('building panel', () => {
     expect(b.progress).toBe(0);
   });
 
+  it('shows the staffing row', () => {
+    const ctx = testCtx(testState({ width: 100, height: 40, cities: [{ x: 10, y: 20, population: 1000, name: 'Ashford' }] }));
+    const full = place(ctx, 'sawmill', 30, 20);
+    const short = place(ctx, 'sawmill', 34, 20);
+    const remote = place(ctx, 'sawmill', 80, 20);
+    short.staffing = 0.85;
+    remote.staffing = 0.75;
+    PANELS.building.open(host(ctx) as never, full.id);
+    expect(document.querySelector('.insp-staff')!.textContent).toBe('Staff 100%');
+    PANELS.building.open(host(ctx) as never, short.id);
+    expect(text()).toContain('Staff 85% — short of hands in Ashford');
+    PANELS.building.open(host(ctx) as never, remote.id);
+    expect(text()).toContain('Staff 75% — remote works');
+  });
+
   it('status reason text for no_input names missing good', () => {
     const ctx = testCtx(testState());
     const b = place(ctx, 'sawmill', 5, 5);

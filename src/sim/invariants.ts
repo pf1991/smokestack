@@ -35,6 +35,8 @@ export function checkInvariants(state: GameState): string[] {
   }
 
   for (const b of Object.values(state.buildings)) {
+    const s = b.staffing;
+    if (typeof s !== 'number' || !Number.isFinite(s) || s < 0 || s > 1) out.push(`building ${b.id}: staffing ${s} outside [0, 1]`);
     for (const t of footprint(b)) {
       if (t.x < 0 || t.y < 0 || t.x >= map.width || t.y >= map.height) {
         out.push(`building ${b.id}: footprint tile (${t.x},${t.y}) out of bounds`);

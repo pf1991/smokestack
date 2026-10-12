@@ -7,6 +7,7 @@ import { STATION_TYPE, stationAccess } from '../../sim/rail';
 import { accessTiles, DEMOLITION_REFUND, demolishBuilding, footprint } from '../../sim/state';
 import type { GameController } from '../../game/controller';
 import { offeredGoods } from '../../sim/routeHelpers';
+import { workCity } from '../../sim/politics/workforce';
 import type { Building, GameState, Route } from '../../sim/types';
 import { type Child, h } from '../dom';
 import { iconEl } from '../icon';
@@ -25,6 +26,15 @@ const STATUS_LABEL: Record<Building['status'], string> = {
 };
 
 const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name}`];
+
+/** The inspector's staffing line: "Staff 100%", "Staff 85% — short of hands in Ashford", or "Staff 75% — remote works". */
+export function staffingText(state: GameState, b: Building): string {
+  // floored, so a building one hand short never reads "100%"
+  const pct = `Staff ${Math.floor(b.staffing * 100 + 1e-9)}%`;
+  if (b.staffing >= 1) return pct;
+  const city = workCity(state, b);
+  return city ? `${pct} — short of hands in ${city.name}` : `${pct} — remote works`;
+}
 
 /** Why an extractor produces nothing right now, or null when it is productive. */
 function extractorProblem(state: GameState, b: Building): string | null {
@@ -104,6 +114,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const owner = h('span', { class: 'insp-badge' });
   const statusBadge = h('span', { class: 'insp-badge' });
   const reason = h('div', { class: 'insp-reason' });
+  const staff = h('div', { class: 'insp-muted insp-staff' });
   const noRoad = h('div', { class: 'insp-warn' }, iconEl('warning', 14), ' No road access — trucks cannot reach this building');
   const noRail = h('div', { class: 'insp-warn' }, iconEl('warning', 14), ' No track alongside — lay rail next to the station for trains');
   noRail.hidden = true;
@@ -166,6 +177,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     { class: 'insp' },
     h('div', { class: 'insp-head' }, owner, statusBadge),
     reason,
+    staff,
     noRoad,
     noRail,
     recipeBox,
@@ -193,6 +205,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       setClass(statusBadge, `insp-badge status-${b.status}`);
       const routes = routesServing(state, id);
       setText(reason, statusReason(state, b, routes));
+      setText(staff, staffingText(state, b));
       noRoad.hidden = accessTiles(state, b).length > 0;
       if (b.typeId === STATION_TYPE) {
         const railOk = stationAccess(state, b).length > 0;

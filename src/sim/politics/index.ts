@@ -4,8 +4,12 @@
  */
 import type { SimSystem } from '../systems';
 import { factionsMonth } from './factions';
+import { workforceMonth } from './workforce';
 
 export const politicsSystem: SimSystem = {
   id: 'politics',
-  onMonth: factionsMonth,
+  onMonth(ctx) {
+    workforceMonth(ctx.state);
+    factionsMonth(ctx);
+  },
 };

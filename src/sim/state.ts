@@ -393,6 +393,8 @@ export function placeBuilding(
     cityId: plan.value.cityId,
     haltedUntil: null,
     producedThisMonth: {},
+    // fully staffed until the next monthly workforce recompute
+    staffing: 1,
   };
   state.buildings[building.id] = building;
   invalidateSpatial(state);

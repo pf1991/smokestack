@@ -52,6 +52,17 @@ describe('content catalog', () => {
     expect(recipeEra('r_fuel')).toBe(1910);
   });
 
+  it('every building def employs workers', () => {
+    for (const def of Object.values(BUILDINGS)) {
+      expect(Number.isFinite(def.workers) && def.workers > 0, `${def.id} workers ${def.workers}`).toBe(true);
+    }
+    const byCat = (cat: string) => Object.values(BUILDINGS).filter((d) => d.category === cat);
+    for (const d of byCat('extractor')) expect(d.workers, d.id).toBe(20);
+    for (const d of byCat('factory')) expect(d.workers, d.id).toBe(d.id === 'steel_mill' || d.id === 'car_plant' ? 120 : 60);
+    for (const d of byCat('retail')) expect(d.workers, d.id).toBe(12);
+    for (const d of byCat('logistics')) expect(d.workers, d.id).toBe(6);
+  });
+
   it('exact values', () => {
     expect(GOODS.cars.basePrice).toBe(630);
     expect(GOODS.radios.fadeYear).toBe(1965);
