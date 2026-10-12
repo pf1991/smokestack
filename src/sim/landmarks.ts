@@ -54,6 +54,7 @@ export function findLandmarkSite(state: GameState, city: City): Vec2 | null {
 function nextLandmark(city: City, year: number): LandmarkId | null {
   for (const id of LANDMARK_IDS) {
     const def = LANDMARKS[id];
+    if (def.philanthropyOnly) continue; // parks and hospitals come only from the player's purse
     if (city.population < def.minPop || year < def.minYear) continue;
     if (city.landmarks.some((l) => l.id === id)) continue;
     return id;
@@ -70,12 +71,22 @@ export function landmarksMonth(ctx: SimContext): void {
     if (!id) continue;
     const pos = findLandmarkSite(state, city);
     if (!pos) continue;
-    city.landmarks.push({ id, pos });
-    const value = city.landmarks.length; // index + 1
-    const l = layer(state, LANDMARK_LAYER);
-    const w = state.map.width;
-    for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) l[(pos.y + dy) * w + pos.x + dx] = value;
-    publishNews(ctx, 'civic', landmarkHeadline(id, city.name), `${city.name} unveils its new ${LANDMARKS[id].name.toLowerCase()}. Citizens turn out in their Sunday best.`);
-    ctx.bus.emit({ type: 'landmarkBuilt', cityId: city.id, id });
+    raiseLandmark(ctx, city, id, pos, `${city.name} unveils its new ${LANDMARKS[id].name.toLowerCase()}. Citizens turn out in their Sunday best.`);
   }
+}
+
+/**
+ * Raises landmark `id` of `city` on the free 2×2 block at `pos`: records it, marks the LANDMARK
+ * layer, publishes the civic headline with `body`, and emits `landmarkBuilt`. Shared by the town's
+ * own building (landmarksMonth) and philanthropy (politics/edicts.ts).
+ */
+export function raiseLandmark(ctx: SimContext, city: City, id: LandmarkId, pos: Vec2, body: string): void {
+  const { state } = ctx;
+  city.landmarks.push({ id, pos: { x: pos.x, y: pos.y } });
+  const value = city.landmarks.length; // index + 1
+  const l = layer(state, LANDMARK_LAYER);
+  const w = state.map.width;
+  for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) l[(pos.y + dy) * w + pos.x + dx] = value;
+  publishNews(ctx, 'civic', landmarkHeadline(id, city.name), body);
+  ctx.bus.emit({ type: 'landmarkBuilt', cityId: city.id, id });
 }

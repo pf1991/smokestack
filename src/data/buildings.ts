@@ -146,7 +146,20 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
     allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, requiresCity: false, recipes: [], storage: 600, era: 1900, pollution: 0,
     color: '#4a4f5c', description: 'Iron girders, a clock tower and a whistle that carries for miles.',
   },
+  // Phase 2: houses hands for a nearby factory (sim/politics/workforce.ts); employs nobody itself
+  company_housing: {
+    id: 'company_housing', name: 'Company Housing', category: 'logistics', workers: 0, size: { w: 2, h: 2 }, cost: 8000, maintenance: 120,
+    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, requiresCity: false, recipes: [], storage: 0, era: 1900, pollution: 0,
+    color: '#9c5a44', description: 'Neat brick terraces beside the works: more hands, and grateful ones.',
+  },
 };
+
+/** Company housing must stand within this many tiles (Chebyshev, footprint to footprint) of a player factory. */
+export const HOUSING_RADIUS = 3;
+/** Hands one company housing adds to the labour pool of its factory's town. */
+export const HOUSING_POOL = 150;
+/** Workers' opinion gained, once, in that town when company housing goes up. */
+export const HOUSING_OPINION = 3;
 
 export function getBuilding(id: string): BuildingDef {
   const building = BUILDINGS[id];

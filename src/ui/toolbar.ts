@@ -36,6 +36,7 @@ function goodsRow(inv: Inventory[]): HTMLElement[] {
 
 function flow(def: BuildingDef): Child[] {
   const recipes = def.recipes.map((r) => RECIPES[r]).filter(Boolean);
+  if (def.id === 'company_housing') return ['Houses hands for a factory within 3 tiles'];
   if (recipes.length === 0) return [def.category === 'retail' ? 'Sells goods to the city' : 'Stores goods'];
   const ins = goodsRow(recipes.map((r) => r.inputs));
   const outs = goodsRow(recipes.map((r) => r.outputs));

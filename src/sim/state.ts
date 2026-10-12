@@ -8,6 +8,7 @@ import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
 import { SAVE_VERSION } from './version';
 import { defaultPolitics } from './politics/types';
+import { housingFactory } from './politics/workforce';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
@@ -303,6 +304,8 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
 // ---------------------------------------------------------------------------
 // placement
 
+export const HOUSING_TOO_FAR = 'Company housing must stand within 3 tiles of one of your factories';
+
 interface PlacementPlan {
   def: BuildingDef;
   cost: number;
@@ -359,6 +362,8 @@ function planPlacement(
   } else if (recipe === null) {
     recipe = def.recipes.find((r) => state.unlocked.includes(r)) ?? null;
   }
+
+  if (typeId === 'company_housing' && !housingFactory(state, owner, typeId, pos)) return err(HOUSING_TOO_FAR);
 
   if (!canAfford(state.companies[owner], def.cost)) return err('Not enough money');
   return ok({ def, cost: def.cost, recipeId: recipe, cityId });

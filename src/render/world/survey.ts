@@ -94,6 +94,22 @@ function landmarkSymbol(g: Ctx, id: LandmarkId, s: number, lw: number): void {
       g.fill();
       return;
     }
+    case 'park': {
+      // the map's tree sign: a round crown on a short trunk
+      g.arc(0, -s * 0.15, s * 0.42, 0, Math.PI * 2);
+      g.fill();
+      g.fillRect(-s * 0.08, s * 0.15, s * 0.16, s * 0.45);
+      return;
+    }
+    case 'hospital': {
+      // a filled square with a paper cross
+      g.rect(-s * 0.5, -s * 0.5, s, s);
+      g.fill();
+      g.fillStyle = PAPER;
+      g.fillRect(-s * 0.1, -s * 0.36, s * 0.2, s * 0.72);
+      g.fillRect(-s * 0.36, -s * 0.1, s * 0.72, s * 0.2);
+      return;
+    }
   }
 }
 

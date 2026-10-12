@@ -60,12 +60,18 @@ export interface PoliticsTrack {
   primed: boolean;
   /** every building id, whatever its owner, at the last factionsMonth */
   buildings: number[];
-  /** per city id: player building ids within urbanRadius + 4 at the last factionsMonth */
+  /** per city id: ids of player buildings that employ workers, within urbanRadius + 4, at the last factionsMonth */
   near: Record<string, number[]>;
   /** ids of finished (done/failed) contracts already counted */
   contractsSeen: number[];
   /** per city id: this month's retail revenue of the player and the Baron (reset monthly) */
   sales: Record<string, { player: number; baron: number }>;
+}
+
+/** National opinion of every faction, sampled once a year (at year end) for the politics window's trends. */
+export interface OpinionSample {
+  year: number;
+  national: Record<FactionId, number>;
 }
 
 export interface PoliticsState {
@@ -74,6 +80,8 @@ export interface PoliticsState {
   nextCardYear: number;
   log: PoliticsLogEntry[];
   track: PoliticsTrack;
+  /** one OpinionSample per ended year, oldest first (capped at HISTORY_CAP) */
+  history: OpinionSample[];
 }
 
 /** Empty politics for a new game (primed: nothing exists yet) or a migrated save (primed false). */
@@ -84,5 +92,6 @@ export function defaultPolitics(primed = true): PoliticsState {
     nextCardYear: 1901,
     log: [],
     track: { primed, buildings: [], near: {}, contractsSeen: [], sales: {} },
+    history: [],
   };
 }

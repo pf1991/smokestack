@@ -1,5 +1,6 @@
 import { BUILDINGS } from '../../data/buildings';
-import { LANDMARKS } from '../../data/landmarks';
+import { LANDMARKS, PHILANTHROPY_IDS, type PhilanthropyId } from '../../data/landmarks';
+import { buyPhilanthropy, philanthropyBlocker } from '../../sim/politics/edicts';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { loadSource } from '../../sim/inventory';
@@ -10,6 +11,7 @@ import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber, formatPercent } from '../format';
 import './panels.css';
+import './politics.css';
 import { bar, type Bar, KeyedList, openInspector, setText, type InspectorHost, type InspectorView } from './inspect';
 import type { PanelDef } from './index';
 
@@ -69,6 +71,15 @@ function makeRow(goodId: string): GoodRow {
   return { el, demand, sat, price, stores, crave, storeSig: '\0' };
 }
 
+/** "Church +6, Reformers +6, Workers +2": a philanthropy landmark's one-off opinion gains. */
+function effectsLine(id: PhilanthropyId, year: number): string {
+  const effects = LANDMARKS[id].philanthropy?.effects ?? {};
+  return FACTION_IDS.filter((f) => effects[f])
+    .sort((a, b) => effects[b]! - effects[a]! || FACTION_IDS.indexOf(a) - FACTION_IDS.indexOf(b))
+    .map((f) => `${factionName(f, year)} +${effects[f]}`)
+    .join(', ');
+}
+
 function buildView(host: InspectorHost, cityId: number): InspectorView {
   const pop = h('span');
   const trend = h('span', { class: 'insp-trend' });
@@ -82,6 +93,21 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     const el = h('div', { class: 'insp-stat insp-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el);
     return { f, label, bar: b, el };
   });
+  const gifts = PHILANTHROPY_IDS.map((id: PhilanthropyId) => {
+    const def = LANDMARKS[id];
+    const btn = h('button', {
+      class: 'insp-endow',
+      'data-endow': id,
+      onClick: () => {
+        const r = buyPhilanthropy(host.ctx, cityId, id);
+        host.ctx.bus.emit(r.ok
+          ? { type: 'toast', message: `You endowed a ${def.name.toLowerCase()} in ${host.ctx.state.cities[cityId]?.name ?? 'the town'}`, tone: 'good' }
+          : { type: 'toast', message: r.error, tone: 'bad' });
+        view.update();
+      },
+    }, iconEl(id, 16), ` Endow a ${def.name.toLowerCase()} — ${formatMoney(def.philanthropy!.cost)}`);
+    return { id, btn };
+  });
   const tbody = h('tbody');
   const rows = new KeyedList<GoodRow>(tbody, makeRow);
   const el = h(
@@ -92,6 +118,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
     h('div', { class: 'insp-section insp-opinions' }, h('div', { class: 'insp-label' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
+    h('div', { class: 'insp-section insp-philanthropy' }, h('div', { class: 'insp-label' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
     h(
       'table',
       { class: 'insp-table' },
@@ -99,12 +126,19 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       tbody,
     ),
   );
-  return {
+  const view: InspectorView = {
     el,
     update() {
       const { state } = host.ctx;
       const city = state.cities[cityId];
       if (!city) return false;
+      for (const g of gifts) {
+        const why = philanthropyBlocker(state, city.id, g.id);
+        const disabled = why !== null;
+        if ((g.btn as HTMLButtonElement).disabled !== disabled) (g.btn as HTMLButtonElement).disabled = disabled;
+        const tip = why ?? `Opinion in ${city.name}: ${effectsLine(g.id, state.date.year)}`;
+        if (g.btn.title !== tip) g.btn.title = tip;
+      }
       setText(pop, formatNumber(city.population));
       const diff = city.population - city.prevPopulation;
       setText(trend, diff > 0 ? `▲ ${formatNumber(diff)}` : diff < 0 ? `▼ ${formatNumber(-diff)}` : '–');
@@ -159,6 +193,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       return true;
     },
   };
+  return view;
 }
 
 export const cityPanel: PanelDef = {

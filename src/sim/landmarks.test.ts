@@ -27,8 +27,17 @@ describe('LANDMARKS', () => {
       ['library', 14000, 1905, 2],
       ['stadium', 25000, 1920, 2],
       ['skyscraper', 45000, 1930, 2],
+      // philanthropy only (Phase 2): never auto-built, so their minPop/minYear are unused
+      ['park', 0, 1900, 2],
+      ['hospital', 0, 1900, 2],
     ]);
     for (const l of Object.values(LANDMARKS)) expect(l.news).toContain('{city}');
+    expect(Object.values(LANDMARKS).filter((l) => l.philanthropyOnly).map((l) => l.id)).toEqual(['park', 'hospital']);
+    expect(Object.values(LANDMARKS).filter((l) => l.philanthropy).map((l) => [l.id, l.philanthropy!.cost])).toEqual([
+      ['library', 60000],
+      ['park', 25000],
+      ['hospital', 120000],
+    ]);
   });
 });
 

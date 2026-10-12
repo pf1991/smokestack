@@ -2,7 +2,8 @@ import { LANDMARK_LAYER } from './landmarkTiles';
 import { recordSale } from './scenarios';
 import { onSale } from './contracts';
 import { notePoliticsSale } from './politics/factions';
-import { companyIds } from './companies';
+import { maintenanceFactor } from './politics/edicts';
+import { companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
 import { RECIPES } from '../data/recipes';
@@ -147,6 +148,8 @@ export function maintenanceMonth(ctx: SimContext): void {
     const company = state.companies[owner];
     let total = 0;
     for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += BUILDINGS[b.typeId].maintenance;
+    // company edicts (wages, safety, unions) scale the player's building upkeep only
+    if (owner === PLAYER_ID) total *= maintenanceFactor(state.politics.edicts);
     total += company.roadTiles * 5 + company.railTiles * RAIL_UPKEEP;
     if (total > 0) spend(company, 'maintenance', total, state.date);
   }

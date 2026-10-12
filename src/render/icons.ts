@@ -506,6 +506,13 @@ const UI_PAINTERS: Record<string, Painter> = {
     g.rect(1.5, 3, 13, 3.5);
     g.stroke();
   },
+  ballot: (g) => {
+    rect(g, 2, 8, 12, 6.5, C.walnut);
+    rect(g, 5, 8, 6, 1.2, C.ink, false);
+    poly(g, [5, 1.5, 11.5, 1.5, 11.5, 8.6, 5, 8.6], C.paper);
+    line(g, [6.6, 4.8, 8, 6.4, 10.4, 3], C.red, 1.3);
+    rect(g, 6.5, 11, 3, 1.2, C.brass, false);
+  },
   crate: (g) => {
     rect(g, 2, 3, 12, 11, C.brass);
     rect(g, 4, 5, 8, 7, C.brass);
@@ -658,6 +665,22 @@ const LANDMARK_ICON_PAINTERS: Record<string, Painter> = {
       rect(g, 8.6, y, 1.2, 1.3, C.brassLight, false);
     }
     for (const x of [4, 11.2]) rect(g, x, 11, 0.9, 1.3, C.brassLight, false);
+  },
+  park: (g) => {
+    rect(g, 1, 12, 14, 2.5, C.green);
+    line(g, [8, 12, 8, 14.5], C.paperShade, 1.6);
+    rect(g, 3.6, 8.5, 1.4, 4, C.walnut, false);
+    blob(g, [[4.3, 6.5, 3], [6.2, 4.6, 2.2]], C.green);
+    rect(g, 11.2, 9, 1.4, 3.5, C.walnut, false);
+    blob(g, [[11.9, 7, 2.6]], C.green);
+    poly(g, [8, 4.5, 10, 6, 6, 6], C.brass);
+  },
+  hospital: (g) => {
+    rect(g, 1.5, 6, 13, 8.5, C.paper);
+    poly(g, [1, 6.5, 8, 2, 15, 6.5], C.slate);
+    rect(g, 6.5, 6.8, 3, 7.4, C.red, false);
+    rect(g, 4.6, 8.7, 6.8, 3, C.red, false);
+    for (const x of [2.6, 12.2]) rect(g, x, 8.5, 1.3, 2, C.glass, false);
   },
 };
 

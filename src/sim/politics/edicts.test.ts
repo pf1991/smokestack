@@ -1,0 +1,246 @@
+import { describe, expect, it } from 'vitest';
+import { BUILDINGS } from '../../data/buildings';
+import { LANDMARKS } from '../../data/landmarks';
+import { LANDMARK_LAYER, landmarksMonth } from '../landmarks';
+import { layerAt } from '../layers';
+import { monthProfit } from '../finance';
+import { maintenanceMonth } from '../production';
+import { canPlaceBuilding, HOUSING_TOO_FAR, placeBuilding } from '../state';
+import { must, testCtx, testState } from '../testkit';
+import type { SimContext } from '../types';
+import { buyPhilanthropy, edictsMonth, maintenanceFactor, philanthropyBlocker, setEdict } from './edicts';
+import { factionsMonth, nationalOpinion, opinionHistoryYear, opinionTrend } from './factions';
+import { politicsSystem } from './index';
+import type { CompanyEdicts, SafetyLevel, UnionStance, WageLevel } from './types';
+import { laborPool, workCity, workforceMonth } from './workforce';
+
+const WAGE: Record<WageLevel, number> = { low: 0.85, fair: 1, generous: 1.25 };
+const SAFETY: Record<SafetyLevel, number> = { minimal: 0.95, standard: 1, high: 1.12 };
+const UNION: Record<UnionStance, number> = { crush: 1, tolerate: 1, recognise: 1.05 };
+
+function town(money = 1e6): SimContext {
+  return testCtx(testState({ width: 80, height: 60, money, cities: [{ x: 20, y: 20, population: 6000 }] }));
+}
+
+describe('company edicts', () => {
+  it('maintenanceFactor is the product of the three edicts, for every combination', () => {
+    for (const wage of Object.keys(WAGE) as WageLevel[]) {
+      for (const safety of Object.keys(SAFETY) as SafetyLevel[]) {
+        for (const union of Object.keys(UNION) as UnionStance[]) {
+          const e: CompanyEdicts = { wage, safety, union };
+          expect(maintenanceFactor(e), `${wage}/${safety}/${union}`).toBeCloseTo(WAGE[wage] * SAFETY[safety] * UNION[union], 12);
+        }
+      }
+    }
+    expect(maintenanceFactor({ wage: 'fair', safety: 'standard', union: 'tolerate' })).toBe(1);
+  });
+
+  it('the defaults are fair, standard, tolerate', () => {
+    expect(town().state.politics.edicts).toEqual({ wage: 'fair', safety: 'standard', union: 'tolerate' });
+  });
+
+  it('setEdict stores the edict, publishes a one-line politics headline, and refuses nonsense', () => {
+    const ctx = town();
+    const news = ctx.state.news.length;
+    must(setEdict(ctx, 'wage', 'generous'));
+    expect(ctx.state.politics.edicts.wage).toBe('generous');
+    expect(ctx.state.news.length).toBe(news + 1);
+    const item = ctx.state.news.at(-1)!;
+    expect(item.kind).toBe('politics');
+    expect(item.headline).not.toContain('\n');
+    // same value again: ok, no second headline
+    must(setEdict(ctx, 'wage', 'generous'));
+    expect(ctx.state.news.length).toBe(news + 1);
+    expect(setEdict(ctx, 'wage', 'lavish' as WageLevel).ok).toBe(false);
+    expect(setEdict(ctx, 'bonus' as keyof CompanyEdicts, 'fair' as never).ok).toBe(false);
+    expect(ctx.state.politics.edicts).toEqual({ wage: 'generous', safety: 'standard', union: 'tolerate' });
+  });
+
+  it('scales the player building maintenance only, under the maintenance ledger category', () => {
+    const ctx = town(1e7);
+    must(placeBuilding(ctx, 'player', 'sawmill', { x: 50, y: 40 }));
+    must(placeBuilding(ctx, 'rival', 'sawmill', { x: 60, y: 40 }));
+    must(setEdict(ctx, 'wage', 'generous'));
+    must(setEdict(ctx, 'safety', 'high'));
+    must(setEdict(ctx, 'union', 'recognise'));
+    const p0 = ctx.state.companies.player.money;
+    const r0 = ctx.state.companies.rival.money;
+    maintenanceMonth(ctx);
+    const upkeep = BUILDINGS.sawmill.maintenance;
+    expect(p0 - ctx.state.companies.player.money).toBe(Math.round(upkeep * 1.25 * 1.12 * 1.05));
+    expect(r0 - ctx.state.companies.rival.money).toBe(upkeep);
+    expect(ctx.state.companies.player.ledger.at(-1)!.expense.maintenance).toBe(Math.round(upkeep * 1.25 * 1.12 * 1.05));
+  });
+
+  it('edictsMonth applies each edict national effect', () => {
+    const cases: [keyof CompanyEdicts, string, Partial<Record<'workers' | 'oldmoney' | 'reformers', number>>][] = [
+      ['wage', 'low', { workers: -2, oldmoney: 1 }],
+      ['wage', 'generous', { workers: 2, oldmoney: -1 }],
+      ['safety', 'minimal', { workers: -1, reformers: -1 }],
+      ['safety', 'high', { workers: 1 }],
+      ['union', 'crush', { workers: -2, oldmoney: 1 }],
+      ['union', 'recognise', { workers: 1.5, oldmoney: -1 }],
+    ];
+    for (const [key, value, want] of cases) {
+      const ctx = town();
+      must(setEdict(ctx, key, value as never));
+      edictsMonth(ctx);
+      const o = ctx.state.cities[0].opinion;
+      expect(o.workers, `${key} ${value}`).toBeCloseTo(50 + (want.workers ?? 0), 12);
+      expect(o.oldmoney, `${key} ${value}`).toBeCloseTo(50 + (want.oldmoney ?? 0), 12);
+      expect(o.reformers, `${key} ${value}`).toBeCloseTo(50 + (want.reformers ?? 0), 12);
+    }
+    // the defaults do nothing
+    const ctx = town();
+    edictsMonth(ctx);
+    expect(ctx.state.cities[0].opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
+  });
+
+  it('generous wages raise national workers opinion over 12 months, relative to fair, net of drift', () => {
+    const year = (wage: WageLevel) => {
+      const ctx = testCtx(testState({ width: 80, height: 60, cities: [{ x: 20, y: 20, population: 6000 }, { x: 60, y: 40, population: 2000 }] }));
+      must(setEdict(ctx, 'wage', wage));
+      for (let m = 0; m < 12; m++) politicsSystem.onMonth!(ctx);
+      return nationalOpinion(ctx.state, 'workers');
+    };
+    const fair = year('fair');
+    const generous = year('generous');
+    expect(fair).toBeCloseTo(50, 10);
+    expect(generous - fair).toBeGreaterThan(15);
+  });
+});
+
+describe('opinion history', () => {
+  it('appends one sample of national opinion per year; the trend compares with it', () => {
+    const ctx = town();
+    expect(opinionTrend(ctx.state, 'workers')).toBeNull();
+    opinionHistoryYear(ctx);
+    expect(ctx.state.politics.history).toEqual([{ year: 1900, national: { workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 } }]);
+    must(setEdict(ctx, 'wage', 'generous'));
+    edictsMonth(ctx);
+    expect(opinionTrend(ctx.state, 'workers')).toBeCloseTo(2, 12);
+    expect(opinionTrend(ctx.state, 'church')).toBe(0);
+    expect(politicsSystem.onYear).toBe(opinionHistoryYear);
+  });
+});
+
+describe('philanthropy', () => {
+  it('refuses when the player cannot afford it', () => {
+    const ctx = town(20000);
+    const r = buyPhilanthropy(ctx, 0, 'park');
+    expect(r).toEqual({ ok: false, error: 'Not enough money' });
+    expect(ctx.state.cities[0].landmarks).toEqual([]);
+  });
+
+  it('places the landmark, spends under events, applies the opinion changes, and refuses a second one', () => {
+    const ctx = town();
+    const events: unknown[] = [];
+    ctx.bus.on('landmarkBuilt', (e) => events.push(e));
+    const money = ctx.state.companies.player.money;
+    must(buyPhilanthropy(ctx, 0, 'park'));
+    const city = ctx.state.cities[0];
+    expect(city.landmarks.map((l) => l.id)).toEqual(['park']);
+    const pos = city.landmarks[0].pos;
+    expect(layerAt(ctx.state, LANDMARK_LAYER, pos.x, pos.y)).toBe(1);
+    expect(layerAt(ctx.state, LANDMARK_LAYER, pos.x + 1, pos.y + 1)).toBe(1);
+    expect(money - ctx.state.companies.player.money).toBe(25000);
+    expect(ctx.state.companies.player.ledger.at(-1)!.expense.events).toBe(25000);
+    // and it counts against the month's profit (the finance statement uses the same lists)
+    expect(monthProfit(ctx.state.companies.player.ledger.at(-1)!)).toBe(-25000);
+    expect(events).toEqual([{ type: 'landmarkBuilt', cityId: 0, id: 'park' }]);
+    expect(city.opinion).toEqual({ workers: 52, oldmoney: 50, reformers: 56, church: 56, baron: 35 });
+    expect(ctx.state.politics.log.map((e) => [e.faction, e.scope, e.delta])).toEqual([
+      ['workers', 0, 2],
+      ['reformers', 0, 6],
+      ['church', 0, 6],
+    ]);
+    const again = buyPhilanthropy(ctx, 0, 'park');
+    expect(again).toEqual({ ok: false, error: 'Town 0 already has a park' });
+    expect(ctx.state.companies.player.money).toBe(money - 25000);
+  });
+
+  it('library and hospital: their prices and effects', () => {
+    const ctx = town();
+    const money = ctx.state.companies.player.money;
+    must(buyPhilanthropy(ctx, 0, 'library'));
+    must(buyPhilanthropy(ctx, 0, 'hospital'));
+    expect(money - ctx.state.companies.player.money).toBe(60000 + 120000);
+    expect(ctx.state.cities[0].opinion).toEqual({ workers: 58, oldmoney: 50, reformers: 62, church: 60, baron: 35 });
+    expect(ctx.state.cities[0].landmarks.map((l) => l.id)).toEqual(['library', 'hospital']);
+    expect(LANDMARKS.park.philanthropy!.cost).toBe(25000);
+  });
+
+  it('refuses without a free site, for an unknown town, or for a landmark that cannot be endowed', () => {
+    const ctx = town();
+    // fill the whole town with road: no 2×2 block is free
+    for (const t of ctx.state.map.tiles) if (t.cityId === 0) t.road = true;
+    expect(buyPhilanthropy(ctx, 0, 'park')).toEqual({ ok: false, error: 'No free site in Town 0' });
+    expect(buyPhilanthropy(ctx, 9, 'park')).toEqual({ ok: false, error: 'Unknown town' });
+    expect(buyPhilanthropy(ctx, 0, 'church' as never).ok).toBe(false);
+    expect(philanthropyBlocker(ctx.state, 0, 'hospital')).toBe('No free site in Town 0');
+  });
+
+  it('an auto-built library cannot be endowed again; parks and hospitals are never auto-built', () => {
+    const ctx = testCtx(testState({ width: 120, height: 100, money: 1e6, year: 1950, cities: [{ x: 50, y: 50, population: 90000 }] }));
+    for (let i = 0; i < 12; i++) landmarksMonth(ctx);
+    const ids = ctx.state.cities[0].landmarks.map((l) => l.id);
+    expect(ids).toContain('library');
+    expect(ids).not.toContain('park');
+    expect(ids).not.toContain('hospital');
+    expect(buyPhilanthropy(ctx, 0, 'library')).toEqual({ ok: false, error: 'Town 0 already has a library' });
+  });
+});
+
+describe('company housing', () => {
+  it('exact catalog values', () => {
+    const d = BUILDINGS.company_housing;
+    expect([d.category, d.size, d.cost, d.maintenance, d.workers]).toEqual(['logistics', { w: 2, h: 2 }, 8000, 120, 0]);
+  });
+
+  it('must stand within 3 tiles of one of the player factories', () => {
+    const ctx = town();
+    const { state } = ctx;
+    expect(canPlaceBuilding(state, 'player', 'company_housing', { x: 50, y: 40 })).toEqual({ ok: false, error: HOUSING_TOO_FAR });
+    must(placeBuilding(ctx, 'rival', 'sawmill', { x: 50, y: 44 }));
+    // a rival factory does not count
+    expect(canPlaceBuilding(state, 'player', 'company_housing', { x: 50, y: 40 })).toEqual({ ok: false, error: HOUSING_TOO_FAR });
+    must(placeBuilding(ctx, 'player', 'sawmill', { x: 60, y: 40 })); // occupies x 60..62
+    // housing at x 54..55: 5 tiles from the sawmill
+    expect(canPlaceBuilding(state, 'player', 'company_housing', { x: 54, y: 40 })).toEqual({ ok: false, error: HOUSING_TOO_FAR });
+    // housing at x 55..56: 4 tiles; at x 56..57: 3 tiles
+    expect(canPlaceBuilding(state, 'player', 'company_housing', { x: 55, y: 40 }).ok).toBe(false);
+    expect(canPlaceBuilding(state, 'player', 'company_housing', { x: 56, y: 40 }).ok).toBe(true);
+    // diagonally: 3 tiles off in both axes still counts
+    expect(canPlaceBuilding(state, 'player', 'company_housing', { x: 65, y: 45 }).ok).toBe(true);
+    expect(canPlaceBuilding(state, 'player', 'company_housing', { x: 66, y: 45 }).ok).toBe(false);
+  });
+
+  it('adds 150 hands to its factory town pool and pleases its workers once', () => {
+    const ctx = town(1e7);
+    const { state } = ctx;
+    const city = state.cities[0];
+    // 5 sawmills (300 hands) hiring from a town that cannot staff them all
+    city.population = 600;
+    const mills = [0, 1, 2, 3, 4].map((i) => must(placeBuilding(ctx, 'player', 'sawmill', { x: 30 + i * 4, y: 30 })));
+    for (const m of mills) expect(workCity(state, m)?.id).toBe(0);
+    factionsMonth(ctx); // jobs counted, track primed
+    workforceMonth(state);
+    const before = mills[0].staffing;
+    const pool = laborPool(city);
+    expect(before).toBeCloseTo(Math.max(0.5, pool / 300), 12);
+    const w0 = city.opinion.workers;
+    must(placeBuilding(ctx, 'player', 'company_housing', { x: 30, y: 34 }));
+    workforceMonth(state);
+    expect(mills[0].staffing).toBeCloseTo(Math.min(1, (laborPool(city) + 150) / 300), 12);
+    expect(mills[0].staffing).toBeLessThan(1);
+    expect(mills[0].staffing).toBeGreaterThan(before);
+    factionsMonth(ctx);
+    // +3 for the housing, no "New jobs" for it; drift is applied first
+    const drift = (50 - w0) * 0.02;
+    expect(city.opinion.workers).toBeCloseTo(w0 + drift + 3, 10);
+    expect(state.politics.log.at(-1)).toMatchObject({ faction: 'workers', scope: 0, delta: 3, reason: 'Company housing' });
+    const w1 = city.opinion.workers;
+    factionsMonth(ctx);
+    expect(city.opinion.workers).toBeCloseTo(w1 + (50 - w1) * 0.02, 10);
+  });
+});

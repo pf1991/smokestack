@@ -26,7 +26,7 @@ const SPEEDS: { speed: Speed; label: string; title: string }[] = [
   { speed: 8, label: '⏩', title: 'Fastest' },
 ];
 
-const PANELS: { id: string; label: string }[] = [
+const PANELS: { id: string; label: string; icon?: string }[] = [
   { id: 'routes', label: 'Routes' },
   { id: 'fleet', label: 'Fleet' },
   { id: 'finance', label: 'Finance' },
@@ -34,6 +34,7 @@ const PANELS: { id: string; label: string }[] = [
   { id: 'contracts', label: 'Contracts' },
   { id: 'rival', label: 'Rival' },
   { id: 'goals', label: 'Goals' },
+  { id: 'politics', label: 'Politics', icon: 'ballot' },
 ];
 
 const DELTA_MS = 1500;
@@ -78,7 +79,7 @@ export class Hud {
         class: 'hud-panel-btn',
         'data-panel': p.id,
         onClick: () => handlers.onOpenPanel(p.id),
-      }, p.label)));
+      }, ...(p.icon ? [iconEl(p.icon, 16), ` ${p.label}`] : [p.label]))));
 
     const smog = h('button', {
       class: 'hud-panel-btn hud-smog',

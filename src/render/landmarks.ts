@@ -28,6 +28,8 @@ export const LANDMARK_HEIGHT: Record<LandmarkId, number> = {
   library: 24,
   stadium: 18,
   skyscraper: 40,
+  park: 12,
+  hospital: 22,
 };
 
 const WALL = 7;
@@ -386,6 +388,88 @@ function skyscraper(g: Ctx, lit: boolean): void {
   rect(g, 28, 56, 6, 2, lit ? WARM : NIGHT_GLASS);
 }
 
+function park(g: Ctx, lit: boolean): void {
+  // lawn with a gravel cross of paths and a hedge border
+  rect(g, 0, 0, LANDMARK_PX, LANDMARK_PX, LAWN);
+  for (let i = 0; i < 40; i++) rect(g, Math.floor(h(i) * 62), Math.floor(h(i + 99) * 62), 2, 1, shade(LAWN, h(i + 7) < 0.5 ? 0.12 : -0.12));
+  g.strokeStyle = '#3f6b2c';
+  g.lineWidth = 2;
+  g.strokeRect(1, 1, LANDMARK_PX - 2, LANDMARK_PX - 2);
+  const GRAVEL = '#d8cba8';
+  rect(g, 29, 0, 6, LANDMARK_PX, GRAVEL);
+  rect(g, 0, 29, LANDMARK_PX, 6, GRAVEL);
+  rect(g, 29, 0, 1, LANDMARK_PX, shade(GRAVEL, -0.15));
+  rect(g, 0, 29, LANDMARK_PX, 1, shade(GRAVEL, -0.15));
+  // ornamental pond with a lily or two
+  g.fillStyle = shade(GRAVEL, -0.2);
+  g.beginPath();
+  g.ellipse(48, 48, 11, 8, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#4f86a8';
+  g.beginPath();
+  g.ellipse(48, 48, 9.5, 6.5, 0, 0, Math.PI * 2);
+  g.fill();
+  rect(g, 42, 45, 6, 1, '#8fc0d8');
+  circle(g, 51, 50, 1.4, '#7fb257');
+  circle(g, 45, 51, 1.1, '#7fb257');
+  // flower bed
+  for (let i = 0; i < 12; i++) circle(g, 8 + (i % 6) * 3, 46 + Math.floor(i / 6) * 4, 1.2, ['#d9463b', '#f2c94c', '#e88ab0'][i % 3]);
+  // trees along the paths
+  for (const [x, y] of [[8, 8], [20, 10], [10, 20], [44, 8], [56, 14], [52, 24], [6, 58]]) tree(g, x, y, 4.5);
+  // bandstand at the crossing: an octagon of posts under a striped canopy, raised above the lawn
+  const cx = 32, cy = 32;
+  circle(g, cx + 2, cy + 2, 8, 'rgba(0,0,0,0.2)');
+  circle(g, cx, cy, 8, '#e9e2d0');
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    rect(g, cx + Math.cos(a) * 6.5 - 0.5, cy + Math.sin(a) * 6.5 - 8, 1, 8, '#f6f1e4');
+  }
+  const top = cy - LANDMARK_HEIGHT.park + 2;
+  for (let i = 0; i < 8; i++) {
+    const a0 = (i * Math.PI) / 4, a1 = ((i + 1) * Math.PI) / 4;
+    poly(g, [[cx, top - 4], [cx + Math.cos(a0) * 9, top + Math.sin(a0) * 9], [cx + Math.cos(a1) * 9, top + Math.sin(a1) * 9]], i % 2 ? '#f6f1e4' : '#2f6f5f');
+  }
+  rect(g, cx - 0.5, top - 8, 1, 4, GOLD);
+  // lamps along the paths
+  for (const [x, y] of [[26, 14], [38, 50], [14, 26], [50, 38]]) {
+    rect(g, x, y - 5, 1, 5, '#2b2f36');
+    circle(g, x + 0.5, y - 6, 1.5, lit ? WARM : '#c9c2a8');
+  }
+}
+
+function hospital(g: Ctx, lit: boolean): void {
+  plaza(g);
+  rect(g, 2, 2, 60, 8, LAWN);
+  tree(g, 8, 6, 3.5);
+  tree(g, 56, 6, 3.5);
+  // carriage drive and ambulance bay at the front
+  rect(g, 18, 54, 28, 10, '#b9ae92');
+  rect(g, 40, 56, 8, 5, '#f4f1ea');
+  rect(g, 40, 56, 2, 5, '#c23a2f');
+  // two pavilion wings either side of a taller central block, white render with slate roofs
+  const RENDER = '#f1ece0';
+  const SLATE = '#6a7280';
+  for (const x of [4, 44]) {
+    const seam = box(g, x, 18, 16, 34, SLATE, RENDER, 8);
+    rect(g, x + 1, 19, 7, seam - 20, shade(SLATE, 0.15));
+    for (let i = 0; i < 3; i++) rect(g, x + 2 + i * 5, seam + 2, 3, 4, win(lit, 60 + x + i, 0.8));
+  }
+  const Z = LANDMARK_HEIGHT.hospital;
+  softShadow(g, 18, 22 + 30 - Z, 28, Z);
+  const main = slab(g, 18, 22, 28, 30, 0, Z, '#d9d4c6', RENDER);
+  rect(g, 20, main.top + 2, 24, 26, shade('#d9d4c6', 0.1));
+  // red cross on the roof
+  rect(g, 29, main.top + 8, 6, 16, '#c23a2f');
+  rect(g, 24, main.top + 13, 16, 6, '#c23a2f');
+  rect(g, 29, main.top + 8, 6, 1, shade('#c23a2f', 0.3));
+  // storeys of windows on the main front, a canopied entrance
+  for (let ry = main.face + 3; ry + 3 <= main.base - 6; ry += 5) {
+    for (let px = 21; px + 3 <= 43; px += 5) rect(g, px, ry, 3, 3, win(lit, px * 7 + ry, 0.75));
+  }
+  rect(g, 27, main.base - 5, 10, 5, lit ? WARM : NIGHT_GLASS);
+  rect(g, 25, main.base - 6, 14, 2, '#c23a2f');
+}
+
 /** One painter per landmark; the catalog test checks every LandmarkId has one. */
 export const LANDMARK_PAINTERS: Record<LandmarkId, LandmarkPainter> = {
   church,
@@ -394,6 +478,8 @@ export const LANDMARK_PAINTERS: Record<LandmarkId, LandmarkPainter> = {
   library,
   stadium,
   skyscraper,
+  park,
+  hospital,
 };
 
 /** Sun-shadow casters per landmark, footprint-local px, roughly following each painter's masses. */
@@ -424,6 +510,15 @@ export const LANDMARK_CASTERS: Record<LandmarkId, ShadowCaster[]> = {
     { x: 20, y: 16, w: 24, d: 14, z: LANDMARK_HEIGHT.skyscraper + 10 },
     { x: 30, y: 21, w: 4, d: 4, z: LANDMARK_HEIGHT.skyscraper + 22, taper: true },
     { x: 6, y: 36, w: 52, d: 22, z: 10 },
+  ],
+  park: [
+    { x: 24, y: 24, w: 16, d: 16, z: LANDMARK_HEIGHT.park, taper: true },
+    ...[[8, 8], [20, 10], [10, 20], [44, 8], [56, 14], [52, 24], [6, 58]].map(([x, y]) => ({ x: x - 3, y: y - 3, w: 6, d: 6, z: 6 })),
+  ],
+  hospital: [
+    { x: 4, y: 26, w: 16, d: 26, z: 8 },
+    { x: 44, y: 26, w: 16, d: 26, z: 8 },
+    { x: 18, y: 22, w: 28, d: 30, z: LANDMARK_HEIGHT.hospital },
   ],
 };
 

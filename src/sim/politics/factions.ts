@@ -3,11 +3,12 @@
  * drivers live here too. Drivers are derived from state diffs kept in `state.politics.track`
  * (ruling R-Q3), never from bus listeners, so the sim stays deterministic and save-safe.
  */
-import { BUILDINGS } from '../../data/buildings';
+import { BUILDINGS, HOUSING_OPINION } from '../../data/buildings';
 import { FACTION_IDS, type FactionId } from '../../data/factions';
 import { BARON_ID, PLAYER_ID } from '../companies';
 import { buildingsNear } from '../spatial';
 import type { GameState, OwnerId, SimContext } from '../types';
+import { housingCity } from './workforce';
 
 /** Oldest entries are dropped beyond this. */
 export const LOG_CAP = 200;
@@ -79,7 +80,10 @@ export function notePoliticsSale(state: GameState, ownerId: OwnerId, cityId: num
 
 function nearIds(state: GameState, cityId: number): number[] {
   const c = state.cities.find((x) => x.id === cityId)!;
-  return buildingsNear(state, c.center, c.urbanRadius + NEAR_MARGIN, PLAYER_ID).map((b) => b.id);
+  // only buildings that employ anyone: company housing brings homes, not jobs, and its demolition no layoffs
+  return buildingsNear(state, c.center, c.urbanRadius + NEAR_MARGIN, PLAYER_ID)
+    .filter((b) => BUILDINGS[b.typeId].workers > 0)
+    .map((b) => b.id);
 }
 
 /**
@@ -109,6 +113,15 @@ function buildingDrivers(state: GameState): void {
     if (placed > 0) adjustOpinion(state, 'workers', city.id, 2 * placed, 'New jobs');
     if (dirty > 0) adjustOpinion(state, 'reformers', city.id, -dirty, 'A smoking new works');
     if (removed > 0) adjustOpinion(state, 'workers', city.id, -4 * removed, 'Layoffs');
+  }
+  // company housing raised since the last month: grateful workers in its factory's town, once
+  if (track.primed) {
+    for (const id of current.sort((a, b) => a - b)) {
+      const b = state.buildings[id];
+      if (prevAll.has(id) || b.ownerId !== PLAYER_ID || b.typeId !== 'company_housing') continue;
+      const city = housingCity(state, b);
+      if (city) adjustOpinion(state, 'workers', city.id, HOUSING_OPINION, 'Company housing');
+    }
   }
   track.buildings = current.sort((a, b) => a - b);
   track.near = near;
@@ -152,4 +165,26 @@ export function factionsMonth(ctx: SimContext): void {
   buildingDrivers(state);
   contractDrivers(state);
   state.politics.track.primed = true;
+}
+
+/** Yearly samples kept in `state.politics.history`; the oldest are dropped beyond this. */
+export const HISTORY_CAP = 120;
+
+/** Yearly (onYear, while the date is still in the ending year): samples every faction's national opinion. */
+export function opinionHistoryYear(ctx: SimContext): void {
+  const { state } = ctx;
+  const national = {} as Record<FactionId, number>;
+  for (const f of FACTION_IDS) national[f] = nationalOpinion(state, f);
+  const history = (state.politics.history ??= []);
+  history.push({ year: state.date.year, national });
+  if (history.length > HISTORY_CAP) history.splice(0, history.length - HISTORY_CAP);
+}
+
+/**
+ * National opinion of `faction` now minus the latest yearly sample (taken at most 12 months ago),
+ * or null before the first year has ended.
+ */
+export function opinionTrend(state: GameState, faction: FactionId): number | null {
+  const last = state.politics.history?.at(-1);
+  return last ? nationalOpinion(state, faction) - last.national[faction] : null;
 }

@@ -52,15 +52,19 @@ describe('content catalog', () => {
     expect(recipeEra('r_fuel')).toBe(1910);
   });
 
-  it('every building def employs workers', () => {
+  it('every building def employs workers (company housing only houses them)', () => {
     for (const def of Object.values(BUILDINGS)) {
+      if (def.id === 'company_housing') {
+        expect(def.workers).toBe(0);
+        continue;
+      }
       expect(Number.isFinite(def.workers) && def.workers > 0, `${def.id} workers ${def.workers}`).toBe(true);
     }
     const byCat = (cat: string) => Object.values(BUILDINGS).filter((d) => d.category === cat);
     for (const d of byCat('extractor')) expect(d.workers, d.id).toBe(20);
     for (const d of byCat('factory')) expect(d.workers, d.id).toBe(d.id === 'steel_mill' || d.id === 'car_plant' ? 120 : 60);
     for (const d of byCat('retail')) expect(d.workers, d.id).toBe(12);
-    for (const d of byCat('logistics')) expect(d.workers, d.id).toBe(6);
+    for (const d of byCat('logistics')) expect(d.workers, d.id).toBe(d.id === 'company_housing' ? 0 : 6);
   });
 
   it('exact values', () => {

@@ -1,0 +1,28 @@
+/* Politics window: company edicts, national opinion, recent political news. */
+.pol { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.pol-section { display: flex; flex-direction: column; gap: 6px; }
+.pol-section > .insp-label { border-bottom: 1px solid var(--brass-dark); padding-bottom: 2px; }
+.pol-edict { display: flex; flex-direction: column; gap: 3px; }
+.pol-edict-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pol-edict-title { font-weight: bold; }
+.pol-cost { color: var(--paper-shade); font-size: 12px; white-space: nowrap; }
+.pol-seg { display: flex; border: 1px solid var(--brass-dark); border-radius: 3px; overflow: hidden; }
+.pol-seg button { flex: 1; font: inherit; font-size: 12px; border-radius: 0; border: 0; border-left: 1px solid var(--brass-dark); padding: 3px 6px; background: var(--walnut-light); color: var(--paper); }
+.pol-seg button:first-child { border-left: 0; }
+.pol-seg button[aria-pressed='true'] { background: var(--brass-light); color: var(--walnut); font-weight: bold; }
+.pol-effects { font-size: 12px; color: var(--paper-shade); min-height: 1.2em; }
+.pol-effects .pos { color: #7fd17f; }
+.pol-effects .neg { color: #f08080; }
+.pol-opinion { display: grid; grid-template-columns: 110px 1fr 54px; gap: 8px; align-items: center; }
+.pol-opinion .insp-bar { width: 100%; }
+.pol-trend { text-align: right; white-space: nowrap; font-size: 12px; }
+.pol-trend.up { color: #7fd17f; }
+.pol-trend.down { color: #f08080; }
+.pol-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.pol-log li { display: flex; gap: 6px; font-size: 12px; }
+.pol-log .when { color: var(--paper-shade); white-space: nowrap; }
+.pol-log .delta.pos { color: #7fd17f; }
+.pol-log .delta.neg { color: #f08080; }
+.pol-none { color: var(--paper-shade); font-style: italic; }
+.insp-philanthropy { display: flex; flex-direction: column; gap: 4px; }
+.insp-philanthropy button { text-align: left; }

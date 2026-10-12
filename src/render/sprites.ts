@@ -48,6 +48,7 @@ export const BUILDING_HEIGHT: Record<BuildingTypeId, number> = {
   store: 10,
   warehouse: 14,
   train_station: 12,
+  company_housing: 10,
 };
 
 /** Chimney room above the footprint in the flat layout the painters draw in. */
@@ -744,6 +745,47 @@ function paintStation(g: Ctx, _def: BuildingDef, W: number, H: number, owner: Ow
   pennant(g, W, owner);
 }
 
+/** Company housing: a brick terrace of three homes under a pitched slate roof, chimneys on the party walls. */
+function paintHousing(g: Ctx, _def: BuildingDef, W: number, H: number, owner: OwnerId): void {
+  const brick = '#a9553e';
+  const b = building(g, W, H, '#5c4a44', brick);
+  brickTexture(g, b, 77);
+  const units = 3;
+  const uw = b.w / units;
+  const ridge = b.y + Math.round(b.roofH / 2);
+  for (let i = 0; i < units; i++) {
+    const x = b.x + Math.round(i * uw);
+    const w = Math.round((i + 1) * uw) - Math.round(i * uw);
+    const roof = ['#6b4a3a', '#5c4a44', '#7a5446'][i];
+    rect(g, x, b.y, w, ridge - b.y, shade(roof, 0.18)); // sunlit back slope
+    rect(g, x, ridge, w, b.y + b.roofH - ridge, roof);
+    for (let y = b.y + 3; y < b.y + b.roofH - 1; y += 4) rect(g, x + 1, y, w - 2, 1, 'rgba(0,0,0,0.12)'); // slate courses
+  }
+  rect(g, b.x, ridge, b.w, 1, 'rgba(0,0,0,0.35)');
+  for (let i = 1; i < units; i++) {
+    const x = b.x + Math.round(i * uw);
+    rect(g, x, b.y, 1, b.roofH, 'rgba(0,0,0,0.4)'); // party wall
+    rect(g, x - 3, ridge - 5, 6, 5, '#8c4a38'); // chimney stack
+    rect(g, x - 3, ridge - 5, 6, 1, '#3a2a25');
+    rect(g, x - 2, ridge - 7, 2, 2, '#b06a4a');
+    rect(g, x + 1, ridge - 7, 2, 2, '#b06a4a');
+  }
+  // dormer windows on the front slope
+  for (let i = 0; i < units; i++) {
+    const cx = b.x + Math.round((i + 0.5) * uw);
+    rect(g, cx - 3, ridge + 8, 6, 6, '#e8dcc0');
+    rect(g, cx - 2, ridge + 9, 4, 3, '#2b3a4a');
+  }
+  windows(g, 'company_housing', '#2b3a4a');
+  const y = b.y + b.roofH;
+  for (let i = 0; i < units; i++) {
+    const dx = b.x + Math.round((i + 0.5) * uw) + 3;
+    rect(g, dx, y + 2, 3, WALL - 2, '#3b5a7a'); // front doors in the company colour scheme
+    rect(g, dx, y + 2, 3, 1, '#efe7d4');
+  }
+  pennant(g, W, owner);
+}
+
 function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant: string): void {
   const { W, H } = dims(def);
   switch (def.id) {
@@ -756,6 +798,7 @@ function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant: string
     case 'store': paintStore(g, def, W, H, owner); return;
     case 'warehouse': paintWarehouse(g, def, W, H, owner); return;
     case 'train_station': paintStation(g, def, W, H, owner); return;
+    case 'company_housing': paintHousing(g, def, W, H, owner); return;
     default:
       if (def.category === 'factory') { paintFactory(g, def, W, H, owner); return; }
       paintWarehouse(g, def, W, H, owner); return;
@@ -769,6 +812,7 @@ function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant: string
 function facadeWall(def: BuildingDef): string {
   if (def.id === 'store') return '#e8dcc0';
   if (def.id === 'train_station') return '#c9bb9c';
+  if (def.id === 'company_housing') return '#a9553e';
   if (def.category === 'factory') return factoryBrick(def.id);
   return '#b8b2a2';
 }
@@ -778,16 +822,16 @@ function paintFacade(g: Ctx, def: BuildingDef, W: number, top: number, lift: num
   if (lift <= 0) return;
   const bx = 1, bw = W - SHADOW - 1;
   const wall = facadeWall(def);
-  const factory = def.category === 'factory';
+  const brick = def.category === 'factory' || def.id === 'company_housing';
   rect(g, bx, top, bw, lift, wall);
-  if (factory) {
+  if (brick) {
     for (let x = bx + 1; x < bx + bw - 1; x += 4) {
       for (let r = 0; r < lift; r += 2) if (hash(def.id.length * 31 + x * 7 + r * 13) > 0.55) rect(g, x + (r % 4 ? 2 : 0), top + r, 2, 1, 'rgba(0,0,0,0.16)');
     }
   } else if (def.id !== 'store' && def.id !== 'train_station') {
     for (let x = bx + 2; x < bx + bw - 1; x += 3) rect(g, x, top, 1, lift, 'rgba(0,0,0,0.12)'); // corrugated
   }
-  if (def.id !== 'store') for (let x = bx + 12; x < bx + bw - 8; x += 24) rect(g, x, top, 2, lift, shade(wall, -0.16)); // pilasters
+  if (def.id !== 'store' && def.id !== 'company_housing') for (let x = bx + 12; x < bx + bw - 8; x += 24) rect(g, x, top, 2, lift, shade(wall, -0.16)); // pilasters
   for (const r of facadeWindowRects(def.id)) {
     rect(g, r.x, r.y, r.w, r.h, '#2b3a4a');
     rect(g, r.x, r.y + r.h, r.w, 1, shade(wall, 0.3));
@@ -800,7 +844,7 @@ function paintFacade(g: Ctx, def: BuildingDef, W: number, top: number, lift: num
   g.fillRect(bx, top, bw, lift);
   rect(g, bx, top, bw, 2, shade(wall, -0.5)); // eave shadow
   rect(g, bx, top + 2, bw, 1, shade(wall, 0.18));
-  if (factory) rect(g, bx, top + 3, bw, 1, def.color);
+  if (def.category === 'factory') rect(g, bx, top + 3, bw, 1, def.color);
   rect(g, bx + bw - 3, top, 2, lift, 'rgba(0,0,0,0.12)');
   rect(g, bx, top, 1, lift, 'rgba(0,0,0,0.45)');
   rect(g, bx + bw - 1, top, 1, lift, 'rgba(0,0,0,0.45)');
