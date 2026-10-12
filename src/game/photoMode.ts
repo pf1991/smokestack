@@ -22,10 +22,9 @@ function seasonOf(month: number): string {
 }
 
 function nearestCityName(state: GameState, center: Vec2): string {
-  const radius = Math.max(0, Math.min(CITY_RADIUS, 100));
   let best: string = FALLBACK_CITY;
   let bestD = Infinity;
-  for (const c of citiesNear(state, center, radius)) {
+  for (const c of citiesNear(state, center, CITY_RADIUS)) {
     const d = (c.center.x - center.x) ** 2 + (c.center.y - center.y) ** 2;
     if (d < bestD) {
       bestD = d;
@@ -51,47 +50,66 @@ function centerTile(game: GameController): Vec2 {
   return screenToTile(cam, cam.viewW / 2, cam.viewH / 2);
 }
 
-/** Draws the same vignette and caption the overlay shows, scaled to `w` x `h` device pixels. */
-function drawFrame(g: CanvasRenderingContext2D, w: number, hgt: number, caption: string): void {
-  const grad = g.createRadialGradient(w / 2, hgt / 2, Math.min(w, hgt) * 0.3, w / 2, hgt / 2, Math.hypot(w, hgt) / 2);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
+/** Matches photoMode.css: 22px caption at left 32 / bottom 28, radial vignette 55% to edge. */
+function drawFrame(g: CanvasRenderingContext2D, w: number, hgt: number, scale: number, caption: string): void {
+  g.save();
+  g.translate(w / 2, hgt / 2);
+  g.scale((w / 2) * Math.SQRT2, (hgt / 2) * Math.SQRT2);
+  const grad = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+  grad.addColorStop(0.55, 'rgba(0,0,0,0)');
   grad.addColorStop(1, 'rgba(20,12,6,0.55)');
   g.fillStyle = grad;
-  g.fillRect(0, 0, w, hgt);
-  const px = Math.max(16, Math.round(hgt * 0.03));
-  g.font = `${px}px ${CAPTION_FONT}`;
+  g.fillRect(-1, -1, 2, 2);
+  g.restore();
+  g.font = `${22 * scale}px ${CAPTION_FONT}`;
   g.textBaseline = 'alphabetic';
   g.shadowColor = 'rgba(0,0,0,0.85)';
-  g.shadowBlur = px * 0.15;
-  g.shadowOffsetY = 1;
+  g.shadowBlur = 3 * scale;
+  g.shadowOffsetY = scale;
   g.fillStyle = '#f3e7c9';
-  g.fillText(caption, px * 1.4, hgt - px * 1.2);
+  g.fillText(caption, 32 * scale, hgt - 28 * scale);
 }
 
 export function enterPhotoMode(game: GameController): () => void {
   const prevSpeed: Speed = game.state.speed;
   game.setSpeed(0);
 
-  const caption = photoCaption(game.state, centerTile(game));
+  let caption = photoCaption(game.state, centerTile(game));
   const vignette = h('div', { class: 'photo-vignette' });
   const captionEl = h('div', { class: 'photo-caption' }, caption);
 
+  const refresh = (): void => {
+    const next = photoCaption(game.state, centerTile(game));
+    if (next === caption) return;
+    caption = next;
+    captionEl.textContent = next;
+  };
+  let lastCheck = 0;
+  const offFrame = game.addFrameHook((now) => {
+    if (now - lastCheck < 250) return;
+    lastCheck = now;
+    refresh();
+  });
+
   let done = false;
-  const exit = (): void => {
+  const teardown = (restoreSpeed: boolean): void => {
     if (done) return;
     done = true;
+    offFrame();
     window.removeEventListener('keydown', onKey, true);
     document.body.classList.remove('photo-mode');
     vignette.remove();
     captionEl.remove();
     bar.remove();
-    game.setSpeed(prevSpeed);
+    if (restoreSpeed) game.setSpeed(prevSpeed);
   };
+  const exit = (): void => teardown(true);
 
   const toast = (message: string, tone: 'good' | 'bad' | 'info') =>
     game.ctx.bus.emit({ type: 'toast', message, tone });
 
   const doExport = (): void => {
+    refresh();
     const src = game.canvas;
     const out = document.createElement('canvas');
     out.width = src.width;
@@ -100,7 +118,7 @@ export function enterPhotoMode(game: GameController): () => void {
     if (g) {
       g.drawImage(src, 0, 0);
       g.drawImage(game.overlay, 0, 0, out.width, out.height);
-      drawFrame(g, out.width, out.height, caption);
+      drawFrame(g, out.width, out.height, out.width / (window.innerWidth || out.width), caption);
     }
     out.toBlob((blob) => {
       if (!blob) {
@@ -125,6 +143,10 @@ export function enterPhotoMode(game: GameController): () => void {
       e.preventDefault();
       e.stopImmediatePropagation();
       exit();
+    } else if (e.key === ' ' || ['1', '2', '3', '4'].includes(e.key)) {
+      // the sim stays paused while framing a shot
+      e.preventDefault();
+      e.stopImmediatePropagation();
     }
   }
 
@@ -136,6 +158,6 @@ export function enterPhotoMode(game: GameController): () => void {
   document.body.append(vignette, captionEl);
   game.uiRoot.appendChild(bar);
   window.addEventListener('keydown', onKey, true);
-  game.addDisposer(exit);
+  game.addDisposer(() => teardown(false));
   return exit;
 }

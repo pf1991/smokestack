@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_ZOOM } from '../render/camera';
+import { DEFAULT_ZOOM, TILE } from '../render/camera';
 import { createGame } from '../sim/state';
 import type { GameState, Speed } from '../sim/types';
 import type { GameController } from './controller';
@@ -19,6 +19,7 @@ function stub(state: GameState) {
   const uiRoot = document.createElement('div');
   document.body.appendChild(uiRoot);
   const disposers: (() => void)[] = [];
+  const hooks = new Set<(now: number) => void>();
   const game = {
     state,
     camera: { x: 0, y: 0, zoom: DEFAULT_ZOOM, viewW: 1280, viewH: 720 },
@@ -29,12 +30,22 @@ function stub(state: GameState) {
     setSpeed(s: Speed) {
       state.speed = s;
     },
-    addDisposer: (fn: () => void) => disposers.push(fn),
+    addDisposer: (fn: () => void) => {
+      disposers.push(fn);
+      live.push(fn);
+    },
+    addFrameHook: (fn: (now: number) => void) => {
+      hooks.add(fn);
+      return () => hooks.delete(fn);
+    },
   } as unknown as GameController;
-  return { game, toasts, uiRoot, disposers };
+  return { game, toasts, uiRoot, disposers, hooks };
 }
 
+const live: (() => void)[] = [];
+
 afterEach(() => {
+  for (const d of live.splice(0)) d();
   document.body.className = '';
   document.body.replaceChildren();
 });
@@ -96,6 +107,77 @@ describe('enterPhotoMode', () => {
     document.querySelector<HTMLButtonElement>('.photo-export')!.click();
     expect(toasts.some((t) => t.message === 'Export failed')).toBe(true);
     expect(document.body.classList.contains('photo-mode')).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it('Esc after exit reaches later handlers', () => {
+    const { game } = stub(stateAt(6));
+    const later = vi.fn();
+    window.addEventListener('keydown', later);
+    enterPhotoMode(game)();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(later).toHaveBeenCalledTimes(1);
+    window.removeEventListener('keydown', later);
+  });
+
+  it('swallows Space and speed keys so the sim stays paused', () => {
+    const { game } = stub(stateAt(6));
+    const later = vi.fn();
+    window.addEventListener('keydown', later);
+    enterPhotoMode(game);
+    for (const key of [' ', '2']) window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    expect(later).not.toHaveBeenCalled();
+    window.removeEventListener('keydown', later);
+  });
+
+  it('the caption follows the camera', () => {
+    const s = stateAt(6);
+    const { game, hooks } = stub(s);
+    const c = s.cities[0].center;
+    const cam = game.camera;
+    cam.x = (c.x + 0.5) * TILE - cam.viewW / cam.zoom / 2;
+    cam.y = (c.y + 0.5) * TILE - cam.viewH / cam.zoom / 2;
+    enterPhotoMode(game);
+    expect(document.querySelector('.photo-caption')!.textContent).toContain('Ashford');
+    cam.x += 100000;
+    for (const fn of hooks) fn(1000);
+    expect(document.querySelector('.photo-caption')!.textContent).toContain('The Valley');
+  });
+
+  it('destroy-time exit does not touch the speed', () => {
+    const { game, disposers } = stub(stateAt(6));
+    game.state.speed = 4;
+    enterPhotoMode(game);
+    game.state.speed = 0;
+    const spy = vi.spyOn(game, 'setSpeed');
+    for (const d of disposers) d();
+    expect(spy).not.toHaveBeenCalled();
+    expect(document.body.classList.contains('photo-mode')).toBe(false);
+  });
+
+  it('a successful export downloads the sanitised file and revokes the URL', () => {
+    const { game, toasts } = stub(stateAt(6));
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((cb) => cb(new Blob(['x'])));
+    const create = vi.fn(() => 'blob:x');
+    const revoke = vi.fn();
+    (URL as unknown as Record<string, unknown>).createObjectURL = create;
+    (URL as unknown as Record<string, unknown>).revokeObjectURL = revoke;
+    let name = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      name = this.download;
+    });
+    game.state.cities[0].name = "St. Ann's Ford";
+    const cam = game.camera;
+    const c = game.state.cities[0].center;
+    cam.x = (c.x + 0.5) * TILE - cam.viewW / cam.zoom / 2;
+    cam.y = (c.y + 0.5) * TILE - cam.viewH / cam.zoom / 2;
+    enterPhotoMode(game);
+    document.querySelector<HTMLButtonElement>('.photo-export')!.click();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(name).toBe('smokestack-1925-st-ann-s-ford.png');
+    expect(revoke).toHaveBeenCalledWith('blob:x');
+    expect(toasts.some((t) => t.message === 'Photo saved')).toBe(true);
     vi.restoreAllMocks();
   });
 });
