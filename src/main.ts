@@ -18,6 +18,7 @@ import type { Speed } from './sim/types';
  *  - `panel=<id>`      open a panel (e.g. `routes`) on load
  *  - `openroute=1` (dev) open the routes window on the first player route
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
+ *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the dock)
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
  *  - `scenario=<id>`   start a scenario
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
@@ -32,7 +33,7 @@ const ui = document.getElementById('ui') as HTMLElement;
 const params = new URLSearchParams(location.search);
 const app = new App(canvas, ui);
 
-const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom'];
+const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', 'inspect2'];
 const debugStart = !params.has('menu') && DEBUG_KEYS.some((k) => params.has(k));
 
 if (debugStart) {
@@ -96,6 +97,9 @@ if (debugStart) {
     if (import.meta.env.DEV && params.get('openroute') === '1') {
       const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');
       if (r) g.openPanel('routes', r.id);
+    }
+    if (import.meta.env.DEV && params.get('inspect2') === '1') {
+      for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
     }
     if (import.meta.env.DEV && params.get('send') === '1') {
       window.setTimeout(() => document.querySelector<HTMLElement>('[data-act="send-goods"]')?.click(), 5500);
