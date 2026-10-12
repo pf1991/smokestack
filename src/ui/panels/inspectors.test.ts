@@ -64,6 +64,13 @@ describe('building panel', () => {
     expect(text()).toContain('Staff 75% — remote works');
   });
 
+  it('hides the staffing row for stores and depots', () => {
+    const ctx = testCtx(testState({ money: 1e6 }));
+    const w = place(ctx, 'warehouse', 5, 5);
+    PANELS.building.open(host(ctx) as never, w.id);
+    expect(document.querySelector<HTMLElement>('.insp-staff')!.hidden).toBe(true);
+  });
+
   it('status reason text for no_input names missing good', () => {
     const ctx = testCtx(testState());
     const b = place(ctx, 'sawmill', 5, 5);

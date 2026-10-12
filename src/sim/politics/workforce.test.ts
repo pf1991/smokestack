@@ -79,8 +79,8 @@ describe('workforce', () => {
       workforceMonth(state);
       return state.buildings[1].staffing * 360;
     };
-    expect(pool(50)).toBeCloseTo(300, 9);
-    expect(pool(0)).toBeCloseTo(210, 9);
+    expect(pool(50)).toBeCloseTo(2000 * LABOUR_SHARE, 9);
+    expect(pool(0)).toBeCloseTo(2000 * LABOUR_SHARE * 0.7, 9);
     expect(pool(0) / pool(50)).toBeCloseTo(0.7, 12);
   });
 

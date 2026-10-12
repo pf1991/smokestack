@@ -205,7 +205,9 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       setClass(statusBadge, `insp-badge status-${b.status}`);
       const routes = routesServing(state, id);
       setText(reason, statusReason(state, b, routes));
-      setText(staff, staffingText(state, b));
+      // staffing scales production only; stores and depots still draw on the pool but show no row
+      staff.hidden = def.category === 'retail' || def.category === 'logistics';
+      if (!staff.hidden) setText(staff, staffingText(state, b));
       noRoad.hidden = accessTiles(state, b).length > 0;
       if (b.typeId === STATION_TYPE) {
         const railOk = stationAccess(state, b).length > 0;
