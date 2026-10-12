@@ -81,13 +81,43 @@ describe('window manager', () => {
     expect(tabs().map((t) => t.textContent)).toEqual([expect.stringContaining('Insp i2')]);
   });
 
-  it('a window dragged then docked keeps floating position until docked', () => {
+  it('a dragged window keeps its position while docked; undocking returns it to a slot', () => {
     const a = open('a');
     a.el.style.left = '123px';
     a.el.style.top = '222px';
     open('b');
+    open('c');
+    expect(a.docked).toBe(true);
     expect(a.el.style.left).toBe('123px');
     expect(a.el.style.top).toBe('222px');
+    a.undock();
+    expect(a.docked).toBe(false);
+    expect(a.el.style.left).not.toBe('123px');
+    expect(a.el.style.top).not.toBe('222px');
+  });
+
+  it('five windows: 2 floating, 3 tabs, each tab reachable', () => {
+    const ws = ['a', 'b', 'c', 'd', 'e'].map(open);
+    const floatingCount = () => ws.filter((w) => !w.docked).length;
+    expect(floatingCount()).toBe(2);
+    expect(tabs()).toHaveLength(3);
+    for (const w of ws.filter((x) => x.docked)) {
+      const tab = tabs().find((t) => t.textContent?.includes(w.el.querySelector('.window-title span')!.textContent!));
+      tab!.click();
+      expect(w.docked).toBe(false);
+      expect(floatingCount()).toBe(2);
+      expect(tabs()).toHaveLength(3);
+    }
+    const docked = ws.find((w) => w.docked)!;
+    docked.close();
+    expect(tabs()).toHaveLength(2);
+  });
+
+  it('closeAllWindows clears every tab', () => {
+    ['a', 'b', 'c', 'd'].forEach(open);
+    expect(tabs().length).toBeGreaterThan(0);
+    closeAllWindows();
+    expect(tabs()).toHaveLength(0);
   });
 });
 
@@ -97,6 +127,7 @@ describe('placeWindow', () => {
     expect(COMPACT_WIDTH).toBe(1366);
     expect(p.top).toBeGreaterThanOrEqual(72);
     expect(p.left + 420).toBeLessThanOrEqual(1366);
+    expect(p.top + p.maxHeight!).toBeLessThanOrEqual(692);
   });
 
   it('puts index 1 to the left of index 0 without overlap', () => {

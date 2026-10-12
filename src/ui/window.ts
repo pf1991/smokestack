@@ -49,19 +49,18 @@ let stampTop = 0;
  */
 export function placeWindow(
   viewportW: number,
-  viewportH: number,
+  _viewportH: number,
   hudBottom: number,
   toolbarTop: number,
   index: number,
   width: number,
   rightInset = EDGE,
-): { left: number; top: number } {
+): { left: number; top: number; maxHeight?: number } {
   const w = viewportW <= COMPACT_WIDTH ? Math.min(width, COMPACT_MAX_W) : width;
   const top = Math.max(hudBottom + 8, 0);
-  void viewportH;
-  void toolbarTop;
-  const left = viewportW - rightInset - w - index * (w + GAP);
-  return { left: Math.max(0, left), top };
+  const left = Math.max(0, viewportW - rightInset - w - index * (w + GAP));
+  if (viewportW <= COMPACT_WIDTH) return { left, top, maxHeight: Math.max(120, toolbarTop - 8 - top) };
+  return { left, top };
 }
 
 /** Measures the HUD bar bottom and the toolbar top from the DOM, with fallbacks (jsdom, collapsed toolbar). */
@@ -130,14 +129,13 @@ export function createWindow(opts: WindowOptions): GameWindow {
     entry.slot = used.has(0) ? 1 : 0;
     const { hudBottom, toolbarTop } = measure();
     const vw = window.innerWidth;
-    const compact = vw <= COMPACT_WIDTH;
     const w = opts.width ?? DEFAULT_W;
     const p = placeWindow(vw, window.innerHeight, hudBottom, toolbarTop, entry.slot, w, EDGE + DOCK_GUTTER);
     el.style.left = `${p.left}px`;
     el.style.top = `${p.top}px`;
-    if (compact) {
+    if (p.maxHeight !== undefined) {
       el.style.width = `${Math.min(w, COMPACT_MAX_W)}px`;
-      el.style.maxHeight = `${Math.max(120, toolbarTop - 8 - p.top)}px`;
+      el.style.maxHeight = `${p.maxHeight}px`;
     } else {
       el.style.maxHeight = '';
     }
