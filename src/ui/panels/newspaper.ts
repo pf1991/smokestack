@@ -65,10 +65,10 @@ export function pickAds(year: number, month: number): Ad[] {
   return out;
 }
 
-const KIND_RANK: Record<NewsKind, number> = { historic: 0, civic: 1, invention: 2, random: 3, rival: 4, contract: 5, market: 6, warning: 7 };
+const KIND_RANK: Record<NewsKind, number> = { historic: 0, civic: 1, politics: 2, invention: 3, random: 4, rival: 5, contract: 6, market: 7, warning: 8 };
 const KIND_LABEL: Record<NewsKind, string> = {
   historic: 'Special Edition', civic: 'Civic Affairs', random: 'Local News', invention: 'Science & Progress', market: 'Markets & Trade',
-  rival: 'Rivalry Corner', contract: 'Commerce', warning: 'Public Notice',
+  rival: 'Rivalry Corner', contract: 'Commerce', warning: 'Public Notice', politics: 'Politics & Town Hall',
 };
 const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 

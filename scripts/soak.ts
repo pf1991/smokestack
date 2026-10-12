@@ -3,12 +3,15 @@
  *
  * Per seed: createGame, the autoplay furniture chain for the player, then yearly `runDays(ctx, 360)`
  * until `--years` years have passed, 1 Jan 2001 or game over, checking every invariant each year.
- * Prints `seed | final year | player net worth | baron net worth | ms`, one line per seed.
+ * Prints `seed | final year | player net worth | baron net worth | ms | national opinion`, one line per
+ * seed; the last column is each faction's population-weighted opinion of the player in the final year.
  * Exits 1 if any invariant fails (or autoplay cannot set up its chain).
  */
 import { EventBus } from '../src/core/events';
 import { runAutoplay } from '../src/game/autoplay';
+import { FACTION_IDS } from '../src/data/factions';
 import { checkInvariants } from '../src/sim/invariants';
+import { nationalOpinion } from '../src/sim/politics/factions';
 import { netWorth } from '../src/sim/rival/takeover';
 import { runDays } from '../src/sim/simulation';
 import { createGame } from '../src/sim/state';
@@ -54,8 +57,9 @@ for (const seed of seeds) {
   const ms = Math.round(performance.now() - t0);
   const { state } = ctx;
   const note = over ? ` (game over: ${over})` : '';
+  const opinion = FACTION_IDS.map((f) => `${f} ${nationalOpinion(state, f).toFixed(1)}`).join(' ');
   console.log(
-    `${seed} | ${state.date.year} | ${money(netWorth(state, 'player'))} | ${money(netWorth(state, 'rival'))} | ${ms}${note}`,
+    `${seed} | ${state.date.year} | ${money(netWorth(state, 'player'))} | ${money(netWorth(state, 'rival'))} | ${ms} | ${opinion}${note}`,
   );
   if (problems.length > 0) {
     failed = true;

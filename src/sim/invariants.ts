@@ -1,3 +1,4 @@
+import { FACTION_IDS } from '../data/factions';
 import { companyIds } from './companies';
 import { POP_CAP } from './market';
 import { footprint } from './state';
@@ -17,6 +18,10 @@ export function checkInvariants(state: GameState): string[] {
   for (const city of state.cities) {
     const p = city.population;
     if (!Number.isInteger(p) || p < 500 || p > POP_CAP) out.push(`city ${city.id} (${city.name}): population ${p} outside [500, ${POP_CAP}]`);
+    for (const f of FACTION_IDS) {
+      const op = city.opinion?.[f];
+      if (typeof op !== 'number' || !Number.isFinite(op) || op < 0 || op > 100) out.push(`city ${city.id} (${city.name}): ${f} opinion ${op} outside [0, 100]`);
+    }
   }
 
   for (const v of Object.values(state.vehicles)) {

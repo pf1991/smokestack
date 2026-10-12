@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../../data/buildings';
 import { LANDMARKS } from '../../data/landmarks';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
+import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
 import { demandModifier } from '../../sim/production';
@@ -75,6 +76,12 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const smog = bar('#6b6b70');
   const landmarks = h('ul', { class: 'insp-landmarks' });
   let landmarkSig = '\0';
+  const opinion = FACTION_IDS.map((f: FactionId) => {
+    const label = h('span');
+    const b = bar(FACTIONS[f].color);
+    const el = h('div', { class: 'insp-stat insp-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el);
+    return { f, label, bar: b, el };
+  });
   const tbody = h('tbody');
   const rows = new KeyedList<GoodRow>(tbody, makeRow);
   const el = h(
@@ -84,6 +91,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
+    h('div', { class: 'insp-section insp-opinions' }, h('div', { class: 'insp-label' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
     h(
       'table',
       { class: 'insp-table' },
@@ -103,6 +111,11 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       trend.className = `insp-trend ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`.trim();
       happy.set(city.happiness, formatPercent(city.happiness));
       smog.set(city.pollution, formatPercent(city.pollution));
+      for (const o of opinion) {
+        const v = city.opinion?.[o.f] ?? 50;
+        setText(o.label, factionName(o.f, state.date.year));
+        o.bar.set(v / 100, String(Math.round(v)));
+      }
       const sig = city.landmarks.map((l) => l.id).join(',');
       if (sig !== landmarkSig) {
         landmarkSig = sig;

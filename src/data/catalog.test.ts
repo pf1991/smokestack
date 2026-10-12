@@ -3,6 +3,7 @@ import { GOODS, DEMAND_PER_1000 } from './goods';
 import { RECIPES, recipeEra } from './recipes';
 import { BUILDINGS } from './buildings';
 import { LANDMARK_IDS, LANDMARKS } from './landmarks';
+import { defaultOpinion, FACTION_IDS, FACTIONS, factionName } from './factions';
 import { ICON_IDS } from '../render/icons';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
 
@@ -92,5 +93,23 @@ describe('content catalog', () => {
       expect(typeof LANDMARK_PAINTERS[id], id).toBe('function');
       expect(ICON_IDS, id).toContain(id);
     }
+  });
+  it('factions: five, keyed by id, weights summing to 1, distinct colours, Reformers become Greens in 1960', () => {
+    expect([...FACTION_IDS].sort()).toEqual(Object.keys(FACTIONS).sort());
+    expect(FACTION_IDS).toEqual(['workers', 'oldmoney', 'reformers', 'church', 'baron']);
+    expect(Object.fromEntries(FACTION_IDS.map((f) => [f, FACTIONS[f].weight]))).toEqual({ workers: 0.4, oldmoney: 0.18, reformers: 0.17, church: 0.2, baron: 0.05 });
+    expect(FACTION_IDS.reduce((s, f) => s + FACTIONS[f].weight, 0)).toBeCloseTo(1, 10);
+    for (const f of FACTION_IDS) {
+      const d = FACTIONS[f];
+      expect(d.id).toBe(f);
+      expect(d.color).toMatch(/^#[0-9a-f]{6}$/);
+      expect(d.name.length && d.likes.length && d.hates.length).toBeGreaterThan(0);
+    }
+    expect(new Set(FACTION_IDS.map((f) => FACTIONS[f].color)).size).toBe(5);
+    expect(FACTIONS.reformers.greenName).toBe('Greens');
+    expect(factionName('reformers', 1959)).toBe('Reformers');
+    expect(factionName('reformers', 1960)).toBe('Greens');
+    expect(factionName('workers', 1990)).toBe('Workers');
+    expect(defaultOpinion()).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
   });
 });

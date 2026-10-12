@@ -1,5 +1,7 @@
 import { err, ok, type Result } from '../core/result';
 import { LANDMARK_LAYER } from './landmarkTiles';
+import { defaultOpinion } from '../data/factions';
+import { defaultPolitics } from './politics/types';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -37,6 +39,18 @@ export const MIGRATIONS: Migration[] = [
       const cities = o.cities;
       if (!Array.isArray(cities)) throw new Error('bad cities');
       for (const c of cities as Record<string, unknown>[]) c.landmarks = [];
+    },
+  },
+  {
+    // v5: Phase 2 politics. Every town gets the default faction opinion and the company default
+    // politics; the drivers' bookkeeping starts unprimed, so existing buildings and finished contracts
+    // are snapshotted at the first month rather than counted as new. Later Phase 2 tasks extend this.
+    from: 4,
+    migrate(o) {
+      const cities = o.cities;
+      if (!Array.isArray(cities)) throw new Error('bad cities');
+      for (const c of cities as Record<string, unknown>[]) c.opinion = defaultOpinion();
+      o.politics = defaultPolitics(false);
     },
   },
 ];

@@ -71,6 +71,7 @@ function isComplete(o: Record<string, unknown>): boolean {
   if (!isObject(companies) || !isObject(companies.player) || !isObject(companies.rival)) return false;
   if (!isObject(date) || !isNum(date.year) || !isNum(date.month) || !isNum(date.day) || !isNum(date.hour)) return false;
   if (!isObject(o.layers)) return false;
+  if (!isObject(o.politics)) return false;
   if (!isObject(o.buildings) || !isObject(o.vehicles) || !isObject(o.routes)) return false;
   return Array.isArray(o.cities);
 }

@@ -1,5 +1,7 @@
 import type { EventBus } from '../core/events';
+import type { FactionId } from '../data/factions';
 import type { LandmarkId } from '../data/landmarks';
+import type { PoliticsState } from './politics/types';
 
 export type GoodId = string;
 export type BuildingTypeId = string;
@@ -82,6 +84,8 @@ export interface City {
   urbanRadius: number;
   /** civic landmarks in the order they were built; each is a 2×2 block with top-left `pos` (sim/landmarks.ts) */
   landmarks: { id: LandmarkId; pos: Vec2 }[];
+  /** each faction's opinion of the player's company, 0..100; written only by sim/politics/factions.ts */
+  opinion: Record<FactionId, number>;
 }
 
 export interface RouteStop {
@@ -154,7 +158,7 @@ export interface Company {
   active: boolean;
 }
 
-export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning';
+export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics';
 
 export interface NewsItem {
   id: number;
@@ -241,6 +245,8 @@ export interface GameState {
   flags: Record<string, number | boolean | string>;
   /** per-tile numeric layers (width*height each); see sim/layers.ts. Packed in saves. */
   layers: Record<string, number[]>;
+  /** Phase 2 politics (sim/politics); added to old saves by the v5 migration */
+  politics: PoliticsState;
 }
 
 export interface SimContext {

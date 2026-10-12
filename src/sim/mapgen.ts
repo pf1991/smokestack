@@ -1,4 +1,5 @@
 import type { City, GameMap, Terrain, Tile } from './types';
+import { defaultOpinion } from '../data/factions';
 import { CITY_NAMES } from '../data/names';
 import { randInt, type RngHolder } from './rng';
 import { valueNoise2D } from './noise';
@@ -192,6 +193,7 @@ function placeCities(map: GameMap, rng: RngHolder): City[] | null {
       market: {},
       urbanRadius: urbanRadius(population),
       landmarks: [],
+      opinion: defaultOpinion(),
     };
   });
 }

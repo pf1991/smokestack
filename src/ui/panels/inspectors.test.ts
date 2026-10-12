@@ -145,6 +145,21 @@ describe('city panel', () => {
   });
 });
 
+describe('city panel opinion', () => {
+  it('shows five faction bars in faction colours, named for the year', () => {
+    const state = testState({ year: 1960, cities: [{ x: 10, y: 10, population: 6000 }] });
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    const rows = [...document.querySelectorAll<HTMLElement>('.insp-opinion')];
+    expect(text()).toContain('Opinion of your company');
+    expect(rows.map((r) => r.dataset.faction)).toEqual(['workers', 'oldmoney', 'reformers', 'church', 'baron']);
+    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(['Workers', 'Old Money', 'Greens', 'Church', "Baron's Circle"]);
+    const fill = rows[4].querySelector<HTMLElement>('.insp-bar-fill')!;
+    expect(fill.style.width).toBe('35%');
+    expect(rows[4].querySelector('.insp-bar-label')!.textContent).toBe('35');
+    expect(fill.style.background).not.toBe('');
+  });
+});
+
 describe('vehicle panel', () => {
   it('shows route and next stop, and Sell removes the vehicle', () => {
     const ctx = testCtx(testState({ money: 1_000_000 }));

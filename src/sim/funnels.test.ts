@@ -41,4 +41,11 @@ describe('single-writer funnels', () => {
   it('pollution is written only in pollution.ts', () => {
     expect(writers(/\.pollution\s*[-+*/]?=(?!=)/)).toEqual(['pollution.ts']);
   });
+  it('faction opinion is written only by politics/factions.ts', () => {
+    // `.opinion[f] = ...`, `.opinion[f] += ...`, `.opinion.workers = ...` (not comparisons, not reads)
+    const re = /\.opinion(?:\[[^\]]*\]|\.\w+)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
+    for (const w of ['c.opinion[f] = 3;', 'city.opinion[faction] += delta', 'x.opinion.workers=10', 'c.opinion[f]++']) expect(re.test(w), w).toBe(true);
+    for (const w of ['c.opinion[f] === 3', 'const v = c.opinion[f];', 'if (c.opinion.church >= 50)', 'c.opinion = defaultOpinion();']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['politics/factions.ts']);
+  });
 });

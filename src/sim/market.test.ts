@@ -12,6 +12,7 @@ import {
   type StoreStock,
 } from './market';
 import type { City } from './types';
+import { defaultOpinion } from '../data/factions';
 
 function city(population: number): City {
   return {
@@ -25,6 +26,7 @@ function city(population: number): City {
     market: {},
     urbanRadius: 3,
     landmarks: [],
+    opinion: defaultOpinion(),
   };
 }
 

@@ -1,0 +1,77 @@
+/**
+ * Shared Phase 2 politics types (ruling R-Q1). Later politics tasks import these rather than
+ * redefining them. Everything here is plain JSON stored on `GameState.politics`.
+ */
+import type { FactionId } from '../../data/factions';
+import type { GameDate } from '../types';
+
+export type { FactionId };
+
+export type WageLevel = 'low' | 'fair' | 'generous';
+export type SafetyLevel = 'minimal' | 'standard' | 'high';
+export type UnionStance = 'crush' | 'tolerate' | 'recognise';
+
+export interface CompanyEdicts {
+  wage: WageLevel;
+  safety: SafetyLevel;
+  union: UnionStance;
+}
+
+export interface CardInstance {
+  uid: number;
+  cardId: string;
+  cityId: number | null;
+  openedDay: number;
+}
+
+export interface CardState {
+  pending: CardInstance[];
+  history: { id: string; year: number }[];
+}
+
+export type MayorEdictId = 'permits_required' | 'smog_limit' | 'truck_tolls' | 'minimum_wage' | 'tax_break';
+
+/** One opinion change, as `adjustOpinion` records it. `scope` is a city id or 'national'. */
+export interface PoliticsLogEntry {
+  date: GameDate;
+  faction: FactionId;
+  scope: number | 'national';
+  delta: number;
+  reason: string;
+}
+
+/**
+ * Bookkeeping for opinion drivers derived from state diffs (ruling R-Q3), refreshed by factionsMonth.
+ * `primed` false means the next factionsMonth only takes a snapshot (a migrated save), so buildings
+ * that already existed never count as newly placed.
+ */
+export interface PoliticsTrack {
+  primed: boolean;
+  /** every player building id at the last factionsMonth */
+  buildings: number[];
+  /** per city id: player building ids within urbanRadius + 4 at the last factionsMonth */
+  near: Record<string, number[]>;
+  /** ids of finished (done/failed) contracts already counted */
+  contractsSeen: number[];
+  /** per city id: this month's retail revenue of the player and the Baron (reset monthly) */
+  sales: Record<string, { player: number; baron: number }>;
+}
+
+export interface PoliticsState {
+  edicts: CompanyEdicts;
+  cards: CardState;
+  nextCardYear: number;
+  log: PoliticsLogEntry[];
+  track: PoliticsTrack;
+}
+
+/** Empty politics for a new game (primed: nothing exists yet) or a migrated save (primed false). */
+export function defaultPolitics(primed = true): PoliticsState {
+  return {
+    edicts: { wage: 'fair', safety: 'standard', union: 'tolerate' },
+    cards: { pending: [], history: [] },
+    nextCardYear: 1901,
+    log: [],
+    track: { primed, buildings: [], near: {}, contractsSeen: [], sales: {} },
+  };
+}

@@ -2,6 +2,8 @@ import { EventBus } from '../core/events';
 import type { Result } from '../core/result';
 import { START_DATE } from './clock';
 import { SAVE_VERSION } from './version';
+import { defaultOpinion } from '../data/factions';
+import { defaultPolitics } from './politics/types';
 import { createCompany, STARTING_MONEY } from './finance';
 import { urbanRadius } from './market';
 import { connectToRoads, ensureRoadLink } from './roads';
@@ -68,6 +70,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
       market: {},
       urbanRadius: urbanRadius(population),
       landmarks: [],
+      opinion: defaultOpinion(),
     };
   });
   const player = createCompany('player', 'Test Co.', opts.money ?? STARTING_MONEY);
@@ -94,6 +97,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     rivalProject: null,
     flags: {},
     layers: {},
+    politics: defaultPolitics(),
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

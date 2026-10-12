@@ -7,6 +7,7 @@ import { getRecipe, RECIPES, recipeEra } from '../data/recipes';
 import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
 import { SAVE_VERSION } from './version';
+import { defaultPolitics } from './politics/types';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
@@ -286,6 +287,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     rivalRail: null,
     flags: {},
     layers: {},
+    politics: defaultPolitics(),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {

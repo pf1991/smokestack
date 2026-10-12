@@ -1,6 +1,7 @@
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { recordSale } from './scenarios';
 import { onSale } from './contracts';
+import { notePoliticsSale } from './politics/factions';
 import { companyIds } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
@@ -118,6 +119,7 @@ export function retailDay(ctx: SimContext): void {
       sbg[s.goodId] = (sbg[s.goodId] ?? 0) + s.revenue;
       soldByGood[s.goodId] = (soldByGood[s.goodId] ?? 0) + s.qty;
       recordSale(state, { ownerId: s.ownerId, cityId: city.id, goodId: s.goodId, qty: s.qty });
+      notePoliticsSale(state, s.ownerId, city.id, s.revenue);
       onSale(state, { ownerId: s.ownerId, cityId: city.id, goodId: s.goodId, qty: s.qty });
       bus.emit({
         type: 'sale',

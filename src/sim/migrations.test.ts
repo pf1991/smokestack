@@ -7,8 +7,9 @@ import { migrateSave, runAfterLoad, SAVE_VERSION, type Migration } from './migra
 import { runDays } from './simulation';
 import { testCtx, testState } from './testkit';
 
-const fixtures = import.meta.glob('./__fixtures__/phase0.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const fixtures = import.meta.glob('./__fixtures__/phase*.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const phase0 = fixtures['./__fixtures__/phase0.save.json'];
+const phase1 = fixtures['./__fixtures__/phase1.save.json'];
 
 describe('migrateSave', () => {
   it('rejects a SMOKESTACK I save', () => {
@@ -89,14 +90,11 @@ describe('v2 -> v3: cities spread', () => {
 });
 
 describe('v3 -> v4: landmarks', () => {
-  it('is the current version', () => {
-    expect(SAVE_VERSION).toBe(4);
-  });
   it('gives every city an empty landmark list', () => {
     const o: Record<string, unknown> = { version: 3, cities: [{ id: 0, name: 'A' }, { id: 1, name: 'B', landmarks: [{ id: 'church', pos: { x: 1, y: 1 } }] }] };
     const r = migrateSave(o);
     expect(r.ok).toBe(true);
-    expect(o.version).toBe(4);
+    expect(o.version).toBe(SAVE_VERSION);
     expect((o.cities as { landmarks: unknown[] }[]).map((c) => c.landmarks)).toEqual([[], []]);
   });
   it('a phase 0 save loads with landmark lists on every city', () => {
@@ -116,4 +114,40 @@ describe('v3 -> v4: landmarks', () => {
     expect(ctx.state.layers.landmark?.some((v) => v > 0)).toBe(true);
     expect(checkInvariants(ctx.state)).toEqual([]);
   });
+});
+
+describe('v4 -> v5: politics', () => {
+  it('is the current version', () => {
+    expect(SAVE_VERSION).toBe(5);
+  });
+  it('gives every city the default opinion and the save default politics', () => {
+    const o: Record<string, unknown> = { version: 4, cities: [{ id: 0 }, { id: 1 }] };
+    const r = migrateSave(o);
+    expect(r.ok).toBe(true);
+    expect(o.version).toBe(5);
+    for (const c of o.cities as { opinion: unknown }[]) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
+    expect(o.politics).toMatchObject({ edicts: { wage: 'fair', safety: 'standard', union: 'tolerate' }, cards: { pending: [], history: [] }, log: [] });
+  });
+  for (const [name, raw] of [['phase0', phase0], ['phase1', phase1]] as const) {
+    it(`${name}.save.json migrates to v5 with every city at 50 (Baron 35) and holds invariants`, () => {
+      expect(raw).toBeDefined();
+      const r = unpackState(raw);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const s = r.value;
+      expect(s.version).toBe(5);
+      expect(s.cities.length).toBeGreaterThan(0);
+      for (const c of s.cities) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
+      expect(s.politics.edicts).toEqual({ wage: 'fair', safety: 'standard', union: 'tolerate' });
+      expect(checkInvariants(s)).toEqual([]);
+    });
+    it(`${name}.save.json: its existing buildings do not count as new jobs in the first month`, () => {
+      const r = unpackState(raw);
+      if (!r.ok) throw new Error(r.error);
+      const ctx = testCtx(r.value);
+      runDays(ctx, 31);
+      expect(ctx.state.politics.log.filter((e) => e.reason === 'New jobs' || e.reason === 'Layoffs')).toEqual([]);
+      expect(checkInvariants(ctx.state)).toEqual([]);
+    });
+  }
 });
