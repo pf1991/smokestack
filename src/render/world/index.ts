@@ -104,6 +104,8 @@ export class WorldRenderer {
   readonly vehicleDir = new Map<number, Dir>();
   /** Recent locomotive positions (tile coords, newest first) so wagons follow the track. */
   readonly trainTrails = new Map<number, TrainTrail>();
+  /** performance.now() of each truck's last exhaust puff (real time, render-only). */
+  readonly lastPuff = new Map<number, number>();
   private sortBuf: Building[] = [];
   /** sale floaters live apart from smoke/sparks so they can be drawn on the unfiltered overlay */
   private readonly floaters = new ParticleSystem();
@@ -200,6 +202,7 @@ export class WorldRenderer {
       this.surfaceCount = 0;
       this.vehicleDir.clear();
       this.trainTrails.clear();
+      this.lastPuff.clear();
       this.pendingSales.clear();
       this.lastFloat.clear();
       this.light = null;
@@ -242,7 +245,7 @@ export class WorldRenderer {
     const visBuildings = this.collectBuildings(state, r);
     this.drawBuildings(ctx, visBuildings);
     this.emitSmoke(state, cam, dt);
-    drawVehicles(ctx, this, state, r, alpha, dt);
+    drawVehicles(ctx, this, state, r, alpha, dt, lit);
     ctx.restore();
 
     this.particles.update(dt);

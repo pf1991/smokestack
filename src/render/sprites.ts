@@ -669,85 +669,112 @@ export function drawHouse(g: Ctx, px: number, py: number, variant: number, year:
 
 // ---------------------------------------------------------------- vehicles
 
+/** Everything vehicle-sized is drawn at this multiple of the original geometry. */
+export const VEHICLE_SCALE = 1.8;
+const HEADLIGHT = 'rgba(255,236,170,0.35)';
+
+/** Scaled rect / circle: coordinates are in unscaled vehicle units (facing +x). */
+function vrect(g: Ctx, x: number, y: number, w: number, h: number, c: string): void {
+  rect(g, x * VEHICLE_SCALE, y * VEHICLE_SCALE, w * VEHICLE_SCALE, h * VEHICLE_SCALE, c);
+}
+function vcircle(g: Ctx, x: number, y: number, r: number, c: string): void {
+  circle(g, x * VEHICLE_SCALE, y * VEHICLE_SCALE, r * VEHICLE_SCALE, c);
+}
+/** Two warm light cones ahead of the nose at x (unscaled), lamps at y1 and y2. Call inside the vehicle's local frame. */
+function headlights(g: Ctx, x: number, y1: number, y2: number): void {
+  const S = VEHICLE_SCALE;
+  const len = 10 * S;
+  for (const y of [y1, y2]) {
+    poly(g, [[x * S, y * S], [x * S + len, (y - 2) * S], [x * S + len, (y + 2) * S]], HEADLIGHT);
+  }
+}
+
 const ANGLE: Record<Dir, number> = { E: 0, S: Math.PI / 2, W: Math.PI, N: -Math.PI / 2 };
 
 /** Truck centred on (px, py). Drawn facing east, then rotated. */
-export function drawTruck(g: Ctx, px: number, py: number, dir: Dir, ownerId: OwnerId, cargoColor: string | null): void {
+export function drawTruck(g: Ctx, px: number, py: number, dir: Dir, ownerId: OwnerId, cargoColor: string | null, lit = false): void {
   g.save();
   g.translate(px, py);
   g.rotate(ANGLE[dir]);
-  rect(g, -7, -3, 16, 9, 'rgba(0,0,0,0.22)'); // shadow
-  rect(g, -9, -4, 11, 8, cargoColor ? shade(cargoColor, -0.2) : '#8d8a84'); // cargo box
-  rect(g, -8, -3, 9, 6, cargoColor ?? '#b9b5ac');
-  rect(g, 3, -4, 6, 8, ownerColor(ownerId)); // cab
-  rect(g, 6, -3, 2, 6, '#bfe3f2'); // windscreen
-  rect(g, 8, -3, 1, 1, '#fff6c0'); rect(g, 8, 2, 1, 1, '#fff6c0');
+  vrect(g, -7, -3, 16, 9, 'rgba(0,0,0,0.22)'); // shadow
+  vrect(g, -9, -4, 11, 8, cargoColor ? shade(cargoColor, -0.2) : '#8d8a84'); // cargo box
+  vrect(g, -8, -3, 9, 6, cargoColor ?? '#b9b5ac');
+  vrect(g, 3, -4, 6, 8, ownerColor(ownerId)); // cab
+  vrect(g, 6, -3, 2, 6, '#bfe3f2'); // windscreen
+  vrect(g, 8, -3, 1, 1, '#fff6c0'); vrect(g, 8, 2, 1, 1, '#fff6c0');
+  if (lit) headlights(g, 9, -2.5, 2.5);
   g.restore();
 }
 
 /** Half the length of a locomotive and of a wagon, in px (used to space a consist along the track). */
-export const LOCO_HALF = 13;
-export const WAGON_HALF = 8;
+export const LOCO_HALF = Math.round(13 * VEHICLE_SCALE);
+export const WAGON_HALF = Math.round(8 * VEHICLE_SCALE);
 /** Chimney (steam) or exhaust (diesel) position in the locomotive's local frame (facing +x). */
-export const LOCO_STACK = { steam: { x: 8, y: 0 }, diesel: { x: -3, y: 2.5 } } as const;
+export const LOCO_STACK = {
+  steam: { x: 8 * VEHICLE_SCALE, y: 0 },
+  diesel: { x: -3 * VEHICLE_SCALE, y: 2.5 * VEHICLE_SCALE },
+} as const;
 
 /**
  * Locomotive centred on (px, py), facing `angle` radians (0 = east). Steam: black engine with coal
  * tender, owner-coloured cab and brass dome. Diesel: a streamlined hood unit in owner colours.
  */
-export function drawLocomotive(g: Ctx, px: number, py: number, angle: number, ownerId: OwnerId, diesel: boolean): void {
+export function drawLocomotive(g: Ctx, px: number, py: number, angle: number, ownerId: OwnerId, diesel: boolean, lit = false): void {
   const oc = ownerColor(ownerId);
   g.save();
   g.translate(px, py);
   g.rotate(angle);
-  rect(g, -12, -4, 27, 11, 'rgba(0,0,0,0.25)'); // shadow
+  vrect(g, -12, -4, 27, 11, 'rgba(0,0,0,0.25)'); // shadow
   if (!diesel) {
     // tender with a coal heap
-    rect(g, -13, -5, 8, 10, '#2a2620');
-    rect(g, -12, -4, 6, 8, '#14120f');
-    rect(g, -11, -3, 3, 2, '#3b3631');
-    rect(g, -10, 0, 2, 2, '#47413a');
+    vrect(g, -13, -5, 8, 10, '#2a2620');
+    vrect(g, -12, -4, 6, 8, '#14120f');
+    vrect(g, -11, -3, 3, 2, '#3b3631');
+    vrect(g, -10, 0, 2, 2, '#47413a');
     // cab
-    rect(g, -5, -5.5, 7, 11, shade(oc, -0.25));
-    rect(g, -4.5, -5, 6, 10, oc);
-    rect(g, -4.5, -5, 6, 2, shade(oc, 0.3));
+    vrect(g, -5, -5.5, 7, 11, shade(oc, -0.25));
+    vrect(g, -4.5, -5, 6, 10, oc);
+    vrect(g, -4.5, -5, 6, 2, shade(oc, 0.3));
     // boiler with brass bands
-    rect(g, 2, -4, 10, 8, '#26262c');
-    rect(g, 2, -4, 10, 2, '#45454e');
-    rect(g, 2, 2.5, 10, 1.5, '#121216');
-    rect(g, 5, -4, 1, 8, '#b08a35');
-    rect(g, 10, -4, 1, 8, '#b08a35');
-    circle(g, 4, 0, 1.8, '#c9a13a'); // steam dome
-    circle(g, 3.6, -0.5, 0.7, '#f0d78a');
-    circle(g, LOCO_STACK.steam.x, 0, 2.1, '#0d0d0f'); // chimney
-    circle(g, LOCO_STACK.steam.x, 0, 1.1, '#3e3a36');
-    rect(g, 12, -4.5, 1.5, 9, '#191919'); // smokebox door
-    rect(g, 13.5, -5, 1.5, 10, '#a3322a'); // buffer beam
-    rect(g, 13, -1, 2, 2, '#f6e7a6'); // lamp
+    vrect(g, 2, -4, 10, 8, '#26262c');
+    vrect(g, 2, -4, 10, 2, '#45454e');
+    vrect(g, 2, 2.5, 10, 1.5, '#121216');
+    vrect(g, 5, -4, 1, 8, '#b08a35');
+    vrect(g, 10, -4, 1, 8, '#b08a35');
+    vcircle(g, 4, 0, 1.8, '#c9a13a'); // steam dome
+    vcircle(g, 3.6, -0.5, 0.7, '#f0d78a');
+    vcircle(g, 8, 0, 2.1, '#0d0d0f'); // chimney
+    vcircle(g, 8, 0, 1.1, '#3e3a36');
+    vrect(g, 12, -4.5, 1.5, 9, '#191919'); // smokebox door
+    vrect(g, 13.5, -5, 1.5, 10, '#a3322a'); // buffer beam
+    vrect(g, 13, -1, 2, 2, '#f6e7a6'); // lamp
+    if (lit) headlights(g, 15, -3.5, 3.5);
   } else {
     const hood = (inset: number, color: string): void => {
-      const t = -5.5 + inset;
-      const b = 5.5 - inset;
+      const S = VEHICLE_SCALE;
+      const t = (-5.5 + inset) * S;
+      const b = (5.5 - inset) * S;
       g.fillStyle = color;
       g.beginPath();
-      g.moveTo(-13 + inset, t);
-      g.lineTo(11, t);
-      g.quadraticCurveTo(15 - inset, t, 15 - inset, 0);
-      g.quadraticCurveTo(15 - inset, b, 11, b);
-      g.lineTo(-13 + inset, b);
+      g.moveTo((-13 + inset) * S, t);
+      g.lineTo(11 * S, t);
+      g.quadraticCurveTo((15 - inset) * S, t, (15 - inset) * S, 0);
+      g.quadraticCurveTo((15 - inset) * S, b, 11 * S, b);
+      g.lineTo((-13 + inset) * S, b);
       g.closePath();
       g.fill();
     };
     hood(0, shade(oc, -0.35));
     hood(1, oc);
-    rect(g, -12, -1, 22, 2, '#e8dcb0'); // roof stripe
-    rect(g, -12, -4.5, 22, 1, shade(oc, 0.3));
-    for (let i = 0; i < 4; i++) rect(g, -10 + i * 3, -3.5, 2, 2, 'rgba(0,0,0,0.35)'); // radiator grilles
-    circle(g, -8, 2.5, 1.3, '#2c2c30'); // roof fan
-    circle(g, LOCO_STACK.diesel.x, LOCO_STACK.diesel.y, 1.1, '#1d1d20'); // exhaust
-    rect(g, 9, -3.5, 2.5, 7, '#bfe3f2'); // cab windscreen
-    rect(g, 9, -3.5, 2.5, 1, '#ffffff');
-    rect(g, 14, -1, 1.5, 2, '#fff6c0'); // headlight
+    vrect(g, -12, -1, 22, 2, '#e8dcb0'); // roof stripe
+    vrect(g, -12, -4.5, 22, 1, shade(oc, 0.3));
+    for (let i = 0; i < 4; i++) vrect(g, -10 + i * 3, -3.5, 2, 2, 'rgba(0,0,0,0.35)'); // radiator grilles
+    vcircle(g, -8, 2.5, 1.3, '#2c2c30'); // roof fan
+    vcircle(g, -3, 2.5, 1.1, '#1d1d20'); // exhaust
+    vrect(g, 9, -3.5, 2.5, 7, '#bfe3f2'); // cab windscreen
+    vrect(g, 9, -3.5, 2.5, 1, '#ffffff');
+    vrect(g, 14, -1, 1.5, 2, '#fff6c0'); // headlight
+    if (lit) headlights(g, 15.5, -3, 3);
   }
   g.restore();
 }
@@ -757,27 +784,27 @@ export function drawWagon(g: Ctx, px: number, py: number, angle: number, cargoCo
   g.save();
   g.translate(px, py);
   g.rotate(angle);
-  rect(g, -7, -4, 16, 10, 'rgba(0,0,0,0.22)');
-  rect(g, -8, -4.5, 16, 9, '#2b2723'); // chassis
+  vrect(g, -7, -4, 16, 10, 'rgba(0,0,0,0.22)');
+  vrect(g, -8, -4.5, 16, 9, '#2b2723'); // chassis
   if (cargoColor) {
-    rect(g, -7.5, -4, 15, 8, '#5a4a3a'); // hopper walls
-    rect(g, -6.5, -3, 13, 6, shade(cargoColor, -0.25));
-    rect(g, -5, -2, 10, 4, cargoColor); // heap
-    rect(g, -3, -1.5, 5, 1.5, shade(cargoColor, 0.3));
+    vrect(g, -7.5, -4, 15, 8, '#5a4a3a'); // hopper walls
+    vrect(g, -6.5, -3, 13, 6, shade(cargoColor, -0.25));
+    vrect(g, -5, -2, 10, 4, cargoColor); // heap
+    vrect(g, -3, -1.5, 5, 1.5, shade(cargoColor, 0.3));
   } else {
     const body = variant % 3 === 0 ? '#7a4a2b' : variant % 3 === 1 ? '#5b6b4a' : '#6d5a4a';
-    rect(g, -7.5, -4, 15, 8, body);
-    rect(g, -7.5, -4, 15, 1, shade(body, 0.3));
-    rect(g, -7.5, -0.5, 15, 1, shade(body, -0.35)); // roof ridge
-    rect(g, -7.5, 3, 15, 1, shade(body, -0.25));
+    vrect(g, -7.5, -4, 15, 8, body);
+    vrect(g, -7.5, -4, 15, 1, shade(body, 0.3));
+    vrect(g, -7.5, -0.5, 15, 1, shade(body, -0.35)); // roof ridge
+    vrect(g, -7.5, 3, 15, 1, shade(body, -0.25));
   }
-  rect(g, -9, -0.5, 1, 1, '#111'); // couplers
-  rect(g, 8, -0.5, 1, 1, '#111');
+  vrect(g, -9, -0.5, 1, 1, '#111'); // couplers
+  vrect(g, 8, -0.5, 1, 1, '#111');
   g.restore();
 }
 
 /** Locomotive plus `wagons` cars trailing straight behind it (sprite sheet previews). */
-export function drawTrain(g: Ctx, px: number, py: number, dir: Dir, ownerId: OwnerId, wagons: number, diesel = false): void {
+export function drawTrain(g: Ctx, px: number, py: number, dir: Dir, ownerId: OwnerId, wagons: number, diesel = false, lit = false): void {
   const a = ANGLE[dir];
   const ux = Math.cos(a);
   const uy = Math.sin(a);
@@ -785,7 +812,7 @@ export function drawTrain(g: Ctx, px: number, py: number, dir: Dir, ownerId: Own
     const d = LOCO_HALF + 1 + WAGON_HALF + i * (2 * WAGON_HALF + 1);
     drawWagon(g, px - ux * d, py - uy * d, a, i === 1 ? '#3a3a3a' : null, i);
   }
-  drawLocomotive(g, px, py, a, ownerId, diesel);
+  drawLocomotive(g, px, py, a, ownerId, diesel, lit);
 }
 
 // ---------------------------------------------------------------- icons

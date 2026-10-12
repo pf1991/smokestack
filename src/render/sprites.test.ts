@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BUILDINGS } from '../data/buildings';
 import { TILE } from './constants';
-import { chimneyOffsets, spriteKey, houseStyle, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS } from './sprites';
+import { chimneyOffsets, spriteKey, houseStyle, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS, LOCO_HALF, WAGON_HALF, drawTruck } from './sprites';
 
 describe('sprites pure helpers', () => {
   it('chimneyOffsets and windowRects inside sprite bounds for every building', () => {
@@ -50,5 +50,35 @@ describe('ownerColor', () => {
     expect(ownerColor('rival')).toBe('#b5302f');
     expect(REGIONAL_COLORS).toContain(ownerColor('r_a'));
     expect(ownerColor('r_a')).toBe(ownerColor('r_a'));
+  });
+});
+
+describe('vehicles', () => {
+  interface Rec { fills: number; xs: number[] }
+  function mockCtx(): { g: CanvasRenderingContext2D; rec: Rec } {
+    const rec: Rec = { fills: 0, xs: [] };
+    const g = {
+      fillStyle: '', save() {}, restore() {}, translate() {}, rotate() {}, scale() {}, beginPath() {},
+      moveTo() {}, lineTo() {}, closePath() {}, arc() {}, quadraticCurveTo() {},
+      fill() { rec.fills++; },
+      fillRect(x: number, _y: number, w: number) { rec.fills++; rec.xs.push(x, x + w); },
+    } as unknown as CanvasRenderingContext2D;
+    return { g, rec };
+  }
+  it('uses scaled half-lengths', () => {
+    expect(LOCO_HALF).toBe(23);
+    expect(WAGON_HALF).toBe(14);
+  });
+  it('headlights add at least 2 fills when lit', () => {
+    const a = mockCtx();
+    const b = mockCtx();
+    drawTruck(a.g, 0, 0, 'E', 'player', null, false);
+    drawTruck(b.g, 0, 0, 'E', 'player', null, true);
+    expect(b.rec.fills - a.rec.fills).toBeGreaterThanOrEqual(2);
+  });
+  it('truck spans at least 28px', () => {
+    const { g, rec } = mockCtx();
+    drawTruck(g, 0, 0, 'E', 'player', null, false);
+    expect(Math.max(...rec.xs) - Math.min(...rec.xs)).toBeGreaterThanOrEqual(28);
   });
 });
