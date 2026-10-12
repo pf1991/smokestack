@@ -199,3 +199,72 @@ input[type='text'] {
   border-radius: 2px;
   padding: 0 8px;
 }
+
+/* Juice: monthly treasury delta and milestone stamps. */
+.hud-cash {
+  position: relative;
+}
+
+.hud-delta {
+  position: absolute;
+  right: 4px;
+  top: 100%;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px #000;
+  animation: hud-delta-float 1500ms ease-out forwards;
+  z-index: 1001;
+}
+
+.hud-delta.good { color: #8fe08a; }
+.hud-delta.bad { color: #ff6a5e; }
+
+.stamp {
+  position: fixed;
+  left: 50%;
+  top: 38%;
+  pointer-events: none;
+  padding: 8px 22px;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 4px double currentColor;
+  border-radius: 6px;
+  background: rgba(15, 10, 6, 0.55);
+  transform: translate(-50%, -50%) rotate(-8deg);
+  animation: stamp-slam 2200ms ease-out forwards;
+  z-index: 1002;
+}
+
+.stamp.good { color: #e8c75a; }
+.stamp.bad { color: #ff6a5e; }
+
+@keyframes hud-delta-float {
+  0% { opacity: 0; transform: translateY(0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-28px); }
+}
+
+@keyframes stamp-slam {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scale(2); }
+  12% { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-delta { animation: juice-fade 1500ms ease-out forwards; }
+  .stamp { animation: juice-fade 2200ms ease-out forwards; }
+
+  @keyframes juice-fade {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+}

@@ -12,7 +12,7 @@ import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
 import { attachAchievements } from './achievements';
-import { attachStuckToasts } from './feedback';
+import { attachMilestoneStamps, attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
 import { closeAllWindows } from '../ui/window';
@@ -167,6 +167,8 @@ export class GameController {
       this.renderer.attachEffects(bus),
       Toasts.attach(this.uiRoot, bus),
       attachStuckToasts(this.ctx),
+      attachMilestoneStamps(this.ctx),
+      this.hud.attach(bus),
       attachAutosave(this.ctx),
       attachAchievements(this.ctx),
       bus.on('unlock', () => this.toolbar.update(this.state)),
@@ -383,8 +385,9 @@ export class GameController {
     this.renderer.render(this.state, this.camera, this.alpha, now);
     if (now - this.lastHud >= HUD_INTERVAL_MS) {
       this.lastHud = now;
-      this.hud.update(this.state);
+      this.hud.update(this.state, now);
     }
+    this.hud.tick(now);
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame(this.frame);
   };

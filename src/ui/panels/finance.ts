@@ -1,7 +1,7 @@
 import type { Result } from '../../core/result';
 import type { GameController } from '../../game/controller';
 import { GOODS } from '../../data/goods';
-import { LOAN_RATE, LOAN_STEP, repayLoan, takeLoan } from '../../sim/finance';
+import { LOAN_RATE, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
 import { assetValue } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
 import { barChart, cssColor, lineChart } from '../charts';
@@ -29,8 +29,6 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 const monthKey = (m: { year: number; month: number }) => m.year * 12 + m.month;
 const monthLabel = (m: { year: number; month: number }) => `${MONTHS[m.month - 1]} ${String(m.year).slice(2)}`;
-const sumCats = (rec: Partial<Record<LedgerCategory, number>>, cats: { cat: LedgerCategory }[]) =>
-  cats.reduce((s, c) => s + (rec[c.cat] ?? 0), 0);
 
 /** Income statement table: one column per month, a row per category and a bold profit row. */
 function statement(ledger: LedgerMonth[]): HTMLElement {
@@ -39,7 +37,7 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
   const cell = (v: number) => h('td', { class: v < 0 ? 'neg' : v > 0 ? 'pos' : '' }, v === 0 ? '–' : formatMoney(v));
   const row = (label: string, values: number[]) =>
     h('tr', null, h('th', { scope: 'row' }, label), values.map(cell));
-  const profit = months.map((m) => sumCats(m.income, INCOME_CATS) - sumCats(m.expense, EXPENSE_CATS));
+  const profit = months.map(monthProfit);
   return h(
     'div',
     { class: 'finance-scroll' },

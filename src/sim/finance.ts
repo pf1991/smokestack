@@ -95,3 +95,15 @@ export function closeMonth(c: Company, date: GameDate): { interest: number; bank
   }
   return { interest, bankrupt: c.monthsInRed >= BANKRUPT_MONTHS };
 }
+
+/** Income categories counted in a month's profit (the finance panel's statement uses the same lists). */
+export const INCOME_CATEGORIES: LedgerCategory[] = ['sales', 'contracts', 'events', 'demolition'];
+/** Expense categories counted in a month's profit. */
+export const EXPENSE_CATEGORIES: LedgerCategory[] = ['construction', 'maintenance', 'vehicles', 'interest'];
+
+/** Income minus expense for one ledger month. */
+export function monthProfit(m: Pick<LedgerMonth, 'income' | 'expense'>): number {
+  const sum = (rec: Partial<Record<LedgerCategory, number>>, cats: LedgerCategory[]) =>
+    cats.reduce((t, c) => t + (rec[c] ?? 0), 0);
+  return sum(m.income, INCOME_CATEGORIES) - sum(m.expense, EXPENSE_CATEGORIES);
+}
