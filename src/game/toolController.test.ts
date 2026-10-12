@@ -172,4 +172,59 @@ describe('ToolController', () => {
     expect(onPick).toHaveBeenCalledTimes(1);
     expect(onPick).toHaveBeenCalledWith(b.id);
   });
+
+  describe('picking raised buildings in the diorama', () => {
+    const TILE = 32;
+    it('a click on a raised roof (in the tile above the footprint) selects that building', async () => {
+      const { BUILDING_HEIGHT } = await import('../render/sprites');
+      const { ctx, tc, renderer, game } = setup();
+      game.camera.zoom = 2;
+      const b = must(placeBuilding(ctx, 'player', 'steel_mill', { x: 5, y: 5 }));
+      const world = { x: 6 * TILE, y: 5 * TILE - BUILDING_HEIGHT.steel_mill + 2 };
+      tc.pointerDown({ x: 6, y: 4 }, world);
+      expect(renderer.selection).toEqual({ buildingId: b.id });
+      expect(game.openPanel).toHaveBeenCalledWith('building', b.id);
+    });
+    it('a truck hidden under a raised roof cannot be picked: the building wins', () => {
+      const { ctx, tc, renderer, game } = setup();
+      game.camera.zoom = 2;
+      const b = must(placeBuilding(ctx, 'player', 'steel_mill', { x: 5, y: 5 }));
+      // a minimal truck on the road row just north of the footprint
+      ctx.state.vehicles[999] = { id: 999, pos: { x: 6, y: 4.6 } } as unknown as (typeof ctx.state.vehicles)[number];
+      tc.pointerDown({ x: 6, y: 4 }, { x: 6 * TILE + 4, y: 5 * TILE - 6 });
+      expect(renderer.selection).toEqual({ buildingId: b.id });
+      // above the roof the truck is visible and picked as before
+      tc.pointerDown({ x: 6, y: 4 }, { x: 6 * TILE + 4, y: 4 * TILE + 2 });
+      expect(renderer.selection).toEqual({ vehicleId: 999 });
+    });
+    it('the frontmost (last drawn) building wins where raised bodies overlap', async () => {
+      const { buildingAtPoint } = await import('./pick');
+      const { ctx } = setup();
+      const back = must(placeBuilding(ctx, 'player', 'sawmill', { x: 5, y: 2 }));
+      const front = must(placeBuilding(ctx, 'player', 'steel_mill', { x: 5, y: 5 }));
+      // a point on the back building's bottom row, under the front building's raised roof
+      const p = { x: 6 * TILE, y: 5 * TILE - 4 };
+      expect(buildingAtPoint(ctx.state, p, true)).toBe(front.id);
+      expect(buildingAtPoint(ctx.state, p, false)).toBe(back.id);
+    });
+    it('zoomed out to the survey map, picking is by footprint only', () => {
+      const { ctx, tc, renderer, game } = setup();
+      game.camera.zoom = 1;
+      must(placeBuilding(ctx, 'player', 'steel_mill', { x: 5, y: 5 }));
+      tc.pointerDown({ x: 6, y: 4 }, { x: 6 * TILE, y: 5 * TILE - 4 });
+      expect(renderer.selection).toBeNull();
+    });
+  });
+});
+
+describe('landmarkAtPoint', () => {
+  it('picks a landmark by its 2×2 block plus LANDMARK_HEIGHT above it', async () => {
+    const { landmarkAtPoint } = await import('./pick');
+    const { LANDMARK_HEIGHT } = await import('../render/landmarks');
+    const state = testState({ cities: [{ name: 'Testville', x: 10, y: 10, population: 50_000 }] });
+    state.cities[0].landmarks.push({ id: 'skyscraper', pos: { x: 8, y: 8 } });
+    expect(landmarkAtPoint(state, { x: 8 * 32 + 10, y: 8 * 32 - LANDMARK_HEIGHT.skyscraper + 2 })?.id).toBe('skyscraper');
+    expect(landmarkAtPoint(state, { x: 8 * 32 + 10, y: 8 * 32 - LANDMARK_HEIGHT.skyscraper - 2 })).toBeNull();
+    expect(landmarkAtPoint(state, { x: 10 * 32 + 1, y: 9 * 32 })).toBeNull();
+  });
 });

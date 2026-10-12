@@ -1,4 +1,4 @@
-import { clampCamera, screenToTile, zoomAt } from '../render/camera';
+import { clampCamera, screenToTile, screenToWorld, zoomAt } from '../render/camera';
 import type { Camera } from '../render/constants';
 import type { GameMap, Speed, Vec2 } from '../sim/types';
 import type { ToolSpec } from '../ui/tools';
@@ -8,7 +8,7 @@ export interface InputHost {
   camera: Camera;
   readonly map: GameMap;
   tools: {
-    pointerDown(t: Vec2): void;
+    pointerDown(t: Vec2, world?: Vec2): void;
     pointerMove(t: Vec2): void;
     pointerUp(t: Vec2): void;
     leave(): void;
@@ -125,7 +125,8 @@ export class Input {
     if (e.button !== 0) return;
     this.toolPointer = e.pointerId;
     this.capture(e.pointerId);
-    this.host.tools.pointerDown(this.tileOf(e));
+    const p = this.local(e);
+    this.host.tools.pointerDown(this.tileOf(e), screenToWorld(this.host.camera, p.x, p.y));
   }
 
   private move(e: PointerEvent): void {

@@ -33,7 +33,7 @@ import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
-import { MAX_CASTER_Z, MAX_SHADOW_LENGTH, SHADOW_ALPHA, SHADOW_COLOR, type SunVector, easeSun, traceShadow } from '../shadows';
+import { MAX_CASTER_Z, MAX_SHADOW_LENGTH, SHADOW_COLOR, type SunVector, easeSun, shadowAlpha, targetSun, traceShadow } from '../shadows';
 import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
 import { chimneysOf, paintGardenTree } from './glows';
@@ -133,7 +133,7 @@ export class WorldRenderer {
   private pendingSales = new Map<number, { revenue: number; ownerId: Building['ownerId'] }>();
   private lastFloat = new Map<number, number>();
   private light: number | null = null;
-  /** Rendered sun vector, eased toward the clock's like the light (see easeSun). */
+  /** Rendered sun: eased toward the golden-hour sun while running, the clock's while paused (see targetSun). */
   private sun: SunVector | null = null;
   private overlay: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
   /** HUD chrome rects city labels avoid; re-measured every HUD_RECTS_FRAMES frames */
@@ -287,7 +287,7 @@ export class WorldRenderer {
     const z = cam.zoom;
     this.light = easeLight(this.light, date.hour, dt, state.speed);
     const light = this.light;
-    this.sun = easeSun(this.sun, date.hour, dt);
+    this.sun = easeSun(this.sun, targetSun(date.hour, state.speed), dt);
     const nightK = Math.min(1, Math.max(0, (0.8 - light) / 0.55));
     const lit = isLit(date.hour);
 
@@ -671,7 +671,7 @@ export class WorldRenderer {
    */
   private drawShadows(ctx: CanvasRenderingContext2D, state: GameState, r: TileRange, light: number, blend: number): void {
     const sun = this.sun;
-    const k = SHADOW_ALPHA * blend * Math.min(1, Math.max(0, (light - 0.4) / 0.45));
+    const k = sun ? shadowAlpha(light, blend, sun) : 0;
     if (!sun || k < 0.01 || Math.abs(sun.vx) + Math.abs(sun.vy) < 0.02) return;
     const { vx, vy } = sun;
     const R = SHADOW_REACH;
@@ -706,8 +706,10 @@ export class WorldRenderer {
       const b = state.buildings[id];
       const def = BUILDINGS[b.typeId];
       if (!def || b.pos.x + def.size.w - 1 < x0 || b.pos.x > x1 || b.pos.y + def.size.h - 1 < y0 || b.pos.y > y1) continue;
-      if (this.isScaffolding(b.id)) continue;
-      for (const c of buildingCasters(b.typeId)) traceShadow(ctx, c, b.pos.x * TILE, b.pos.y * TILE, vx, vy, false);
+      // a building still rising casts a shadow that grows with its reveal
+      const zk = this.revealOf(b.id);
+      if (zk <= 0) continue;
+      for (const c of buildingCasters(b.typeId)) traceShadow(ctx, c, b.pos.x * TILE, b.pos.y * TILE, vx, vy, false, zk);
     }
     ctx.save();
     ctx.globalAlpha = k;
@@ -748,6 +750,12 @@ export class WorldRenderer {
         ctx.fillRect(b.pos.x * TILE, b.pos.y * TILE, def.size.w * TILE - 4, def.size.h * TILE - 4);
       }
     }
+  }
+
+  /** 0..1 how much of a live-placed building has been revealed (1 when not animating). */
+  private revealOf(id: number): number {
+    const cs = this.constructing.get(id);
+    return cs ? constructionStage(performance.now() - cs.start).reveal : 1;
   }
 
   /** True while a live-placed building is still under scaffold (reveal < 1): no smoke or glow yet. */

@@ -44,26 +44,61 @@ export function sunDirection(hour: number): { dx: number; dy: number; length: nu
   return { dx: -Math.cos(a), dy: -Math.sin(a), length };
 }
 
-/** Shadow offset per px of height (direction × length), as the renderer eases it. */
+/** Shadow offset per px of height (direction × length) and the horizon fade `a` (0..1), as the renderer eases them. */
 export interface SunVector {
   vx: number;
   vy: number;
+  a: number;
+}
+
+/** 0 at sunrise and sunset, 1 from two hours after sunrise to two hours before sunset, linear between. */
+export function horizonFade(hour: number): number {
+  const h = ((hour % 24) + 24) % 24;
+  return Math.min(1, Math.max(0, Math.min(h - 6, 18 - h) / 2));
 }
 
 export function sunVector(hour: number): SunVector {
   const s = sunDirection(hour);
-  return { vx: s.dx * s.length, vy: s.dy * s.length };
+  return { vx: s.dx * s.length, vy: s.dy * s.length, a: horizonFade(hour) };
+}
+
+/** Hour of the fixed golden-hour sun used while the clock runs. */
+export const RUNNING_SUN_HOUR = 16;
+
+/**
+ * The sun the shadows aim for. While the game runs (speed > 0) a day lasts 2000 / speed ms, far too
+ * fast for shadows to follow, so they hold a long, stable golden-hour sun (and fade with the eased
+ * daylight instead). Paused, they show the true hour.
+ */
+export function targetSun(hour: number, speed: number): SunVector {
+  return sunVector(speed > 0 ? RUNNING_SUN_HOUR : hour);
 }
 
 /**
- * Eases the rendered sun vector toward `hour`'s with the light's real-time constant, so a running
- * clock (a day is 2 s at speed 1) sweeps the shadows smoothly instead of strobing. null snaps.
+ * Eases the rendered sun toward `target` with the light's real-time constant, so switching between
+ * the running and the paused sun swings the shadows smoothly. null snaps.
  */
-export function easeSun(current: SunVector | null, hour: number, dtMs: number): SunVector {
-  const t = sunVector(hour);
-  if (!current) return t;
+export function easeSun(current: SunVector | null, target: SunVector, dtMs: number): SunVector {
+  if (!current) return target;
   const k = 1 - Math.exp(-Math.max(0, dtMs) / LIGHT_EASE_MS);
-  return { vx: current.vx + (t.vx - current.vx) * k, vy: current.vy + (t.vy - current.vy) * k };
+  return {
+    vx: current.vx + (target.vx - current.vx) * k,
+    vy: current.vy + (target.vy - current.vy) * k,
+    a: current.a + (target.a - current.a) * k,
+  };
+}
+
+/** Eased light level (atmosphere.ts) at or below which shadows are gone. */
+const SHADOW_LIGHT_MIN = 0.55;
+const SHADOW_LIGHT_SPAN = 0.4;
+
+/**
+ * Shadow layer opacity: SHADOW_ALPHA × regime blend × daylight × the sun's horizon fade. Daylight
+ * maps the eased light level so night (0.25) gives 0 and full day gives 1.
+ */
+export function shadowAlpha(light: number, blend: number, sun: SunVector): number {
+  const day = Math.min(1, Math.max(0, (light - SHADOW_LIGHT_MIN) / SHADOW_LIGHT_SPAN));
+  return SHADOW_ALPHA * blend * day * Math.min(1, Math.max(0, sun.a));
 }
 
 // ---------------------------------------------------------------- geometry (allocation-free core)
@@ -113,13 +148,13 @@ function hull(n: number): number {
 }
 
 /** Hull of caster `c` swept by (vx, vy) per px of height, offset by (ox, oy); returns the count in hx/hy. */
-function sweep(c: ShadowCaster, ox: number, oy: number, vx: number, vy: number): number {
+function sweep(c: ShadowCaster, ox: number, oy: number, vx: number, vy: number, zk = 1): number {
   const x0 = ox + c.x, y0 = oy + c.y, x1 = x0 + c.w, y1 = y0 + c.d;
   px[0] = x0; py[0] = y0;
   px[1] = x1; py[1] = y0;
   px[2] = x1; py[2] = y1;
   px[3] = x0; py[3] = y1;
-  const tx = vx * c.z, ty = vy * c.z;
+  const tx = vx * c.z * zk, ty = vy * c.z * zk;
   if (c.taper) {
     px[4] = (x0 + x1) / 2 + tx;
     py[4] = (y0 + y1) / 2 + ty;
@@ -174,9 +209,10 @@ function emit(g: PathSink, xs: Float64Array, ys: Float64Array, n: number): void 
  * `cut` leaves out the caster's own on-screen silhouette, for casters painted BEFORE the shadow layer
  * (houses, landmarks in the chunk cache): only the ground beside and beyond it is darkened.
  * Buildings drawn after the shadow layer pass `cut = false`; their sprite covers their own shadow.
+ * `zk` scales the caster's height (a building still rising from its scaffold casts a growing shadow).
  */
-export function traceShadow(g: PathSink, c: ShadowCaster, ox: number, oy: number, vx: number, vy: number, cut: boolean): void {
-  const n = sweep(c, ox, oy, vx, vy);
+export function traceShadow(g: PathSink, c: ShadowCaster, ox: number, oy: number, vx: number, vy: number, cut: boolean, zk = 1): void {
+  const n = sweep(c, ox, oy, vx, vy, zk);
   if (!cut) return emit(g, hx, hy, n);
   const x0 = ox + c.x, x1 = x0 + c.w, top = oy + c.y - c.z;
   const tx = vx * c.z;

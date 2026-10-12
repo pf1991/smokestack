@@ -107,7 +107,7 @@ function isBox(def: BuildingDef): boolean {
 
 /** Flat-layout row where a box building's facade starts; everything above it is lifted. */
 function splitRow(def: BuildingDef): number {
-  const seam = dims(def).H - SHADOW - WALL;
+  const seam = dims(def).H - SHADOW - WALL - apronOf(def.id);
   // the shop sign, awning and glazed front are all facade
   return def.id === 'store' ? seam - 21 : seam;
 }
@@ -174,7 +174,7 @@ function flatWindowRects(typeId: string): WinRect[] {
   if (typeId === 'mine') return [{ x: 43, y: HR0 + 15, w: 4, h: 3 }, { x: 51, y: HR0 + 15, w: 4, h: 3 }, { x: 43, y: HR0 + 9, w: 4, h: 3 }];
   const { W, H } = dims(def);
   const out: WinRect[] = [];
-  const y = H - SHADOW - WALL + 2;
+  const y = H - SHADOW - WALL + 2 - apronOf(typeId);
   const step = typeId === 'car_plant' ? 8 : 10;
   for (let x = 5; x + 4 <= W - SHADOW - 3; x += step) out.push({ x, y, w: 4, h: 3 });
   return out;
@@ -248,13 +248,18 @@ export function softShadow(g: Ctx, x: number, y: number, w: number, h: number): 
 }
 
 interface Box { x: number; y: number; w: number; h: number; roofH: number }
-function bodyBox(W: number, H: number): Box {
-  const x = 1, y = HR0, w = W - SHADOW - 1, h = H - HR0 - SHADOW;
+/** Ground rows (px) some box buildings keep in front of their body: the car plant's forecourt. */
+const APRON: Record<string, number> = { car_plant: 14 };
+function apronOf(typeId: string): number {
+  return APRON[typeId] ?? 0;
+}
+function bodyBox(W: number, H: number, apron = 0): Box {
+  const x = 1, y = HR0, w = W - SHADOW - 1, h = H - HR0 - SHADOW - apron;
   return { x, y, w, h, roofH: h - WALL };
 }
 /** Draws shadow, roof base and south wall strip; returns the box. */
-function building(g: Ctx, W: number, H: number, roof: string, wall: string): Box {
-  const b = bodyBox(W, H);
+function building(g: Ctx, W: number, H: number, roof: string, wall: string, apron = 0): Box {
+  const b = bodyBox(W, H, apron);
   softShadow(g, b.x, b.y, b.w, b.h);
   rect(g, b.x, b.y, b.w, b.roofH, roof);
   rect(g, b.x, b.y + b.roofH, b.w, WALL, wall);
@@ -523,7 +528,7 @@ function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: Own
   let roofTint = mix(def.color, '#6e7b84', 0.6);
   if (id === 'creamery') roofTint = '#efe6cf';
   if (id === 'toy_factory') roofTint = '#e88ab0';
-  const b = building(g, W, H, roofTint, brick);
+  const b = building(g, W, H, roofTint, brick, apronOf(id));
   brickTexture(g, b, id.length * 31);
   rect(g, b.x, b.y + b.roofH + 1, b.w, 1, def.color); // identity band along the wall
   const teeth = id === 'textile_mill' ? 6 : def.size.h >= 4 ? 6 : def.size.h === 3 ? 4 : 3;
@@ -574,14 +579,16 @@ function paintFactory(g: Ctx, def: BuildingDef, W: number, H: number, owner: Own
       for (let x = 8; x < b.w - 4; x += 12) rect(g, x, b.y + 2, 1, ry - b.y - 20, 'rgba(0,0,0,0.2)');
       rect(g, 8, ry - 24, 40, 8, def.color);
       rect(g, 10, ry - 22, 36, 4, '#f4e6d0');
-      // forecourt strip with finished cars
-      rect(g, b.x + 2, ry - 13, b.w - 4, 11, '#5d6166');
-      rect(g, b.x + 2, ry - 8, b.w - 4, 1, '#d9d36a');
-      ['#b8322c', '#2f6fb5', '#e6e0d0'].forEach((c, i) => {
-        const cx = b.x + 8 + i * 22;
-        rect(g, cx, ry - 11, 14, 6, 'rgba(0,0,0,0.3)');
-        rect(g, cx, ry - 12, 14, 6, c);
-        rect(g, cx + 4, ry - 11, 6, 4, 'rgba(255,255,255,0.45)');
+      // forecourt on the ground in front of the plant, with finished cars
+      const ay = b.y + b.h;
+      rect(g, b.x, ay, b.w, apronOf(id) - 1, '#5d6166');
+      rect(g, b.x, ay, b.w, 2, 'rgba(0,0,0,0.3)');
+      rect(g, b.x + 2, ay + 8, b.w - 4, 1, '#d9d36a');
+      ['#b8322c', '#2f6fb5', '#e6e0d0', '#2f7a4a'].forEach((c, i) => {
+        const cx = b.x + 8 + i * 30;
+        rect(g, cx, ay + 4, 14, 6, 'rgba(0,0,0,0.3)');
+        rect(g, cx, ay + 3, 14, 6, c);
+        rect(g, cx + 4, ay + 4, 6, 4, 'rgba(255,255,255,0.45)');
       });
       break;
     }
@@ -825,8 +832,9 @@ export function buildingCasters(typeId: string): ShadowCaster[] {
     const { W, H } = dims(def);
     const s = splitRow(def);
     const lift = BUILDING_HEIGHT[def.id] ?? 0;
-    const z = H - SHADOW - s + lift;
-    const y0 = H - SHADOW - s;
+    const bodyBottom = H - SHADOW - apronOf(typeId);
+    const z = bodyBottom - s + lift;
+    const y0 = bodyBottom - s;
     out.push({ x: 1, y: y0, w: W - SHADOW - 1, d: s - HR0, z });
     // things standing on the roof: their foot is on the roof at flat y = foot, so on the ground at foot - HR0 - lift + z
     const ground = (foot: number): number => foot - HR0 - lift + z;

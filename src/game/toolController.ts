@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
-import type { Camera } from '../render/constants';
+import { TILE, type Camera } from '../render/constants';
+import { regimeBlend } from '../render/regime';
 import type { Ghost, Selection } from '../render/world';
 import { canAfford } from '../sim/finance';
 import {
@@ -20,6 +21,7 @@ import type { GameState, SimContext, Vec2 } from '../sim/types';
 import { formatMoney, formatNumber } from '../ui/format';
 import { PANELS } from '../ui/panels/index';
 import { reportLostStops, routesUsing } from './feedback';
+import { buildingAtPoint, landmarkAtPoint } from './pick';
 import type { ToolSpec } from '../ui/tools';
 
 /** The slice of the GameController the tool controller needs (lets tests use a small stub). */
@@ -111,7 +113,8 @@ export class ToolController {
     if (!this.dragStart) this.refreshGhost();
   }
 
-  pointerDown(tile: Vec2): void {
+  /** `world` is the exact world-px point clicked (picks raised roofs); without it the tile centre is used. */
+  pointerDown(tile: Vec2, world?: Vec2): void {
     this.hover = { ...tile };
     this.pressed = true;
     const t = this.tool;
@@ -127,10 +130,10 @@ export class ToolController {
         this.bulldoze(tile, true);
         break;
       case 'inspect':
-        this.inspect(tile);
+        this.inspect(tile, world);
         break;
       case 'pickStop': {
-        const id = tileAt(this.state, tile)?.buildingId;
+        const id = this.buildingAt(tile, world);
         if (id !== null && id !== undefined) this.onPick?.(id);
         break;
       }
@@ -207,27 +210,41 @@ export class ToolController {
     return best;
   }
 
-  private inspect(tile: Vec2): void {
+  /** True when the diorama dominates, so buildings are drawn (and picked) with their height. */
+  private get raised(): boolean {
+    return regimeBlend(this.game.camera.zoom) >= 0.5;
+  }
+
+  /** The building drawn at the click: raised roofs included, frontmost first (see game/pick.ts). */
+  private buildingAt(tile: Vec2, world?: Vec2): number | null {
+    const p = world ?? { x: (tile.x + 0.5) * TILE, y: (tile.y + 0.5) * TILE };
+    return buildingAtPoint(this.state, p, this.raised);
+  }
+
+  private inspect(tile: Vec2, world?: Vec2): void {
     const { renderer } = this.game;
+    // buildings are drawn over vehicles, so a raised roof hides (and wins over) a truck behind it
+    const id = this.buildingAt(tile, world);
+    if (id !== null) {
+      renderer.setSelection({ buildingId: id });
+      if (PANELS.building) this.game.openPanel('building', id);
+      else this.describeBuilding(id);
+      return;
+    }
     const vehicleId = this.vehicleAt(tile);
     if (vehicleId !== null) {
       if (PANELS.vehicle) this.game.openPanel('vehicle', vehicleId);
       renderer.setSelection({ vehicleId });
       return;
     }
-    const t = tileAt(this.state, tile);
-    if (t?.buildingId !== null && t?.buildingId !== undefined) {
-      const id = t.buildingId;
-      renderer.setSelection({ buildingId: id });
-      if (PANELS.building) this.game.openPanel('building', id);
-      else this.describeBuilding(id);
-      return;
-    }
     renderer.setSelection(null);
-    if (t?.cityId !== null && t?.cityId !== undefined) {
-      if (PANELS.city) this.game.openPanel('city', t.cityId);
+    // a click on a landmark's raised tower inspects its city even from the tile above
+    const lm = this.raised && world ? landmarkAtPoint(this.state, world) : null;
+    const cityId = lm ? this.state.cities.indexOf(lm.city) : tileAt(this.state, tile)?.cityId;
+    if (cityId !== null && cityId !== undefined) {
+      if (PANELS.city) this.game.openPanel('city', cityId);
       else {
-        const city = this.state.cities[t.cityId];
+        const city = this.state.cities[cityId];
         if (city) this.toast(`${city.name} — population ${formatNumber(city.population)}`, 'info');
       }
     }

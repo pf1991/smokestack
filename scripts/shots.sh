@@ -5,6 +5,8 @@
 # The URL uses speed=0 (deviation from the original brief's speed=1, approved): the game starts
 # paused so the HUD date is deterministic (1900-04-01 + skipYears*360 + 20 autoplay days) instead of
 # drifting with however much virtual time Chrome lets the sim run.
+# hour=16 steps the paused clock from noon to 16:00 (full daylight, lightLevel 1) so the diorama's sun
+# shadows are long and visible: at noon they fall north, hidden behind the buildings.
 # --headless=new counts browser chrome in --window-size: the page viewport is CHROME_H_OFFSET px
 # shorter than the window. The window is made taller by that offset so the viewport equals the
 # requested size, and the screenshot (which has an empty strip at the bottom) is cropped to w x h.
@@ -36,7 +38,7 @@ shot() {
     --user-data-dir="$udd" --virtual-time-budget=10000 \
     --window-size="$w,$((h + CHROME_H_OFFSET))" \
     --screenshot="shots/${w}-y${skip}-z${zoom}.png" \
-    "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=$zoom" >/dev/null 2>&1
+    "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=$zoom&hour=16" >/dev/null 2>&1
   rm -rf "$udd"
   # crop the empty strip below the viewport
   convert "shots/${w}-y${skip}-z${zoom}.png" -crop "${w}x${h}+0+0" +repage "shots/${w}-y${skip}-z${zoom}.png" 2>/dev/null

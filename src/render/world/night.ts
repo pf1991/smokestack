@@ -1,6 +1,7 @@
+import { BUILDINGS } from '../../data/buildings';
 import type { Building, GameState } from '../../sim/types';
 import { type Camera, TILE } from '../camera';
-import { HEADROOM, LOCO_NOSE, TRUCK_NOSE, VEHICLE_SCALE, HOUSE_TIERS, houseStyle } from '../sprites';
+import { BUILDING_HEIGHT, HEADROOM, LOCO_NOSE, TRUCK_NOSE, VEHICLE_SCALE, HOUSE_TIERS, houseStyle } from '../sprites';
 import { CHUNK } from '../terrain';
 import { LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { LANDMARK_GLOW_PAD, getHouseGlow, getLampGlow, getLandmarkGlow, getWindowGlow } from './glows';
@@ -86,14 +87,17 @@ export function drawNightLights(
 
   // factory windows
   ctx.globalAlpha = k;
-  for (const b of buildings) {
+  for (let i = 0; i < buildings.length; i++) {
+    const b = buildings[i];
     const glow = getWindowGlow(b.typeId);
     if (!glow) continue;
     const working = b.status === 'ok' || b.status === 'no_input' || b.status === 'output_full';
     ctx.globalAlpha = k * (working ? 1 : 0.35);
     const gx = b.pos.x * TILE + glow.ox;
     const gy = b.pos.y * TILE - HEADROOM + glow.oy;
-    ctx.drawImage(glow.surf as CanvasImageSource, toSX(gx), toSY(gy), glow.surf.width * z, glow.surf.height * z);
+    const gh = glowVisibleHeight(buildings, i, gx, gy, glow.surf.width, glow.surf.height);
+    if (gh <= 0) continue;
+    ctx.drawImage(glow.surf as CanvasImageSource, 0, 0, glow.surf.width, gh, toSX(gx), toSY(gy), glow.surf.width * z, gh * z);
   }
 
   // truck headlights
@@ -110,4 +114,23 @@ export function drawNightLights(
     ctx.drawImage(lamp as CanvasImageSource, toSX(p.x + fx) - HR, toSY(p.y + fy) - HR, HR * 2, HR * 2);
   }
   ctx.restore();
+}
+
+/**
+ * Rows of a window glow at world (gx, gy), w × h, for `buildings[i]` that no raised building drawn
+ * after it covers: like the houses' guard, a raised roof directly in front hides the windows behind
+ * it. `buildings` is in draw order (footprint bottom, then x). Cuts from the top of the first cover.
+ */
+export function glowVisibleHeight(buildings: Building[], i: number, gx: number, gy: number, w: number, h: number): number {
+  let bottom = gy + h;
+  for (let j = i + 1; j < buildings.length; j++) {
+    const c = buildings[j];
+    const def = BUILDINGS[c.typeId];
+    if (!def) continue;
+    const x0 = c.pos.x * TILE;
+    const top = c.pos.y * TILE - (BUILDING_HEIGHT[c.typeId] ?? 0);
+    if (x0 >= gx + w || x0 + def.size.w * TILE <= gx || top >= bottom || (c.pos.y + def.size.h) * TILE <= gy) continue;
+    bottom = top;
+  }
+  return Math.max(0, Math.min(h, Math.floor(bottom - gy)));
 }

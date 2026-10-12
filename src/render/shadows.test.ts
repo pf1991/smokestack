@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { casterShadow, easeSun, shadowPolygon, sunDirection, sunVector, traceShadow } from './shadows';
+import { lightLevel, easeLight } from './atmosphere';
+import { RUNNING_SUN_HOUR, SHADOW_ALPHA, type SunVector, casterShadow, easeSun, horizonFade, shadowAlpha, shadowPolygon, sunDirection, sunVector, targetSun, traceShadow } from './shadows';
 
 const key = (p: { x: number; y: number }): string => `${p.x},${p.y}`;
 
@@ -94,15 +95,63 @@ describe('traceShadow', () => {
   });
 });
 
-describe('easeSun', () => {
-  it('snaps on the first frame and eases toward the clock after', () => {
-    expect(easeSun(null, 16, 16)).toEqual(sunVector(16));
+describe('targetSun, easeSun and shadowAlpha', () => {
+  it('holds a golden-hour sun while running and shows the true hour while paused', () => {
+    expect(targetSun(8, 0)).toEqual(sunVector(8));
+    expect(targetSun(16, 0)).toEqual(sunVector(16));
+    for (const speed of [1, 2, 4, 8]) for (const h of [0, 3, 8, 12, 20]) expect(targetSun(h, speed)).toEqual(sunVector(RUNNING_SUN_HOUR));
+    expect(RUNNING_SUN_HOUR).toBe(16);
+    expect(sunVector(16).vx).toBeGreaterThan(1.5); // long, eastward
+  });
+  it('snaps on the first frame and eases between states after', () => {
+    expect(easeSun(null, sunVector(16), 16)).toEqual(sunVector(16));
     const from = sunVector(8);
     const to = sunVector(16);
-    const mid = easeSun(from, 16, 100);
+    const mid = easeSun(from, to, 100);
     expect(mid.vx).toBeGreaterThan(from.vx);
     expect(mid.vx).toBeLessThan(to.vx);
-    const far = easeSun(from, 16, 60_000);
-    expect(far.vx).toBeCloseTo(to.vx, 6);
+    expect(easeSun(from, to, 60_000).vx).toBeCloseTo(to.vx, 6);
+  });
+  it('fades to 0 at the horizon and is full by day', () => {
+    expect(horizonFade(6)).toBe(0);
+    expect(horizonFade(18)).toBe(0);
+    expect(horizonFade(7)).toBeGreaterThan(0);
+    expect(horizonFade(7)).toBeLessThan(1);
+    expect(horizonFade(17)).toBeLessThan(1);
+    expect(horizonFade(8)).toBe(1);
+    expect(horizonFade(16)).toBe(1);
+  });
+  it('alpha is 0 in night light, full in daylight, and scales with the regime blend', () => {
+    const sun = sunVector(16);
+    expect(shadowAlpha(lightLevel(0), 1, sun)).toBe(0);
+    expect(shadowAlpha(lightLevel(22), 1, sun)).toBe(0);
+    expect(shadowAlpha(lightLevel(12), 1, sun)).toBe(SHADOW_ALPHA);
+    expect(shadowAlpha(lightLevel(12), 0.5, sun)).toBeCloseTo(SHADOW_ALPHA / 2, 9);
+    expect(shadowAlpha(lightLevel(12), 1, sunVector(6))).toBe(0);
+  });
+  it('in a running game the shadow stays long and stable, and its alpha follows the eased light', () => {
+    // the renderer's loop: 16 ms frames, light eased by easeLight, sun by easeSun(targetSun)
+    for (const speed of [1, 2, 4, 8] as const) {
+      const msHour = 2000 / 24 / speed;
+      let sun: SunVector | null = null;
+      let light: number | null = null;
+      let minLen = Infinity, maxLen = 0, minA = Infinity, maxA = 0;
+      for (let f = 0, t = 0; f < 3000; f++, t += 16) {
+        const hour = Math.floor(t / msHour) % 24;
+        light = easeLight(light, hour, 16, speed);
+        sun = easeSun(sun, targetSun(hour, speed), 16);
+        if (f < 1500) continue;
+        const len = Math.hypot(sun.vx, sun.vy);
+        minLen = Math.min(minLen, len);
+        maxLen = Math.max(maxLen, len);
+        const a = shadowAlpha(light, 1, sun);
+        minA = Math.min(minA, a);
+        maxA = Math.max(maxA, a);
+      }
+      expect(minLen, `speed ${speed}`).toBeCloseTo(Math.hypot(sunVector(16).vx, sunVector(16).vy), 6);
+      expect(maxLen - minLen, `speed ${speed}`).toBeLessThan(1e-6);
+      expect(maxA, `speed ${speed}`).toBeGreaterThan(0.05);
+      if (speed === 1) expect(minA).toBeLessThan(0.01); // dark at night
+    }
   });
 });
