@@ -4,7 +4,8 @@ import { unpackState } from '../game/saves';
 import { checkInvariants } from './invariants';
 import { urbanRadius } from './market';
 import { migrateSave, runAfterLoad, SAVE_VERSION, type Migration } from './migrations';
-import { testState } from './testkit';
+import { runDays } from './simulation';
+import { testCtx, testState } from './testkit';
 
 const fixtures = import.meta.glob('./__fixtures__/phase0.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const phase0 = fixtures['./__fixtures__/phase0.save.json'];
@@ -104,5 +105,15 @@ describe('v3 -> v4: landmarks', () => {
     if (!r.ok) return;
     expect(r.value.cities.length).toBeGreaterThan(0);
     for (const c of r.value.cities) expect(c.landmarks).toEqual([]);
+  });
+  it('a migrated phase 0 save plays on: a month later its towns have landmarks and the state is healthy', () => {
+    const r = unpackState(phase0);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const ctx = testCtx(r.value);
+    runDays(ctx, 31);
+    expect(ctx.state.cities.some((c) => c.landmarks.length > 0)).toBe(true);
+    expect(ctx.state.layers.landmark?.some((v) => v > 0)).toBe(true);
+    expect(checkInvariants(ctx.state)).toEqual([]);
   });
 });

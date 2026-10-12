@@ -6,15 +6,29 @@ const GAUGE = 4;
 const RAIL_STEEL = '#8e949b';
 const RAIL_SHINE = '#c9ced3';
 
+/** Rail arms of a tile mask as drawn: a lone or empty mask becomes a straight run. */
+function railArms(mask: number): number {
+  return mask === 0 ? E | W : mask === N || mask === S ? N | S : mask === E || mask === W ? E | W : mask;
+}
+
+/**
+ * True when a road really crosses the track on this tile: the road leaves it through a side the
+ * rail does not use. Track laid lengthwise along a street (road arms ⊆ rail arms) is not a crossing.
+ */
+export function isLevelCrossing(railMask: number, roadMask: number): boolean {
+  return (roadMask & ~railArms(railMask) & (N | E | S | W)) !== 0;
+}
+
 /**
  * Paints one rail tile at (0,0): a ballast bed, sleepers ("ties") and two steel rails. Two
  * perpendicular arms are drawn as a quarter-circle curve; anything else as straight arms from the
  * centre. On a level crossing (`road` true) the ballast is replaced by timber decking set into the
- * road, with striped crossbuck posts on the corners.
+ * road; striped crossbuck posts stand on the corners only where the road crosses the track
+ * (`isLevelCrossing` with `roadMask`), not along a stretch laid lengthwise in the street.
  */
-export function paintRailTile(g: Ctx, mask: number, road: boolean, winter: boolean, x: number, y: number, seed: number): void {
+export function paintRailTile(g: Ctx, mask: number, road: boolean, winter: boolean, x: number, y: number, seed: number, roadMask = 0): void {
   const C = TILE / 2;
-  const m = mask === 0 ? E | W : mask === N || mask === S ? N | S : mask === E || mask === W ? E | W : mask;
+  const m = railArms(mask);
   const curve = bitCount(m) === 2 && (m & (N | S)) !== 0 && (m & (E | W)) !== 0;
   const ballast = winter ? '#b9b7b2' : '#857a6c';
   const tie = road ? '#6b5236' : '#4a3626';
@@ -107,7 +121,7 @@ export function paintRailTile(g: Ctx, mask: number, road: boolean, winter: boole
     }
   }
 
-  if (road) {
+  if (road && isLevelCrossing(mask, roadMask)) {
     // crossbuck posts on two opposite corners: white with red stripes
     g.lineCap = 'butt';
     for (const [px, py] of [[5, 5], [TILE - 5, TILE - 5]]) {

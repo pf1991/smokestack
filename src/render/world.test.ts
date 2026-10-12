@@ -3,6 +3,8 @@ import { flatMap } from '../sim/testkit';
 import type { GameMap } from '../sim/types';
 import { OVERLAYS, setOverlay, type Overlay } from './overlays';
 import { roadMask } from './world';
+import { isLevelCrossing } from './world/rails';
+import { E, N, S, W } from './world/shared';
 
 function withLayer(map: GameMap, tiles: [number, number][], layer: 'road' | 'rail' = 'road'): GameMap {
   for (const [x, y] of tiles) map.tiles[y * map.width + x][layer] = true;
@@ -44,5 +46,23 @@ describe('overlay registry', () => {
     } finally {
       OVERLAYS.splice(OVERLAYS.indexOf(ov), 1);
     }
+  });
+});
+
+describe('isLevelCrossing', () => {
+  it('a road crossing the track is a crossing; track laid along the street is not', () => {
+    // north-south track
+    expect(isLevelCrossing(N | S, E | W)).toBe(true); // east-west road over it
+    expect(isLevelCrossing(N | S, N | S | E | W)).toBe(true); // street intersection on the line
+    expect(isLevelCrossing(N | S, N | S)).toBe(false); // lengthwise in a north-south street
+    expect(isLevelCrossing(N | S, N)).toBe(false); // street end
+    expect(isLevelCrossing(N, N | S)).toBe(false); // track end in the street (drawn as N|S)
+    // east-west track
+    expect(isLevelCrossing(E | W, N | S)).toBe(true);
+    expect(isLevelCrossing(E | W, E | W)).toBe(false);
+    expect(isLevelCrossing(0, E)).toBe(false); // lone track tile is drawn east-west
+    // track turning off the street: the street carries on south
+    expect(isLevelCrossing(N | E, N | S)).toBe(true);
+    expect(isLevelCrossing(N | S, 0)).toBe(false);
   });
 });

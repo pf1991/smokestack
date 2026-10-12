@@ -1,4 +1,5 @@
-import type { GameMap, Tile, Vec2 } from './types';
+import { LANDMARK_LAYER } from './landmarkTiles';
+import type { GameMap, GameState, Tile, Vec2 } from './types';
 
 export type Passable = (tile: Tile, x: number, y: number) => boolean;
 
@@ -6,6 +7,18 @@ export const roadPassable: Passable = (tile) => tile.road;
 export const railPassable: Passable = (tile) => tile.rail;
 export const roadBuildable: Passable = (tile) =>
   tile.terrain !== 'mountain' && tile.buildingId === null && (tile.cityId === null || tile.road);
+/**
+ * `roadBuildable` for `state`, also refusing landmark tiles (buildRoad refuses them). Landmarks sit on
+ * town land roadBuildable already avoids, but a city that shrank can leave one outside its disc.
+ * Without landmarks it is `roadBuildable` itself.
+ */
+export function roadBuildableIn(state: GameState): Passable {
+  const lm = state.layers[LANDMARK_LAYER];
+  if (!lm || !lm.some((v) => v > 0)) return roadBuildable;
+  const w = state.map.width;
+  return (tile, x, y) => roadBuildable(tile, x, y) && !(lm[y * w + x] > 0);
+}
+
 export const waterAvoidingCost = (tile: Tile): number => (tile.terrain === 'water' ? 8 : 1);
 
 /** A* with 4-way moves. Returns tiles from `from` to the first target reached (inclusive), or null. */

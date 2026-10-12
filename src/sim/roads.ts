@@ -2,7 +2,7 @@ import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { BUILDINGS } from '../data/buildings';
 import { canAfford } from './finance';
-import { findPath, roadBuildable, roadPassable, waterAvoidingCost } from './pathfinding';
+import { findPath, roadBuildableIn, roadPassable, waterAvoidingCost } from './pathfinding';
 import { accessTiles, BRIDGE_COST, buildRoad, ROAD_COST } from './state';
 import type { Building, GameState, OwnerId, SimContext, Vec2 } from './types';
 
@@ -29,6 +29,7 @@ export function roadCost(state: GameState, tiles: Vec2[]): number {
 export function planRoadConnection(state: GameState, building: Building, targetCount = 24): Vec2[] | null {
   const { map } = state;
   if (accessTiles(state, building).length > 0) return [];
+  const roadBuildable = roadBuildableIn(state);
   const { w, h } = BUILDINGS[building.typeId].size;
   const { x: bx, y: by } = building.pos;
   const starts: Vec2[] = [];
@@ -123,7 +124,7 @@ export function buildDirectRoad(
   const from = accessTiles(state, a);
   const to = accessTiles(state, b);
   if (from.length === 0 || to.length === 0) return err('Stop has no road access');
-  const path = findPath(state.map, from[0], to, roadBuildable, waterAvoidingCost);
+  const path = findPath(state.map, from[0], to, roadBuildableIn(state), waterAvoidingCost);
   if (!path) return err('No road can link these buildings');
   const cost = roadCost(state, path);
   if (!canAfford(state.companies[owner], cost + reserve)) return err('Not enough money');

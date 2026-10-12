@@ -470,7 +470,7 @@ export class WorldRenderer {
           if (t.terrain === 'water') paintBridgeTile(g, mask, era);
           else paintRoadTile(g, mask, era, t.cityId !== null, winter, x, y, seed, hasLamp(t, x, y));
         }
-        if (t.rail) paintRailTile(g, roadMask(map, x, y, 'rail'), t.road, winter, x, y, seed);
+        if (t.rail) paintRailTile(g, roadMask(map, x, y, 'rail'), t.road, winter, x, y, seed, t.road ? roadMask(map, x, y, 'road') : 0);
       }
     }
     // gardens on empty urban tiles, then houses (row order → lower houses overlap upper ones);

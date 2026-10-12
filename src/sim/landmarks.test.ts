@@ -6,6 +6,8 @@ import { findLandmarkSite, landmarksMonth } from './landmarks';
 import { layer, layerAt } from './layers';
 import { buildRail, ensureRailLink } from './rail';
 import { buildRoad, canPlaceBuilding, createGame, layCityStreets, placeBuilding, refreshUrbanTiles } from './state';
+import { roadBuildable, roadBuildableIn } from './pathfinding';
+import { connectToRoads } from './roads';
 import { must, testCtx, testState } from './testkit';
 import type { City, GameState, SimContext, Vec2 } from './types';
 
@@ -204,5 +206,19 @@ describe('landmark tiles are never built over', () => {
     expect(r.built).toBeGreaterThan(0);
     for (const p of r.tiles) expect(layerAt(s, 'landmark', p.x, p.y), `(${p.x},${p.y})`).toBe(0);
     expect(r.tiles.some((p) => p.x === 20 && p.y >= 27)).toBe(true);
+  });
+
+  it('road planners route around a landmark left outside its city', () => {
+    const s = testState({ width: 40 });
+    const ctx = testCtx(s);
+    expect(roadBuildableIn(s)).toBe(roadBuildable); // no landmarks: the plain predicate
+    for (let x = 0; x < 40; x++) s.map.tiles[5 * 40 + x].road = true;
+    // rural landmark tiles (a city that shrank away) wall off the road, open only at x >= 30
+    const l = layer(s, 'landmark');
+    for (let y = 6; y < 8; y++) for (let x = 0; x < 30; x++) l[y * 40 + x] = 1;
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 5, y: 15 }));
+    const r = must(connectToRoads(ctx, wh));
+    expect(r.built).toBeGreaterThan(0);
+    for (let i = 0; i < l.length; i++) if (l[i] > 0) expect(s.map.tiles[i].road, `tile ${i}`).toBe(false);
   });
 });
