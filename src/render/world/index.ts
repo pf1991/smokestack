@@ -15,7 +15,7 @@
 import type { EventBus } from '../../core/events';
 import { BUILDINGS } from '../../data/buildings';
 import type { Building, GameState, Vec2 } from '../../sim/types';
-import { applyAtmosphere, cssFilterFor, easeLight } from '../atmosphere';
+import { applyAtmosphere, cssFilterFor, easeLight, isLit } from '../atmosphere';
 import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
 import { ParticleSystem } from '../particles';
@@ -224,7 +224,7 @@ export class WorldRenderer {
     this.light = easeLight(this.light, date.hour, dt, state.speed);
     const light = this.light;
     const nightK = Math.min(1, Math.max(0, (0.8 - light) / 0.55));
-    const lit = light < 0.8;
+    const lit = isLit(date.hour);
 
     ctx.save();
     ctx.fillStyle = '#1d1a16';

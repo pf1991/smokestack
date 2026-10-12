@@ -49,7 +49,7 @@ describe('stepTick', () => {
     };
     withSpy(spy, () => runDays(ctx, 30));
     expect(counts).toEqual({ tick: 720, day: 30, month: 1, year: 0 });
-    expect(ctx.state.date).toEqual({ year: 1900, month: 2, day: 1, hour: 0 });
+    expect(ctx.state.date).toEqual({ year: 1900, month: 5, day: 1, hour: 0 });
     expect(ctx.state.tick).toBe(720);
   });
 
@@ -64,18 +64,19 @@ describe('stepTick', () => {
     };
     const events = collect(ctx);
     withSpy(spy, () => runDays(ctx, 360));
-    expect(seen[0]).toBe('day 1/1');
-    expect(seen).toContain('month 1900/1');
-    expect(seen.at(-1)).toBe('year 1900');
+    expect(seen[0]).toBe('day 4/1');
+    expect(seen).toContain('month 1900/4');
+    expect(seen).toContain('year 1900');
+    expect(seen.at(-1)).toBe('month 1901/3');
     expect(seen.filter((s) => s.startsWith('month')).length).toBe(12);
     const dayStarts = events.filter((e) => e.type === 'dayStart');
     expect(dayStarts.length).toBe(360);
-    expect(dayStarts[0]).toEqual({ type: 'dayStart', date: { year: 1900, month: 1, day: 2, hour: 0 } });
+    expect(dayStarts[0]).toEqual({ type: 'dayStart', date: { year: 1900, month: 4, day: 2, hour: 0 } });
     const monthEnds = events.filter((e) => e.type === 'monthEnd');
     expect(monthEnds.length).toBe(12);
-    expect(monthEnds[0]).toEqual({ type: 'monthEnd', date: { year: 1900, month: 1, day: 30, hour: 23 } });
+    expect(monthEnds[0]).toEqual({ type: 'monthEnd', date: { year: 1900, month: 4, day: 30, hour: 23 } });
     expect(events.filter((e) => e.type === 'yearEnd')).toEqual([{ type: 'yearEnd', year: 1900 }]);
-    expect(ctx.state.date).toEqual({ year: 1901, month: 1, day: 1, hour: 0 });
+    expect(ctx.state.date).toEqual({ year: 1901, month: 4, day: 1, hour: 0 });
   });
 
   it('month-end ledger entries land in the month that ended', () => {
@@ -84,11 +85,11 @@ describe('stepTick', () => {
     must(placeBuilding(ctx, 'player', 'sawmill', { x: 2, y: 2 }));
     const afterBuild = s.companies.player.money;
     runDays(ctx, 30);
-    const jan = s.companies.player.ledger.find((m) => m.year === 1900 && m.month === 1);
+    const jan = s.companies.player.ledger.find((m) => m.year === 1900 && m.month === 4);
     expect(jan?.expense.maintenance).toBe(BUILDINGS.sawmill.maintenance);
     expect(jan?.cashEnd).toBe(afterBuild - BUILDINGS.sawmill.maintenance);
     expect(jan?.netWorthEnd).toBe(jan!.cashEnd + BUILDINGS.sawmill.cost * 0.5);
-    expect(s.companies.player.ledger.find((m) => m.month === 2)?.expense.maintenance ?? 0).toBe(0);
+    expect(s.companies.player.ledger.find((m) => m.month === 5)?.expense.maintenance ?? 0).toBe(0);
   });
 
   it('player bankruptcy ends the game once', () => {
@@ -116,7 +117,7 @@ describe('stepTick', () => {
     const ctx = testCtx();
     runTicks(ctx, 25);
     expect(ctx.state.tick).toBe(25);
-    expect(ctx.state.date).toEqual({ year: 1900, month: 1, day: 2, hour: 1 });
+    expect(ctx.state.date).toEqual({ year: 1900, month: 4, day: 2, hour: 1 });
   });
 });
 

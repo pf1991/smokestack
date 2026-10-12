@@ -13,6 +13,11 @@ export function lightLevel(hour: number): number {
   return lerp(1, 0.25, (h - 17) / 4);
 }
 
+/** Whether lamps and windows are lit for this hour; independent of speed and easing. */
+export function isLit(hour: number): boolean {
+  return lightLevel(hour) < 0.8;
+}
+
 /** Real-time constant (ms) for easing the rendered light level toward the clock's light level. */
 export const LIGHT_EASE_MS = 1500;
 /** At the fastest speed the light never drops below this, so day/night cannot flash. */
@@ -32,12 +37,12 @@ export function easeLight(current: number | null, hour: number, dtMs: number, sp
   return speed >= 8 ? Math.max(FAST_MIN_LIGHT, next) : next;
 }
 
-/** Era colour grading: sepia 0.8 -> 0 and saturate 0.6 -> 1.15 from 1900 to 1965. */
+/** Era colour grading: sepia 0.45 -> 0 and saturate 0.85 -> 1.15 from 1900 to 1965. */
 export function eraGrade(year: number): { sepia: number; saturate: number } {
   const t = clamp01((year - 1900) / 65);
   return {
-    sepia: lerp(0.8, 0, t),
-    saturate: lerp(0.6, 1.15, t),
+    sepia: lerp(0.45, 0, t),
+    saturate: lerp(0.85, 1.15, t),
   };
 }
 

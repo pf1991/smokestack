@@ -45,6 +45,7 @@ describe('production', () => {
   it('farm fallow in January, x1.5 in August', () => {
     const ctx = testCtx();
     const b = place(ctx, 'farm', 5, 5, 'r_grain');
+    ctx.state.date.month = 1;
     productionDay(ctx);
     expect(b.output.grain ?? 0).toBe(0);
     ctx.state.date.month = 8;
@@ -107,7 +108,7 @@ describe('production', () => {
   it('halted building does not produce and clears when passed', () => {
     const ctx = testCtx(testState({ terrain: 'forest' }));
     const b = place(ctx, 'lumber_camp', 5, 5);
-    b.haltedUntil = { year: 1900, month: 1, day: 5, hour: 0 };
+    b.haltedUntil = { year: 1900, month: 4, day: 5, hour: 0 };
     productionDay(ctx);
     expect(b.status).toBe('halted');
     expect(b.output.wood ?? 0).toBe(0);
