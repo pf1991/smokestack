@@ -127,7 +127,7 @@ export class ToolController {
         this.dragStart = { ...tile };
         break;
       case 'bulldoze':
-        this.bulldoze(tile, true);
+        this.bulldoze(tile, true, world);
         break;
       case 'inspect':
         this.inspect(tile, world);
@@ -178,20 +178,26 @@ export class ToolController {
     if (!r.ok) this.toast(r.error, 'bad');
   }
 
-  private bulldoze(tile: Vec2, explicit: boolean): void {
+  /**
+   * An explicit click picks the building drawn under the pointer (raised roofs included, as inspect
+   * and pickStop do); a drag only lifts roads and rails, by tile.
+   */
+  private bulldoze(tile: Vec2, explicit: boolean, world?: Vec2): void {
     const t = tileAt(this.state, tile);
-    if (!t) return;
-    if (t.buildingId !== null) {
+    const picked = explicit ? this.buildingAt(tile, world) : null;
+    if (picked === null && !t) return;
+    const buildingId = picked ?? t?.buildingId ?? null;
+    if (buildingId !== null) {
       if (!explicit) return;
-      const affected = routesUsing(this.state, t.buildingId);
-      const r = demolishBuilding(this.game.ctx, t.buildingId, 'player');
+      const affected = routesUsing(this.state, buildingId);
+      const r = demolishBuilding(this.game.ctx, buildingId, 'player');
       if (!r.ok) this.toast(r.error, 'bad');
       else reportLostStops(this.game.ctx, affected);
-    } else if (t.rail) {
+    } else if (t?.rail) {
       // rail first: on a level crossing the road stays
       const r = removeRail(this.game.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
-    } else if (t.road) {
+    } else if (t?.road) {
       const r = removeRoad(this.game.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
     }
@@ -240,7 +246,7 @@ export class ToolController {
     renderer.setSelection(null);
     // a click on a landmark's raised tower inspects its city even from the tile above
     const lm = this.raised && world ? landmarkAtPoint(this.state, world) : null;
-    const cityId = lm ? this.state.cities.indexOf(lm.city) : tileAt(this.state, tile)?.cityId;
+    const cityId = lm ? lm.city.id : tileAt(this.state, tile)?.cityId;
     if (cityId !== null && cityId !== undefined) {
       if (PANELS.city) this.game.openPanel('city', cityId);
       else {

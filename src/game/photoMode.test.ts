@@ -20,7 +20,22 @@ function stub(state: GameState) {
   document.body.appendChild(uiRoot);
   const disposers: (() => void)[] = [];
   const hooks = new Set<(now: number) => void>();
+  const renderer = {
+    uiHidden: false,
+    selection: { buildingId: 1 } as unknown,
+    setSelection: vi.fn((sel: unknown) => {
+      renderer.selection = sel;
+    }),
+    setUiHidden: vi.fn((v: boolean) => {
+      renderer.uiHidden = v;
+    }),
+  };
+  const tools = { cancel: vi.fn() };
+  const closeDrawer = vi.fn();
   const game = {
+    renderer,
+    tools,
+    closeDrawer,
     state,
     camera: { x: 0, y: 0, zoom: DEFAULT_ZOOM, viewW: 1280, viewH: 720 },
     uiRoot,
@@ -39,7 +54,7 @@ function stub(state: GameState) {
       return () => hooks.delete(fn);
     },
   } as unknown as GameController;
-  return { game, toasts, uiRoot, disposers, hooks };
+  return { game, toasts, uiRoot, disposers, hooks, renderer, tools, closeDrawer };
 }
 
 const live: (() => void)[] = [];
@@ -178,6 +193,58 @@ describe('enterPhotoMode', () => {
     expect(name).toBe('smokestack-1925-st-ann-s-ford.png');
     expect(revoke).toHaveBeenCalledWith('blob:x');
     expect(toasts.some((t) => t.message === 'Photo saved')).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it('entering cancels the tool, clears the selection, closes the drawer and hides the tool UI', () => {
+    const { game, renderer, tools, closeDrawer } = stub(stateAt(6));
+    const exit = enterPhotoMode(game);
+    expect(tools.cancel).toHaveBeenCalledTimes(1);
+    expect(renderer.selection).toBeNull();
+    expect(closeDrawer).toHaveBeenCalledTimes(1);
+    expect(renderer.uiHidden).toBe(true);
+    exit();
+    expect(renderer.uiHidden).toBe(false);
+  });
+
+  it('swallows every key except Esc, P and the pan keys', () => {
+    const { game } = stub(stateAt(6));
+    const later = vi.fn();
+    window.addEventListener('keydown', later);
+    enterPhotoMode(game);
+    for (const key of ['Delete', 'r', 'n', 'b', 'f', 'v', 'x']) window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    expect(later).not.toHaveBeenCalled();
+    const passed = ['p', 'P', 'w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    for (const key of passed) window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    expect(later.mock.calls.map(([e]) => (e as KeyboardEvent).key)).toEqual(passed);
+    window.removeEventListener('keydown', later);
+  });
+
+  it('the export composites the world and overlay with the tool UI hidden, then the frame', () => {
+    const { game, renderer } = stub(stateAt(6));
+    const calls: string[] = [];
+    const g = new Proxy({} as Record<string, unknown>, {
+      get(target, prop) {
+        if (prop in target) return target[prop as string];
+        if (prop === 'createRadialGradient') return () => ({ addColorStop() {} });
+        if (prop === 'drawImage') {
+          return (src: unknown) => {
+            const name = src === game.canvas ? 'world' : src === game.overlay ? 'overlay' : 'other';
+            calls.push(`${name}:${renderer.uiHidden ? 'clean' : 'ui'}:${renderer.selection === null ? 'nosel' : 'sel'}`);
+          };
+        }
+        return () => {};
+      },
+      set(target, prop, v) {
+        target[prop as string] = v;
+        return true;
+      },
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(g as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(() => {});
+    enterPhotoMode(game);
+    document.querySelector<HTMLButtonElement>('.photo-export')!.click();
+    expect(calls).toEqual(['world:clean:nosel', 'overlay:clean:nosel']);
     vi.restoreAllMocks();
   });
 });

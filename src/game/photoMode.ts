@@ -11,6 +11,8 @@ import '../ui/photoMode.css';
 import type { GameController } from './controller';
 
 const CITY_RADIUS = 25;
+/** keys that still reach the game in photo mode (Esc is handled here; P toggles; the rest pan) */
+const PASS_KEYS = new Set(['p', 'w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
 const FALLBACK_CITY = 'The Valley';
 const CAPTION_FONT = "Georgia, 'Times New Roman', serif";
 
@@ -73,6 +75,11 @@ function drawFrame(g: CanvasRenderingContext2D, w: number, hgt: number, scale: n
 export function enterPhotoMode(game: GameController): () => void {
   const prevSpeed: Speed = game.state.speed;
   game.setSpeed(0);
+  // no tool, selection, drawer or ghost may linger in the shot (input.ts keeps the left button off the tools)
+  game.tools.cancel();
+  game.renderer.setSelection(null);
+  game.closeDrawer();
+  game.renderer.setUiHidden(true);
 
   let caption = photoCaption(game.state, centerTile(game));
   const vignette = h('div', { class: 'photo-vignette' });
@@ -101,6 +108,7 @@ export function enterPhotoMode(game: GameController): () => void {
     vignette.remove();
     captionEl.remove();
     bar.remove();
+    game.renderer.setUiHidden(false);
     if (restoreSpeed) game.setSpeed(prevSpeed);
   };
   const exit = (): void => teardown(true);
@@ -116,6 +124,7 @@ export function enterPhotoMode(game: GameController): () => void {
     out.height = src.height;
     const g = out.getContext('2d');
     if (g) {
+      // the overlay keeps the survey city labels; selection, ghost and floaters are off (setUiHidden)
       g.drawImage(src, 0, 0);
       g.drawImage(game.overlay, 0, 0, out.width, out.height);
       drawFrame(g, out.width, out.height, out.width / (window.innerWidth || out.width), caption);
@@ -137,17 +146,19 @@ export function enterPhotoMode(game: GameController): () => void {
     }, 'image/png');
   };
 
-  // capture phase: Esc leaves photo mode only, and never reaches the pause-menu handler
+  // capture phase: Esc leaves photo mode only, and never reaches the pause-menu handler; every other
+  // key except P and the pan keys is swallowed (the sim stays paused, no tool or panel can open)
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopImmediatePropagation();
       exit();
-    } else if (e.key === ' ' || ['1', '2', '3', '4'].includes(e.key)) {
-      // the sim stays paused while framing a shot
-      e.preventDefault();
-      e.stopImmediatePropagation();
+      return;
     }
+    if (PASS_KEYS.has(e.key.toLowerCase())) return;
+    e.stopImmediatePropagation();
+    // browser shortcuts (Ctrl/Cmd/Alt combos, F-keys) keep their default action
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) e.preventDefault();
   }
 
   const bar = h('div', { class: 'photo-bar' },

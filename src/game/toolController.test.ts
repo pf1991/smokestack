@@ -207,6 +207,34 @@ describe('ToolController', () => {
       expect(buildingAtPoint(ctx.state, p, true)).toBe(front.id);
       expect(buildingAtPoint(ctx.state, p, false)).toBe(back.id);
     });
+    it('an explicit bulldoze click on a raised roof demolishes that building, not the road under it', async () => {
+      const { BUILDING_HEIGHT } = await import('../render/sprites');
+      const { ctx, tc, game } = setup();
+      game.camera.zoom = 2;
+      const b = must(placeBuilding(ctx, 'player', 'steel_mill', { x: 5, y: 5 }));
+      must(buildRoad(ctx, 'player', [{ x: 6, y: 4 }]));
+      const W = ctx.state.map.width;
+      tc.setTool({ kind: 'bulldoze' });
+      tc.pointerDown({ x: 6, y: 4 }, { x: 6 * TILE + 4, y: 5 * TILE - BUILDING_HEIGHT.steel_mill + 2 });
+      tc.pointerUp({ x: 6, y: 4 });
+      expect(ctx.state.buildings[b.id]).toBeUndefined();
+      expect(ctx.state.map.tiles[4 * W + 6].road).toBe(true);
+    });
+    it('drag-bulldozing keeps tile semantics: it lifts the road under a raised roof and spares the building', () => {
+      const { ctx, tc, game } = setup();
+      game.camera.zoom = 2;
+      const b = must(placeBuilding(ctx, 'player', 'steel_mill', { x: 5, y: 5 }));
+      must(buildRoad(ctx, 'player', [{ x: 6, y: 3 }, { x: 6, y: 4 }]));
+      const W = ctx.state.map.width;
+      tc.setTool({ kind: 'bulldoze' });
+      tc.pointerDown({ x: 6, y: 2 }, { x: 6 * TILE + 4, y: 2 * TILE + 4 });
+      tc.pointerMove({ x: 6, y: 3 });
+      tc.pointerMove({ x: 6, y: 4 });
+      tc.pointerUp({ x: 6, y: 4 });
+      expect(ctx.state.map.tiles[3 * W + 6].road).toBe(false);
+      expect(ctx.state.map.tiles[4 * W + 6].road).toBe(false);
+      expect(ctx.state.buildings[b.id]).toBeDefined();
+    });
     it('zoomed out to the survey map, picking is by footprint only', () => {
       const { ctx, tc, renderer, game } = setup();
       game.camera.zoom = 1;

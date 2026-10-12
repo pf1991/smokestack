@@ -154,7 +154,7 @@ export interface Company {
   active: boolean;
 }
 
-export type NewsKind = 'historic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning';
+export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning';
 
 export interface NewsItem {
   id: number;

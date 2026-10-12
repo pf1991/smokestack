@@ -30,6 +30,11 @@ export interface InputHost {
   onManualPan?(): void;
   /** right-click without dragging: cancels pick mode */
   readonly activeToolKind?: string;
+  /**
+   * True while photo mode is on: the left button pans instead of reaching the tool, hovering sets no
+   * ghost, and only Esc, P and the pan keys act (wheel zoom and right/middle-drag pan still work).
+   */
+  readonly photoActive?: boolean;
 }
 
 const PAN_KEYS: Record<string, Vec2> = {
@@ -59,6 +64,7 @@ export function isTyping(target: EventTarget | null): boolean {
  * Mouse, wheel and keyboard handling per Game Design → Controls. Left button → current tool;
  * right/middle drag pans; wheel zooms at the cursor; WASD/arrows pan; Space pauses; 1–4 set speeds;
  * Esc cancels the tool; B toggles the toolbar; Delete picks the bulldozer; R/F/N open panels.
+ * In photo mode (`host.photoActive`) the left button pans too and only Esc, P and the pan keys act.
  */
 export class Input {
   private held = new Set<string>();
@@ -118,7 +124,7 @@ export class Input {
   }
 
   private down(e: PointerEvent): void {
-    if (e.button === 1 || e.button === 2) {
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && this.host.photoActive)) {
       e.preventDefault();
       this.pan = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
       this.capture(e.pointerId);
@@ -143,6 +149,7 @@ export class Input {
       clampCamera(cam, this.host.map);
       return;
     }
+    if (this.host.photoActive) return;
     this.host.tools.pointerMove(this.tileOf(e));
   }
 
@@ -175,6 +182,7 @@ export class Input {
       return;
     }
     if (e.repeat) return;
+    if (this.host.photoActive && key !== 'escape' && key !== 'p') return;
     if (key === ' ') {
       e.preventDefault();
       this.host.togglePause();

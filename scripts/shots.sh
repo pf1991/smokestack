@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Screenshot matrix: sizes x skipYears x zoom, via headless Chrome against the vite dev server.
 # Usage: scripts/shots.sh [port]   (default 5199). Exits non-zero if any shot is missing or < 50 KB.
+# A shot under 2 KB (Chrome sometimes writes a blank PNG under parallel load) is retried up to 2 times.
 #
 # The URL uses speed=0 (deviation from the original brief's speed=1, approved): the game starts
 # paused so the HUD date is deterministic (1900-04-01 + skipYears*360 + 20 autoplay days) instead of
@@ -32,19 +33,27 @@ curl -sf "http://localhost:$PORT/" >/dev/null || { echo "dev server did not star
 
 shot() {
   local w="$1" h="$2" skip="$3" zoom="$4"
-  local udd
-  udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
-  timeout 180 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
-    --user-data-dir="$udd" --virtual-time-budget=10000 \
-    --window-size="$w,$((h + CHROME_H_OFFSET))" \
-    --screenshot="shots/${w}-y${skip}-z${zoom}.png" \
-    "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=$zoom&hour=16" >/dev/null 2>&1
-  rm -rf "$udd"
+  local f="shots/${w}-y${skip}-z${zoom}.png"
+  local udd attempt
+  # under parallel Chromes a shot sometimes comes out blank (~301 bytes): retry those up to 2 times
+  for attempt in 1 2 3; do
+    udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
+    rm -f "$f"
+    timeout 180 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+      --user-data-dir="$udd" --virtual-time-budget=10000 \
+      --window-size="$w,$((h + CHROME_H_OFFSET))" \
+      --screenshot="$f" \
+      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=$zoom&hour=16" >/dev/null 2>&1
+    rm -rf "$udd"
+    if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
+    echo "blank or missing shot $f (attempt $attempt)" >&2
+  done
   # crop the empty strip below the viewport
-  convert "shots/${w}-y${skip}-z${zoom}.png" -crop "${w}x${h}+0+0" +repage "shots/${w}-y${skip}-z${zoom}.png" 2>/dev/null
+  convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
 export -f shot
-export PORT CHROME_H_OFFSET
+MIN_SHOT_BYTES=2048
+export PORT CHROME_H_OFFSET MIN_SHOT_BYTES
 
 for size in 1366,768 1920,1080; do
   for skip in 0 25 55 85; do

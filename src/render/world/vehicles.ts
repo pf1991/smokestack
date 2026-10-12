@@ -66,7 +66,6 @@ export function vehiclePose(vehicleDir: Map<number, Dir>, v: Vehicle, alpha: num
 
 export function drawVehicles(ctx: CanvasRenderingContext2D, vs: VehicleRenderState, state: GameState, r: TileRange, alpha: number, dt: number, lit = false): void {
   const now = performance.now();
-  for (const id of vs.lastPuff.keys()) if (!state.vehicles[id]) vs.lastPuff.delete(id);
   for (const id in state.vehicles) {
     const v = state.vehicles[id];
     if (v.pos.x < r.x0 - SPRITE_MARGIN || v.pos.x > r.x1 + SPRITE_MARGIN || v.pos.y < r.y0 - SPRITE_MARGIN || v.pos.y > r.y1 + SPRITE_MARGIN) continue;

@@ -80,3 +80,8 @@ export function showStamp(text: string, tone: 'good' | 'bad'): void {
   root.appendChild(el);
   setTimeout(() => el.remove(), STAMP_MS);
 }
+
+/** Removes any stamps still on screen (game teardown), wherever showStamp put them. */
+export function clearStamps(): void {
+  for (const el of document.querySelectorAll('.stamp')) el.remove();
+}

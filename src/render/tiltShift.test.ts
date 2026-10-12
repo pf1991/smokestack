@@ -109,4 +109,31 @@ describe('TiltShiftBudget', () => {
     run(3000, 100); // slow again: off, now for 30 s
     expect(run(25_000, 16)).toBe(0);
   });
+
+  it('ignores the first second after creation or reset (load hitches do not switch it off)', () => {
+    const b = new TiltShiftBudget();
+    let now = 5000;
+    // 900 ms of awful frames right after creation: ignored, the effect stays on
+    for (let t = 0; t < 900; t += 100) expect(b.allow((now += 100), 100)).toBe(true);
+    for (let i = 0; i < 100; i++) expect(b.allow((now += 16), 16)).toBe(true);
+    // the same after a reset
+    b.reset();
+    for (let t = 0; t < 900; t += 100) expect(b.allow((now += 100), 100)).toBe(true);
+    // past the warm-up, sustained slow frames still switch it off
+    let on = 0;
+    for (let t = 0; t < 3000; t += 100) if (b.allow((now += 100), 100)) on++;
+    expect(on).toBeLessThan(30);
+  });
+
+  it('ignores samples while the page is hidden (background-tab gaps are not slow frames)', () => {
+    let hidden = false;
+    const b = new TiltShiftBudget(() => hidden);
+    let now = 0;
+    for (let i = 0; i < 100; i++) b.allow((now += 16), 16);
+    hidden = true;
+    for (let i = 0; i < 100; i++) b.allow((now += 250), 250);
+    hidden = false;
+    expect(b.allow((now += 16), 16)).toBe(true);
+  });
 });
+

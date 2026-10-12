@@ -74,7 +74,7 @@ const SURF_PX = CHUNK_PX + PAD * 2;
 const RENDERS_PER_FRAME = 3;
 /** Minimum surface cap (~1.1 MB each); raised per frame to 2 × visible chunks + 8 so the visible set always fits. */
 const MIN_SURFACE_CAP = 48;
-/** Frames between sweeps of direction entries for vehicles that no longer exist. */
+/** Frames between sweeps of per-vehicle render state (direction, trail, exhaust) for vehicles that no longer exist. */
 const VEHICLE_DIR_SWEEP = 600;
 const HOUSE_VARIANTS = 16;
 const HUD_RECTS_FRAMES = 30;
@@ -123,6 +123,7 @@ export class WorldRenderer {
   private lastFilter = '';
   private ghost: Ghost | null = null;
   private selection: Selection | null = null;
+  private uiHidden = false;
   readonly vehicleDir = new Map<number, Dir>();
   /** Recent locomotive positions (tile coords, newest first) so wagons follow the track. */
   readonly trainTrails = new Map<number, TrainTrail>();
@@ -173,6 +174,11 @@ export class WorldRenderer {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas not supported');
     this.overlay = { canvas, ctx };
+  }
+
+  /** Photo mode: the overlay keeps city labels but draws no selection, ghost, ghost label or floaters. */
+  setUiHidden(hidden: boolean): void {
+    this.uiHidden = hidden;
   }
 
   setGhost(g: Ghost | null): void {
@@ -271,6 +277,7 @@ export class WorldRenderer {
       this.trainTrails.clear();
       this.lastPuff.clear();
       this.constructing.clear();
+      this.tiltBudget.reset();
       this.pendingSales.clear();
       this.lastFloat.clear();
       this.light = null;
@@ -282,6 +289,7 @@ export class WorldRenderer {
       for (const id of this.vehicleDir.keys()) if (!state.vehicles[id]) this.vehicleDir.delete(id);
       for (const [id, cs] of this.constructing) if (!state.buildings[id] || nowMs - cs.start >= BUILD_MS) this.constructing.delete(id);
       for (const id of this.trainTrails.keys()) if (!state.vehicles[id]) this.trainTrails.delete(id);
+      for (const id of this.lastPuff.keys()) if (!state.vehicles[id]) this.lastPuff.delete(id);
     }
     const dt = this.lastNow === null ? 16 : Math.min(100, Math.max(0, nowMs - this.lastNow));
     this.lastNow = nowMs;
@@ -361,7 +369,7 @@ export class WorldRenderer {
       ctx.globalAlpha = blend;
       applyAtmosphere(ctx, cam.viewW, cam.viewH, date, light);
       ctx.restore();
-      if (nightK > 0) drawNightLights(ctx, cam, r, visBuildings.filter((b) => !this.isScaffolding(b.id)), state, this.chunks, this.chunkCols, this.vehicleDir, alpha, nightK * blend);
+      if (nightK > 0) drawNightLights(ctx, cam, r, this.constructing.size === 0 ? visBuildings : visBuildings.filter((b) => !this.isScaffolding(b.id)), state, this.chunks, this.chunkCols, this.vehicleDir, alpha, nightK * blend);
     }
     if (survey) {
       ctx.save();
@@ -417,6 +425,7 @@ export class WorldRenderer {
 
   /** Selection, ghost, ghost label and sale floaters. */
   private drawUi(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera, alpha: number, nowMs: number): void {
+    if (this.uiHidden) return;
     const z = cam.zoom;
     ctx.save();
     ctx.scale(z, z);

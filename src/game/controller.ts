@@ -17,6 +17,7 @@ import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
 import { enterPhotoMode } from './photoMode';
 import { closeAllWindows } from '../ui/window';
+import { clearStamps } from '../ui/juice';
 import { Input } from './input';
 import { ToolController } from './toolController';
 import { biggestCity } from './autoplay';
@@ -260,9 +261,14 @@ export class GameController {
 
   private exitPhoto: (() => void) | null = null;
 
+  /** True while photo mode is on (Input stops sending the left button and keys to the tools). */
+  get photoActive(): boolean {
+    return this.exitPhoto !== null && document.body.classList.contains('photo-mode');
+  }
+
   /** P / HUD camera button: enters photo mode, or leaves it when already in. */
   togglePhotoMode(): void {
-    if (this.exitPhoto && document.body.classList.contains('photo-mode')) {
+    if (this.exitPhoto && this.photoActive) {
       this.exitPhoto();
       return;
     }
@@ -439,6 +445,7 @@ export class GameController {
     window.removeEventListener('pointerdown', this.onGesture, true);
     window.removeEventListener('keydown', this.onGesture, true);
     closeAllWindows();
+    clearStamps();
     this.sfx.dispose();
     this.onPause = null;
     this.uiRoot.replaceChildren();

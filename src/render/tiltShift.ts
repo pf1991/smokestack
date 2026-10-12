@@ -147,22 +147,42 @@ export function applyTiltShift(ctx: CanvasRenderingContext2D, w: number, h: numb
 export const SLOW_FRAME_MS = 45;
 const FIRST_BACKOFF_MS = 15_000;
 const MAX_BACKOFF_MS = 120_000;
+/** Frames in the first second after creation or reset (load, chunk warm-up) are not sampled. */
+export const BUDGET_WARMUP_MS = 1000;
+
+const pageHidden = (): boolean => typeof document !== 'undefined' && document.hidden;
 
 /**
  * Keeps the tilt-shift from costing frames on machines that are already struggling. Reading the
  * world canvas back mid-frame and compositing the bands costs a few ms; at full speed that is
  * invisible, but on a slow (software) canvas it costs a quarter of the frame rate. When the average
  * frame time goes over SLOW_FRAME_MS the effect is dropped for 15 s, then retried; each retry that
- * is still slow doubles the wait, up to 2 minutes.
+ * is still slow doubles the wait, up to 2 minutes. Samples from the first BUDGET_WARMUP_MS after
+ * creation or reset, and while the page is hidden, are ignored.
  */
 export class TiltShiftBudget {
   private ema = 16;
   private offUntil = -Infinity;
   private backoff = FIRST_BACKOFF_MS;
+  /** time of the first frame seen since creation or reset */
+  private since: number | null = null;
+
+  constructor(private readonly isHidden: () => boolean = pageHidden) {}
+
+  /** Forgets everything (new game, new map): the next second is a fresh warm-up. */
+  reset(): void {
+    this.ema = 16;
+    this.offUntil = -Infinity;
+    this.backoff = FIRST_BACKOFF_MS;
+    this.since = null;
+  }
 
   /** Feed each frame's real duration; true when the effect may run this frame. */
   allow(nowMs: number, dtMs: number): boolean {
-    this.ema += (Math.min(250, Math.max(0, dtMs)) - this.ema) * 0.05;
+    if (this.since === null) this.since = nowMs;
+    if (nowMs - this.since >= BUDGET_WARMUP_MS && !this.isHidden()) {
+      this.ema += (Math.min(250, Math.max(0, dtMs)) - this.ema) * 0.05;
+    }
     if (nowMs < this.offUntil) return false;
     if (this.ema > SLOW_FRAME_MS) {
       this.offUntil = nowMs + this.backoff;

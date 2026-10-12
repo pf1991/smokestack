@@ -65,9 +65,9 @@ export function pickAds(year: number, month: number): Ad[] {
   return out;
 }
 
-const KIND_RANK: Record<NewsKind, number> = { historic: 0, invention: 1, random: 2, rival: 3, contract: 4, market: 5, warning: 6 };
+const KIND_RANK: Record<NewsKind, number> = { historic: 0, civic: 1, invention: 2, random: 3, rival: 4, contract: 5, market: 6, warning: 7 };
 const KIND_LABEL: Record<NewsKind, string> = {
-  historic: 'Special Edition', random: 'Local News', invention: 'Science & Progress', market: 'Markets & Trade',
+  historic: 'Special Edition', civic: 'Civic Affairs', random: 'Local News', invention: 'Science & Progress', market: 'Markets & Trade',
   rival: 'Rivalry Corner', contract: 'Commerce', warning: 'Public Notice',
 };
 const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -167,8 +167,8 @@ export const newspaperPanel: PanelDef = {
 
 /**
  * Hooks the paper into a running game: opens it at month end when a historic event happened that
- * month (unless `localStorage['smokestack:autoNews']` is 'off'). `?news=1` publishes a few demo
- * stories and opens the paper immediately (visual check).
+ * month (unless `localStorage['smokestack:autoNews']` is 'off'). Civic stories (new landmarks) print
+ * but never open it. `?news=1` publishes a few demo stories and opens the paper immediately (visual check).
  */
 export function attachNewspaper(game: GameController): void {
   game.ctx.bus.on('monthEnd', (e) => {

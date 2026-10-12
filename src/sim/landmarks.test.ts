@@ -52,7 +52,7 @@ describe('landmarksMonth', () => {
       { type: 'landmarkBuilt', cityId: 0, id: 'church' },
       { type: 'landmarkBuilt', cityId: 0, id: 'town_hall' },
     ]);
-    expect(ctx.state.news.map((n) => n.kind)).toEqual(['historic', 'historic']);
+    expect(ctx.state.news.map((n) => n.kind)).toEqual(['civic', 'civic']);
     expect(ctx.state.news[0].headline).toContain('TOWN 0');
 
     // layer value = index + 1 on all 4 tiles

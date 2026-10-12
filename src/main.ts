@@ -37,7 +37,8 @@ const ui = document.getElementById('ui') as HTMLElement;
 const params = new URLSearchParams(location.search);
 const app = new App(canvas, ui);
 
-const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', 'inspect2'];
+// inspect2 does nothing outside DEV, so only there does it start a debug game
+const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', ...(import.meta.env.DEV ? ['inspect2'] : [])];
 const debugStart = !params.has('menu') && DEBUG_KEYS.some((k) => params.has(k));
 
 if (debugStart) {

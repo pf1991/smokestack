@@ -75,7 +75,7 @@ export function landmarksMonth(ctx: SimContext): void {
     const l = layer(state, LANDMARK_LAYER);
     const w = state.map.width;
     for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) l[(pos.y + dy) * w + pos.x + dx] = value;
-    publishNews(ctx, 'historic', landmarkHeadline(id, city.name), `${city.name} unveils its new ${LANDMARKS[id].name.toLowerCase()}. Citizens turn out in their Sunday best.`);
+    publishNews(ctx, 'civic', landmarkHeadline(id, city.name), `${city.name} unveils its new ${LANDMARKS[id].name.toLowerCase()}. Citizens turn out in their Sunday best.`);
     ctx.bus.emit({ type: 'landmarkBuilt', cityId: city.id, id });
   }
 }
