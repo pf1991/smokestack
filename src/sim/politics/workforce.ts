@@ -10,6 +10,8 @@ import type { Building, City, GameState, Vec2 } from '../types';
 
 /** How far (tiles, Euclidean from the footprint centre) a building hires from a town. */
 export const WORK_RADIUS = 30;
+/** Share of a town's people available as industrial hands, before the Workers' opinion scales it. */
+export const LABOUR_SHARE = 0.15;
 /** Staffing of a building with no town within WORK_RADIUS. */
 export const REMOTE_STAFFING = 0.75;
 /** A building never falls below this share of its workers, however crowded its town. */
@@ -38,9 +40,9 @@ export function workCity(state: GameState, b: Building): City | null {
   return best;
 }
 
-/** The hands a town can offer: 40% of its people, scaled 0.7..1.3 by the Workers' opinion. */
+/** The hands a town can offer: LABOUR_SHARE of its people, scaled 0.7..1.3 by the Workers' opinion. */
 export function laborPool(city: City): number {
-  return city.population * 0.4 * (0.7 + (0.6 * city.opinion.workers) / 100);
+  return city.population * LABOUR_SHARE * (0.7 + (0.6 * city.opinion.workers) / 100);
 }
 
 /** Monthly: assigns every building to a town and sets its staffing. Runs before factionsMonth. */

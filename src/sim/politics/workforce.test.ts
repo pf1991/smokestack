@@ -6,7 +6,7 @@ import { runDays } from '../simulation';
 import { placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Building, BuildingTypeId, GameState, OwnerId } from '../types';
-import { MIN_STAFFING, REMOTE_STAFFING, WORK_RADIUS, workCity, workforceMonth } from './workforce';
+import { LABOUR_SHARE, MIN_STAFFING, REMOTE_STAFFING, WORK_RADIUS, workCity, workforceMonth } from './workforce';
 
 /** Puts a building straight into state (no placement rules): workforce only reads type and position. */
 function put(state: GameState, typeId: BuildingTypeId, x: number, y: number, ownerId: OwnerId = 'player'): Building {
@@ -34,6 +34,7 @@ describe('workforce', () => {
     expect(WORK_RADIUS).toBe(30);
     expect(REMOTE_STAFFING).toBe(0.75);
     expect(MIN_STAFFING).toBe(0.5);
+    expect(LABOUR_SHARE).toBe(0.15);
   });
 
   it('a lone factory next to a 5,000-person city is fully staffed', () => {
@@ -50,16 +51,16 @@ describe('workforce', () => {
     const bs: Building[] = [];
     for (let i = 0; i < 40; i++) bs.push(put(state, 'sawmill', 15 + (i % 8) * 4, 15 + Math.floor(i / 8) * 4));
     workforceMonth(state);
-    // pool 1000 * 0.4 * 1.0 = 400 against a need of 40 * 60 = 2400: ratio 1/6, floored at 0.5
+    // pool 1000 * LABOUR_SHARE (150) against a need of 40 * 60 = 2400: floored at 0.5
     for (const b of bs) expect(b.staffing).toBe(0.5);
   });
 
   it('shares the pool: ratio = pool / need when above the floor', () => {
-    const state = testState({ width: 80, height: 60, cities: [{ x: 30, y: 30, population: 1000 }] });
-    // pool 1000 * 0.4 = 400 against a need of 7 * 60 = 420
-    for (let i = 0; i < 7; i++) put(state, 'sawmill', 20 + i * 4, 20);
+    const state = testState({ width: 80, height: 60, cities: [{ x: 30, y: 30, population: 2000 }] });
+    // pool 2000 * LABOUR_SHARE (300) against a need of 6 * 60 = 360
+    for (let i = 0; i < 6; i++) put(state, 'sawmill', 20 + i * 4, 20);
     workforceMonth(state);
-    for (const b of Object.values(state.buildings)) expect(b.staffing).toBeCloseTo(400 / 420, 12);
+    for (const b of Object.values(state.buildings)) expect(b.staffing).toBeCloseTo((2000 * LABOUR_SHARE) / 360, 12);
   });
 
   it('a mine 40 tiles from any city works remotely at 0.75', () => {
@@ -72,14 +73,14 @@ describe('workforce', () => {
 
   it('workers opinion 0 lowers the pool by 30% compared with 50', () => {
     const pool = (opinion: number) => {
-      const state = testState({ width: 80, height: 60, cities: [{ x: 30, y: 30, population: 1000 }] });
+      const state = testState({ width: 80, height: 60, cities: [{ x: 30, y: 30, population: 2000 }] });
       state.cities[0].opinion.workers = opinion;
-      for (let i = 0; i < 8; i++) put(state, 'sawmill', 15 + i * 4, 20); // need 480
+      for (let i = 0; i < 6; i++) put(state, 'sawmill', 15 + i * 4, 20); // need 360, above both pools
       workforceMonth(state);
-      return state.buildings[1].staffing * 480;
+      return state.buildings[1].staffing * 360;
     };
-    expect(pool(50)).toBeCloseTo(400, 9);
-    expect(pool(0)).toBeCloseTo(280, 9);
+    expect(pool(50)).toBeCloseTo(300, 9);
+    expect(pool(0)).toBeCloseTo(210, 9);
     expect(pool(0) / pool(50)).toBeCloseTo(0.7, 12);
   });
 
