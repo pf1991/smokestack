@@ -1,6 +1,7 @@
 import { EventBus } from '../core/events';
 import type { Result } from '../core/result';
 import { START_DATE } from './clock';
+import { SAVE_VERSION } from './migrations';
 import { createCompany, STARTING_MONEY } from './finance';
 import { urbanRadius } from './market';
 import { connectToRoads, ensureRoadLink } from './roads';
@@ -71,7 +72,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
   const player = createCompany('player', 'Test Co.', opts.money ?? STARTING_MONEY);
   const rival = createCompany('rival', 'Rival Co.', opts.rivalMoney ?? STARTING_MONEY);
   const state: GameState = {
-    version: 1,
+    version: SAVE_VERSION,
     seed: opts.seed ?? 1,
     rngState: opts.seed ?? 1,
     date: { ...START_DATE, year },
@@ -91,6 +92,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     scenarioId: 'test',
     rivalProject: null,
     flags: {},
+    layers: {},
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

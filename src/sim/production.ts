@@ -1,5 +1,6 @@
 import { recordSale } from './scenarios';
 import { onSale } from './contracts';
+import { companyIds } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
 import { RECIPES } from '../data/recipes';
@@ -138,7 +139,7 @@ export function retailDay(ctx: SimContext): void {
 
 export function maintenanceMonth(ctx: SimContext): void {
   const { state } = ctx;
-  for (const owner of ['player', 'rival'] as const) {
+  for (const owner of companyIds(state)) {
     const company = state.companies[owner];
     let total = 0;
     for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += BUILDINGS[b.typeId].maintenance;

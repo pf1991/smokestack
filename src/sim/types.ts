@@ -2,7 +2,8 @@ import type { EventBus } from '../core/events';
 
 export type GoodId = string;
 export type BuildingTypeId = string;
-export type OwnerId = 'player' | 'rival';
+export type OwnerId = string;
+export type CompanyKind = 'player' | 'baron' | 'regional';
 export type Vec2 = { x: number; y: number };
 export type Inventory = Record<GoodId, number>;
 
@@ -139,6 +140,7 @@ export interface LedgerMonth {
 
 export interface Company {
   id: OwnerId;
+  kind: CompanyKind;
   name: string;
   money: number;
   loan: number;
@@ -211,7 +213,7 @@ export interface RivalRailProject {
 export type Speed = 0 | 1 | 2 | 4 | 8;
 
 export interface GameState {
-  version: 1;
+  version: number;
   seed: number;
   rngState: number;
   date: GameDate;
@@ -234,6 +236,8 @@ export interface GameState {
   rivalRail?: RivalRailProject | null;
   /** primitives only; timed effects store dateToDays() numbers, e.g. flags.railStrikeUntil */
   flags: Record<string, number | boolean | string>;
+  /** per-tile numeric layers (width*height each); see sim/layers.ts. Packed in saves. */
+  layers: Record<string, number[]>;
 }
 
 export interface SimContext {

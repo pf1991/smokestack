@@ -6,9 +6,11 @@ import { COMPANY_NAMES } from '../data/names';
 import { getRecipe, RECIPES, recipeEra } from '../data/recipes';
 import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
+import { SAVE_VERSION } from './migrations';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
+import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
 import { SCENARIOS } from './scenarios';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
@@ -248,7 +250,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   const rival = createCompany('rival', RIVAL_NAME);
   rival.active = opts.rival ?? true;
   const state: GameState = {
-    version: 1,
+    version: SAVE_VERSION,
     seed: opts.seed,
     rngState: rng.rngState,
     date: { ...START_DATE },
@@ -269,6 +271,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     rivalProject: null,
     rivalRail: null,
     flags: {},
+    layers: {},
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
@@ -373,6 +376,7 @@ export function placeBuilding(
     producedThisMonth: {},
   };
   state.buildings[building.id] = building;
+  invalidateSpatial(state);
   for (const p of footprint(building)) state.map.tiles[p.y * state.map.width + p.x].buildingId = building.id;
   ctx.bus.emit({ type: 'buildingPlaced', building });
   return ok(building);
@@ -469,6 +473,7 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
     }
   }
   delete state.buildings[id];
+  invalidateSpatial(state);
   ctx.bus.emit({ type: 'buildingRemoved', buildingId: id });
   return ok();
 }

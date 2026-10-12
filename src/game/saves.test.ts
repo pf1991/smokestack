@@ -1,13 +1,66 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachAutosave, listSaves, loadFrom, saveTo, SLOTS } from './saves';
-import { runDays } from '../sim/simulation';
+import { attachAutosave, listSaves, loadFrom, packState, saveTo, SLOTS, unpackState, unreadableSlots } from './saves';
+import { runDays, serialize } from '../sim/simulation';
+import { addCompany } from '../sim/companies';
 import { createGame } from '../sim/state';
 import { testCtx, testState } from '../sim/testkit';
 
 beforeEach(() => localStorage.clear());
 
 describe('saves', () => {
+  it('packState/unpackState round-trip', () => {
+    const state = createGame({ seed: 7 });
+    const r = unpackState(packState(state));
+    expect(r.ok && r.value).toEqual(state);
+  });
+
+  it('a loaded state serializes byte-identically (tile key order included)', () => {
+    const state = createGame({ seed: 7 });
+    const r = unpackState(packState(state));
+    expect(r.ok && serialize(r.value)).toBe(serialize(state));
+  });
+
+  it('round-trips arbitrary owner ids on tiles', () => {
+    const s = createGame({ seed: 5 });
+    addCompany(s, { id: 'r_a', name: 'R', money: 1, loan: 0, kind: 'regional' });
+    for (let i = 0; i < 3; i++) { s.map.tiles[i].road = true; s.map.tiles[i].roadOwner = 'r_a'; }
+    const r = unpackState(packState(s));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const idx = r.value.map.tiles.flatMap((t, i) => (t.roadOwner === 'r_a' ? [i] : []));
+      expect(idx).toEqual([0, 1, 2]);
+    }
+  });
+
+  it('a SMOKESTACK I save is refused by loadFrom and skipped by listSaves', () => {
+    const v1 = JSON.stringify({ version: 1, map: { tiles: [] } });
+    localStorage.setItem('smokestack:save:slot1', v1);
+    localStorage.setItem('smokestack:save:slot1:meta', JSON.stringify({ slot: 'slot1', date: '1 Jan 1900', company: 'Old', money: 5 }));
+    localStorage.setItem('smokestack:save:slot2', v1);
+    expect(loadFrom('slot1')).toEqual({ ok: false, error: 'Save from SMOKESTACK I cannot be loaded in this version' });
+    expect(() => listSaves()).not.toThrow();
+    expect(listSaves()).toEqual([]);
+  });
+
+  it('unreadableSlots lists a SMOKESTACK I slot with the reason, and not empty or good slots', () => {
+    localStorage.setItem('smokestack:save:slot1', JSON.stringify({ version: 1, map: { tiles: [] } }));
+    saveTo('slot2', createGame({ seed: 3 }));
+    expect(unreadableSlots()).toEqual([{ slot: 'slot1', error: 'Save from SMOKESTACK I cannot be loaded in this version' }]);
+    expect(unreadableSlots()).toHaveLength(1); // second call served from the cache
+    localStorage.removeItem('smokestack:save:slot1');
+    expect(unreadableSlots()).toEqual([]);
+  });
+
+  it('saveTo returns an error Result (does not throw) when a layer holds an invalid value', () => {
+    const state = createGame({ seed: 3 });
+    state.layers.smog = state.map.tiles.map(() => 0);
+    state.layers.smog[5] = -0.5;
+    const r = saveTo('slot1', state);
+    expect(r.ok).toBe(false);
+    expect(localStorage.getItem('smokestack:save:slot1')).toBeNull();
+  });
+
   it('save/load round-trip in jsdom localStorage', () => {
     const state = createGame({ seed: 11, companyName: 'Round Trip Ltd' });
     state.companies.player.money = 123_456;
@@ -99,5 +152,17 @@ describe('saves', () => {
     raw.map.tiles[3] = 'x';
     localStorage.setItem('smokestack:save:slot1', JSON.stringify(raw));
     expect(loadFrom('slot1').ok).toBe(false);
+  });
+
+  it('round-trips layers and rejects a corrupted one', () => {
+    const s = testState({ width: 8, height: 6 });
+    s.layers.smog = Array.from({ length: 48 }, (_, i) => (i % 7 === 0 ? 1.5 : 0));
+    const r = unpackState(packState(s));
+    expect(r.ok && r.value.layers).toEqual(s.layers);
+    const raw = JSON.parse(packState(s));
+    raw.layers.smog = [-1, 99];
+    localStorage.setItem('smokestack:save:slot1', JSON.stringify(raw));
+    const bad = loadFrom('slot1');
+    expect(!bad.ok && bad.error).toBe('Save file is corrupted');
   });
 });

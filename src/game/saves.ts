@@ -1,5 +1,7 @@
 import { err, ok, type Result } from '../core/result';
 import { formatDate } from '../sim/clock';
+import { SAVE_VERSION } from '../sim/migrations';
+import { packLayer, unpackLayer } from '../sim/layers';
 import { deserialize, serialize } from '../sim/simulation';
 import type { GameState, OwnerId, SimContext, Terrain, Tile } from '../sim/types';
 
@@ -19,24 +21,30 @@ const META_KEY = (slot: string) => `smokestack:save:${slot}:meta`;
 // A raw GameState is ~1.7 MB (12,288 tile objects), so four slots would not fit the usual 5 MB
 // localStorage quota. Tiles are stored as small tuples instead and expanded again on load.
 const TERRAIN: Terrain[] = ['water', 'sand', 'grass', 'forest', 'hills', 'mountain'];
-const OWNERS: (OwnerId | null)[] = [null, 'player', 'rival'];
 
 type PackedTile = [number, string | 0, number, number, number, number, number, number];
 
-function packTile(t: Tile): PackedTile {
+function ownerIndex(owners: OwnerId[], id: OwnerId | null): number {
+  if (id === null) return -1;
+  let i = owners.indexOf(id);
+  if (i < 0) i = owners.push(id) - 1;
+  return i;
+}
+
+function packTile(t: Tile, owners: OwnerId[]): PackedTile {
   return [
     TERRAIN.indexOf(t.terrain),
     t.deposit ?? 0,
     (t.road ? 1 : 0) | (t.rail ? 2 : 0),
-    OWNERS.indexOf(t.roadOwner),
-    OWNERS.indexOf(t.railOwner),
+    ownerIndex(owners, t.roadOwner),
+    ownerIndex(owners, t.railOwner),
     t.buildingId ?? -1,
     t.cityId ?? -1,
     t.pollution,
   ];
 }
 
-function unpackTile(p: PackedTile): Tile {
+function unpackTile(p: PackedTile, owners: OwnerId[]): Tile {
   if (!Array.isArray(p) || p.length < 8 || !Number.isInteger(p[0]) || p[0] < 0 || p[0] >= TERRAIN.length) {
     throw new Error('bad tile');
   }
@@ -45,11 +53,12 @@ function unpackTile(p: PackedTile): Tile {
     deposit: p[1] === 0 ? null : p[1],
     road: (p[2] & 1) !== 0,
     rail: (p[2] & 2) !== 0,
-    roadOwner: OWNERS[p[3]] ?? null,
-    railOwner: OWNERS[p[4]] ?? null,
+    // same key order as mapgen's tiles, so a loaded state serializes (and hashes) identically
     buildingId: p[5] < 0 ? null : p[5],
     cityId: p[6] < 0 ? null : p[6],
     pollution: p[7],
+    roadOwner: owners[p[3]] ?? null,
+    railOwner: owners[p[4]] ?? null,
   };
 }
 
@@ -59,12 +68,55 @@ function errorText(e: unknown): string {
   return 'Browser storage is unavailable';
 }
 
+/** Serializes a state to the compact save format (tiles as tuples). */
+export function packState(state: GameState): string {
+  const owners: OwnerId[] = Object.keys(state.companies);
+  const tiles = state.map.tiles.map((t) => packTile(t, owners));
+  const layers: Record<string, number[]> = {};
+  for (const [id, l] of Object.entries(state.layers)) layers[id] = packLayer(l);
+  const packed = { ...state, map: { ...state.map, tiles, owners }, layers };
+  return serialize(packed as unknown as GameState);
+}
+
+/** Parses, migrates and validates a save string, expanding packed tiles. */
+export function unpackState(raw: string): Result<GameState> {
+  const r = deserialize(raw);
+  if (!r.ok) return r;
+  const state = r.value;
+  const tiles = state.map.tiles as unknown[];
+  // a plain object tile means a save that predates tile packing
+  if (tiles.length > 0 && typeof tiles[0] !== 'object') return err('Save file is corrupted');
+  if (Array.isArray(tiles[0])) {
+    try {
+      const raw = (state.map as unknown as { owners?: unknown }).owners;
+      if (!Array.isArray(raw) || !raw.every((o) => typeof o === 'string')) throw new Error('bad owners');
+      state.map.tiles = (tiles as PackedTile[]).map((p) => unpackTile(p, raw as OwnerId[]));
+      delete (state.map as unknown as { owners?: unknown }).owners;
+    } catch {
+      return err('Save file is corrupted');
+    }
+  }
+  try {
+    const n = state.map.width * state.map.height;
+    for (const id of Object.keys(state.layers)) state.layers[id] = unpackLayer(state.layers[id], n);
+  } catch {
+    return err('Save file is corrupted');
+  }
+  return ok(state);
+}
+
 /** Writes `state` to a slot. Never throws; a full or blocked storage returns an error. */
 export function saveTo(slot: SaveSlot, state: GameState): Result {
+  let packed: string;
   try {
-    const packed = { ...state, map: { ...state.map, tiles: state.map.tiles.map(packTile) } };
-    localStorage.setItem(KEY(slot), serialize(packed as unknown as GameState));
-    const meta: SaveInfo = {
+    packed = packState(state);
+  } catch {
+    return err('Game data is invalid and could not be saved');
+  }
+  try {
+    localStorage.setItem(KEY(slot), packed);
+    const meta: SaveInfo & { v: number } = {
+      v: SAVE_VERSION,
       slot,
       date: formatDate(state.date),
       company: state.companies.player.name,
@@ -94,45 +146,65 @@ export function loadFrom(slot: SaveSlot): Result<GameState> {
     return err('Browser storage is unavailable');
   }
   if (raw === null) return err('Empty slot');
-  const r = deserialize(raw);
-  if (!r.ok) return r;
-  const state = r.value;
-  const tiles = state.map.tiles as unknown[];
-  // a plain object tile means a save that predates tile packing
-  if (tiles.length > 0 && typeof tiles[0] !== 'object') return err('Save file is corrupted');
-  if (Array.isArray(tiles[0])) {
-    try {
-      state.map.tiles = (tiles as PackedTile[]).map(unpackTile);
-    } catch {
-      return err('Save file is corrupted');
-    }
-  }
-  return ok(state);
+  return unpackState(raw);
 }
 
-function readInfo(slot: SaveSlot): SaveInfo | null {
+type SlotScan = { info: SaveInfo } | { error: string } | null;
+
+// Unreadable saves (SMOKESTACK I, corrupt) have no trusted meta, so each scan would fully parse them.
+// Remember the verdict per slot, keyed by the raw string, so repeated menu repaints parse only once.
+const unreadableCache = new Map<SaveSlot, { raw: string; error: string }>();
+
+function scanSlot(slot: SaveSlot): SlotScan {
   try {
     const meta = localStorage.getItem(META_KEY(slot));
     if (meta !== null) {
-      const m = JSON.parse(meta) as SaveInfo;
-      if (typeof m.company === 'string' && typeof m.date === 'string' && typeof m.money === 'number' && localStorage.getItem(KEY(slot)) !== null) {
-        return { slot, date: m.date, company: m.company, money: m.money };
+      const m = JSON.parse(meta) as SaveInfo & { v?: number };
+      // metas without the current version (e.g. SMOKESTACK I) are not trusted; the full read decides
+      if (m.v === SAVE_VERSION && typeof m.company === 'string' && typeof m.date === 'string' && typeof m.money === 'number' && localStorage.getItem(KEY(slot)) !== null) {
+        return { info: { slot, date: m.date, company: m.company, money: m.money } };
       }
     }
   } catch {
     /* fall through to the full read */
   }
-  const r = loadFrom(slot);
-  if (!r.ok) return null;
-  return { slot, date: formatDate(r.value.date), company: r.value.companies.player.name, money: r.value.companies.player.money };
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(KEY(slot));
+  } catch {
+    return null;
+  }
+  if (raw === null) {
+    unreadableCache.delete(slot);
+    return null;
+  }
+  const cached = unreadableCache.get(slot);
+  if (cached && cached.raw === raw) return { error: cached.error };
+  const r = unpackState(raw);
+  if (!r.ok) {
+    unreadableCache.set(slot, { raw, error: r.error });
+    return { error: r.error };
+  }
+  unreadableCache.delete(slot);
+  return { info: { slot, date: formatDate(r.value.date), company: r.value.companies.player.name, money: r.value.companies.player.money } };
 }
 
 /** Metadata of every non-empty, readable slot, in SLOTS order. */
 export function listSaves(): SaveInfo[] {
   const out: SaveInfo[] = [];
   for (const slot of SLOTS) {
-    const info = readInfo(slot);
-    if (info) out.push(info);
+    const r = scanSlot(slot);
+    if (r && 'info' in r) out.push(r.info);
+  }
+  return out;
+}
+
+/** Slots that hold data which cannot be loaded (e.g. a SMOKESTACK I save), with the reason. */
+export function unreadableSlots(): { slot: SaveSlot; error: string }[] {
+  const out: { slot: SaveSlot; error: string }[] = [];
+  for (const slot of SLOTS) {
+    const r = scanSlot(slot);
+    if (r && 'error' in r) out.push({ slot, error: r.error });
   }
   return out;
 }

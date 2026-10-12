@@ -7,7 +7,8 @@ import { growthMonth, maintenanceMonth, productionDay, retailDay } from './produ
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
 import { goalsMonth } from './scenarios';
-import type { OwnerId, SimContext } from './types';
+import { companyIds } from './companies';
+import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
 /**
@@ -28,7 +29,7 @@ const finance: SimSystem = {
   id: FINANCE_SYSTEM_ID,
   onMonth(ctx) {
     const { state, bus } = ctx;
-    for (const id of Object.keys(state.companies) as OwnerId[]) {
+    for (const id of companyIds(state)) {
       const c = state.companies[id];
       const { bankrupt } = closeMonth(c, state.date);
       // after closeMonth so the month's interest is included
