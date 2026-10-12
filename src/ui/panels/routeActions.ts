@@ -1,4 +1,4 @@
-import { BUILDINGS } from '../../data/buildings';
+import { BUILDINGS, type BuildingDef } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import type { IconId } from '../../render/icons';
@@ -12,7 +12,7 @@ import { buyTruck, createRoute, deleteRoute, TRUCK, VEHICLE_KINDS } from '../../
 
 export type Kind = Route['kind'];
 
-const CATEGORY_ICON: Record<string, IconId> = { extractor: 'pick', factory: 'factory', retail: 'shop', logistics: 'crate' };
+const CATEGORY_ICON: Record<BuildingDef['category'], IconId> = { extractor: 'pick', factory: 'factory', retail: 'shop', logistics: 'crate' };
 
 export const buildingName = (b: Building | undefined): string => (b ? (BUILDINGS[b.typeId]?.name ?? b.typeId) : 'Missing building');
 /** Atlas icon for a building's category ('warning' when it is gone). */

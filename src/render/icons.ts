@@ -611,13 +611,14 @@ export function drawIcon(g: Ctx, id: IconId, x: number, y: number, size: number)
 
 const urlCache = new Map<string, string>();
 
-/** PNG data URL of icon `id` at `size` CSS px (rendered at device resolution), cached per id@size. '' without a canvas (jsdom). */
+/** PNG data URL of icon `id` at `size` CSS px (rendered at device resolution), cached per id@size and render scale. '' without a canvas (jsdom). */
 export function iconDataUrl(id: IconId, size: number): string {
-  const key = `${id}@${size}`;
-  const hit = urlCache.get(key);
-  if (hit !== undefined) return hit;
+  // jsdom has no canvas; sniff it first to avoid its "not implemented" console noise
   if (typeof document === 'undefined' || /jsdom/i.test(globalThis.navigator?.userAgent ?? '')) return '';
   const scale = Math.max(1, Math.min(3, Math.ceil(globalThis.devicePixelRatio || 1)));
+  const key = `${id}@${size}x${scale}`; // scale in the key: a DPR change re-renders
+  const hit = urlCache.get(key);
+  if (hit !== undefined) return hit;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size * scale;
   const g = canvas.getContext('2d');

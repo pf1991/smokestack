@@ -114,6 +114,9 @@ describe('city panel', () => {
     const rows = [...document.querySelectorAll<HTMLElement>('tr.insp-good')];
     const crave = rows.filter((r) => r.textContent!.includes('Craves')).map((r) => r.dataset.good);
     expect(crave).toHaveLength(3);
+    for (const r of rows.filter((x) => x.textContent!.includes('Craves'))) {
+      expect(r.querySelector('.insp-crave img[data-icon="star"]')).not.toBeNull();
+    }
     expect(crave[0]).toBe('furniture');
     expect(crave).not.toContain('bread');
     // rows are ordered by unmet demand x price, so craves come first
