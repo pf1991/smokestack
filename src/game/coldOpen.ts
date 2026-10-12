@@ -30,8 +30,11 @@ export const BARON_LINE = "Smogsworth: 'This valley is mine, upstart.'";
 const OPEN_ZOOM = 0.6;
 /** Zoom over the Baron's city: closer, still on the map. */
 const BARON_ZOOM = 1;
-/** Each camera move takes this long from its step's time. */
-const MOVE_MS = 2000;
+/**
+ * Each camera move starts at its step's time and takes this long (by keyframe index). The landing
+ * is quicker, done by 6.3 s, so the family card then holds over the player's town in the diorama.
+ */
+const MOVE_MS = [0, 2000, 1300];
 /** Slow push-in over the establishing shot. */
 const DRIFT = 1.1;
 /** With reduced motion the timeline runs at this fraction of its length. */
@@ -83,11 +86,11 @@ function easeInOut(u: number): number {
 }
 
 /**
- * Camera at `t` ms: each keyframe's move starts at its step time and eases in-out over MOVE_MS
- * (centre linear, zoom geometric so the swoop feels even), then holds. The establishing shot pushes
- * in slowly until the first move. `cut` jumps straight to each keyframe.
+ * Camera at `t` ms: each keyframe's move starts at its step time and eases in-out over its MOVE_MS
+ * (times `scale`; centre linear, zoom geometric so the swoop feels even), then holds. The
+ * establishing shot pushes in slowly until the first move. `cut` jumps straight to each keyframe.
  */
-export function cameraAt(steps: ColdOpenStep[], t: number, cut = false, moveMs = MOVE_MS): { x: number; y: number; zoom: number } {
+export function cameraAt(steps: ColdOpenStep[], t: number, cut = false, scale = 1): { x: number; y: number; zoom: number } {
   const keys = steps.filter((s) => s.camera);
   const first = keys[0].camera!;
   const drifted = (): { x: number; y: number; zoom: number } => {
@@ -100,7 +103,7 @@ export function cameraAt(steps: ColdOpenStep[], t: number, cut = false, moveMs =
   if (i === 0) return drifted();
   const to = keys[i].camera!;
   const from = i === 1 && !cut ? { ...first, zoom: first.zoom * DRIFT } : keys[i - 1].camera!;
-  const u = cut ? 1 : (t - keys[i].atMs) / moveMs;
+  const u = cut ? 1 : (t - keys[i].atMs) / ((MOVE_MS[i] ?? MOVE_MS[MOVE_MS.length - 1]) * scale);
   if (u >= 1) return to;
   const e = easeInOut(Math.max(0, u));
   return {
@@ -200,7 +203,7 @@ export function playColdOpen(game: GameController, onDone: () => void): () => vo
     t += last === null ? 0 : Math.min(MAX_STEP_MS, Math.max(0, now - last));
     last = now;
     if (t >= endMs) return finish();
-    apply(cameraAt(steps, t, reduced, MOVE_MS * scale));
+    apply(cameraAt(steps, t, reduced, scale));
     showCard(t);
     if (t >= endMs - OUTRO_MS * scale) layer.classList.add('coldopen-out');
   };

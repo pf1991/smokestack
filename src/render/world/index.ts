@@ -33,7 +33,7 @@ import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
-import { applyTiltShift } from '../tiltShift';
+import { TiltShiftBudget, applyTiltShift, insetsFromRects, type ViewInsets } from '../tiltShift';
 import { MAX_CASTER_Z, MAX_SHADOW_LENGTH, SHADOW_COLOR, type SunVector, easeSun, shadowAlpha, targetSun, traceShadow } from '../shadows';
 import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
@@ -142,6 +142,12 @@ export class WorldRenderer {
   /** HUD chrome rects city labels avoid; re-measured every HUD_RECTS_FRAMES frames */
   private hud: ScreenRect[] = [];
   private hudMeasured = false;
+  /** visible world area for the tilt-shift, from `hud`; `insetsH` is the view height it was measured at */
+  private insets: ViewInsets = { top: 0, bottom: 0 };
+  private insetsH = -1;
+  private readonly tiltBudget = new TiltShiftBudget();
+  /** keep the tilt-shift on even when frames are slow (DEV `tiltshift=1`, for screenshots) */
+  forceTiltShift = false;
   private readonly labels = new CityLabelCache();
   /** city urban discs, so month end only redraws survey chunks whose town tint changed */
   private urban: UrbanWatch;
@@ -364,13 +370,17 @@ export class WorldRenderer {
       ctx.restore();
     }
     ctx.restore();
-    // miniature look on the world canvas only (UI goes on the overlay canvas and the DOM HUD)
-    if (diorama) applyTiltShift(ctx, cam.viewW, cam.viewH, blend);
-
-    if (survey && (!this.hudMeasured || this.frame % HUD_RECTS_FRAMES === 0)) {
+    // HUD rects (city labels avoid them; the tilt-shift bands start below and above them), re-measured
+    // every HUD_RECTS_FRAMES frames rather than per frame
+    if (!this.hudMeasured || this.frame % HUD_RECTS_FRAMES === 0 || this.insetsH !== cam.viewH) {
       this.hud = hudRects();
       this.hudMeasured = true;
+      this.insets = insetsFromRects(this.hud, cam.viewH);
+      this.insetsH = cam.viewH;
     }
+    // miniature look on the world canvas only (UI goes on the overlay canvas and the DOM HUD)
+    // (the budget sees every frame, so it notices slow frames whichever regime is on screen)
+    if ((this.tiltBudget.allow(nowMs, dt) || this.forceTiltShift) && diorama) applyTiltShift(ctx, cam.viewW, cam.viewH, blend, this.insets);
 
     if (this.overlay) {
       const o = this.overlay.ctx;

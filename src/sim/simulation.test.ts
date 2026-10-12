@@ -49,7 +49,7 @@ describe('stepTick', () => {
     };
     withSpy(spy, () => runDays(ctx, 30));
     expect(counts).toEqual({ tick: 720, day: 30, month: 1, year: 0 });
-    expect(ctx.state.date).toEqual({ year: 1900, month: 5, day: 1, hour: 0 });
+    expect(ctx.state.date).toEqual({ year: 1900, month: 5, day: 1, hour: 8 });
     expect(ctx.state.tick).toBe(720);
   });
 
@@ -76,7 +76,7 @@ describe('stepTick', () => {
     expect(monthEnds.length).toBe(12);
     expect(monthEnds[0]).toEqual({ type: 'monthEnd', date: { year: 1900, month: 4, day: 30, hour: 23 } });
     expect(events.filter((e) => e.type === 'yearEnd')).toEqual([{ type: 'yearEnd', year: 1900 }]);
-    expect(ctx.state.date).toEqual({ year: 1901, month: 4, day: 1, hour: 0 });
+    expect(ctx.state.date).toEqual({ year: 1901, month: 4, day: 1, hour: 8 });
   });
 
   it('month-end ledger entries land in the month that ended', () => {
@@ -117,7 +117,7 @@ describe('stepTick', () => {
     const ctx = testCtx();
     runTicks(ctx, 25);
     expect(ctx.state.tick).toBe(25);
-    expect(ctx.state.date).toEqual({ year: 1900, month: 4, day: 2, hour: 1 });
+    expect(ctx.state.date).toEqual({ year: 1900, month: 4, day: 2, hour: 9 });
   });
 });
 

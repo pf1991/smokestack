@@ -28,6 +28,7 @@ import type { Speed } from './sim/types';
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
  *  - `fps=1` (dev) after a 3 s warm-up, average the requestAnimationFrame rate over 5 s and put it
  *    in the document title as `FPS <avg> (<frames> frames, worst <ms> ms)` (read it via CDP)
+ *  - `tiltshift=1` (dev) keep the diorama tilt-shift on even when frames are slow (headless shots)
  *  - `coldopen=1` (dev, with a debug start) play the New Game cold open (game/coldOpen.ts)
  *  - `menu=1`          force the menu even when other parameters are present
  */
@@ -96,6 +97,7 @@ if (debugStart) {
       g.camera.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomParam));
       if (focus) g.centerOn(focus);
     }
+    if (import.meta.env.DEV && params.get('tiltshift') === '1') g.renderer.forceTiltShift = true;
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
     if (import.meta.env.DEV && params.get('openroute') === '1') {
       const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');

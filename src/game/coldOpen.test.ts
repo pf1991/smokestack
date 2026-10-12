@@ -47,11 +47,14 @@ describe('coldOpenScript', () => {
     const at = (t: number) => cameraAt(steps, t);
     expect(at(0).zoom).toBeCloseTo(0.6);
     expect(at(7500)).toEqual(steps[2].camera);
+    // the landing is done by 6.3 s, so the family card holds over the diorama town
+    expect(at(6300)).toEqual(steps[2].camera);
+    expect(at(6200).zoom).toBeGreaterThan(1.7);
     expect(at(4600)).toEqual(steps[1].camera);
     // ease-in-out: slow at the ends of a move, fast in the middle
     const d = (a: number, b: number) => Math.hypot(at(b).x - at(a).x, at(b).y - at(a).y);
-    expect(d(5000, 5100)).toBeLessThan(d(5900, 6000));
-    expect(d(6800, 6900)).toBeLessThan(d(5900, 6000));
+    expect(d(5000, 5100)).toBeLessThan(d(5600, 5700));
+    expect(d(6150, 6250)).toBeLessThan(d(5600, 5700));
   });
 });
 

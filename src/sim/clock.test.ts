@@ -58,7 +58,7 @@ describe('clock', () => {
 });
 
 describe('start date', () => {
-  it('new games start on 1 April 1900', () => {
-    expect(createGame({ seed: 7 }).date).toEqual({ year: 1900, month: 4, day: 1, hour: 0 });
+  it('new games start on 1 April 1900 at 08:00 (R-P10: the first look is in daylight)', () => {
+    expect(createGame({ seed: 7 }).date).toEqual({ year: 1900, month: 4, day: 1, hour: 8 });
   });
 });

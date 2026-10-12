@@ -3,7 +3,7 @@ import type { GameDate } from './types';
 export const TICKS_PER_DAY = 24;
 export const DAYS_PER_MONTH = 30;
 export const MONTHS_PER_YEAR = 12;
-export const START_DATE: GameDate = { year: 1900, month: 4, day: 1, hour: 0 };
+export const START_DATE: GameDate = { year: 1900, month: 4, day: 1, hour: 8 };
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

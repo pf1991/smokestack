@@ -108,7 +108,7 @@ describe('createGame', () => {
     expect(g.unlocked).not.toContain('cars');
     expect(g.unlocked).not.toContain('car_plant');
     expect(g.unlocked).not.toContain('r_fuel');
-    expect(g.date).toEqual({ year: 1900, month: 4, day: 1, hour: 0 });
+    expect(g.date).toEqual({ year: 1900, month: 4, day: 1, hour: 8 });
     for (const c of g.cities) {
       expect(tile(g, c.center.x, c.center.y).cityId).toBe(c.id);
       expect(tile(g, c.center.x, c.center.y).road).toBe(true);
