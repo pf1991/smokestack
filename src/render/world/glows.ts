@@ -1,6 +1,6 @@
 import type { Vec2 } from '../../sim/types';
 import { TILE } from '../camera';
-import { chimneyOffsets, drawHouse, windowRects } from '../sprites';
+import { chimneyOffsets, drawHouse, type HouseTier, windowRects } from '../sprites';
 import { type Ctx, type Surface, makeSurface } from './shared';
 
 /** A small garden tree for empty urban tiles. */
@@ -42,16 +42,16 @@ const houseGlowCache = new Map<string, Surface>();
  * Glow mask for a lit house: |lit − unlit| leaves only the window pixels (warm orange on black),
  * which added with 'lighter' compositing makes exactly those windows shine. A blurred copy adds a halo.
  */
-export function getHouseGlow(style: string, variant: number, year: number): Surface {
-  const key = `${style}|${variant}`;
+export function getHouseGlow(style: string, variant: number, year: number, tier: HouseTier = 'house'): Surface {
+  const key = `${style}|${variant}|${tier}`;
   let s = houseGlowCache.get(key);
   if (s) return s;
   const P = 6;
   const sharp = makeSurface(TILE + P * 2, TILE + P * 2);
   const g = (sharp as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D;
   const unlit = makeSurface(TILE + P * 2, TILE + P * 2);
-  drawHouse((unlit as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, P, P, variant, year, false);
-  drawHouse(g, P, P, variant, year, true);
+  drawHouse((unlit as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, P, P, variant, year, false, tier);
+  drawHouse(g, P, P, variant, year, true, tier);
   // one image-level difference (per-primitive difference would also cancel overlapping strokes)
   g.globalCompositeOperation = 'difference';
   g.drawImage(unlit as CanvasImageSource, 0, 0);

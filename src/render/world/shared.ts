@@ -23,8 +23,11 @@ export function makeSurface(w: number, h: number): Surface {
   return c;
 }
 
+/** Numbers per house in ChunkMeta.houses. */
+export const HOUSE_STRIDE = 5;
+
 export interface ChunkMeta {
-  /** flat [x, y, variant, lit] per house */
+  /** flat [x, y, variant, lit, tier] per house (tier indexes HOUSE_TIERS); stride HOUSE_STRIDE */
   houses: number[];
   /** flat [worldX, worldY] per street lamp */
   lamps: number[];

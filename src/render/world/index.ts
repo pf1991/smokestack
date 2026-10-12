@@ -20,14 +20,14 @@ import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
 import { ParticleSystem } from '../particles';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
-import { HEADROOM, drawHouse, getBuildingSprite, houseStyle } from '../sprites';
+import { HEADROOM, HOUSE_TIERS, drawHouse, getBuildingSprite, houseStyle, houseTier } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
 import { chimneysOf, paintGardenTree } from './glows';
 import { drawNightLights } from './night';
 import { paintRailTile } from './rails';
 import { hasLamp, paintBridgeTile, paintRoadTile, roadEra, roadMask } from './roads';
 import { drawGhost, drawGhostLabel, drawSelection } from './selection';
-import { type ChunkMeta, type Ctx, type Dir, SPRITE_MARGIN, type Surface, type TileRange, h01, makeSurface } from './shared';
+import { type ChunkMeta, type Ctx, HOUSE_STRIDE, type Dir, SPRITE_MARGIN, type Surface, type TileRange, h01, makeSurface } from './shared';
 import { type TrainTrail, drawVehicles } from './vehicles';
 
 export { hasLamp, roadEra, roadMask } from './roads';
@@ -191,7 +191,11 @@ export class WorldRenderer {
         this.constructing.delete(e.buildingId);
         this.invalidate();
       }),
-      bus.on('roadChanged', (e) => this.invalidate(e.tiles)),
+      bus.on('roadChanged', (e) => {
+        this.invalidate(e.tiles);
+        // a spreading city also clears forest/hills around its new streets (see layCityStreets)
+        for (const t of e.tiles) this.terrain.invalidateTile(t.x, t.y);
+      }),
       bus.on('railChanged', (e) => this.invalidate(e.tiles)),
       bus.on('ownershipChanged', () => this.invalidate()),
       bus.on('monthEnd', () => this.invalidate()),
@@ -378,6 +382,7 @@ export class WorldRenderer {
   /** Decides which tiles of a chunk carry houses and lamps (cheap; no drawing). */
   private computeMeta(cx: number, cy: number): ChunkMeta {
     const { map, cities, seed } = this.state;
+    const { year } = this.state.date;
     const houses: number[] = [];
     const lamps: number[] = [];
     let empty = true;
@@ -399,7 +404,9 @@ export class WorldRenderer {
         if (h01(x, y, seed, 31) >= p) continue;
         const variant = hash(x, y, seed, 37) % HOUSE_VARIANTS;
         const litHouse = h01(x, y, seed, 41) < 0.72 ? 1 : 0;
-        houses.push(x, y, variant, litHouse);
+        // tier inputs (population, year) change only at month end, which invalidates every chunk
+        const tier = HOUSE_TIERS.indexOf(houseTier(city.population, year, d));
+        houses.push(x, y, variant, litHouse, tier);
       }
     }
     return { houses, lamps, empty };
@@ -447,8 +454,8 @@ export class WorldRenderer {
         const isHouse = hi < meta.houses.length && meta.houses[hi] === x && meta.houses[hi + 1] === y;
         if (isHouse) {
           g.setTransform(1, 0, 0, 1, 0, 0);
-          drawHouse(g as CanvasRenderingContext2D, x * TILE - ox, y * TILE - oy, meta.houses[hi + 2], date.year, v === 1 && meta.houses[hi + 3] === 1);
-          hi += 4;
+          drawHouse(g as CanvasRenderingContext2D, x * TILE - ox, y * TILE - oy, meta.houses[hi + 2], date.year, v === 1 && meta.houses[hi + 3] === 1, HOUSE_TIERS[meta.houses[hi + 4]]);
+          hi += HOUSE_STRIDE;
           continue;
         }
         const t = map.tiles[y * map.width + x];

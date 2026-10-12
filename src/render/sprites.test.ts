@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BUILDINGS } from '../data/buildings';
 import { TILE } from './constants';
-import { chimneyOffsets, spriteKey, houseStyle, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS, LOCO_HALF, WAGON_HALF, drawTruck } from './sprites';
+import { chimneyOffsets, spriteKey, houseStyle, houseTier, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS, LOCO_HALF, WAGON_HALF, drawTruck } from './sprites';
 
 describe('sprites pure helpers', () => {
   it('chimneyOffsets and windowRects inside sprite bounds for every building', () => {
@@ -41,6 +41,16 @@ describe('sprites pure helpers', () => {
     expect(houseStyle(1930)).toBe('brick');
     expect(houseStyle(1950)).toBe('deco');
     expect(houseStyle(1990)).toBe('modern');
+  });
+  it('houseTier by population, year and distance from the centre', () => {
+    expect(houseTier(70000, 1960, 0.2)).toBe('tower');
+    expect(houseTier(70000, 1960, 0.5)).toBe('house');
+    expect(houseTier(45000, 1925, 0.2)).toBe('terrace');
+    expect(houseTier(10000, 1990, 0.1)).toBe('house');
+    expect(houseTier(45000, 1930, 0.2)).toBe('block');
+    expect(houseTier(70000, 1954, 0.2)).toBe('block');
+    expect(houseTier(16000, 1900, 0.34)).toBe('terrace');
+    expect(houseTier(16000, 1900, 0.35)).toBe('house');
   });
 });
 

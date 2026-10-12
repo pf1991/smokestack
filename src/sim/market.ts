@@ -122,7 +122,7 @@ export function satisfaction(city: City, goodId: GoodId): number {
 /** Cities stop growing here; supply-driven growth slows logistically as they approach it. */
 export const POP_CAP = 80_000;
 /** Largest urban radius, so big late-game cities don't swallow the map. */
-export const MAX_URBAN_RADIUS = 10;
+export const MAX_URBAN_RADIUS = 16;
 
 export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number): number {
   const room = Math.max(0, 1 - population / POP_CAP);
@@ -131,5 +131,5 @@ export function monthlyGrowth(population: number, avgSatisfaction: number, pollu
 }
 
 export function urbanRadius(population: number): number {
-  return Math.min(MAX_URBAN_RADIUS, 3 + Math.floor(population / 3000));
+  return Math.min(MAX_URBAN_RADIUS, 3 + Math.floor(Math.sqrt(population / 250)));
 }

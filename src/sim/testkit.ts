@@ -131,8 +131,10 @@ export function buildReferenceStrategy(
   let best = Infinity;
   for (const c of state.cities) {
     const p = findPlacement(state, 'player', 'lumber_camp', c.center, 30);
-    if (p && manhattan(p, c.center) < best) {
-      best = manhattan(p, c.center);
+    // distance from the town's edge: bigger towns push industry further out, which is not a worse site
+    const d = p ? manhattan(p, c.center) - c.urbanRadius : Infinity;
+    if (p && d < best) {
+      best = d;
       city = c;
       campPos = p;
     }

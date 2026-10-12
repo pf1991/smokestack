@@ -1,9 +1,9 @@
 import type { Building, GameState } from '../../sim/types';
 import { type Camera, TILE } from '../camera';
-import { HEADROOM, LOCO_NOSE, TRUCK_NOSE, VEHICLE_SCALE, houseStyle } from '../sprites';
+import { HEADROOM, LOCO_NOSE, TRUCK_NOSE, VEHICLE_SCALE, HOUSE_TIERS, houseStyle } from '../sprites';
 import { CHUNK } from '../terrain';
 import { getHouseGlow, getLampGlow, getWindowGlow } from './glows';
-import type { ChunkMeta, Dir, TileRange } from './shared';
+import { type ChunkMeta, type Dir, HOUSE_STRIDE, type TileRange } from './shared';
 import { vehiclePose } from './vehicles';
 
 
@@ -40,14 +40,14 @@ export function drawNightLights(
       // lit house windows
       ctx.globalAlpha = k * 0.9;
       const hs = m.houses;
-      for (let i = 0; i < hs.length; i += 4) {
+      for (let i = 0; i < hs.length; i += HOUSE_STRIDE) {
         if (!hs[i + 3]) continue;
         const x = hs[i];
         const y = hs[i + 1];
         if (x < r.x0 - 1 || x > r.x1 + 1 || y < r.y0 - 1 || y > r.y1 + 1) continue;
         // a building directly south is drawn over this house, so its windows must not glow through
         if (y + 1 < state.map.height && state.map.tiles[(y + 1) * state.map.width + x].buildingId !== null) continue;
-        const glow = getHouseGlow(style, hs[i + 2], state.date.year);
+        const glow = getHouseGlow(style, hs[i + 2], state.date.year, HOUSE_TIERS[hs[i + 4]]);
         ctx.drawImage(glow as CanvasImageSource, toSX(x * TILE - 6), toSY(y * TILE - 6), (TILE + 12) * z, (TILE + 12) * z);
       }
       // street lamps

@@ -112,8 +112,10 @@ describe('market', () => {
   });
 
   it('urbanRadius', () => {
-    expect(urbanRadius(9000)).toBe(6);
-    expect(urbanRadius(200_000)).toBe(10);
+    expect(urbanRadius(1000)).toBe(5);
+    expect(urbanRadius(20000)).toBe(11);
+    expect(urbanRadius(80000)).toBe(16);
+    expect(urbanRadius(200_000)).toBe(16);
   });
 
   it('rotates odd units between stores across days', () => {

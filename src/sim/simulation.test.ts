@@ -144,8 +144,10 @@ function buildFurnitureChain(seed: number, trucksPerLeg = 2): Chain {
   let best = Infinity;
   for (const c of state.cities) {
     const p = findPlacement(state, 'player', 'lumber_camp', c.center, 30);
-    if (p && dist(p, c.center) < best) {
-      best = dist(p, c.center);
+    // distance from the town's edge: bigger towns push industry further out, which is not a worse site
+    const d = p ? dist(p, c.center) - c.urbanRadius : Infinity;
+    if (p && d < best) {
+      best = d;
       city = c;
       campPos = p;
     }
@@ -233,7 +235,7 @@ describe('saves', () => {
     };
     const corrupted = { ok: false, error: 'Save file is corrupted' };
     const incomplete = { ok: false, error: 'Save file is incomplete' };
-    expect(SAVE_VERSION).toBe(2);
+    expect(SAVE_VERSION).toBe(3);
     expect(deserialize('{')).toEqual(corrupted);
     expect(deserialize('')).toEqual(corrupted);
     expect(deserialize('null')).toEqual(corrupted);

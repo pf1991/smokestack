@@ -2,6 +2,7 @@ import type { City, GameMap, Terrain, Tile } from './types';
 import { CITY_NAMES } from '../data/names';
 import { randInt, type RngHolder } from './rng';
 import { valueNoise2D } from './noise';
+import { urbanRadius } from './market';
 
 export function tileIndex(map: GameMap, x: number, y: number): number {
   return y * map.width + x;
@@ -189,7 +190,7 @@ function placeCities(map: GameMap, rng: RngHolder): City[] | null {
       happiness: 0.7,
       pollution: 0,
       market: {},
-      urbanRadius: 3 + Math.floor(population / 3000),
+      urbanRadius: urbanRadius(population),
     };
   });
 }

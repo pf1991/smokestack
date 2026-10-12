@@ -140,22 +140,29 @@ export function refreshUrbanTiles(state: GameState): void {
  * (same Euclidean disc as refreshUrbanTiles), on land that can carry a road (not water or mountain).
  * The 2-tile gaps between streets fit a 2×2 store that always touches a street. Forest and
  * deposit-free hills inside the disc become grass, so every town has room for stores.
+ * Never touches deposits, buildings or rail. Called again as a city grows, so only the outer
+ * ring gains streets. Returns the tiles it newly turned into road, scanned row by row.
  */
-export function layCityStreets(map: GameMap, city: City): void {
+export function layCityStreets(map: GameMap, city: City): Vec2[] {
   const r = urbanRadius(city.population);
   const { x: cx, y: cy } = city.center;
+  const added: Vec2[] = [];
   for (let y = cy - r; y <= cy + r; y++) {
     for (let x = cx - r; x <= cx + r; x++) {
       const t = tileOf(map, x, y);
       if (!t || !inRadius(city.center, r, x, y)) continue;
       if (t.terrain === 'water' || t.terrain === 'mountain') continue;
-      // settled land: towns clear their forest and deposit-free hills so stores (grass/sand) fit
-      if ((t.terrain === 'forest' || t.terrain === 'hills') && t.deposit === null) t.terrain = 'grass';
+      if (t.deposit !== null || t.buildingId !== null || t.rail) continue;
+      // settled land: towns clear their forest and hills so stores (grass/sand) fit
+      if (t.terrain === 'forest' || t.terrain === 'hills') t.terrain = 'grass';
       if ((x - cx) % 3 !== 0 && (y - cy) % 3 !== 0) continue;
+      if (t.road) continue;
       t.road = true;
+      added.push({ x, y });
     }
   }
-  invalidatePaths(map);
+  if (added.length > 0) invalidatePaths(map);
+  return added;
 }
 
 const dist2 = (a: Vec2, b: Vec2) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;

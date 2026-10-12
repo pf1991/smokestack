@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '../core/result';
 import { formatDate } from '../sim/clock';
-import { SAVE_VERSION } from '../sim/migrations';
+import { runAfterLoad, SAVE_VERSION, type Migration } from '../sim/migrations';
 import { packLayer, unpackLayer } from '../sim/layers';
 import { deserialize, serialize } from '../sim/simulation';
 import type { GameState, OwnerId, SimContext, Terrain, Tile } from '../sim/types';
@@ -80,7 +80,8 @@ export function packState(state: GameState): string {
 
 /** Parses, migrates and validates a save string, expanding packed tiles. */
 export function unpackState(raw: string): Result<GameState> {
-  const r = deserialize(raw);
+  const applied: Migration[] = [];
+  const r = deserialize(raw, applied);
   if (!r.ok) return r;
   const state = r.value;
   const tiles = state.map.tiles as unknown[];
@@ -102,6 +103,9 @@ export function unpackState(raw: string): Result<GameState> {
   } catch {
     return err('Save file is corrupted');
   }
+  // migrations that need the rebuilt state (e.g. v3 laying city streets) run now, after unpacking
+  const h = runAfterLoad(state, applied);
+  if (!h.ok) return h;
   return ok(state);
 }
 

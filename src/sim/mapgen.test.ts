@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateMap, tileAt, tileIndex } from './mapgen';
+import { urbanRadius } from './market';
 import type { GameMap, Tile } from './types';
 
 const W = 128;
@@ -71,7 +72,7 @@ describe('generateMap', () => {
         expect(c.happiness).toBe(0.7);
         expect(c.pollution).toBe(0);
         expect(c.market).toEqual({});
-        expect(c.urbanRadius).toBe(3 + Math.floor(c.population / 3000));
+        expect(c.urbanRadius).toBe(urbanRadius(c.population));
         for (let j = i + 1; j < cities.length; j++) {
           const d = Math.hypot(c.center.x - cities[j].center.x, c.center.y - cities[j].center.y);
           expect(d).toBeGreaterThanOrEqual(25);

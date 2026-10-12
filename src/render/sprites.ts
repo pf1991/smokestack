@@ -610,13 +610,90 @@ const ROOFS = ['#a8442f', '#6b4a3a', '#4f5d6b', '#7a6a2e'];
 const WARM = '#ffd27a';
 const DARK_WIN = '#34465a';
 
-/** Draw a one-tile house with its top-left corner at (px, py). */
-export function drawHouse(g: Ctx, px: number, py: number, variant: number, year: number, lit: boolean): void {
+/** Density of a city house: big cities build denser cores as the decades pass. */
+export type HouseTier = 'house' | 'terrace' | 'block' | 'tower';
+/** Index order of HouseTier in packed chunk data. */
+export const HOUSE_TIERS: readonly HouseTier[] = ['house', 'terrace', 'block', 'tower'];
+/** Fraction of the urban radius that counts as the city core. */
+export const CORE_FRAC = 0.35;
+
+/**
+ * Tier of a house `distFrac` (distance / urban radius) from the centre of a city of `population`
+ * in `year`. Outside the core it is always 'house'.
+ */
+export function houseTier(population: number, year: number, distFrac: number): HouseTier {
+  if (distFrac >= CORE_FRAC) return 'house';
+  if (population > 60_000 && year >= 1955) return 'tower';
+  if (population > 40_000 && year >= 1930) return 'block';
+  if (population > 15_000) return 'terrace';
+  return 'house';
+}
+
+/** Two houses joined under one roof line, filling the tile width. */
+function drawTerrace(g: Ctx, style: HouseStyle, v: number, win: string): void {
+  const x = 2, y = 6, w = 28, h = 19;
+  softShadow(g, x, y, w, h);
+  const wall = style === 'cottage' ? '#e6dcc2' : style === 'brick' ? '#a9553e' : style === 'deco' ? '#e2d6bc' : '#c9c4ba';
+  for (let i = 0; i < 2; i++) {
+    const hx = x + i * 14;
+    const roof = ROOFS[(v + i) % ROOFS.length];
+    rect(g, hx, y + h - 8, 14, 8, i ? shade(wall, -0.06) : wall);
+    rect(g, hx, y, 14, h - 8, roof);
+    rect(g, hx, y, 14, 2, shade(roof, 0.25));
+    rect(g, hx, y + (h - 8) / 2, 14, 1, shade(roof, -0.3));
+    rect(g, hx + 2, y + h - 6, 4, 3, win);
+    rect(g, hx + 9, y + h - 7, 3, 7, '#5b3a1e');
+    rect(g, hx + 10, y - 2, 3, 4, '#7a4a3a');
+  }
+  rect(g, x + 14, y, 1, h, 'rgba(0,0,0,0.3)'); // party wall
+}
+
+/** A 3-storey apartment block; its roof rises into the tile above. */
+function drawBlock(g: Ctx, style: HouseStyle, v: number, win: string): void {
+  const x = 3, y = -3, w = 26, h = 31;
+  softShadow(g, x, y, w, h);
+  const brick = style === 'cottage' || style === 'brick';
+  const wall = brick ? (v % 2 ? '#9c4a35' : '#a85a3c') : v % 2 ? '#d8cdb5' : '#c4c0b4';
+  const roof = brick ? '#5c4a44' : '#7d7f80';
+  rect(g, x, y, w, 8, roof);
+  rect(g, x, y, w, 2, shade(roof, 0.2));
+  rect(g, x + 4 + (v % 3) * 6, y + 2, 4, 4, shade(roof, -0.25)); // stair head
+  rect(g, x, y + 8, w, h - 8, wall);
+  rect(g, x, y + 8, w, 1, shade(wall, -0.3));
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 4; i++) rect(g, x + 2 + i * 6, y + 11 + r * 6, 4, 4, win);
+  rect(g, x + 11, y + h - 4, 4, 4, '#3b2c22');
+}
+
+/** A tall tower seen from above; drawn flat until towers get height. */
+function drawTower(g: Ctx, v: number, lit: boolean): void {
+  const x = 2, y = 1, w = 28, h = 29;
+  softShadow(g, x, y, w, h);
+  const wall = v % 2 ? '#7f93a6' : '#9aa8b5';
+  rect(g, x, y, w, h, wall);
+  rect(g, x, y, w, 2, '#d9dee2');
+  rect(g, x + 3, y + 3, w - 6, 9, shade(wall, -0.18)); // roof deck
+  rect(g, x + 5 + (v % 3) * 4, y + 4, 6, 5, '#b8bec4'); // plant room
+  rect(g, x + w - 8, y + 5, 4, 4, '#555c63'); // water tank
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 6; i++) {
+    rect(g, x + 2 + i * 4.2, y + 14 + r * 5, 3, 3, lit && hash(v * 17 + r * 7 + i) > 0.25 ? WARM : '#3f5870');
+  }
+  rect(g, x + 12, y + h - 3, 4, 3, '#2c3440');
+}
+
+/** Draw a one-tile house of `tier` with its top-left corner at (px, py). */
+export function drawHouse(g: Ctx, px: number, py: number, variant: number, year: number, lit: boolean, tier: HouseTier = 'house'): void {
   const style = houseStyle(year);
   const v = Math.abs(Math.floor(variant));
   const win = lit ? WARM : DARK_WIN;
   g.save();
   g.translate(px, py);
+  if (tier !== 'house') {
+    if (tier === 'terrace') drawTerrace(g, style, v, win);
+    else if (tier === 'block') drawBlock(g, style, v, win);
+    else drawTower(g, v, lit);
+    g.restore();
+    return;
+  }
   switch (style) {
     case 'cottage': {
       const roof = ROOFS[v % ROOFS.length], wide = v % 2 === 0;

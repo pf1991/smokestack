@@ -27,8 +27,8 @@ const setTerrain = (s: GameState, x0: number, y0: number, w: number, h: number, 
 };
 const snapshot = (s: GameState) => JSON.parse(JSON.stringify(s));
 
-/** 40×30 grass world with one 6,000-pop city (urban radius 5) centred at (30,15). */
-const cityWorld = (money?: number) => testState({ cities: [{ x: 30, y: 15, population: 6000 }], money });
+/** 40×30 grass world with one 1,500-pop city (urban radius 5) centred at (30,15). */
+const cityWorld = (money?: number) => testState({ cities: [{ x: 30, y: 15, population: 1500 }], money });
 
 function addVehicle(s: GameState, routeId: number | null, pos: Vec2): Vehicle {
   const v: Vehicle = {
@@ -507,11 +507,11 @@ describe('urban tiles', () => {
     expect(s.cities[0].urbanRadius).toBe(5);
     expect(tile(s, 35, 15).cityId).toBe(0);
     expect(tile(s, 36, 15).cityId).toBeNull();
-    s.cities[0].population = 1000;
+    s.cities[0].population = 500;
     refreshUrbanTiles(s);
-    expect(s.cities[0].urbanRadius).toBe(3);
-    expect(tile(s, 34, 15).cityId).toBeNull();
-    expect(tile(s, 33, 15).cityId).toBe(0);
+    expect(s.cities[0].urbanRadius).toBe(4);
+    expect(tile(s, 35, 15).cityId).toBeNull();
+    expect(tile(s, 34, 15).cityId).toBe(0);
   });
 
   it('every catalog building has a footprint matching its size', () => {
