@@ -1,5 +1,6 @@
 import { TILE, type Camera, visibleTileRange } from './camera';
 import type { GameMap, Terrain, Tile } from '../sim/types';
+import { PAPER, SURVEY_TILE_PX, paintSurveyChunk } from './survey';
 
 export const CHUNK = 16;
 const CHUNK_PX = CHUNK * TILE;
@@ -52,16 +53,39 @@ function makeSurface(w: number, h: number): Surface {
 }
 
 interface Chunk {
-  surface: Surface;
+  /** 'diorama' surface: the painted terrain (null until first drawn) */
+  surface: Surface | null;
   dirty: boolean;
   winter: boolean;
   oil: boolean;
   drawn: boolean;
+  /** 'survey' surface: the engraved map (render/survey.ts), at `surveyPx` px per tile */
+  survey: Surface | null;
+  surveyDirty: boolean;
+  surveyPx: number;
+  /** drawSurvey frame this chunk's survey surface was last drawn (LRU) */
+  surveyUsed: number;
 }
+
+export type ChunkKind = 'survey' | 'diorama';
+
+/**
+ * Survey surface px per tile for a zoom: 16 (native) up to zoom 0.75, 32 up to 1.1, then 48, which
+ * is screen scale at the blend midpoint (1.5) so the cross-fade blits its survey layer unscaled.
+ */
+export function surveyTilePx(zoom: number): number {
+  return zoom <= 0.75 ? SURVEY_TILE_PX : zoom <= 1.1 ? SURVEY_TILE_PX * 2 : SURVEY_TILE_PX * 3;
+}
+
+/** Minimum survey surface cap; raised per frame to 2 × visible chunks + 8 so the visible set fits. */
+const MIN_SURVEY_CAP = 16;
 
 export class TerrainRenderer {
   private chunks = new Map<number, Chunk>();
   private cols: number;
+  private frame = 0;
+  private surveyCount = 0;
+  private surveyCap = MIN_SURVEY_CAP;
 
   constructor(
     private map: GameMap,
@@ -79,8 +103,29 @@ export class TerrainRenderer {
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         const c = this.chunks.get(cy * this.cols + cx);
-        if (c) c.dirty = true;
+        if (c) c.dirty = c.surveyDirty = true;
       }
+    }
+  }
+
+  /** Marks both surface kinds stale over the bounding box of `tiles` plus a 1-tile margin. */
+  invalidateAround(tiles: readonly { x: number; y: number }[]): void {
+    if (tiles.length === 0) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const t of tiles) {
+      x0 = Math.min(x0, t.x);
+      y0 = Math.min(y0, t.y);
+      x1 = Math.max(x1, t.x);
+      y1 = Math.max(y1, t.y);
+    }
+    this.invalidateRect(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
+  }
+
+  /** Marks every cached chunk of `kind` stale (both kinds when omitted). */
+  invalidateAll(kind?: ChunkKind): void {
+    for (const c of this.chunks.values()) {
+      if (kind !== 'survey') c.dirty = true;
+      if (kind !== 'diorama') c.surveyDirty = true;
     }
   }
 
@@ -92,7 +137,7 @@ export class TerrainRenderer {
         const ty = y + dy;
         if (tx < 0 || ty < 0 || tx >= this.map.width || ty >= this.map.height) continue;
         const c = this.chunks.get(Math.floor(ty / CHUNK) * this.cols + Math.floor(tx / CHUNK));
-        if (c) c.dirty = true;
+        if (c) c.dirty = c.surveyDirty = true;
       }
     }
   }
@@ -121,10 +166,10 @@ export class TerrainRenderer {
         const stale = !ch || ch.dirty || !ch.drawn || ch.winter !== winter || ch.oil !== opts.oilVisible;
         if (stale && budget > 0) {
           if (!ch) {
-            ch = { surface: makeSurface(CHUNK_PX, CHUNK_PX), dirty: true, winter, oil: opts.oilVisible, drawn: false };
-            this.chunks.set(key, ch);
+            ch = this.newChunk(key);
           }
           budget--;
+          ch.surface ??= makeSurface(CHUNK_PX, CHUNK_PX);
           ch.winter = winter;
           ch.oil = opts.oilVisible;
           ch.dirty = false;
@@ -149,6 +194,90 @@ export class TerrainRenderer {
 
     this.drawWaterShimmer(ctx, cam, timeMs, r);
     ctx.restore();
+  }
+
+  private newChunk(key: number): Chunk {
+    const ch: Chunk = { surface: null, dirty: true, winter: false, oil: false, drawn: false, survey: null, surveyDirty: true, surveyPx: 0, surveyUsed: 0 };
+    this.chunks.set(key, ch);
+    return ch;
+  }
+
+  /**
+   * Draws the survey-map surfaces of the visible chunks (render/survey.ts) at `alpha`, rendering at
+   * most MAX_RENDERS_PER_FRAME stale ones per frame (stale ones keep showing until redrawn). Survey
+   * surfaces are capped (least recently drawn evicted first) separately from the diorama ones.
+   */
+  drawSurvey(ctx: CanvasRenderingContext2D, cam: Camera, alpha: number): void {
+    const r = visibleTileRange(cam, this.map);
+    if (r.x1 < r.x0 || r.y1 < r.y0 || alpha <= 0) return;
+    this.frame++;
+    const z = cam.zoom;
+    const tilePx = surveyTilePx(z);
+    const cx0 = Math.floor(r.x0 / CHUNK);
+    const cx1 = Math.floor(r.x1 / CHUNK);
+    const cy0 = Math.floor(r.y0 / CHUNK);
+    const cy1 = Math.floor(r.y1 / CHUNK);
+    this.surveyCap = Math.max(MIN_SURVEY_CAP, 2 * (cx1 - cx0 + 1) * (cy1 - cy0 + 1) + 8);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    let budget = MAX_RENDERS_PER_FRAME;
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const key = cy * this.cols + cx;
+        const ch = this.chunks.get(key) ?? this.newChunk(key);
+        if ((ch.surveyDirty || ch.surveyPx !== tilePx) && budget > 0) {
+          budget--;
+          if (!ch.survey || ch.surveyPx !== tilePx) {
+            if (!ch.survey) {
+              if (this.surveyCount >= this.surveyCap) this.evictSurvey();
+              this.surveyCount++;
+            }
+            ch.survey = makeSurface(CHUNK * tilePx, CHUNK * tilePx);
+          }
+          const g = (ch.survey as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D | null;
+          if (g) paintSurveyChunk(g, this.map, cx, cy, this.seed, tilePx);
+          ch.surveyPx = tilePx;
+          ch.surveyDirty = false;
+        }
+        ch.surveyUsed = this.frame;
+        // partial edge chunks: the surface holds only the tiles inside the map
+        const w = Math.min(CHUNK, this.map.width - cx * CHUNK);
+        const h = Math.min(CHUNK, this.map.height - cy * CHUNK);
+        const sp = ch.surveyPx;
+        if (ch.survey && sp === TILE * z) {
+          // surface already at screen scale: an unscaled, unsmoothed blit (much cheaper in software)
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(ch.survey as CanvasImageSource, Math.round((cx * CHUNK_PX - cam.x) * z), Math.round((cy * CHUNK_PX - cam.y) * z));
+          continue;
+        }
+        const sx = Math.floor((cx * CHUNK_PX - cam.x) * z);
+        const sy = Math.floor((cy * CHUNK_PX - cam.y) * z);
+        const ex = Math.floor(((cx * CHUNK + w) * TILE - cam.x) * z);
+        const ey = Math.floor(((cy * CHUNK + h) * TILE - cam.y) * z);
+        if (!ch.survey) {
+          ctx.fillStyle = PAPER;
+          ctx.fillRect(sx, sy, ex - sx, ey - sy);
+          continue;
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(ch.survey as CanvasImageSource, 0, 0, w * sp, h * sp, sx, sy, ex - sx, ey - sy);
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Drops the least recently drawn survey surface not drawn this frame (it re-renders on demand). */
+  private evictSurvey(): void {
+    let worst: Chunk | null = null;
+    for (const c of this.chunks.values()) {
+      if (!c.survey || c.surveyUsed >= this.frame) continue;
+      if (!worst || c.surveyUsed < worst.surveyUsed) worst = c;
+    }
+    if (!worst) return;
+    worst.survey = null;
+    worst.surveyPx = 0;
+    worst.surveyDirty = true;
+    this.surveyCount--;
   }
 
   // ---------------------------------------------------------------- water
@@ -198,6 +327,7 @@ export class TerrainRenderer {
   }
 
   private renderChunk(ch: Chunk, cx: number, cy: number): void {
+    if (!ch.surface) return;
     const ctx = (ch.surface as HTMLCanvasElement).getContext('2d') as Ctx | null;
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;

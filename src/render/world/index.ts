@@ -3,6 +3,9 @@
  *
  * Layer order: terrain → roads → houses → buildings (y-sorted) → vehicles → particles →
  * selection / route polyline → ghost → overlays → atmosphere → night lights (additive).
+ * Zoomed out (render/regime.ts) the diorama gives way to the engraved survey map: cached survey
+ * chunks plus ink symbols (world/survey.ts) are drawn over it at alpha 1 − blend, and only the
+ * regime(s) with non-zero weight are drawn at all. City names go on the overlay canvas.
  * With `attachOverlay`, selection, ghost, ghost label and sale floaters move to a second, unfiltered
  * canvas drawn last, so the era sepia does not wash out their colours. The rendered light level is
  * eased in real time (`easeLight`) so fast speeds never strobe between day and night.
@@ -20,6 +23,7 @@ import type { Building, City, GameState, Vec2 } from '../../sim/types';
 import { applyAtmosphere, cssFilterFor, easeLight, isLit } from '../atmosphere';
 import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
+import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
@@ -30,6 +34,7 @@ import { drawNightLights } from './night';
 import { paintRailTile } from './rails';
 import { hasLamp, paintBridgeTile, paintRoadTile, roadEra, roadMask } from './roads';
 import { drawGhost, drawGhostLabel, drawSelection } from './selection';
+import { type ScreenRect, applySurveyNight, drawCityLabels, drawSurveySymbols, hudRects } from './survey';
 import { type ChunkMeta, type Ctx, HOUSE_STRIDE, type Dir, SPRITE_MARGIN, type Surface, type TileRange, h01, makeSurface } from './shared';
 import { type TrainTrail, drawVehicles } from './vehicles';
 
@@ -64,6 +69,7 @@ const MIN_SURFACE_CAP = 48;
 /** Frames between sweeps of direction entries for vehicles that no longer exist. */
 const VEHICLE_DIR_SWEEP = 600;
 const HOUSE_VARIANTS = 16;
+const HUD_RECTS_FRAMES = 30;
 
 const PLAYER_FLOAT = '#7ee07e';
 const RIVAL_FLOAT = '#b5302f';
@@ -119,6 +125,8 @@ export class WorldRenderer {
   private lastFloat = new Map<number, number>();
   private light: number | null = null;
   private overlay: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
+  /** HUD chrome rects city labels avoid; re-measured every HUD_RECTS_FRAMES frames */
+  private hud: ScreenRect[] = [];
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -197,27 +205,32 @@ export class WorldRenderer {
       bus.on('roadChanged', (e) => {
         this.invalidate(e.tiles);
         // a spreading city also clears forest/hills between its new streets (see layCityStreets):
-        // redraw terrain over the streets' bounding box plus a 1-tile margin
-        if (e.tiles.length === 0) return;
-        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        for (const t of e.tiles) {
-          x0 = Math.min(x0, t.x);
-          y0 = Math.min(y0, t.y);
-          x1 = Math.max(x1, t.x);
-          y1 = Math.max(y1, t.y);
-        }
-        this.terrain.invalidateRect(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
+        // redraw terrain (both the diorama and survey surfaces) over the streets' bounding box + 1
+        this.terrain.invalidateAround(e.tiles);
       }),
-      bus.on('railChanged', (e) => this.invalidate(e.tiles)),
+      bus.on('railChanged', (e) => {
+        this.invalidate(e.tiles);
+        this.terrain.invalidateAround(e.tiles); // survey chunks draw the rails
+      }),
       bus.on('landmarkBuilt', (e) => {
         const l = this.state.cities.find((c) => c.id === e.cityId)?.landmarks.find((x) => x.id === e.id);
         if (!l) return this.invalidate();
         // the 2×2 block plus the row above it (spires and floodlights rise into it)
         const { x, y } = l.pos;
-        this.invalidate([{ x, y: y - 1 }, { x: x + 1, y: y - 1 }, { x, y }, { x: x + 1, y }, { x, y: y + 1 }, { x: x + 1, y: y + 1 }]);
+        const block = [{ x, y: y - 1 }, { x: x + 1, y: y - 1 }, { x, y }, { x: x + 1, y }, { x, y: y + 1 }, { x: x + 1, y: y + 1 }];
+        this.invalidate(block);
+        this.terrain.invalidateAround(block);
       }),
-      bus.on('ownershipChanged', () => this.invalidate()),
-      bus.on('monthEnd', () => this.invalidate()),
+      // the survey chunks' town tint follows city tiles, which can grow at month end; the diorama
+      // terrain does not depend on either event, so only its survey surfaces are dropped
+      bus.on('ownershipChanged', () => {
+        this.invalidate();
+        this.terrain.invalidateAll('survey');
+      }),
+      bus.on('monthEnd', () => {
+        this.invalidate();
+        this.terrain.invalidateAll('survey');
+      }),
     ];
     return () => offs.forEach((f) => f());
   }
@@ -259,27 +272,47 @@ export class WorldRenderer {
     const nightK = Math.min(1, Math.max(0, (0.8 - light) / 0.55));
     const lit = isLit(date.hour);
 
+    // 0 = survey map, 1 = diorama; each regime is drawn only when it has weight
+    const blend = regimeBlend(z);
+    const diorama = blend > 0;
+    const survey = blend < 1;
+
     ctx.save();
     ctx.fillStyle = '#1d1a16';
     ctx.fillRect(0, 0, cam.viewW, cam.viewH);
-    this.terrain.draw(ctx, cam, nowMs, { oilVisible: state.flags.oilRevealed === true || date.year >= 1910, month: date.month });
-
     const r = visibleTileRange(cam, state.map);
-    // static cached layer: roads, bridges, lamps, gardens, houses
-    this.drawChunks(ctx, cam, r, lit);
+    if (diorama) {
+      this.terrain.draw(ctx, cam, nowMs, { oilVisible: state.flags.oilRevealed === true || date.year >= 1910, month: date.month });
+      // static cached layer: roads, bridges, lamps, gardens, houses
+      this.drawChunks(ctx, cam, r, lit);
+    }
 
     // world-space layers
     ctx.save();
     ctx.scale(z, z);
     ctx.translate(-cam.x, -cam.y);
     const visBuildings = this.collectBuildings(state, r);
-    this.drawBuildings(ctx, visBuildings);
-    this.emitSmoke(state, cam, dt);
-    drawVehicles(ctx, this, state, r, alpha, dt, lit);
+    if (diorama) {
+      this.drawBuildings(ctx, visBuildings);
+      drawVehicles(ctx, this, state, r, alpha, dt, lit);
+    }
+    // smoke (and sparks, puffs) are hidden on the map side of the blend
+    const smoke = blend >= 0.5;
+    if (smoke) this.emitSmoke(state, cam, dt);
     ctx.restore();
 
     this.particles.update(dt);
-    this.particles.draw(ctx, cam);
+    if (smoke) this.particles.draw(ctx, cam);
+
+    if (survey) {
+      this.terrain.drawSurvey(ctx, cam, 1 - blend);
+      ctx.save();
+      ctx.globalAlpha = 1 - blend;
+      ctx.scale(z, z);
+      ctx.translate(-cam.x, -cam.y);
+      drawSurveySymbols(ctx, state, visBuildings, r, this.vehicleDir, alpha, z);
+      ctx.restore();
+    }
     this.flushFloaters(state, nowMs);
     this.floaters.update(dt);
 
@@ -293,9 +326,23 @@ export class WorldRenderer {
       ctx.restore();
     }
 
-    applyAtmosphere(ctx, cam.viewW, cam.viewH, date, light);
-    if (nightK > 0) drawNightLights(ctx, cam, r, visBuildings.filter((b) => !this.isScaffolding(b.id)), state, this.chunks, this.chunkCols, this.vehicleDir, alpha, nightK);
+    // the diorama's blue night and season tint fade out with it; the paper map gets a faint warm grade
+    if (diorama) {
+      ctx.save();
+      ctx.globalAlpha = blend;
+      applyAtmosphere(ctx, cam.viewW, cam.viewH, date, light);
+      ctx.restore();
+      if (nightK > 0) drawNightLights(ctx, cam, r, visBuildings.filter((b) => !this.isScaffolding(b.id)), state, this.chunks, this.chunkCols, this.vehicleDir, alpha, nightK * blend);
+    }
+    if (survey) {
+      ctx.save();
+      ctx.globalAlpha = 1 - blend;
+      applySurveyNight(ctx, cam.viewW, cam.viewH, light);
+      ctx.restore();
+    }
     ctx.restore();
+
+    if (survey && (this.hud.length === 0 || this.frame % HUD_RECTS_FRAMES === 0)) this.hud = hudRects();
 
     if (this.overlay) {
       const o = this.overlay.ctx;
@@ -306,6 +353,7 @@ export class WorldRenderer {
       o.restore();
       this.drawUi(o, state, cam, alpha, nowMs);
     }
+    if (survey) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud);
   }
 
   /** Selection, ghost, ghost label and sale floaters. */

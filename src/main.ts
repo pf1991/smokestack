@@ -26,6 +26,8 @@ import type { Speed } from './sim/types';
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
+ *  - `fps=1` (dev) after a 3 s warm-up, average the requestAnimationFrame rate over 5 s and put it
+ *    in the document title as `FPS <avg> (<frames> frames, worst <ms> ms)` (read it via CDP)
  *  - `menu=1`          force the menu even when other parameters are present
  */
 const canvas = document.getElementById('world') as HTMLCanvasElement;
@@ -115,3 +117,26 @@ if (debugStart) {
 }
 
 if (import.meta.env.DEV) (window as unknown as { app: App }).app = app;
+
+if (import.meta.env.DEV && params.get('fps') === '1') {
+  // performance.now() frame deltas: 3 s warm-up, then 5 s of samples
+  const t0 = performance.now();
+  let start = -1;
+  let last = -1;
+  let frames = 0;
+  let worst = 0;
+  const tick = (now: number): void => {
+    if (now - t0 < 3000) return void requestAnimationFrame(tick);
+    if (start < 0) start = last = now;
+    else {
+      worst = Math.max(worst, now - last);
+      last = now;
+      frames++;
+    }
+    if (now - start < 5000) return void requestAnimationFrame(tick);
+    const fps = (frames * 1000) / (now - start);
+    document.title = `FPS ${fps.toFixed(1)} (${frames} frames, worst ${worst.toFixed(1)} ms)`;
+    console.info(document.title);
+  };
+  requestAnimationFrame(tick);
+}
