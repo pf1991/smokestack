@@ -67,6 +67,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
       pollution: 0,
       market: {},
       urbanRadius: urbanRadius(population),
+      landmarks: [],
     };
   });
   const player = createCompany('player', 'Test Co.', opts.money ?? STARTING_MONEY);

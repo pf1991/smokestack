@@ -2,7 +2,8 @@ import type { Building, GameState } from '../../sim/types';
 import { type Camera, TILE } from '../camera';
 import { HEADROOM, LOCO_NOSE, TRUCK_NOSE, VEHICLE_SCALE, HOUSE_TIERS, houseStyle } from '../sprites';
 import { CHUNK } from '../terrain';
-import { getHouseGlow, getLampGlow, getWindowGlow } from './glows';
+import { LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
+import { LANDMARK_GLOW_PAD, getHouseGlow, getLampGlow, getLandmarkGlow, getWindowGlow } from './glows';
 import { type ChunkMeta, type Dir, HOUSE_STRIDE, type TileRange } from './shared';
 import { vehiclePose } from './vehicles';
 
@@ -60,6 +61,23 @@ export function drawNightLights(
         if (sx < -R || sy < -R || sx > cam.viewW + R || sy > cam.viewH + R) continue;
         ctx.drawImage(lamp as CanvasImageSource, sx - R, sy - R, R * 2, R * 2);
       }
+    }
+  }
+
+  // landmark windows and floodlights
+  ctx.globalAlpha = k * 0.9;
+  const P = LANDMARK_GLOW_PAD;
+  for (const city of state.cities) {
+    for (const l of city.landmarks) {
+      if (l.pos.x + 1 < r.x0 - 1 || l.pos.x > r.x1 + 1 || l.pos.y + 1 < r.y0 - 1 || l.pos.y > r.y1 + 2) continue;
+      const glow = getLandmarkGlow(l.id);
+      ctx.drawImage(
+        glow as CanvasImageSource,
+        toSX(l.pos.x * TILE - P),
+        toSY(l.pos.y * TILE - LANDMARK_HEADROOM - P),
+        (LANDMARK_PX + P * 2) * z,
+        (LANDMARK_PX + LANDMARK_HEADROOM + P * 2) * z,
+      );
     }
   }
 

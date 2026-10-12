@@ -130,6 +130,19 @@ describe('city panel', () => {
     PANELS.city.open(host(testCtx(state)) as never, 0);
     expect(text()).toContain('▲');
   });
+
+  it('lists the city landmarks with icons', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    const ctx = testCtx(state);
+    PANELS.city.open(host(ctx) as never, 0);
+    expect(document.querySelector('.insp-landmarks')!.textContent).toContain('None yet');
+    state.cities[0].landmarks.push({ id: 'church', pos: { x: 9, y: 9 } }, { id: 'town_hall', pos: { x: 12, y: 9 } });
+    vi.advanceTimersByTime(1000);
+    const items = [...document.querySelectorAll<HTMLElement>('.insp-landmarks li')];
+    expect(items.map((li) => li.textContent)).toEqual(['Church', 'Town Hall']);
+    expect(items[0].querySelector('img[data-icon="church"]')).not.toBeNull();
+    expect(items[1].querySelector('img[data-icon="town_hall"]')).not.toBeNull();
+  });
 });
 
 describe('vehicle panel', () => {

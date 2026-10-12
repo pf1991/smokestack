@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../../data/buildings';
+import { LANDMARKS } from '../../data/landmarks';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
@@ -72,6 +73,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const trend = h('span', { class: 'insp-trend' });
   const happy = bar('#e0b43a');
   const smog = bar('#6b6b70');
+  const landmarks = h('ul', { class: 'insp-landmarks' });
+  let landmarkSig = '\0';
   const tbody = h('tbody');
   const rows = new KeyedList<GoodRow>(tbody, makeRow);
   const el = h(
@@ -80,6 +83,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Population'), h('span', null, pop, ' ', trend)),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
+    h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
     h(
       'table',
       { class: 'insp-table' },
@@ -99,6 +103,15 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       trend.className = `insp-trend ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`.trim();
       happy.set(city.happiness, formatPercent(city.happiness));
       smog.set(city.pollution, formatPercent(city.pollution));
+      const sig = city.landmarks.map((l) => l.id).join(',');
+      if (sig !== landmarkSig) {
+        landmarkSig = sig;
+        landmarks.replaceChildren(
+          ...(city.landmarks.length > 0
+            ? city.landmarks.map((l) => h('li', { 'data-landmark': l.id }, iconEl(l.id, 16), LANDMARKS[l.id].name))
+            : [h('li', { class: 'insp-none' }, 'None yet')]),
+        );
+      }
 
       const demand = cityDemand(state, city);
       rows.sync(demand.map((d) => d.goodId));

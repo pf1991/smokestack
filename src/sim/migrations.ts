@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '../core/result';
+import { LANDMARK_LAYER } from './landmarkTiles';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -26,7 +27,16 @@ export const MIGRATIONS: Migration[] = [
     afterLoad(state) {
       // mark the new discs first, so each city's grid stops where a nearer city's land begins
       refreshUrbanTiles(state);
-      for (const c of state.cities) layCityStreets(state.map, c);
+      for (const c of state.cities) layCityStreets(state.map, c, state.layers[LANDMARK_LAYER]);
+    },
+  },
+  {
+    // v4: cities raise landmarks (sim/landmarks.ts); older cities start with none
+    from: 3,
+    migrate(o) {
+      const cities = o.cities;
+      if (!Array.isArray(cities)) throw new Error('bad cities');
+      for (const c of cities as Record<string, unknown>[]) c.landmarks = [];
     },
   },
 ];

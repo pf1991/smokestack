@@ -107,26 +107,26 @@ function hash(n: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
 }
 
-// ---------------------------------------------------------------- tiny paint kit
+// ---------------------------------------------------------------- tiny paint kit (shared with landmarks.ts)
 
-function rect(g: Ctx, x: number, y: number, w: number, h: number, c: string): void {
+export function rect(g: Ctx, x: number, y: number, w: number, h: number, c: string): void {
   g.fillStyle = c;
   g.fillRect(x, y, w, h);
 }
-function circle(g: Ctx, x: number, y: number, r: number, c: string): void {
+export function circle(g: Ctx, x: number, y: number, r: number, c: string): void {
   g.fillStyle = c;
   g.beginPath();
   g.arc(x, y, r, 0, Math.PI * 2);
   g.fill();
 }
-function poly(g: Ctx, pts: number[][], c: string): void {
+export function poly(g: Ctx, pts: number[][], c: string): void {
   g.fillStyle = c;
   g.beginPath();
   pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
   g.closePath();
   g.fill();
 }
-function shade(hex: string, amt: number): string {
+export function shade(hex: string, amt: number): string {
   const n = parseInt(hex.slice(1), 16);
   const f = (v: number) => Math.max(0, Math.min(255, Math.round(v + amt * (amt < 0 ? v : 255 - v))));
   const r = f((n >> 16) & 255), gg = f((n >> 8) & 255), b = f(n & 255);
@@ -137,7 +137,7 @@ function mix(a: string, b: string, t: number): string {
   const ch = (sh: number) => Math.round(((pa >> sh) & 255) * (1 - t) + ((pb >> sh) & 255) * t);
   return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
 }
-function softShadow(g: Ctx, x: number, y: number, w: number, h: number): void {
+export function softShadow(g: Ctx, x: number, y: number, w: number, h: number): void {
   rect(g, x + 4, y + 4, w, h, 'rgba(0,0,0,0.14)');
   rect(g, x + 3, y + 3, w, h, 'rgba(0,0,0,0.14)');
   rect(g, x + 2, y + 2, w, h, 'rgba(0,0,0,0.12)');

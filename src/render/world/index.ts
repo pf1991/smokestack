@@ -14,12 +14,15 @@
  */
 import type { EventBus } from '../../core/events';
 import { BUILDINGS } from '../../data/buildings';
-import type { Building, GameState, Vec2 } from '../../sim/types';
+import { LANDMARK_LAYER } from '../../sim/landmarkTiles';
+import { layerAt } from '../../sim/layers';
+import type { Building, City, GameState, Vec2 } from '../../sim/types';
 import { applyAtmosphere, cssFilterFor, easeLight, isLit } from '../atmosphere';
 import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
 import { ParticleSystem } from '../particles';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
+import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { HEADROOM, HOUSE_TIERS, drawHouse, getBuildingSprite, houseStyle, houseTier } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
 import { chimneysOf, paintGardenTree } from './glows';
@@ -206,6 +209,13 @@ export class WorldRenderer {
         this.terrain.invalidateRect(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
       }),
       bus.on('railChanged', (e) => this.invalidate(e.tiles)),
+      bus.on('landmarkBuilt', (e) => {
+        const l = this.state.cities.find((c) => c.id === e.cityId)?.landmarks.find((x) => x.id === e.id);
+        if (!l) return this.invalidate();
+        // the 2×2 block plus the row above it (spires and floodlights rise into it)
+        const { x, y } = l.pos;
+        this.invalidate([{ x, y: y - 1 }, { x: x + 1, y: y - 1 }, { x, y }, { x: x + 1, y }, { x, y: y + 1 }, { x: x + 1, y: y + 1 }]);
+      }),
       bus.on('ownershipChanged', () => this.invalidate()),
       bus.on('monthEnd', () => this.invalidate()),
     ];
@@ -334,7 +344,14 @@ export class WorldRenderer {
 
   private chunkSig(): string {
     const { year, month } = this.state.date;
-    return `${roadEra(year)}|${houseStyle(year)}|${isWinter(month) ? 1 : 0}`;
+    // landmarkBuilt also invalidates the chunks it touches; the count makes any missed one redraw too
+    return `${roadEra(year)}|${houseStyle(year)}|${isWinter(month) ? 1 : 0}|${this.landmarkCount()}`;
+  }
+
+  private landmarkCount(): number {
+    let n = 0;
+    for (const c of this.state.cities) n += c.landmarks.length;
+    return n;
   }
 
   private chunkAt(key: number): ChunkCache {
@@ -405,6 +422,7 @@ export class WorldRenderer {
         if (t.cityId === null) continue;
         empty = false;
         if (t.road || t.rail || t.buildingId !== null || t.terrain === 'water' || t.terrain === 'mountain') continue;
+        if (layerAt(this.state, LANDMARK_LAYER, x, y) > 0) continue; // the landmark painter covers it
         const city = cities.find((c) => c.id === t.cityId);
         if (!city) continue;
         const d = Math.hypot(x - city.center.x, y - city.center.y) / Math.max(1, city.urbanRadius);
@@ -455,10 +473,20 @@ export class WorldRenderer {
         if (t.rail) paintRailTile(g, roadMask(map, x, y, 'rail'), t.road, winter, x, y, seed);
       }
     }
-    // gardens on empty urban tiles, then houses (row order → lower houses overlap upper ones)
+    // gardens on empty urban tiles, then houses (row order → lower houses overlap upper ones);
+    // each landmark goes in once the row of its bottom tiles is done
     const meta = c.meta!;
+    const marks = this.landmarksOver(ox, oy);
+    let li = 0;
+    const flushMarks = (beforeRow: number): void => {
+      for (; li < marks.length && marks[li].pos.y + 1 < beforeRow; li++) {
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        drawLandmark(g as CanvasRenderingContext2D, marks[li].id, marks[li].pos.x * TILE - ox, marks[li].pos.y * TILE - oy, v === 1);
+      }
+    };
     let hi = 0;
     for (let y = cy * CHUNK; y < y1; y++) {
+      flushMarks(y);
       for (let x = cx * CHUNK; x < x1; x++) {
         const isHouse = hi < meta.houses.length && meta.houses[hi] === x && meta.houses[hi + 1] === y;
         if (isHouse) {
@@ -469,6 +497,7 @@ export class WorldRenderer {
         }
         const t = map.tiles[y * map.width + x];
         if (t.cityId === null || t.road || t.rail || t.buildingId !== null || t.terrain === 'water' || t.terrain === 'mountain') continue;
+        if (layerAt(this.state, LANDMARK_LAYER, x, y) > 0) continue;
         if (h01(x, y, seed, 51) < 0.55) {
           g.setTransform(1, 0, 0, 1, x * TILE - ox, y * TILE - oy);
           const n = 1 + (hash(x, y, seed, 52) % 2);
@@ -478,7 +507,22 @@ export class WorldRenderer {
         }
       }
     }
+    flushMarks(Infinity);
     g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  /** Landmarks whose painting (footprint plus headroom) overlaps the chunk surface at world px (ox, oy), top rows first. */
+  private landmarksOver(ox: number, oy: number): City['landmarks'] {
+    const out: City['landmarks'] = [];
+    for (const city of this.state.cities) {
+      for (const l of city.landmarks) {
+        const lx = l.pos.x * TILE;
+        const ly = l.pos.y * TILE;
+        if (lx + LANDMARK_PX <= ox || lx >= ox + SURF_PX || ly + LANDMARK_PX <= oy || ly - LANDMARK_HEADROOM >= oy + SURF_PX) continue;
+        out.push(l);
+      }
+    }
+    return out.sort((a, b) => a.pos.y - b.pos.y || a.pos.x - b.pos.x);
   }
 
   private evictOne(): void {

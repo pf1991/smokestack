@@ -1,5 +1,7 @@
 // Dev-only sprite sheet: run `npm run dev` and open /sprites-preview.html (add ?debug for chimney markers)
 import { BUILDINGS } from '../data/buildings';
+import { LANDMARK_IDS } from '../data/landmarks';
+import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from './landmarks';
 import { chimneyOffsets, drawHouse, drawTrain, drawTruck, getBuildingSprite, windowRects } from './sprites';
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
@@ -55,6 +57,17 @@ for (const year of [1905, 1930, 1950, 1990]) {
   }
   items.push({ x: 400, y: iy, draw: g => { drawTrain(g, 400, iy + 12, 'E', 'player', 3); drawTrain(g, 560, iy + 12, 'W', 'rival', 2); } });
   y += 30;
+}
+// landmarks: day row, then night row
+for (const lit of [false, true]) {
+  const iy = y + LANDMARK_HEADROOM;
+  let x = 4;
+  for (const id of LANDMARK_IDS) {
+    const ix = x;
+    items.push({ x: ix, y: iy, draw: g => drawLandmark(g, id, ix, iy, lit) });
+    x += LANDMARK_PX + 10;
+  }
+  y += LANDMARK_PX + LANDMARK_HEADROOM + 8;
 }
 
 // size first (resets transform), then scale, fill, draw

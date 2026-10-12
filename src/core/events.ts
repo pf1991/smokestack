@@ -1,3 +1,4 @@
+import type { LandmarkId } from '../data/landmarks';
 import type { Building, GameDate, GoodId, NewsItem, OwnerId, Vec2 } from '../sim/types';
 
 export type GameEvent =
@@ -16,6 +17,7 @@ export type GameEvent =
   | { type: 'toast'; message: string; tone: 'info' | 'good' | 'bad'; action?: { label: string; run: () => void }; duration?: number }
   | { type: 'achievement'; id: string }
   | { type: 'contract'; contractId: number; status: 'offered' | 'active' | 'done' | 'failed' }
+  | { type: 'landmarkBuilt'; cityId: number; id: LandmarkId }
   | { type: 'gameOver'; reason: string }
   | { type: 'victory'; reason: string };
 

@@ -1,3 +1,4 @@
+import { LANDMARK_LAYER } from './landmarkTiles';
 import { recordSale } from './scenarios';
 import { onSale } from './contracts';
 import { companyIds } from './companies';
@@ -169,7 +170,7 @@ export function growthMonth(ctx: SimContext): void {
   if (radiusChanged) refreshUrbanTiles(state);
   // a city that spreads lays streets in its new ring (in city order, so deterministic), after the
   // urban tiles are re-marked so overlapping discs keep to their own land
-  for (const city of grown) newStreets.push(...layCityStreets(state.map, city));
+  for (const city of grown) newStreets.push(...layCityStreets(state.map, city, state.layers[LANDMARK_LAYER]));
   if (newStreets.length > 0) ctx.bus.emit({ type: 'roadChanged', tiles: newStreets });
   for (const b of Object.values(state.buildings)) b.producedThisMonth = {};
 }

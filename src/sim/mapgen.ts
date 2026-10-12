@@ -191,6 +191,7 @@ function placeCities(map: GameMap, rng: RngHolder): City[] | null {
       pollution: 0,
       market: {},
       urbanRadius: urbanRadius(population),
+      landmarks: [],
     };
   });
 }

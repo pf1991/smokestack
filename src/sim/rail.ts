@@ -12,6 +12,8 @@ import { err, ok } from '../core/result';
 import { BUILDINGS } from '../data/buildings';
 import { dateToDays } from './clock';
 import { canAfford, spend } from './finance';
+import { LANDMARK_BLOCKED, LANDMARK_LAYER } from './landmarkTiles';
+import { layerAt } from './layers';
 import { findPath, invalidatePaths, railPassable, type Passable } from './pathfinding';
 import type { Building, BuildingTypeId, GameMap, GameState, OwnerId, SimContext, Tile, Vec2, Vehicle } from './types';
 import { buyVehicle, VEHICLE_KINDS, type VehicleSpec } from './vehicles';
@@ -42,6 +44,7 @@ export function railQuote(state: GameState, owner: OwnerId, tiles: Vec2[]): { co
   for (const p of tiles) {
     const t = tileOf(map, p.x, p.y);
     if (t?.rail) continue;
+    if (t && layerAt(state, LANDMARK_LAYER, p.x, p.y) > 0) return { cost, error: LANDMARK_BLOCKED };
     if (railBlocked(t)) return { cost, error: 'Cannot build rail there' };
     const i = p.y * map.width + p.x;
     if (seen.has(i)) continue;
@@ -54,7 +57,7 @@ export function railQuote(state: GameState, owner: OwnerId, tiles: Vec2[]): { co
 
 /**
  * Atomic: lays track on every tile that lacks it ($1,200 each) or changes nothing. Track may cross
- * existing road (a level crossing) but not water, mountains or buildings.
+ * existing road (a level crossing) but not water, mountains, buildings or landmarks.
  */
 export function buildRail(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Result<{ built: number; cost: number }> {
   const { state } = ctx;
@@ -186,7 +189,10 @@ const MAX_RAIL_STARTS = 3;
  */
 export function planRail(state: GameState, owner: OwnerId, a: { typeId: BuildingTypeId; pos: Vec2 }, b: { typeId: BuildingTypeId; pos: Vec2 }): Vec2[] | null {
   const { map } = state;
-  const passable = railPlannable(owner);
+  // landmarks sit on town land the planner would otherwise cross (buildRail refuses them)
+  const plannable = railPlannable(owner);
+  const lm = state.layers[LANDMARK_LAYER];
+  const passable: Passable = lm ? (t, x, y) => plannable(t, x, y) && !(lm[y * map.width + x] > 0) : plannable;
   const ok1 = (p: Vec2) => passable(map.tiles[p.y * map.width + p.x], p.x, p.y);
   // never build on from another company's track: if it were lifted, our trains would be stranded
   const fromAccess = stationAccess(state, a).filter(ok1);

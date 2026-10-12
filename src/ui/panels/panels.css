@@ -88,6 +88,26 @@
   width: 55%;
 }
 
+.insp-landmarks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insp-landmarks li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.insp-landmarks .insp-none {
+  opacity: 0.6;
+}
+
 .insp-recipe {
   font: inherit;
   background: var(--paper);

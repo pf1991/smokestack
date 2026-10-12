@@ -10,6 +10,8 @@ import { SAVE_VERSION } from './version';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
+import { LANDMARK_BLOCKED, LANDMARK_LAYER } from './landmarkTiles';
+import { layerAt } from './layers';
 import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
 import { SCENARIOS } from './scenarios';
@@ -142,9 +144,10 @@ export function refreshUrbanTiles(state: GameState): void {
  * deposit-free hills inside the disc become grass, so every town has room for stores.
  * Never touches deposits, buildings, rail or another city's urban tiles (so call refreshUrbanTiles
  * first when discs may overlap). Called again as a city grows, so only the outer ring gains
- * streets. Returns the tiles it newly turned into road, scanned row by row.
+ * streets. Returns the tiles it newly turned into road, scanned row by row. Pass the 'landmark' layer
+ * (state.layers.landmark) once the city may have landmarks: their tiles are left untouched.
  */
-export function layCityStreets(map: GameMap, city: City): Vec2[] {
+export function layCityStreets(map: GameMap, city: City, landmarks?: readonly number[]): Vec2[] {
   const r = urbanRadius(city.population);
   const { x: cx, y: cy } = city.center;
   const added: Vec2[] = [];
@@ -154,6 +157,7 @@ export function layCityStreets(map: GameMap, city: City): Vec2[] {
       if (!t || !inRadius(city.center, r, x, y)) continue;
       if (t.terrain === 'water' || t.terrain === 'mountain') continue;
       if (t.deposit !== null || t.buildingId !== null || t.rail) continue;
+      if (landmarks && landmarks[y * map.width + x] > 0) continue;
       // where discs overlap the nearer city owns the land (refreshUrbanTiles): one grid, not two
       if (t.cityId !== null && t.cityId !== city.id) continue;
       // settled land: towns clear their forest and hills so stores (grass/sand) fit
@@ -326,6 +330,9 @@ function planPlacement(
   const tiles: Tile[] = [];
   for (let y = pos.y; y < pos.y + h; y++) for (let x = pos.x; x < pos.x + w; x++) tiles.push(map.tiles[y * map.width + x]);
 
+  for (let y = pos.y; y < pos.y + h; y++) {
+    for (let x = pos.x; x < pos.x + w; x++) if (layerAt(state, LANDMARK_LAYER, x, y) > 0) return err(LANDMARK_BLOCKED);
+  }
   if (tiles.some((t) => t.buildingId !== null || t.road || t.rail)) return err('Tile occupied');
   if (!def.allowedTerrain.includes('water') && tiles.some((t) => t.terrain === 'water')) return err("Can't build on water");
   if (tiles.some((t) => !def.allowedTerrain.includes(t.terrain))) return err('Wrong terrain');
@@ -493,7 +500,7 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
 
 /**
  * Atomic: either every new tile is built and paid for, or nothing changes. Tiles that already carry
- * road are skipped (free). Allowed on any in-bounds tile that is not mountain and has no building —
+ * road are skipped (free). Allowed on any in-bounds tile that is not mountain, a landmark or under a building —
  * urban tiles included, so a removed city street can be rebuilt. Water tiles become bridges.
  */
 export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Result<{ built: number; cost: number }> {
@@ -507,6 +514,7 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
     if (!t || !Number.isInteger(p.x) || !Number.isInteger(p.y)) return err('Cannot build road there');
     const i = p.y * map.width + p.x;
     if (t.road || seen.has(i)) continue;
+    if (layerAt(state, LANDMARK_LAYER, p.x, p.y) > 0) return err(LANDMARK_BLOCKED);
     if (t.terrain === 'mountain' || t.buildingId !== null) return err('Cannot build road there');
     seen.add(i);
     todo.push({ x: p.x, y: p.y });

@@ -579,8 +579,83 @@ const ACHIEVEMENT_PAINTERS: Record<string, Painter> = {
   },
 };
 
-/** One painter per id. Append new glyphs here (e.g. Phase 1 landmarks). */
-const PAINTERS: Record<IconId, Painter> = { ...GOOD_PAINTERS, ...UI_PAINTERS, ...ACHIEVEMENT_PAINTERS };
+/** City landmarks (data/landmarks.ts ids): small civic silhouettes. */
+const LANDMARK_ICON_PAINTERS: Record<string, Painter> = {
+  church: (g) => {
+    rect(g, 2, 8, 8, 6, C.paperShade);
+    poly(g, [1.5, 8.5, 6, 5, 10.5, 8.5], C.slate);
+    rect(g, 9.5, 6, 4.5, 8, C.paperShade);
+    poly(g, [9, 6.5, 11.75, 1, 14.5, 6.5], C.slate);
+    line(g, [11.75, 1.2, 11.75, 0], C.brass, 1);
+    rect(g, 10.8, 10.5, 1.9, 3.5, C.walnut, false);
+    circ(g, 5, 10.5, 1, C.glass, false);
+  },
+  town_hall: (g) => {
+    rect(g, 1.5, 8, 13, 6, C.red);
+    rect(g, 6, 3.5, 4, 10.5, C.red);
+    poly(g, [5.5, 4, 8, 1, 10.5, 4], C.slate);
+    circ(g, 8, 6.3, 1.3, C.paper);
+    rect(g, 1.5, 7.5, 13, 1.2, C.paper, false);
+    for (const x of [3, 11.5]) rect(g, x, 10, 1.5, 2, C.brassLight, false);
+    rect(g, 7.2, 11, 1.6, 3, C.walnut, false);
+  },
+  grand_station: (g) => {
+    g.beginPath();
+    g.moveTo(1.5, 14);
+    g.lineTo(1.5, 8);
+    g.arc(8, 8, 6.5, Math.PI, 0);
+    g.lineTo(14.5, 14);
+    g.closePath();
+    fs(g, C.paperShade);
+    g.beginPath();
+    g.moveTo(4.5, 14);
+    g.lineTo(4.5, 9);
+    g.arc(8, 9, 3.5, Math.PI, 0);
+    g.lineTo(11.5, 14);
+    g.closePath();
+    fs(g, C.glass);
+    line(g, [8, 5.5, 8, 14], C.ink, 0.8);
+    circ(g, 8, 3.4, 1.2, C.paper);
+  },
+  library: (g) => {
+    g.beginPath();
+    g.arc(8, 7, 4, Math.PI, 0);
+    g.closePath();
+    fs(g, C.green);
+    rect(g, 7.4, 1.5, 1.2, 1.6, C.brass, false);
+    poly(g, [1, 9, 8, 6.5, 15, 9], C.paper);
+    rect(g, 2, 9, 12, 4, C.paperShade);
+    for (const x of [3.5, 6, 8.8, 11.4]) rect(g, x, 9.5, 1.1, 3, C.slate, false);
+    rect(g, 1, 13, 14, 1.6, C.paper);
+  },
+  stadium: (g) => {
+    ell(g, 8, 8, 7, 6.5, C.red);
+    ell(g, 8, 8, 4.6, 4.1, C.green);
+    line(g, [8, 4.2, 8, 11.8], C.paper, 0.8);
+    circ(g, 8, 8, 1.2, C.green, false);
+    g.beginPath();
+    g.arc(8, 8, 1.2, 0, TAU);
+    g.strokeStyle = C.paper;
+    g.lineWidth = 0.7;
+    g.stroke();
+    g.strokeStyle = C.ink;
+    g.lineWidth = OUTLINE;
+  },
+  skyscraper: (g) => {
+    rect(g, 3, 9, 10, 6, C.steel);
+    rect(g, 5, 4.5, 6, 10.5, C.steel);
+    rect(g, 6.5, 2, 3, 3, C.paperShade);
+    line(g, [8, 2, 8, 0.2], C.ink, 1);
+    for (const y of [6, 8.5, 11]) {
+      rect(g, 6.2, y, 1.2, 1.3, C.brassLight, false);
+      rect(g, 8.6, y, 1.2, 1.3, C.brassLight, false);
+    }
+    for (const x of [4, 11.2]) rect(g, x, 11, 0.9, 1.3, C.brassLight, false);
+  },
+};
+
+/** One painter per id. Append new glyphs here. */
+const PAINTERS: Record<IconId, Painter> = { ...GOOD_PAINTERS, ...UI_PAINTERS, ...ACHIEVEMENT_PAINTERS, ...LANDMARK_ICON_PAINTERS };
 
 export const ICON_IDS: readonly IconId[] = Object.freeze(Object.keys(PAINTERS));
 

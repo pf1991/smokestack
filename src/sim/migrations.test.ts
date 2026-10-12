@@ -52,9 +52,6 @@ describe('migrateSave', () => {
 });
 
 describe('v2 -> v3: cities spread', () => {
-  it('is the current version', () => {
-    expect(SAVE_VERSION).toBe(3);
-  });
   it('lays streets in the phase 0 fixture city that outgrew its old radius', () => {
     const raw = JSON.parse(phase0) as { version: number; cities: { id: number; population: number; urbanRadius: number; center: { x: number; y: number } }[]; map: { width: number; tiles: unknown[][] } };
     expect(raw.version).toBe(2);
@@ -73,7 +70,7 @@ describe('v2 -> v3: cities spread', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const s = r.value;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(checkInvariants(s)).toEqual([]);
     expect(roadsIn((i) => s.map.tiles[i].road)).toBeGreaterThan(before);
     expect(s.cities.find((c) => c.id === city.id)!.urbanRadius).toBe(R);
@@ -87,5 +84,25 @@ describe('v2 -> v3: cities spread', () => {
     const bad = phase0.replace('"cities":[', '"cities":[null,');
     expect(bad).not.toBe(phase0);
     expect(unpackState(bad)).toEqual(err('Save file is corrupted'));
+  });
+});
+
+describe('v3 -> v4: landmarks', () => {
+  it('is the current version', () => {
+    expect(SAVE_VERSION).toBe(4);
+  });
+  it('gives every city an empty landmark list', () => {
+    const o: Record<string, unknown> = { version: 3, cities: [{ id: 0, name: 'A' }, { id: 1, name: 'B', landmarks: [{ id: 'church', pos: { x: 1, y: 1 } }] }] };
+    const r = migrateSave(o);
+    expect(r.ok).toBe(true);
+    expect(o.version).toBe(4);
+    expect((o.cities as { landmarks: unknown[] }[]).map((c) => c.landmarks)).toEqual([[], []]);
+  });
+  it('a phase 0 save loads with landmark lists on every city', () => {
+    const r = unpackState(phase0);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.cities.length).toBeGreaterThan(0);
+    for (const c of r.value.cities) expect(c.landmarks).toEqual([]);
   });
 });

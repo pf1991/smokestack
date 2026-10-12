@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { GOODS, DEMAND_PER_1000 } from './goods';
 import { RECIPES, recipeEra } from './recipes';
 import { BUILDINGS } from './buildings';
+import { LANDMARK_IDS, LANDMARKS } from './landmarks';
+import { ICON_IDS } from '../render/icons';
+import { LANDMARK_PAINTERS } from '../render/landmarks';
 
 describe('content catalog', () => {
   it('every recipe good exists', () => {
@@ -80,6 +83,14 @@ describe('content catalog', () => {
     expect(new Set(goodColors).size).toBe(goodColors.length);
     for (const b of Object.values(BUILDINGS)) {
       expect(b.description.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('every landmark has a painter and an icon', () => {
+    expect(LANDMARK_IDS).toEqual(Object.keys(LANDMARKS));
+    for (const id of LANDMARK_IDS) {
+      expect(typeof LANDMARK_PAINTERS[id], id).toBe('function');
+      expect(ICON_IDS, id).toContain(id);
     }
   });
 });

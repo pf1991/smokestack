@@ -24,6 +24,7 @@ function city(population: number): City {
     pollution: 0,
     market: {},
     urbanRadius: 3,
+    landmarks: [],
   };
 }
 

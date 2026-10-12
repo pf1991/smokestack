@@ -1,5 +1,7 @@
+import type { LandmarkId } from '../../data/landmarks';
 import type { Vec2 } from '../../sim/types';
 import { TILE } from '../camera';
+import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { chimneyOffsets, drawHouse, type HouseTier, windowRects } from '../sprites';
 import { type Ctx, type Surface, makeSurface } from './shared';
 
@@ -117,4 +119,38 @@ export function getWindowGlow(typeId: string): WindowGlow | null {
   const wg = { surf, ox, oy };
   windowGlowCache.set(typeId, wg);
   return wg;
+}
+
+/** Padding (px) around a landmark glow mask; the mask's top-left sits at (-pad, -LANDMARK_HEADROOM - pad) in footprint coords. */
+export const LANDMARK_GLOW_PAD = 6;
+const landmarkGlowCache = new Map<LandmarkId, Surface>();
+/**
+ * Glow mask for a landmark's lit windows and lamps, made like getHouseGlow: |lit − unlit| leaves
+ * only the pixels that light up, plus a blurred halo. Drawn with 'lighter' compositing at night.
+ */
+export function getLandmarkGlow(id: LandmarkId): Surface {
+  let s = landmarkGlowCache.get(id);
+  if (s) return s;
+  const P = LANDMARK_GLOW_PAD;
+  const W = LANDMARK_PX + P * 2;
+  const H = LANDMARK_PX + LANDMARK_HEADROOM + P * 2;
+  const sharp = makeSurface(W, H);
+  const g = (sharp as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D;
+  const unlit = makeSurface(W, H);
+  drawLandmark((unlit as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, id, P, P + LANDMARK_HEADROOM, false);
+  drawLandmark(g, id, P, P + LANDMARK_HEADROOM, true);
+  g.globalCompositeOperation = 'difference';
+  g.drawImage(unlit as CanvasImageSource, 0, 0);
+  s = makeSurface(W, H);
+  const o = (s as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D;
+  o.fillStyle = '#000';
+  o.fillRect(0, 0, W, H);
+  o.globalCompositeOperation = 'lighter';
+  o.filter = 'blur(2px)';
+  o.drawImage(sharp as CanvasImageSource, 0, 0);
+  o.drawImage(sharp as CanvasImageSource, 0, 0);
+  o.filter = 'none';
+  o.drawImage(sharp as CanvasImageSource, 0, 0);
+  landmarkGlowCache.set(id, s);
+  return s;
 }
