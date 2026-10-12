@@ -157,6 +157,7 @@ export class GameController {
     for (const off of this.busOffs) off();
     const bus = new EventBus();
     this.ctx = { state, bus };
+    this.hud.reset();
     if (!this.renderer) {
       this.renderer = new WorldRenderer(this.canvas, state);
       this.renderer.attachOverlay(this.overlay);

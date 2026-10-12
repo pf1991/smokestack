@@ -74,6 +74,9 @@ export function showStamp(text: string, tone: 'good' | 'bad'): void {
   const el = document.createElement('div');
   el.className = `stamp ${tone}`;
   el.textContent = text;
+  // stack below any stamps still on screen so they never overlap
+  const live = root.querySelectorAll(':scope > .stamp').length;
+  el.style.top = `calc(38% + ${live * 9}vh)`;
   root.appendChild(el);
   setTimeout(() => el.remove(), STAMP_MS);
 }

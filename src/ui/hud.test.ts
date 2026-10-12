@@ -76,4 +76,13 @@ describe('Hud', () => {
     expect(d.classList.contains('bad')).toBe(true);
     expect(d.textContent).toBe('\u2212$3,100');
   });
+
+  it('snaps on the first update after reset', () => {
+    const { root, hud, state } = setup();
+    hud.update(state, 0);
+    hud.reset();
+    state.companies.player.money = 5_000;
+    hud.update(state, 1);
+    expect((root.querySelector('.hud-money') as HTMLElement).textContent).toBe('$5,000');
+  });
 });

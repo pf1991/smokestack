@@ -1,7 +1,7 @@
 import type { Result } from '../../core/result';
 import type { GameController } from '../../game/controller';
 import { GOODS } from '../../data/goods';
-import { LOAN_RATE, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, LOAN_RATE, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
 import { assetValue } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
 import { barChart, cssColor, lineChart } from '../charts';
@@ -13,18 +13,19 @@ import './finance.css';
 
 const REFRESH_MS = 1000;
 const STATEMENT_MONTHS = 12;
-const INCOME_CATS: { cat: LedgerCategory; label: string }[] = [
-  { cat: 'sales', label: 'Sales' },
-  { cat: 'contracts', label: 'Mayor’s contracts' },
-  { cat: 'events', label: 'Events' },
-  { cat: 'demolition', label: 'Demolition refunds' },
-];
-const EXPENSE_CATS: { cat: LedgerCategory; label: string }[] = [
-  { cat: 'construction', label: 'Construction' },
-  { cat: 'maintenance', label: 'Maintenance' },
-  { cat: 'vehicles', label: 'Vehicles' },
-  { cat: 'interest', label: 'Interest' },
-];
+const LABELS: Record<LedgerCategory, string> = {
+  sales: 'Sales',
+  contracts: 'Mayor’s contracts',
+  events: 'Events',
+  demolition: 'Demolition refunds',
+  construction: 'Construction',
+  maintenance: 'Maintenance',
+  vehicles: 'Vehicles',
+  interest: 'Interest',
+};
+// rows come from the sim's category lists, so the statement and monthProfit cannot drift apart
+const INCOME_CATS = INCOME_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
+const EXPENSE_CATS = EXPENSE_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const monthKey = (m: { year: number; month: number }) => m.year * 12 + m.month;

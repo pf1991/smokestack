@@ -120,6 +120,12 @@ export class Hud {
     setTimeout(() => el.remove(), DELTA_MS);
   }
 
+  /** Forgets the previous game: the next update snaps the treasury instead of rolling. */
+  reset(): void {
+    this.state = null;
+    this.seeded = false;
+  }
+
   /** Advances the treasury roll; call every frame. */
   tick(nowMs: number): void {
     this.counter.tick(nowMs);

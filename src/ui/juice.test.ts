@@ -62,4 +62,15 @@ describe('showStamp', () => {
     expect(ui.querySelector('.stamp')).toBeNull();
     ui.remove();
   });
+  it('offsets simultaneous stamps', () => {
+    vi.useFakeTimers();
+    const ui = document.createElement('div');
+    ui.id = 'ui';
+    document.body.appendChild(ui);
+    showStamp('A', 'good');
+    showStamp('B', 'good');
+    const [a, b] = Array.from(ui.querySelectorAll<HTMLElement>('.stamp'));
+    expect(a.style.top).not.toBe(b.style.top);
+    ui.remove();
+  });
 });
