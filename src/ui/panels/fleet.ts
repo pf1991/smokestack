@@ -2,7 +2,9 @@ import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import type { GameState, Route, Vehicle } from '../../sim/types';
 import { assignVehicle, sellVehicle, tripsLast30, VEHICLE_KINDS } from '../../sim/vehicles';
+import type { IconId } from '../../render/icons';
 import { h } from '../dom';
+import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
@@ -13,11 +15,11 @@ type Host = Pick<GameController, 'ctx' | 'renderer' | 'centerOn' | 'openPanel'> 
 
 export type FleetFilter = 'all' | 'truck' | 'train' | 'problem';
 
-const FILTERS: { id: FleetFilter; label: string }[] = [
+const FILTERS: { id: FleetFilter; label: string; icon?: IconId }[] = [
   { id: 'all', label: 'All' },
   { id: 'truck', label: 'Trucks' },
   { id: 'train', label: 'Trains' },
-  { id: 'problem', label: '⚠ Idle or stuck' },
+  { id: 'problem', label: 'Idle or stuck', icon: 'warning' },
 ];
 
 export const STATUS_LABEL = { moving: 'Driving', loading: 'Loading', idle: 'Idle', stuck: 'Stuck' } as const;
@@ -55,10 +57,14 @@ export function fleetSummary(state: GameState): string {
   return `${trucks} ${trucks === 1 ? 'truck' : 'trucks'} · ${trains} ${trains === 1 ? 'train' : 'trains'} · ${idle} idle · ${stuck} stuck · ${formatMoney(upkeep)}/mo upkeep`;
 }
 
-export function cargoLabel(v: Vehicle): string {
+/** Cargo as icon + quantity pairs ("Empty" when nothing aboard); `sig` changes only when the display would. */
+export function cargoView(v: Vehicle): { sig: string; nodes: (string | HTMLElement)[] } {
   const items = Object.entries(v.cargo).filter(([, q]) => q > 0.5);
-  if (items.length === 0) return 'Empty';
-  return items.map(([g, q]) => `${GOODS[g]?.icon ?? g} ${formatNumber(q)}`).join(' ');
+  if (items.length === 0) return { sig: '', nodes: ['Empty'] };
+  return {
+    sig: items.map(([g, q]) => `${g}:${formatNumber(q)}`).join(','),
+    nodes: items.flatMap(([g, q], i) => [i > 0 ? ' ' : '', iconEl(g, 16, GOODS[g]?.name ?? g), ` ${formatNumber(q)}`]),
+  };
 }
 
 const playerRoutes = (state: GameState, kind: Vehicle['kind']): Route[] =>
@@ -100,7 +106,7 @@ class FleetPanel {
             this.filter = f.id;
             this.update();
           },
-        }, f.label),
+        }, f.icon && iconEl(f.icon, 14), f.icon ? ` ${f.label}` : f.label),
       );
     }
     this.root.append(
@@ -143,7 +149,7 @@ class FleetPanel {
     const cargo = h('span', { class: 'fl-cargo' });
     const trips = h('span', { class: 'fl-trips', title: 'Completed unloading stops in the last 30 days' });
     const el = h('div', { class: 'fl-row', 'data-vehicle': v.id },
-      h('span', { class: 'fl-icon', title: v.kind === 'train' ? 'Train' : 'Truck' }, v.kind === 'train' ? '🚂' : '🚚'),
+      h('span', { class: 'fl-icon', title: v.kind === 'train' ? 'Train' : 'Truck' }, iconEl(v.kind === 'train' ? 'train' : 'truck', 16, v.kind === 'train' ? 'Train' : 'Truck')),
       select,
       status,
       cargo,
@@ -201,7 +207,11 @@ class FleetPanel {
       row.el.classList.toggle('problem', isProblem(v));
       text(row.status, STATUS_LABEL[v.state]);
       row.status.className = `fl-status st-${v.state}`;
-      text(row.cargo, cargoLabel(v));
+      const cargo = cargoView(v);
+      if (row.cargo.dataset.sig !== cargo.sig) {
+        row.cargo.dataset.sig = cargo.sig;
+        row.cargo.replaceChildren(...cargo.nodes);
+      }
       text(row.trips, String(tripsLast30(state, v)));
       this.syncSelect(row, v);
     }

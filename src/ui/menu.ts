@@ -6,6 +6,7 @@ import { loadSettings, saveSettings } from '../game/settings';
 import { goalProgress, SCENARIOS, type Goal } from '../sim/scenarios';
 import type { GameState } from '../sim/types';
 import { h } from './dom';
+import { iconEl } from './icon';
 import { formatMoney } from './format';
 import './menu.css';
 import { MenuBackdrop } from './menuBackdrop';
@@ -103,7 +104,7 @@ function achievementsView(): HTMLElement {
     h('div', { class: 'mn-status' }, `${got.size} of ${ACHIEVEMENTS.length} unlocked`),
     h('div', { class: 'mn-ach' }, ACHIEVEMENTS.map((a) =>
       h('div', { class: `mn-ach-item ${got.has(a.id) ? 'got' : ''}` },
-        h('span', { class: 'mn-ach-icon' }, got.has(a.id) ? a.icon : '🔒'),
+        h('span', { class: 'mn-ach-icon' }, iconEl(got.has(a.id) ? a.icon : 'lock', 28, got.has(a.id) ? a.name : 'Locked')),
         h('span', null, h('b', null, a.name), h('br'), a.desc)))));
 }
 
@@ -209,7 +210,7 @@ export class MainMenu {
         f.seed = randomSeed();
         seed.value = String(f.seed);
       },
-    }, '🎲');
+    }, 'Random');
     const rival = h('input', {
       type: 'checkbox', checked: f.rival,
       onChange: (e: Event) => (f.rival = (e.target as HTMLInputElement).checked),

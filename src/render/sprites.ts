@@ -13,9 +13,9 @@
  * Nothing here touches `document` at import time; canvases are created lazily.
  */
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
-import { GOODS } from '../data/goods';
 import type { OwnerId, Vec2 } from '../sim/types';
 import { TILE } from './constants';
+import { drawIcon } from './icons';
 
 export const HEADROOM = 16;
 const WALL = 7;
@@ -790,16 +790,7 @@ export function drawTrain(g: Ctx, px: number, py: number, dir: Dir, ownerId: Own
 
 // ---------------------------------------------------------------- icons
 
-/** Emoji good icon centred in a `size` box at (px, py) (top-left); coloured dot backs it as fallback. */
+/** Atlas icon for a good, filling the `size` box at (px, py) (top-left). */
 export function drawGoodIcon(g: Ctx, goodId: string, px: number, py: number, size: number): void {
-  const good = GOODS[goodId];
-  const color = good?.color ?? '#999';
-  circle(g, px + size / 2, py + size / 2, size * 0.32, color);
-  if (!good?.icon) return;
-  g.save();
-  g.font = `${Math.round(size * 0.85)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(good.icon, px + size / 2, py + size / 2 + 1);
-  g.restore();
+  drawIcon(g, goodId, px, py, size);
 }

@@ -112,7 +112,7 @@ describe('city panel', () => {
     c.market.clothes = { sold30: 50, demand30: 100, pending: 0 };
     PANELS.city.open(host(ctx) as never, 0);
     const rows = [...document.querySelectorAll<HTMLElement>('tr.insp-good')];
-    const crave = rows.filter((r) => r.textContent!.includes('★ Craves')).map((r) => r.dataset.good);
+    const crave = rows.filter((r) => r.textContent!.includes('Craves')).map((r) => r.dataset.good);
     expect(crave).toHaveLength(3);
     expect(crave[0]).toBe('furniture');
     expect(crave).not.toContain('bread');

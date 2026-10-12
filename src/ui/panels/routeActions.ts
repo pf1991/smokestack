@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
+import type { IconId } from '../../render/icons';
 import type { Selection } from '../../render/world';
 import { earn } from '../../sim/finance';
 import { acceptsGood } from '../../sim/inventory';
@@ -11,15 +12,16 @@ import { buyTruck, createRoute, deleteRoute, TRUCK, VEHICLE_KINDS } from '../../
 
 export type Kind = Route['kind'];
 
-const CATEGORY_ICON = { extractor: '⛏️', factory: '🏭', retail: '🏪', logistics: '📦' } as const;
+const CATEGORY_ICON: Record<string, IconId> = { extractor: 'pick', factory: 'factory', retail: 'shop', logistics: 'crate' };
 
 export const buildingName = (b: Building | undefined): string => (b ? (BUILDINGS[b.typeId]?.name ?? b.typeId) : 'Missing building');
-export const buildingIcon = (b: Building | undefined): string => (b ? (CATEGORY_ICON[BUILDINGS[b.typeId]?.category] ?? '🏭') : '❔');
+/** Atlas icon for a building's category ('warning' when it is gone). */
+export const buildingIcon = (b: Building | undefined): IconId => (b ? (CATEGORY_ICON[BUILDINGS[b.typeId]?.category] ?? 'factory') : 'warning');
 
 /** Words, icon and price for the vehicles of a route kind. */
 export const KIND_INFO = {
-  truck: { one: 'truck', many: 'trucks', icon: '🚚', cost: TRUCK.cost, way: 'road', buy: buyTruck },
-  train: { one: 'train', many: 'trains', icon: '🚂', cost: TRAIN.cost, way: 'track', buy: buyTrain },
+  truck: { one: 'truck', many: 'trucks', icon: 'truck', cost: TRUCK.cost, way: 'road', buy: buyTruck },
+  train: { one: 'train', many: 'trains', icon: 'train', cost: TRAIN.cost, way: 'track', buy: buyTrain },
 } as const;
 
 /** Access tiles for a stop of a route kind (road for trucks, rail for trains). */
@@ -27,9 +29,9 @@ export function stopAccess(state: GameState, b: Building, kind: Kind) {
   return VEHICLE_KINDS[kind]?.access(state, b) ?? [];
 }
 
-/** One-line summary of a stop's cargo, e.g. "loads 🪵 · unloads —". */
+/** One-line summary of a stop's cargo, e.g. "loads Wood · unloads —". */
 export function stopSummary(stop: RouteStop): string {
-  const list = (ids: string[]) => (ids.length > 0 ? ids.map((g) => GOODS[g]?.icon ?? g).join('') : '—');
+  const list = (ids: string[]) => (ids.length > 0 ? ids.map((g) => GOODS[g]?.name ?? g).join(', ') : '—');
   return `loads ${list(stop.load)} · unloads ${list(stop.unload)}`;
 }
 

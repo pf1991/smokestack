@@ -9,6 +9,7 @@ import { findPath, roadPassable } from '../sim/pathfinding';
 import { accessTiles } from '../sim/state';
 import type { Building, BuildingTypeId, GameState } from '../sim/types';
 import { h } from './dom';
+import { iconEl } from './icon';
 import './tutorial.css';
 
 export interface TutorialStep {
@@ -225,7 +226,7 @@ export class Tutorial {
   private show(key: string, ...children: HTMLElement[]): void {
     this.shownKey = key;
     const card = h('aside', { class: 'tut-card brass-card', role: 'status', 'aria-live': 'polite' },
-      h('div', { class: 'tut-gear', 'aria-hidden': 'true' }, '⚙'),
+      h('div', { class: 'tut-gear', 'aria-hidden': 'true' }, iconEl('gear', 26)),
       h('div', { class: 'tut-body' }, ...children));
     if (this.card) this.card.replaceWith(card);
     else this.root.appendChild(card);

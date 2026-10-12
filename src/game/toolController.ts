@@ -241,7 +241,7 @@ export class ToolController {
     const stock = (inv: Record<string, number>) =>
       Object.entries(inv)
         .filter(([, q]) => q > 0)
-        .map(([g, q]) => `${GOODS[g]?.icon ?? g}${Math.floor(q)}`)
+        .map(([g, q]) => `${GOODS[g]?.name ?? g} ${Math.floor(q)}`)
         .join(' ');
     const parts = [def?.name ?? b.typeId, b.status.replace('_', ' ')];
     const inp = stock(b.input);

@@ -274,6 +274,9 @@
   font-size: 13px;
   line-height: 1.3;
 }
+.tc-flow .icon + .icon {
+  margin-left: 2px;
+}
 
 .tc-nums {
   display: flex;

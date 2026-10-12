@@ -4,6 +4,7 @@ import { addDays, dateToDays, formatDate } from '../../sim/clock';
 import { acceptContract } from '../../sim/contracts';
 import type { Contract, GameState } from '../../sim/types';
 import { h } from '../dom';
+import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
@@ -41,7 +42,7 @@ function card(game: GameController, c: Contract, rerender: () => void): HTMLElem
   const state = game.state;
   const good = GOODS[c.goodId];
   const city = state.cities[c.cityId];
-  const head = h('div', { class: 'cb-title' }, `${good?.icon ?? ''} ${formatNumber(c.qty)} ${good?.name ?? c.goodId}`);
+  const head = h('div', { class: 'cb-title' }, iconEl(c.goodId, 16), ` ${formatNumber(c.qty)} ${good?.name ?? c.goodId}`);
   const where = h('div', { class: 'cb-line' }, `for ${city?.name ?? '?'}`);
   const reward = h('div', { class: 'cb-line' }, 'Reward ', h('span', { class: 'cb-reward' }, formatMoney(c.reward)), ' + 5% growth');
   const body: (HTMLElement | null)[] = [head, where, reward];

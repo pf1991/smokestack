@@ -3,6 +3,7 @@ export { eraName };
 import type { GameState, Speed } from '../sim/types';
 import { setOverlay } from '../render/overlays';
 import { h } from './dom';
+import { iconEl } from './icon';
 import { formatMoney } from './format';
 import './hud.css';
 
@@ -79,7 +80,7 @@ export class Hud {
         smog.classList.toggle('active', on);
         setOverlay('pollution', on);
       },
-    }, '☁ Smog');
+    }, iconEl('smog', 16), ' Smog');
     panels.appendChild(smog);
 
     const bar = h('div', { class: 'hud-bar' },

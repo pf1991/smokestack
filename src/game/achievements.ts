@@ -1,5 +1,6 @@
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
+import type { IconId } from '../render/icons';
 import { netWorth } from '../sim/rival';
 import type { GameState, SimContext } from '../sim/types';
 
@@ -7,7 +8,8 @@ export interface AchievementDef {
   id: string;
   name: string;
   desc: string;
-  icon: string;
+  /** Atlas glyph (src/render/icons.ts). */
+  icon: IconId;
   test(state: GameState): boolean;
 }
 
@@ -22,37 +24,37 @@ const playerVehicles = (s: GameState) => Object.values(s.vehicles).filter((v) =>
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   {
-    id: 'first_sale', name: 'First Sale', icon: '🛎️', desc: 'Sell your first goods.',
+    id: 'first_sale', name: 'First Sale', icon: 'bell', desc: 'Sell your first goods.',
     test: (s) => Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && flagNum(s, k) > 0),
   },
   {
     // approximation: owns an extractor and has sold a tier-2 good (no per-good provenance is tracked)
-    id: 'chain_gang', name: 'Chain Gang', icon: '⛓️', desc: 'Sell a finished good made from your own extractor.',
+    id: 'chain_gang', name: 'Chain Gang', icon: 'chain', desc: 'Sell a finished good made from your own extractor.',
     test: (s) =>
       Object.values(s.buildings).some((b) => b.ownerId === 'player' && BUILDINGS[b.typeId]?.category === 'extractor') &&
       Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && GOODS[k.slice(5)]?.tier === 2 && flagNum(s, k) > 0),
   },
-  { id: 'millionaire', name: 'Millionaire', icon: '💰', desc: 'Reach a net worth of $1,000,000.', test: (s) => netWorth(s, 'player') >= 1_000_000 },
-  { id: 'motor_mogul', name: 'Motor Mogul', icon: '🚗', desc: 'Sell 100 automobiles.', test: (s) => flagNum(s, 'sold:cars') >= 100 },
-  { id: 'fleet_50', name: 'Fleet of Fifty', icon: '🚚', desc: 'Run 50 vehicles at once.', test: (s) => playerVehicles(s).length >= 50 },
-  { id: 'rail_baron', name: 'Rail Baron', icon: '🚂', desc: 'Run 10 trains at once.', test: (s) => playerVehicles(s).filter((v) => v.kind === 'train').length >= 10 },
+  { id: 'millionaire', name: 'Millionaire', icon: 'money', desc: 'Reach a net worth of $1,000,000.', test: (s) => netWorth(s, 'player') >= 1_000_000 },
+  { id: 'motor_mogul', name: 'Motor Mogul', icon: 'cars', desc: 'Sell 100 automobiles.', test: (s) => flagNum(s, 'sold:cars') >= 100 },
+  { id: 'fleet_50', name: 'Fleet of Fifty', icon: 'truck', desc: 'Run 50 vehicles at once.', test: (s) => playerVehicles(s).length >= 50 },
+  { id: 'rail_baron', name: 'Rail Baron', icon: 'train', desc: 'Run 10 trains at once.', test: (s) => playerVehicles(s).filter((v) => v.kind === 'train').length >= 10 },
   {
     // approximation: checked from 1950 on, not continuously
-    id: 'clean_hands', name: 'Clean Hands', icon: '🧼', desc: 'Be worth $1M in 1950 without a single heavy polluter.',
+    id: 'clean_hands', name: 'Clean Hands', icon: 'soap', desc: 'Be worth $1M in 1950 without a single heavy polluter.',
     test: (s) =>
       s.date.year >= 1950 &&
       netWorth(s, 'player') > 1_000_000 &&
       !Object.values(s.buildings).some((b) => b.ownerId === 'player' && (BUILDINGS[b.typeId]?.pollution ?? 0) > 2),
   },
-  { id: 'contract_killer', name: 'Contract Killer', icon: '📜', desc: 'Complete 10 mayor\'s contracts.', test: (s) => flagNum(s, 'contractsDone') >= 10 },
+  { id: 'contract_killer', name: 'Contract Killer', icon: 'scroll', desc: 'Complete 10 mayor\'s contracts.', test: (s) => flagNum(s, 'contractsDone') >= 10 },
   {
-    id: 'crash_survivor', name: 'Crash Survivor', icon: '📉', desc: 'Keep your cash positive through 1929-1931.',
+    id: 'crash_survivor', name: 'Crash Survivor', icon: 'chart_down', desc: 'Keep your cash positive through 1929-1931.',
     test: (s) => flagNum(s, 'crashMonths') >= 36 && s.flags?.crashBroke !== true, // months tracked by goalsMonth
   },
-  { id: 'baron_busted', name: 'Baron Busted', icon: '🎩', desc: 'Take over Smogsworth Industries.', test: (s) => s.flags?.takeover === true },
-  { id: 'centennial', name: 'Centennial', icon: '🎆', desc: 'Reach the year 2000.', test: (s) => s.date.year >= 2000 },
+  { id: 'baron_busted', name: 'Baron Busted', icon: 'top_hat', desc: 'Take over Smogsworth Industries.', test: (s) => s.flags?.takeover === true },
+  { id: 'centennial', name: 'Centennial', icon: 'fireworks', desc: 'Reach the year 2000.', test: (s) => s.date.year >= 2000 },
   {
-    id: 'monopoly', name: 'Monopoly', icon: '👑', desc: 'Be the only seller of a good in every city.',
+    id: 'monopoly', name: 'Monopoly', icon: 'crown', desc: 'Be the only seller of a good in every city.',
     test: (s) => s.flags?.monopoly === true, // set (sticky) by goalsMonth from this month's seller flags
   },
 ];
@@ -96,7 +98,7 @@ export function attachAchievements(ctx: SimContext): () => void {
     for (const id of fresh) {
       const def = ACHIEVEMENTS.find((a) => a.id === id)!;
       ctx.bus.emit({ type: 'achievement', id });
-      ctx.bus.emit({ type: 'toast', message: `Achievement unlocked: ${def.icon} ${def.name}`, tone: 'good' });
+      ctx.bus.emit({ type: 'toast', message: `Achievement unlocked: ${def.name}`, tone: 'good' });
     }
   };
   const offs = [
@@ -110,7 +112,7 @@ export function attachAchievements(ctx: SimContext): () => void {
         unlocked.add(e.id);
         persist(unlocked);
         const def = ACHIEVEMENTS.find((a) => a.id === e.id);
-        if (def) ctx.bus.emit({ type: 'toast', message: `Achievement unlocked: ${def.icon} ${def.name}`, tone: 'good' });
+        if (def) ctx.bus.emit({ type: 'toast', message: `Achievement unlocked: ${def.name}`, tone: 'good' });
       }
     }),
   ];

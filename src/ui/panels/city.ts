@@ -5,6 +5,7 @@ import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/m
 import { demandModifier } from '../../sim/production';
 import type { City, GameState } from '../../sim/types';
 import { h } from '../dom';
+import { iconEl } from '../icon';
 import { formatMoney, formatNumber, formatPercent } from '../format';
 import './panels.css';
 import { bar, type Bar, KeyedList, openInspector, setText, type InspectorHost, type InspectorView } from './inspect';
@@ -57,7 +58,7 @@ function makeRow(goodId: string): GoodRow {
   const el = h(
     'tr',
     { class: 'insp-good', 'data-good': goodId },
-    h('td', null, `${g.icon} ${g.name}`, crave),
+    h('td', null, iconEl(goodId, 16), ` ${g.name}`, crave),
     demand,
     h('td', null, sat.el),
     price,
@@ -108,7 +109,10 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         setText(row.demand, formatNumber(d.demand));
         row.sat.set(d.satisfaction, formatPercent(d.satisfaction));
         setText(row.price, formatMoney(d.price));
-        setText(row.crave, craved.has(d.goodId) ? ' ★ Craves' : '');
+        const craves = craved.has(d.goodId);
+        if (craves !== (row.crave.childNodes.length > 0)) {
+          row.crave.replaceChildren(...(craves ? [' ', iconEl('star', 12), ' Craves'] : []));
+        }
         const sellers = stores.filter((s) => (loadSource(s)[d.goodId] ?? 0) >= 1);
         const sig = sellers.map((s) => `${s.id}${s.ownerId}`).join(',');
         if (sig !== row.storeSig) {

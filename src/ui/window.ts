@@ -1,4 +1,5 @@
 import { h } from './dom';
+import { iconEl } from './icon';
 
 export interface WindowOptions {
   id: string;
@@ -36,7 +37,7 @@ export function createWindow(opts: WindowOptions): GameWindow {
     title: 'Close',
     'aria-label': 'Close',
     onClick: () => win.close(),
-  }, '✕');
+  }, iconEl('close', 14));
   const titleBar = h('div', { class: 'window-title' }, h('span', null, opts.title), closeBtn);
   const el = h('div', {
     class: 'window',

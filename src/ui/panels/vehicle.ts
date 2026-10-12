@@ -88,7 +88,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       setText(
         cargo,
         items.length > 0
-          ? `${items.map(([g, q]) => `${getGood(g).icon} ${formatNumber(q)} ${getGood(g).name}`).join(', ')} (${formatNumber(total)} / ${v.capacity})`
+          ? `${items.map(([g, q]) => `${formatNumber(q)} ${getGood(g).name}`).join(', ')} (${formatNumber(total)} / ${v.capacity})`
           : `Empty (0 / ${v.capacity})`,
       );
       sell.hidden = v.ownerId !== 'player';

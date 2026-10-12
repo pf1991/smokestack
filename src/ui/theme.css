@@ -40,6 +40,13 @@ h3 {
   color: var(--brass-light);
 }
 
+/* Atlas icons (src/ui/icon.ts) sit on the text baseline like a glyph. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.2em;
+  flex: none;
+}
+
 /* Walnut panel with a brass inset border. */
 .panel {
   background:
