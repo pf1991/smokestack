@@ -492,7 +492,7 @@ describe('assignVehicle', () => {
     const { s, ctx, camp, mill } = world();
     const v = must(buyTruck(ctx, 'player', woodRoute(ctx, camp, mill).id));
     delete v.trips30;
-    const back = must(deserialize(serialize(s)));
+    const back = must(deserialize(serialize(s))).state;
     expect(tripsLast30(back, back.vehicles[v.id])).toBe(0);
   });
 

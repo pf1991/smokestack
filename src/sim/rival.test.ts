@@ -545,7 +545,7 @@ describe('rival railways', () => {
   it('old saves without rail project state still load and play', () => {
     const { s, ctx } = railGame(500000);
     delete (s as { rivalRail?: unknown }).rivalRail;
-    const loaded = must(deserialize(serialize(s)));
+    const loaded = must(deserialize(serialize(s))).state;
     expect(() => rivalMonth({ state: loaded, bus: ctx.bus })).not.toThrow();
   });
 });

@@ -3,7 +3,8 @@ import { err } from '../core/result';
 import { unpackState } from '../game/saves';
 import { checkInvariants } from './invariants';
 import { urbanRadius } from './market';
-import { migrateSave, SAVE_VERSION, type Migration } from './migrations';
+import { migrateSave, runAfterLoad, SAVE_VERSION, type Migration } from './migrations';
+import { testState } from './testkit';
 
 const fixtures = import.meta.glob('./__fixtures__/phase0.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const phase0 = fixtures['./__fixtures__/phase0.save.json'];
@@ -31,6 +32,16 @@ describe('migrateSave', () => {
   it('returns corrupted instead of throwing when a migration throws', () => {
     const ms: Migration[] = [{ from: 2, migrate: () => { throw new Error('boom'); } }];
     expect(migrateSave({ version: 2 }, ms, 3)).toEqual(err('Save file is corrupted'));
+  });
+  it('runAfterLoad turns a throwing afterLoad hook into corrupted', () => {
+    const ran: number[] = [];
+    const ms: Migration[] = [
+      { from: 2, migrate: () => {}, afterLoad: () => { ran.push(2); } },
+      { from: 3, migrate: () => {}, afterLoad: () => { throw new Error('boom'); } },
+    ];
+    expect(runAfterLoad(testState(), ms)).toEqual(err('Save file is corrupted'));
+    expect(ran).toEqual([2]);
+    expect(runAfterLoad(testState(), ms.slice(0, 1)).ok).toBe(true);
   });
   it('records the migrations it applied', () => {
     const ms: Migration[] = [{ from: 2, migrate: () => {} }];

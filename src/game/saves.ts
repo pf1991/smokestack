@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '../core/result';
 import { formatDate } from '../sim/clock';
-import { runAfterLoad, SAVE_VERSION, type Migration } from '../sim/migrations';
+import { runAfterLoad, SAVE_VERSION } from '../sim/migrations';
 import { packLayer, unpackLayer } from '../sim/layers';
 import { deserialize, serialize } from '../sim/simulation';
 import type { GameState, OwnerId, SimContext, Terrain, Tile } from '../sim/types';
@@ -78,12 +78,14 @@ export function packState(state: GameState): string {
   return serialize(packed as unknown as GameState);
 }
 
-/** Parses, migrates and validates a save string, expanding packed tiles. */
+/**
+ * The one load path: parses, migrates and validates a save string, expands packed tiles and
+ * layers, then runs the applied migrations' `afterLoad` hooks.
+ */
 export function unpackState(raw: string): Result<GameState> {
-  const applied: Migration[] = [];
-  const r = deserialize(raw, applied);
+  const r = deserialize(raw);
   if (!r.ok) return r;
-  const state = r.value;
+  const { state, applied } = r.value;
   const tiles = state.map.tiles as unknown[];
   // a plain object tile means a save that predates tile packing
   if (tiles.length > 0 && typeof tiles[0] !== 'object') return err('Save file is corrupted');

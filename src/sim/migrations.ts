@@ -1,13 +1,10 @@
 import { err, ok, type Result } from '../core/result';
-// state.ts imports SAVE_VERSION from here; the cycle is safe because neither module uses the
-// other's bindings at load time (only inside functions).
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { GameState } from './types';
+import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
 
-/** Current save format. Lives here (simulation.ts re-exports it) so this module never imports simulation. */
-export const SAVE_VERSION = 3;
-/** Oldest version that can still be loaded; SMOKESTACK I saves (version 1) are refused. */
-export const MIN_SAVE_VERSION = 2;
+// versions live in the leaf module version.ts (state.ts needs SAVE_VERSION and must not import this module)
+export { MIN_SAVE_VERSION, SAVE_VERSION };
 
 /**
  * Upgrades a save from `from` to `from + 1`. `migrate` runs on the raw parsed object (tiles may still
@@ -27,15 +24,17 @@ export const MIGRATIONS: Migration[] = [
     from: 2,
     migrate: () => {},
     afterLoad(state) {
-      for (const c of state.cities) layCityStreets(state.map, c);
+      // mark the new discs first, so each city's grid stops where a nearer city's land begins
       refreshUrbanTiles(state);
+      for (const c of state.cities) layCityStreets(state.map, c);
     },
   },
 ];
 
 /**
  * Upgrades a raw save to `current`. Mutates `o` and sets `o.version`. Never throws. Each migration
- * applied is appended to `applied`, so the loader can run its `afterLoad` hook (see runAfterLoad).
+ * applied is appended to `applied`; the loader (unpackState) runs their `afterLoad` hooks with
+ * runAfterLoad once the state is fully rebuilt.
  */
 export function migrateSave(
   o: Record<string, unknown>,

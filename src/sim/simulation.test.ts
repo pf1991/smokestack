@@ -131,10 +131,6 @@ interface Chain {
   moneyAfterConstruction: number;
 }
 
-function dist(a: Vec2, b: Vec2): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
-
 /** lumber_camp → sawmill → furniture_factory → store near the city closest to a placeable forest. */
 function buildFurnitureChain(seed: number, trucksPerLeg = 2): Chain {
   const state = createGame({ seed, companyName: 'Test Co.', rival: false });
@@ -144,8 +140,9 @@ function buildFurnitureChain(seed: number, trucksPerLeg = 2): Chain {
   let best = Infinity;
   for (const c of state.cities) {
     const p = findPlacement(state, 'player', 'lumber_camp', c.center, 30);
-    // distance from the town's edge: bigger towns push industry further out, which is not a worse site
-    const d = p ? dist(p, c.center) - c.urbanRadius : Infinity;
+    // Euclidean distance from the town's edge (urbanRadius is a Euclidean disc): bigger towns push
+    // industry further out, which is not a worse site
+    const d = p ? Math.hypot(p.x - c.center.x, p.y - c.center.y) - c.urbanRadius : Infinity;
     if (p && d < best) {
       best = d;
       city = c;
@@ -217,10 +214,11 @@ describe('saves', () => {
     const r = deserialize(json);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value).toEqual(ctx.state);
-    expect(serialize(r.value)).toBe(json);
+    expect(r.value.applied).toEqual([]); // current version: nothing migrated
+    expect(r.value.state).toEqual(ctx.state);
+    expect(serialize(r.value.state)).toBe(json);
     // the loaded game continues exactly like the original
-    const loaded: SimContext = { state: r.value, bus: new EventBus() };
+    const loaded: SimContext = { state: r.value.state, bus: new EventBus() };
     runDays(ctx, 30);
     runDays(loaded, 30);
     expect(serialize(loaded.state)).toBe(serialize(ctx.state));

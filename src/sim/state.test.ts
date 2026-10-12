@@ -12,6 +12,7 @@ import {
   demolishBuilding,
   findPlacement,
   footprint,
+  layCityStreets,
   lPath,
   nextId,
   placeBuilding,
@@ -502,6 +503,20 @@ describe('roads', () => {
 });
 
 describe('urban tiles', () => {
+  it('layCityStreets keeps to its own land where two discs overlap', () => {
+    // radius 9 each, centres 10 apart: A's disc reaches x=29, B's land starts at x=26
+    const s = testState({ width: 60, height: 40, cities: [{ x: 20, y: 20, population: 9000 }, { x: 30, y: 20, population: 9000 }] });
+    expect(s.cities.map((c) => c.urbanRadius)).toEqual([9, 9]);
+    const a = layCityStreets(s.map, s.cities[0]);
+    const b = layCityStreets(s.map, s.cities[1]);
+    for (const p of a) expect(tile(s, p.x, p.y).cityId).toBe(0);
+    for (const p of b) expect(tile(s, p.x, p.y).cityId).toBe(1);
+    expect(tile(s, 23, 21).road).toBe(true); // A's column on A's land
+    expect(tile(s, 26, 21).cityId).toBe(1);
+    expect(tile(s, 26, 21).road).toBe(false); // A's column on B's land: no second grid
+    expect(tile(s, 27, 21).road).toBe(true); // B's column
+  });
+
   it('refreshUrbanTiles follows population', () => {
     const s = cityWorld();
     expect(s.cities[0].urbanRadius).toBe(5);

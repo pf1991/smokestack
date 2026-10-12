@@ -6,7 +6,7 @@ import { COMPANY_NAMES } from '../data/names';
 import { getRecipe, RECIPES, recipeEra } from '../data/recipes';
 import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
-import { SAVE_VERSION } from './migrations';
+import { SAVE_VERSION } from './version';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
@@ -140,8 +140,9 @@ export function refreshUrbanTiles(state: GameState): void {
  * (same Euclidean disc as refreshUrbanTiles), on land that can carry a road (not water or mountain).
  * The 2-tile gaps between streets fit a 2×2 store that always touches a street. Forest and
  * deposit-free hills inside the disc become grass, so every town has room for stores.
- * Never touches deposits, buildings or rail. Called again as a city grows, so only the outer
- * ring gains streets. Returns the tiles it newly turned into road, scanned row by row.
+ * Never touches deposits, buildings, rail or another city's urban tiles (so call refreshUrbanTiles
+ * first when discs may overlap). Called again as a city grows, so only the outer ring gains
+ * streets. Returns the tiles it newly turned into road, scanned row by row.
  */
 export function layCityStreets(map: GameMap, city: City): Vec2[] {
   const r = urbanRadius(city.population);
@@ -153,6 +154,8 @@ export function layCityStreets(map: GameMap, city: City): Vec2[] {
       if (!t || !inRadius(city.center, r, x, y)) continue;
       if (t.terrain === 'water' || t.terrain === 'mountain') continue;
       if (t.deposit !== null || t.buildingId !== null || t.rail) continue;
+      // where discs overlap the nearer city owns the land (refreshUrbanTiles): one grid, not two
+      if (t.cityId !== null && t.cityId !== city.id) continue;
       // settled land: towns clear their forest and hills so stores (grass/sand) fit
       if (t.terrain === 'forest' || t.terrain === 'hills') t.terrain = 'grass';
       if ((x - cx) % 3 !== 0 && (y - cy) % 3 !== 0) continue;

@@ -70,6 +70,20 @@ export class TerrainRenderer {
     this.cols = Math.ceil(map.width / CHUNK);
   }
 
+  /** Marks every cached chunk overlapping tiles [x0..x1] × [y0..y1] (clamped to the map) stale. */
+  invalidateRect(x0: number, y0: number, x1: number, y1: number): void {
+    const cx0 = Math.floor(Math.max(0, x0) / CHUNK);
+    const cy0 = Math.floor(Math.max(0, y0) / CHUNK);
+    const cx1 = Math.floor(Math.min(this.map.width - 1, x1) / CHUNK);
+    const cy1 = Math.floor(Math.min(this.map.height - 1, y1) / CHUNK);
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const c = this.chunks.get(cy * this.cols + cx);
+        if (c) c.dirty = true;
+      }
+    }
+  }
+
   invalidateTile(x: number, y: number): void {
     // Neighbouring tiles' edges / tree overhangs depend on this tile too.
     for (let dy = -1; dy <= 1; dy++) {

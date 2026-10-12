@@ -193,8 +193,17 @@ export class WorldRenderer {
       }),
       bus.on('roadChanged', (e) => {
         this.invalidate(e.tiles);
-        // a spreading city also clears forest/hills around its new streets (see layCityStreets)
-        for (const t of e.tiles) this.terrain.invalidateTile(t.x, t.y);
+        // a spreading city also clears forest/hills between its new streets (see layCityStreets):
+        // redraw terrain over the streets' bounding box plus a 1-tile margin
+        if (e.tiles.length === 0) return;
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const t of e.tiles) {
+          x0 = Math.min(x0, t.x);
+          y0 = Math.min(y0, t.y);
+          x1 = Math.max(x1, t.x);
+          y1 = Math.max(y1, t.y);
+        }
+        this.terrain.invalidateRect(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
       }),
       bus.on('railChanged', (e) => this.invalidate(e.tiles)),
       bus.on('ownershipChanged', () => this.invalidate()),
