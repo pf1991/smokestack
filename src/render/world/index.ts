@@ -2,7 +2,7 @@
  * World renderer: composes everything the player sees on the map canvas.
  *
  * Layer order: terrain → roads → houses → sun shadows → vehicles → buildings (y-sorted) → particles →
- * selection / route polyline → ghost → overlays → atmosphere → night lights (additive).
+ * selection / route polyline → ghost → overlays → atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts).
  * Vehicles go under buildings: they never drive on a footprint, so the only overlap is a raised roof
  * or chimney in front of a road behind it, which must hide the vehicle.
  * Sun shadows (render/shadows.ts) are one path per frame, filled once: every house, landmark and
@@ -33,6 +33,7 @@ import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
+import { applyTiltShift } from '../tiltShift';
 import { MAX_CASTER_Z, MAX_SHADOW_LENGTH, SHADOW_COLOR, type SunVector, easeSun, shadowAlpha, targetSun, traceShadow } from '../shadows';
 import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
@@ -113,6 +114,8 @@ export class WorldRenderer {
   private chunks = new Map<number, ChunkCache>();
   private chunkCols: number;
   private surfaceCount = 0;
+  /** 1×1 target for prewarm(): chunk surfaces render into their caches, the blits are clipped away */
+  private scratch: CanvasRenderingContext2D | null = null;
   private surfaceCap = MIN_SURFACE_CAP;
   private curSig = '';
   private frame = 0;
@@ -361,6 +364,8 @@ export class WorldRenderer {
       ctx.restore();
     }
     ctx.restore();
+    // miniature look on the world canvas only (UI goes on the overlay canvas and the DOM HUD)
+    if (diorama) applyTiltShift(ctx, cam.viewW, cam.viewH, blend);
 
     if (survey && (!this.hudMeasured || this.frame % HUD_RECTS_FRAMES === 0)) {
       this.hud = hudRects();
@@ -377,6 +382,27 @@ export class WorldRenderer {
       this.drawUi(o, state, cam, alpha, nowMs);
     }
     if (survey) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud, this.labels);
+  }
+
+  /**
+   * Fills the diorama caches (terrain and the roads/houses layer) for `cam` without drawing to the
+   * screen, at the usual per-frame budgets. Returns true while it still rendered something, so the
+   * caller can repeat it on later frames. The cold open warms its final shot this way, so the swoop
+   * into the diorama does not stall on first-time chunk renders.
+   */
+  prewarm(state: GameState, cam: Camera): boolean {
+    if (state.map !== this.state.map) return false;
+    if (!this.scratch) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 1;
+      this.scratch = c.getContext('2d');
+    }
+    const g = this.scratch;
+    if (!g) return false;
+    const r = visibleTileRange(cam, state.map);
+    const date = state.date;
+    const n = this.terrain.draw(g, cam, 0, { oilVisible: state.flags.oilRevealed === true || date.year >= 1910, month: date.month });
+    return n + this.drawChunks(g, cam, r, isLit(date.hour)) > 0;
   }
 
   /** Selection, ghost, ghost label and sale floaters. */
@@ -434,8 +460,9 @@ export class WorldRenderer {
     return c;
   }
 
-  private drawChunks(ctx: CanvasRenderingContext2D, cam: Camera, r: TileRange, lit: boolean): void {
-    if (r.x1 < r.x0 || r.y1 < r.y0) return;
+  /** Draws the cached roads/houses layer; returns how many stale chunk surfaces it re-rendered. */
+  private drawChunks(ctx: CanvasRenderingContext2D, cam: Camera, r: TileRange, lit: boolean): number {
+    if (r.x1 < r.x0 || r.y1 < r.y0) return 0;
     const sig = this.chunkSig();
     const v = lit ? 1 : 0;
     let budget = RENDERS_PER_FRAME;
@@ -469,6 +496,7 @@ export class WorldRenderer {
       }
     }
     ctx.restore();
+    return RENDERS_PER_FRAME - budget;
   }
 
   /** Decides which tiles of a chunk carry houses and lamps (cheap; no drawing). */

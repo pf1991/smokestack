@@ -7,6 +7,8 @@ export { CHUNK, hash };
 
 const CHUNK_PX = CHUNK * TILE;
 const MAX_RENDERS_PER_FRAME = 4;
+/** Survey surfaces re-rendered per frame only because the zoom bucket changed (see drawSurvey). */
+const MAX_RESCALES_PER_FRAME = 1;
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 type Surface = HTMLCanvasElement | OffscreenCanvas;
@@ -30,6 +32,23 @@ const BASE: Record<Terrain, [number, number, number]> = {
 };
 
 const PRIORITY: Record<Terrain, number> = { water: -1, sand: 0, grass: 1, forest: 2, hills: 3, mountain: 4 };
+
+/** Height of a raised tile's south wall face in the diorama, in world px. */
+export const WALL_PX = 6;
+export type WallKind = 'rock' | 'hill' | 'bank';
+const WALL_TONE: Record<WallKind, string> = { rock: '34,30,32', hill: '48,44,22', bank: '78,58,30' };
+const RAISE: Record<Terrain, number> = { water: 0, sand: 1, grass: 1, forest: 1, hills: 2, mountain: 3 };
+
+/**
+ * Which south wall face a tile shows, if any: mountains and hills above lower ground, and any shore
+ * above water (a bank). Off-map south neighbours get none.
+ */
+export function southWall(terr: Terrain, south: Terrain | undefined): WallKind | null {
+  if (south === undefined || RAISE[terr] <= RAISE[south]) return null;
+  if (terr === 'mountain') return 'rock';
+  if (terr === 'hills') return 'hill';
+  return south === 'water' ? 'bank' : null;
+}
 
 export function isWinter(month: number): boolean {
   return month === 12 || month === 1 || month === 2;
@@ -133,15 +152,16 @@ export class TerrainRenderer {
     }
   }
 
+  /** Draws the diorama terrain; returns how many stale chunk surfaces it re-rendered this call. */
   draw(
     ctx: CanvasRenderingContext2D,
     cam: Camera,
     timeMs: number,
     opts: { oilVisible: boolean; month: number },
-  ): void {
+  ): number {
     const winter = isWinter(opts.month);
     const r = visibleTileRange(cam, this.map);
-    if (r.x1 < r.x0 || r.y1 < r.y0) return;
+    if (r.x1 < r.x0 || r.y1 < r.y0) return 0;
     ctx.save();
     ctx.imageSmoothingEnabled = cam.zoom < 1;
 
@@ -185,6 +205,7 @@ export class TerrainRenderer {
 
     this.drawWaterShimmer(ctx, cam, timeMs, r);
     ctx.restore();
+    return MAX_RENDERS_PER_FRAME - budget;
   }
 
   private newChunk(key: number): Chunk {
@@ -214,12 +235,17 @@ export class TerrainRenderer {
     ctx.save();
     ctx.globalAlpha = alpha;
     let budget = MAX_RENDERS_PER_FRAME;
+    let rescales = MAX_RESCALES_PER_FRAME;
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         const key = cy * this.cols + cx;
         const ch = this.chunks.get(key) ?? this.newChunk(key);
-        if ((ch.surveyDirty || ch.surveyPx !== tilePx) && budget > 0) {
+        // a surface that is only at another zoom bucket still shows (scaled) until redrawn, so those
+        // re-renders are spread out one per frame: zooming across a bucket edge never stalls a frame
+        const rescale = ch.survey !== null && !ch.surveyDirty && ch.surveyPx !== tilePx;
+        if ((ch.surveyDirty || ch.surveyPx !== tilePx) && budget > 0 && (!rescale || rescales > 0)) {
           budget--;
+          if (rescale) rescales--;
           if (!ch.survey || ch.surveyPx !== tilePx) {
             if (!ch.survey) {
               if (this.surveyCount >= this.surveyCap) this.evictSurvey();
@@ -352,6 +378,13 @@ export class TerrainRenderer {
         if (this.terrainAt(tx, ty) === 'mountain') this.drawPeaks(ctx, (tx - tx0) * TILE, (ty - ty0) * TILE, tx, ty, ch.winter);
       }
     }
+    // Pass 2a: south wall faces of raised ground (diorama surface only; the survey map stays flat).
+    for (let ty = ty0; ty < ty1; ty++) {
+      for (let tx = tx0; tx < tx1; tx++) {
+        const kind = southWall(this.terrainAt(tx, ty)!, this.terrainAt(tx, ty + 1));
+        if (kind) this.drawSouthWall(ctx, (tx - tx0) * TILE, (ty - ty0) * TILE, tx, ty, kind);
+      }
+    }
     // Pass 2b: forest crowns.
     for (let ty = ty0 - 1; ty <= ty1; ty++) {
       for (let tx = tx0 - 1; tx <= tx1; tx++) {
@@ -368,6 +401,35 @@ export class TerrainRenderer {
         if (t.deposit === 'oil' && !ch.oil) continue;
         this.drawDeposit(ctx, (tx - tx0) * TILE, (ty - ty0) * TILE, tx, ty, t.deposit);
       }
+    }
+  }
+
+  /**
+   * The south face of a raised tile: a WALL_PX band along its bottom edge, darker toward the foot,
+   * with a pale lip where the top surface breaks. Coast banks stop short of corners that
+   * roundCoast cuts away to water.
+   */
+  private drawSouthWall(ctx: Ctx, ox: number, oy: number, tx: number, ty: number, kind: WallKind): void {
+    let x0 = 0;
+    let x1 = TILE;
+    if (kind === 'bank') {
+      if (this.terrainAt(tx - 1, ty) === 'water') x0 = 14;
+      if (this.terrainAt(tx + 1, ty) === 'water') x1 = TILE - 14;
+    }
+    const y = oy + TILE - WALL_PX;
+    const tone = WALL_TONE[kind];
+    const g = ctx.createLinearGradient(0, y, 0, y + WALL_PX);
+    g.addColorStop(0, `rgba(${tone},0.30)`);
+    g.addColorStop(1, `rgba(${tone},0.55)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(ox + x0, y, x1 - x0, WALL_PX);
+    ctx.fillStyle = 'rgba(255,248,226,0.22)';
+    ctx.fillRect(ox + x0, y, x1 - x0, 1);
+    // a few vertical strata so the face reads as earth or rock rather than a shadow
+    ctx.fillStyle = `rgba(${tone},0.25)`;
+    for (let i = 0; i < 4; i++) {
+      const sx = x0 + Math.floor(h01(tx, ty, this.seed, 900 + i) * (x1 - x0 - 2));
+      ctx.fillRect(ox + sx, y + 2, 1, WALL_PX - 2);
     }
   }
 

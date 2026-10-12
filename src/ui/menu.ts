@@ -92,10 +92,18 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
       apply();
     },
   });
+  const intro = h('input', {
+    type: 'checkbox', checked: s.skipIntro,
+    onChange: (e: Event) => {
+      s.skipIntro = (e.target as HTMLInputElement).checked;
+      apply();
+    },
+  });
   return h('div', { class: 'mn-form' },
     h('label', { class: 'mn-row' }, h('span', null, 'Master volume'), vol),
     h('label', { class: 'mn-row' }, h('span', null, 'Mute all sound'), mute),
-    h('label', { class: 'mn-row' }, h('span', null, 'Open the newspaper automatically'), news));
+    h('label', { class: 'mn-row' }, h('span', null, 'Open the newspaper automatically'), news),
+    h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro));
 }
 
 function achievementsView(): HTMLElement {

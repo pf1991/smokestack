@@ -28,6 +28,7 @@ import type { Speed } from './sim/types';
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
  *  - `fps=1` (dev) after a 3 s warm-up, average the requestAnimationFrame rate over 5 s and put it
  *    in the document title as `FPS <avg> (<frames> frames, worst <ms> ms)` (read it via CDP)
+ *  - `coldopen=1` (dev, with a debug start) play the New Game cold open (game/coldOpen.ts)
  *  - `menu=1`          force the menu even when other parameters are present
  */
 const canvas = document.getElementById('world') as HTMLCanvasElement;
@@ -106,7 +107,9 @@ if (debugStart) {
     if (import.meta.env.DEV && params.get('send') === '1') {
       window.setTimeout(() => document.querySelector<HTMLElement>('[data-act="send-goods"]')?.click(), 5500);
     }
-    if (params.get('tutorial') === '1') app.showTutorial(g);
+    const tutorial = params.get('tutorial') === '1';
+    if (import.meta.env.DEV && params.get('coldopen') === '1') app.playIntro(g, () => tutorial && app.showTutorial(g));
+    else if (tutorial) app.showTutorial(g);
     if (notice) g.ctx.bus.emit({ type: 'toast', ...notice });
     if (import.meta.env.DEV && params.get('pause') === '1') g.onPause?.();
   });

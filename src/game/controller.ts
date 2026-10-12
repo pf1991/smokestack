@@ -74,6 +74,8 @@ export class GameController {
   /** extra teardown run by destroy() (e.g. the tutorial card and its timer) */
   private disposers: (() => void)[] = [];
   private toolListeners: ((t: ToolSpec) => void)[] = [];
+  /** run at the start of every frame, before the sim step and render (e.g. the cold-open camera) */
+  private frameHooks = new Set<(now: number) => void>();
   /** vehicle the camera is following, if any */
   followId: number | null = null;
   private raf = 0;
@@ -373,6 +375,7 @@ export class GameController {
     if (!this.running) return;
     const dt = this.lastFrame === null ? 0 : Math.max(0, now - this.lastFrame);
     this.lastFrame = now;
+    for (const fn of this.frameHooks) fn(now);
     this.input.update(Math.min(dt, 100));
     if (this.followId !== null) {
       const v = this.state.vehicles[this.followId];
@@ -393,6 +396,14 @@ export class GameController {
     this.raf = requestAnimationFrame(this.frame);
   };
 
+  /** Runs `fn(now)` at the start of every frame until the returned function is called. */
+  addFrameHook(fn: (now: number) => void): () => void {
+    this.frameHooks.add(fn);
+    return () => {
+      this.frameHooks.delete(fn);
+    };
+  }
+
   /** Registers cleanup that must run when this game is destroyed (quit, load, new game). */
   addDisposer(fn: () => void): void {
     this.disposers.push(fn);
@@ -401,6 +412,7 @@ export class GameController {
   destroy(): void {
     for (const fn of this.disposers.splice(0)) fn();
     this.running = false;
+    this.frameHooks.clear();
     cancelAnimationFrame(this.raf);
     clearInterval(this.watchdog);
     for (const off of this.busOffs) off();
