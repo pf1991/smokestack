@@ -15,7 +15,7 @@ export const Ticker = {
         track.append(h('span', { class: 'ticker-item' }, 'The Daily Smokestack — all the news that fits the print, and some that does not'));
       }
       [...items].reverse().forEach((n, i) => {
-        if (i > 0) track.append(h('span', { class: 'ticker-sep' }, '✦'));
+        if (i > 0) track.append(h('span', { class: 'ticker-sep' }, '◆'));
         track.append(h('span', { class: 'ticker-item' }, h('b', null, n.headline)));
       });
       el.replaceChildren(track);

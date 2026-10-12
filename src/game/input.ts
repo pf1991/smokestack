@@ -1,4 +1,4 @@
-import { clampCamera, screenToTile, zoomAt } from '../render/camera';
+import { clampCamera, screenToTile, screenToWorld, zoomAt } from '../render/camera';
 import type { Camera } from '../render/constants';
 import type { GameMap, Speed, Vec2 } from '../sim/types';
 import type { ToolSpec } from '../ui/tools';
@@ -8,8 +8,8 @@ export interface InputHost {
   camera: Camera;
   readonly map: GameMap;
   tools: {
-    pointerDown(t: Vec2): void;
-    pointerMove(t: Vec2): void;
+    pointerDown(t: Vec2, world?: Vec2): void;
+    pointerMove(t: Vec2, world?: Vec2): void;
     pointerUp(t: Vec2): void;
     leave(): void;
     cancel(): void;
@@ -22,12 +22,19 @@ export interface InputHost {
   closeDrawer(): void;
   /** Esc: when provided it replaces the default cancel-tool behaviour (it must cancel the tool itself) */
   escape?(): void;
+  /** P: toggles photo mode */
+  togglePhotoMode?(): void;
   /** opens a registered panel; returns false when none is registered under `id` */
   tryOpenPanel(id: string): boolean;
   /** the player panned by hand (cancels camera follow) */
   onManualPan?(): void;
   /** right-click without dragging: cancels pick mode */
   readonly activeToolKind?: string;
+  /**
+   * True while photo mode is on: the left button pans instead of reaching the tool, hovering sets no
+   * ghost, and only Esc, P and the pan keys act (wheel zoom and right/middle-drag pan still work).
+   */
+  readonly photoActive?: boolean;
 }
 
 const PAN_KEYS: Record<string, Vec2> = {
@@ -57,6 +64,7 @@ export function isTyping(target: EventTarget | null): boolean {
  * Mouse, wheel and keyboard handling per Game Design → Controls. Left button → current tool;
  * right/middle drag pans; wheel zooms at the cursor; WASD/arrows pan; Space pauses; 1–4 set speeds;
  * Esc cancels the tool; B toggles the toolbar; Delete picks the bulldozer; R/F/N open panels.
+ * In photo mode (`host.photoActive`) the left button pans too and only Esc, P and the pan keys act.
  */
 export class Input {
   private held = new Set<string>();
@@ -116,7 +124,7 @@ export class Input {
   }
 
   private down(e: PointerEvent): void {
-    if (e.button === 1 || e.button === 2) {
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && this.host.photoActive)) {
       e.preventDefault();
       this.pan = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
       this.capture(e.pointerId);
@@ -125,7 +133,8 @@ export class Input {
     if (e.button !== 0) return;
     this.toolPointer = e.pointerId;
     this.capture(e.pointerId);
-    this.host.tools.pointerDown(this.tileOf(e));
+    const p = this.local(e);
+    this.host.tools.pointerDown(this.tileOf(e), screenToWorld(this.host.camera, p.x, p.y));
   }
 
   private move(e: PointerEvent): void {
@@ -140,7 +149,9 @@ export class Input {
       clampCamera(cam, this.host.map);
       return;
     }
-    this.host.tools.pointerMove(this.tileOf(e));
+    if (this.host.photoActive) return;
+    const p = this.local(e);
+    this.host.tools.pointerMove(this.tileOf(e), screenToWorld(this.host.camera, p.x, p.y));
   }
 
   private up(e: PointerEvent): void {
@@ -172,6 +183,7 @@ export class Input {
       return;
     }
     if (e.repeat) return;
+    if (this.host.photoActive && key !== 'escape' && key !== 'p') return;
     if (key === ' ') {
       e.preventDefault();
       this.host.togglePause();
@@ -184,6 +196,8 @@ export class Input {
         this.host.tools.cancel();
         this.host.closeDrawer();
       }
+    } else if (key === 'p') {
+      this.host.togglePhotoMode?.();
     } else if (key === 'b') {
       this.host.toggleToolbar();
     } else if (key === 'delete') {

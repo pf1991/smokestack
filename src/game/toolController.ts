@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
-import type { Camera } from '../render/constants';
+import { TILE, type Camera } from '../render/constants';
+import { regimeBlend } from '../render/regime';
 import type { Ghost, Selection } from '../render/world';
 import { canAfford } from '../sim/finance';
 import {
@@ -20,6 +21,7 @@ import type { GameState, SimContext, Vec2 } from '../sim/types';
 import { formatMoney, formatNumber } from '../ui/format';
 import { PANELS } from '../ui/panels/index';
 import { reportLostStops, routesUsing } from './feedback';
+import { buildingAtPoint, landmarkAtPoint } from './pick';
 import type { ToolSpec } from '../ui/tools';
 
 /** The slice of the GameController the tool controller needs (lets tests use a small stub). */
@@ -73,6 +75,8 @@ export class ToolController {
   onPick: ((buildingId: number) => void) | null = null;
   private tool: ToolSpec = { kind: 'inspect' };
   private hover: Vec2 | null = null;
+  /** exact world-px pointer position, when known: the bulldoze ghost picks raised roofs with it */
+  private hoverWorld: Vec2 | null = null;
   private dragStart: Vec2 | null = null;
   private pressed = false;
   private current: Ghost | null = null;
@@ -108,11 +112,14 @@ export class ToolController {
   /** The pointer left the map canvas. */
   leave(): void {
     this.hover = null;
+    this.hoverWorld = null;
     if (!this.dragStart) this.refreshGhost();
   }
 
-  pointerDown(tile: Vec2): void {
+  /** `world` is the exact world-px point clicked (picks raised roofs); without it the tile centre is used. */
+  pointerDown(tile: Vec2, world?: Vec2): void {
     this.hover = { ...tile };
+    this.hoverWorld = world ? { ...world } : null;
     this.pressed = true;
     const t = this.tool;
     switch (t.kind) {
@@ -124,13 +131,13 @@ export class ToolController {
         this.dragStart = { ...tile };
         break;
       case 'bulldoze':
-        this.bulldoze(tile, true);
+        this.bulldoze(tile, true, world);
         break;
       case 'inspect':
-        this.inspect(tile);
+        this.inspect(tile, world);
         break;
       case 'pickStop': {
-        const id = tileAt(this.state, tile)?.buildingId;
+        const id = this.buildingAt(tile, world);
         if (id !== null && id !== undefined) this.onPick?.(id);
         break;
       }
@@ -138,8 +145,15 @@ export class ToolController {
     this.refreshGhost();
   }
 
-  pointerMove(tile: Vec2): void {
-    if (this.hover && this.hover.x === tile.x && this.hover.y === tile.y) return;
+  /** `world` is the exact world-px point: the bulldoze ghost then names what a click there would pick. */
+  pointerMove(tile: Vec2, world?: Vec2): void {
+    const sameTile = this.hover !== null && this.hover.x === tile.x && this.hover.y === tile.y;
+    this.hoverWorld = world ? { ...world } : null;
+    if (sameTile) {
+      // within one tile only the bulldozer's target can change (a raised roof over the tile)
+      if (this.tool.kind === 'bulldoze' && !this.pressed && world) this.refreshGhost();
+      return;
+    }
     this.hover = { ...tile };
     // drag-bulldozing clears roads and rails only; buildings need a deliberate click
     const under = tileAt(this.state, tile);
@@ -175,20 +189,26 @@ export class ToolController {
     if (!r.ok) this.toast(r.error, 'bad');
   }
 
-  private bulldoze(tile: Vec2, explicit: boolean): void {
+  /**
+   * An explicit click picks the building drawn under the pointer (raised roofs included, as inspect
+   * and pickStop do); a drag only lifts roads and rails, by tile.
+   */
+  private bulldoze(tile: Vec2, explicit: boolean, world?: Vec2): void {
     const t = tileAt(this.state, tile);
-    if (!t) return;
-    if (t.buildingId !== null) {
+    const picked = explicit ? this.buildingAt(tile, world) : null;
+    if (picked === null && !t) return;
+    const buildingId = picked ?? t?.buildingId ?? null;
+    if (buildingId !== null) {
       if (!explicit) return;
-      const affected = routesUsing(this.state, t.buildingId);
-      const r = demolishBuilding(this.game.ctx, t.buildingId, 'player');
+      const affected = routesUsing(this.state, buildingId);
+      const r = demolishBuilding(this.game.ctx, buildingId, 'player');
       if (!r.ok) this.toast(r.error, 'bad');
       else reportLostStops(this.game.ctx, affected);
-    } else if (t.rail) {
+    } else if (t?.rail) {
       // rail first: on a level crossing the road stays
       const r = removeRail(this.game.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
-    } else if (t.road) {
+    } else if (t?.road) {
       const r = removeRoad(this.game.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
     }
@@ -207,27 +227,41 @@ export class ToolController {
     return best;
   }
 
-  private inspect(tile: Vec2): void {
+  /** True when the diorama dominates, so buildings are drawn (and picked) with their height. */
+  private get raised(): boolean {
+    return regimeBlend(this.game.camera.zoom) >= 0.5;
+  }
+
+  /** The building drawn at the click: raised roofs included, frontmost first (see game/pick.ts). */
+  private buildingAt(tile: Vec2, world?: Vec2): number | null {
+    const p = world ?? { x: (tile.x + 0.5) * TILE, y: (tile.y + 0.5) * TILE };
+    return buildingAtPoint(this.state, p, this.raised);
+  }
+
+  private inspect(tile: Vec2, world?: Vec2): void {
     const { renderer } = this.game;
+    // buildings are drawn over vehicles, so a raised roof hides (and wins over) a truck behind it
+    const id = this.buildingAt(tile, world);
+    if (id !== null) {
+      renderer.setSelection({ buildingId: id });
+      if (PANELS.building) this.game.openPanel('building', id);
+      else this.describeBuilding(id);
+      return;
+    }
     const vehicleId = this.vehicleAt(tile);
     if (vehicleId !== null) {
       if (PANELS.vehicle) this.game.openPanel('vehicle', vehicleId);
       renderer.setSelection({ vehicleId });
       return;
     }
-    const t = tileAt(this.state, tile);
-    if (t?.buildingId !== null && t?.buildingId !== undefined) {
-      const id = t.buildingId;
-      renderer.setSelection({ buildingId: id });
-      if (PANELS.building) this.game.openPanel('building', id);
-      else this.describeBuilding(id);
-      return;
-    }
     renderer.setSelection(null);
-    if (t?.cityId !== null && t?.cityId !== undefined) {
-      if (PANELS.city) this.game.openPanel('city', t.cityId);
+    // a click on a landmark's raised tower inspects its city even from the tile above
+    const lm = this.raised && world ? landmarkAtPoint(this.state, world) : null;
+    const cityId = lm ? lm.city.id : tileAt(this.state, tile)?.cityId;
+    if (cityId !== null && cityId !== undefined) {
+      if (PANELS.city) this.game.openPanel('city', cityId);
       else {
-        const city = this.state.cities[t.cityId];
+        const city = this.state.cities[cityId];
         if (city) this.toast(`${city.name} — population ${formatNumber(city.population)}`, 'info');
       }
     }
@@ -241,7 +275,7 @@ export class ToolController {
     const stock = (inv: Record<string, number>) =>
       Object.entries(inv)
         .filter(([, q]) => q > 0)
-        .map(([g, q]) => `${GOODS[g]?.icon ?? g}${Math.floor(q)}`)
+        .map(([g, q]) => `${GOODS[g]?.name ?? g} ${Math.floor(q)}`)
         .join(' ');
     const parts = [def?.name ?? b.typeId, b.status.replace('_', ' ')];
     const inp = stock(b.input);
@@ -279,15 +313,18 @@ export class ToolController {
     }
     if (t.kind === 'bulldoze') {
       const tile = tileAt(this.state, hover);
-      if (!tile) return null;
-      if (tile.buildingId !== null) {
-        const b = this.state.buildings[tile.buildingId];
+      // a click picks the building drawn under the pointer (see bulldoze); a drag goes by tile
+      const picked = this.pressed ? null : this.buildingAt(hover, this.hoverWorld ?? undefined);
+      const buildingId = picked ?? tile?.buildingId ?? null;
+      if (buildingId !== null) {
+        const b = this.state.buildings[buildingId];
         if (!b) return null;
         const def = BUILDINGS[b.typeId];
         const mine = b.ownerId === 'player';
         const label = mine ? `Demolish ${def.name} +${formatMoney(def.cost * DEMOLITION_REFUND)}` : 'Not your building';
         return { kind: 'tiles', tiles: footprint(b), valid: mine, label };
       }
+      if (!tile) return null;
       if (tile.rail) {
         const mine = tile.railOwner === null || tile.railOwner === 'player';
         return { kind: 'tiles', tiles: [hover], valid: mine, label: mine ? 'Remove rail' : 'Not your rail' };

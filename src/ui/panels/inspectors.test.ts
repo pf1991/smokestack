@@ -112,8 +112,11 @@ describe('city panel', () => {
     c.market.clothes = { sold30: 50, demand30: 100, pending: 0 };
     PANELS.city.open(host(ctx) as never, 0);
     const rows = [...document.querySelectorAll<HTMLElement>('tr.insp-good')];
-    const crave = rows.filter((r) => r.textContent!.includes('★ Craves')).map((r) => r.dataset.good);
+    const crave = rows.filter((r) => r.textContent!.includes('Craves')).map((r) => r.dataset.good);
     expect(crave).toHaveLength(3);
+    for (const r of rows.filter((x) => x.textContent!.includes('Craves'))) {
+      expect(r.querySelector('.insp-crave img[data-icon="star"]')).not.toBeNull();
+    }
     expect(crave[0]).toBe('furniture');
     expect(crave).not.toContain('bread');
     // rows are ordered by unmet demand x price, so craves come first
@@ -126,6 +129,19 @@ describe('city panel', () => {
     state.cities[0].prevPopulation = 5000;
     PANELS.city.open(host(testCtx(state)) as never, 0);
     expect(text()).toContain('▲');
+  });
+
+  it('lists the city landmarks with icons', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    const ctx = testCtx(state);
+    PANELS.city.open(host(ctx) as never, 0);
+    expect(document.querySelector('.insp-landmarks')!.textContent).toContain('None yet');
+    state.cities[0].landmarks.push({ id: 'church', pos: { x: 9, y: 9 } }, { id: 'town_hall', pos: { x: 12, y: 9 } });
+    vi.advanceTimersByTime(1000);
+    const items = [...document.querySelectorAll<HTMLElement>('.insp-landmarks li')];
+    expect(items.map((li) => li.textContent)).toEqual(['Church', 'Town Hall']);
+    expect(items[0].querySelector('img[data-icon="church"]')).not.toBeNull();
+    expect(items[1].querySelector('img[data-icon="town_hall"]')).not.toBeNull();
   });
 });
 

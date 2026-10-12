@@ -1,4 +1,5 @@
 import type { EventBus } from '../core/events';
+import type { LandmarkId } from '../data/landmarks';
 
 export type GoodId = string;
 export type BuildingTypeId = string;
@@ -79,6 +80,8 @@ export interface City {
   pollution: number;
   market: Record<GoodId, MarketEntry>;
   urbanRadius: number;
+  /** civic landmarks in the order they were built; each is a 2×2 block with top-left `pos` (sim/landmarks.ts) */
+  landmarks: { id: LandmarkId; pos: Vec2 }[];
 }
 
 export interface RouteStop {
@@ -151,7 +154,7 @@ export interface Company {
   active: boolean;
 }
 
-export type NewsKind = 'historic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning';
+export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning';
 
 export interface NewsItem {
   id: number;

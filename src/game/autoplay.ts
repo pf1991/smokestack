@@ -4,7 +4,7 @@
  */
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
-import { findPath, roadBuildable, roadPassable, waterAvoidingCost } from '../sim/pathfinding';
+import { findPath, roadBuildableIn, roadPassable, waterAvoidingCost } from '../sim/pathfinding';
 import { accessTiles, buildRoad, canPlaceBuilding, findPlacement, placeBuilding } from '../sim/state';
 import { connectToRoads } from '../sim/testkit';
 import type { Building, City, SimContext, Vec2 } from '../sim/types';
@@ -38,7 +38,7 @@ function ensureLink(ctx: SimContext, a: Building, b: Building): Result {
   const to = accessTiles(ctx.state, b);
   if (from.length === 0 || to.length === 0) return err('Stop has no road access');
   if (findPath(map, from[0], to, roadPassable)) return ok();
-  const path = findPath(map, from[0], to, roadBuildable, waterAvoidingCost);
+  const path = findPath(map, from[0], to, roadBuildableIn(ctx.state), waterAvoidingCost);
   if (!path) return err('No road can link the chain');
   const r = buildRoad(ctx, 'player', path);
   return r.ok ? ok() : r;

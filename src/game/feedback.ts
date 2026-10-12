@@ -1,5 +1,8 @@
 /** Turns otherwise silent sim outcomes into toasts the player can act on. */
 import type { GameState, Route, SimContext } from '../sim/types';
+import { ACHIEVEMENTS } from './achievements';
+import { formatMoney } from '../ui/format';
+import { crossedMilestone, showStamp } from '../ui/juice';
 
 /** At most one "stuck" toast per route per this many real milliseconds. */
 export const STUCK_TOAST_GAP_MS = 10_000;
@@ -42,4 +45,26 @@ export function reportLostStops(ctx: SimContext, affected: Route[]): void {
       ctx.bus.emit({ type: 'toast', message: `${route.name} has too few stops — its trucks are idle`, tone: 'bad' });
     }
   }
+}
+
+/**
+ * Stamps the screen when the player's treasury crosses a money milestone (checked daily, one stamp
+ * per crossing) and when an achievement unlocks. Returns an unsubscribe.
+ */
+export function attachMilestoneStamps(ctx: SimContext): () => void {
+  let prev = ctx.state.companies.player.money;
+  const offDay = ctx.bus.on('dayStart', () => {
+    const next = ctx.state.companies.player.money;
+    const hit = crossedMilestone(prev, next);
+    prev = next;
+    if (hit !== null) showStamp(`${formatMoney(hit)} treasury`, 'good');
+  });
+  const offAch = ctx.bus.on('achievement', (e) => {
+    const def = ACHIEVEMENTS.find((a) => a.id === e.id);
+    showStamp(def?.name ?? e.id, 'good');
+  });
+  return () => {
+    offDay();
+    offAch();
+  };
 }

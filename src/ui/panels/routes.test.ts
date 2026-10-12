@@ -78,7 +78,9 @@ describe('routes panel', () => {
     expect(routes[0].stops.map((x) => x.buildingId)).toEqual([a.id, b.id]);
     expect(Object.values(s.vehicles).map((v) => v.kind)).toEqual(['train']);
     expect(s.companies.player.money).toBe(money - TRAIN.cost);
-    expect(win().textContent).toContain('1 🚂');
+    const stat = win().querySelector('.rt-stat b')!;
+    expect(stat.textContent).toContain('1');
+    expect(stat.querySelector('img.icon[data-icon="train"]')).not.toBeNull();
   });
 
   it('truck checkbox off skips the truck; fewer than two stops does not save', () => {

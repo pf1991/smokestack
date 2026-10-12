@@ -1,3 +1,4 @@
+import { LANDMARK_LAYER } from './landmarkTiles';
 import { recordSale } from './scenarios';
 import { onSale } from './contracts';
 import { companyIds } from './companies';
@@ -9,8 +10,8 @@ import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
 import { computeDailySales, monthlyDemand, monthlyGrowth, satisfaction, updateMarketDay, urbanRadius, type StoreStock } from './market';
-import { footprint, refreshUrbanTiles } from './state';
-import type { Building, GameState, GoodId, SimContext } from './types';
+import { footprint, layCityStreets, refreshUrbanTiles } from './state';
+import type { Building, City, GameState, GoodId, SimContext, Vec2 } from './types';
 
 /** Product of active (unexpired) modifiers matching the good (or '*') and the city (or null). */
 export function demandModifier(state: GameState, cityId: number, goodId: GoodId): number {
@@ -152,6 +153,8 @@ export function growthMonth(ctx: SimContext): void {
   const { state } = ctx;
   // urban tiles depend only on each city's radius: re-mark them only when some radius changes
   let radiusChanged = false;
+  const grown: City[] = [];
+  const newStreets: Vec2[] = [];
   for (const city of state.cities) {
     const sats = Object.keys(DEMAND_PER_1000)
       .filter((g) => monthlyDemand(city, g, state.date.year, demandModifier(state, city.id, g)) > 0)
@@ -160,8 +163,14 @@ export function growthMonth(ctx: SimContext): void {
     city.prevPopulation = city.population;
     city.population = monthlyGrowth(city.population, avg, city.pollution);
     city.happiness = avg;
-    if (urbanRadius(city.population) !== city.urbanRadius) radiusChanged = true;
+    const r = urbanRadius(city.population);
+    if (r !== city.urbanRadius) radiusChanged = true;
+    if (r > city.urbanRadius) grown.push(city);
   }
   if (radiusChanged) refreshUrbanTiles(state);
+  // a city that spreads lays streets in its new ring (in city order, so deterministic), after the
+  // urban tiles are re-marked so overlapping discs keep to their own land
+  for (const city of grown) newStreets.push(...layCityStreets(state.map, city, state.layers[LANDMARK_LAYER]));
+  if (newStreets.length > 0) ctx.bus.emit({ type: 'roadChanged', tiles: newStreets });
   for (const b of Object.values(state.buildings)) b.producedThisMonth = {};
 }

@@ -40,6 +40,13 @@ h3 {
   color: var(--brass-light);
 }
 
+/* Atlas icons (src/ui/icon.ts) sit on the text baseline like a glyph. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.2em;
+  flex: none;
+}
+
 /* Walnut panel with a brass inset border. */
 .panel {
   background:
@@ -191,4 +198,146 @@ input[type='text'] {
   border: 1px solid var(--brass-dark);
   border-radius: 2px;
   padding: 0 8px;
+}
+
+/* Juice: monthly treasury delta and milestone stamps. */
+.hud-cash {
+  position: relative;
+}
+
+.hud-delta {
+  position: absolute;
+  right: 4px;
+  top: 100%;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px #000;
+  animation: hud-delta-float 1500ms ease-out forwards;
+  z-index: 1001;
+}
+
+.hud-delta.good { color: #8fe08a; }
+.hud-delta.bad { color: #ff6a5e; }
+
+.stamp {
+  position: fixed;
+  left: 50%;
+  top: 38%;
+  pointer-events: none;
+  padding: 8px 22px;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 4px double currentColor;
+  border-radius: 6px;
+  background: rgba(15, 10, 6, 0.55);
+  transform: translate(-50%, -50%) rotate(-8deg);
+  animation: stamp-slam 2200ms ease-out forwards;
+  z-index: 1002;
+}
+
+.stamp.good { color: #e8c75a; }
+.stamp.bad { color: #ff6a5e; }
+
+@keyframes hud-delta-float {
+  0% { opacity: 0; transform: translateY(0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-28px); }
+}
+
+@keyframes stamp-slam {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scale(2); }
+  12% { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-delta { animation: juice-fade 1500ms ease-out forwards; }
+  .stamp { animation: juice-fade 2200ms ease-out forwards; }
+
+  @keyframes juice-fade {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+}
+
+/* Window manager: window body fills a height-capped window; docked windows live in a right-side tab strip. */
+.window {
+  display: flex;
+  flex-direction: column;
+}
+
+.window-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dock {
+  position: fixed;
+  right: 8px;
+  top: calc(var(--hud-height, 56px) + 8px);
+  max-height: calc(100vh - var(--hud-height, 56px) - 150px);
+  overflow-y: auto;
+  z-index: 90;
+  width: 124px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dock:empty {
+  display: none;
+}
+
+.dock-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 5px 6px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--walnut-light);
+  border: 2px solid var(--brass-dark);
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.dock-tab:hover {
+  border-color: var(--brass);
+}
+
+.dock-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-tab-close {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--paper);
+  background: var(--walnut);
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+}
+
+.dock-tab-close:hover {
+  background: var(--rival);
 }

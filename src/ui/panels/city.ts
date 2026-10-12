@@ -1,10 +1,12 @@
 import { BUILDINGS } from '../../data/buildings';
+import { LANDMARKS } from '../../data/landmarks';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
 import { demandModifier } from '../../sim/production';
 import type { City, GameState } from '../../sim/types';
 import { h } from '../dom';
+import { iconEl } from '../icon';
 import { formatMoney, formatNumber, formatPercent } from '../format';
 import './panels.css';
 import { bar, type Bar, KeyedList, openInspector, setText, type InspectorHost, type InspectorView } from './inspect';
@@ -57,7 +59,7 @@ function makeRow(goodId: string): GoodRow {
   const el = h(
     'tr',
     { class: 'insp-good', 'data-good': goodId },
-    h('td', null, `${g.icon} ${g.name}`, crave),
+    h('td', null, iconEl(goodId, 16), ` ${g.name}`, crave),
     demand,
     h('td', null, sat.el),
     price,
@@ -71,6 +73,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const trend = h('span', { class: 'insp-trend' });
   const happy = bar('#e0b43a');
   const smog = bar('#6b6b70');
+  const landmarks = h('ul', { class: 'insp-landmarks' });
+  let landmarkSig = '\0';
   const tbody = h('tbody');
   const rows = new KeyedList<GoodRow>(tbody, makeRow);
   const el = h(
@@ -79,6 +83,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Population'), h('span', null, pop, ' ', trend)),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
+    h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
     h(
       'table',
       { class: 'insp-table' },
@@ -98,6 +103,15 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       trend.className = `insp-trend ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`.trim();
       happy.set(city.happiness, formatPercent(city.happiness));
       smog.set(city.pollution, formatPercent(city.pollution));
+      const sig = city.landmarks.map((l) => l.id).join(',');
+      if (sig !== landmarkSig) {
+        landmarkSig = sig;
+        landmarks.replaceChildren(
+          ...(city.landmarks.length > 0
+            ? city.landmarks.map((l) => h('li', { 'data-landmark': l.id }, iconEl(l.id, 16), LANDMARKS[l.id].name))
+            : [h('li', { class: 'insp-none' }, 'None yet')]),
+        );
+      }
 
       const demand = cityDemand(state, city);
       rows.sync(demand.map((d) => d.goodId));
@@ -108,7 +122,10 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         setText(row.demand, formatNumber(d.demand));
         row.sat.set(d.satisfaction, formatPercent(d.satisfaction));
         setText(row.price, formatMoney(d.price));
-        setText(row.crave, craved.has(d.goodId) ? ' ★ Craves' : '');
+        const craves = craved.has(d.goodId);
+        if (craves !== (row.crave.childNodes.length > 0)) {
+          row.crave.replaceChildren(...(craves ? [' ', iconEl('star', 12), ' Craves'] : []));
+        }
         const sellers = stores.filter((s) => (loadSource(s)[d.goodId] ?? 0) >= 1);
         const sig = sellers.map((s) => `${s.id}${s.ownerId}`).join(',');
         if (sig !== row.storeSig) {

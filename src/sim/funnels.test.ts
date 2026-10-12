@@ -30,6 +30,14 @@ describe('single-writer funnels', () => {
   it('vehicles are deleted only in vehicles.ts', () => {
     expect(writers(/delete\s+state\.vehicles\[/)).toEqual(['vehicles.ts']);
   });
+  it('tiles gain road, rail or a building only in state.ts and rail.ts', () => {
+    // `.road = true`, `.rail = true`, `.buildingId = <anything but null>` (not `==`/`===` comparisons)
+    const re = /\.(?:road|rail)\s*=\s*true\b|\.buildingId\s*=(?!=)(?!\s*null\b)/;
+    // the pattern catches real writes and ignores clears and comparisons, so the guard cannot pass vacuously
+    for (const w of ['t.road = true;', 'map.tiles[i].rail=true', 'tile.buildingId = building.id;']) expect(re.test(w), w).toBe(true);
+    for (const w of ['t.road = false;', 't.buildingId = null;', 'if (t.buildingId === id)', 't.rail == true']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['rail.ts', 'state.ts']);
+  });
   it('pollution is written only in pollution.ts', () => {
     expect(writers(/\.pollution\s*[-+*/]?=(?!=)/)).toEqual(['pollution.ts']);
   });

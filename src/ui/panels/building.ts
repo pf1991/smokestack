@@ -8,7 +8,8 @@ import { accessTiles, DEMOLITION_REFUND, demolishBuilding, footprint } from '../
 import type { GameController } from '../../game/controller';
 import { offeredGoods } from '../../sim/routeHelpers';
 import type { Building, GameState, Route } from '../../sim/types';
-import { h } from '../dom';
+import { type Child, h } from '../dom';
+import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
 import { bar, type Bar, KeyedList, openInspector, setClass, setText, type InspectorHost, type InspectorView } from './inspect';
@@ -23,10 +24,7 @@ const STATUS_LABEL: Record<Building['status'], string> = {
   idle: 'Idle',
 };
 
-const goodLabel = (id: string): string => {
-  const g = getGood(id);
-  return `${g.icon} ${g.name}`;
-};
+const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name}`];
 
 /** Why an extractor produces nothing right now, or null when it is productive. */
 function extractorProblem(state: GameState, b: Building): string | null {
@@ -83,10 +81,10 @@ function recipeLabel(id: string): string {
   const r = RECIPES[id];
   const side = (inv: Record<string, number>) =>
     Object.entries(inv)
-      .map(([g, q]) => `${q}${getGood(g).icon}`)
-      .join(' ');
+      .map(([g, q]) => `${q} ${getGood(g).name}`)
+      .join(' + ');
   const ins = side(r.inputs);
-  return `${ins ? `${ins} → ` : ''}${side(r.outputs)}  (${Object.keys(r.outputs).map((g) => getGood(g).name).join(', ')})`;
+  return `${ins ? `${ins} → ` : ''}${side(r.outputs)}`;
 }
 
 interface Row {
@@ -106,8 +104,8 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const owner = h('span', { class: 'insp-badge' });
   const statusBadge = h('span', { class: 'insp-badge' });
   const reason = h('div', { class: 'insp-reason' });
-  const noRoad = h('div', { class: 'insp-warn' }, '⚠ No road access — trucks cannot reach this building');
-  const noRail = h('div', { class: 'insp-warn' }, '⚠ No track alongside — lay rail next to the station for trains');
+  const noRoad = h('div', { class: 'insp-warn' }, iconEl('warning', 14), ' No road access — trucks cannot reach this building');
+  const noRail = h('div', { class: 'insp-warn' }, iconEl('warning', 14), ' No track alongside — lay rail next to the station for trains');
   noRail.hidden = true;
   const recipeSel = h('select', {
     class: 'insp-recipe',
@@ -264,7 +262,10 @@ function buildView(host: InspectorHost, id: number): InspectorView {
 
       const isStation = b.typeId === STATION_TYPE;
       send.hidden = !mine || (!isStation && offeredGoods(b).length === 0);
-      setText(send, isStation ? '🚂 Send goods to…' : '🚚 Send goods to…');
+      if (send.dataset.kind !== (isStation ? 'train' : 'truck')) {
+        send.dataset.kind = isStation ? 'train' : 'truck';
+        send.replaceChildren(iconEl(send.dataset.kind, 16), ' Send goods to…');
+      }
       demolish.hidden = !mine;
       setText(
         demolish,

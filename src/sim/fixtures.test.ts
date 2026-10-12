@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
 import { unpackState } from '../game/saves';
 import { checkInvariants } from './invariants';
+import { SAVE_VERSION } from './migrations';
 import { runDays } from './simulation';
 
 // Vite's glob (no @types/node in this project): every fixture save from each phase.
@@ -16,10 +17,11 @@ describe('fixture saves', () => {
     expect(Object.keys(fixtures).length).toBeGreaterThan(0);
   });
   for (const [path, raw] of Object.entries(fixtures)) {
-    it(`${path} loads, holds invariants and survives 30 days`, () => {
+    it(`${path} loads (migrated to the current version), holds invariants and survives 30 days`, () => {
       const r = unpackState(raw);
       expect(r.ok).toBe(true);
       if (!r.ok) return;
+      expect(r.value.version).toBe(SAVE_VERSION);
       expect(checkInvariants(r.value)).toEqual([]);
       const ctx = { state: r.value, bus: new EventBus() };
       runDays(ctx, 30);

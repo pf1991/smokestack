@@ -43,7 +43,7 @@ function storesByCity(state: GameState): { city: string; goods: string[] }[] {
     }
     for (const [g, q] of Object.entries(b.input)) if (q > 0) goods.add(g);
     const city = state.cities.find((c) => c.id === b.cityId)?.name ?? '?';
-    out.push({ city, goods: [...goods].map((g) => `${GOODS[g]?.icon ?? ''} ${GOODS[g]?.name ?? g}`.trim()) });
+    out.push({ city, goods: [...goods].map((g) => GOODS[g]?.name ?? g) });
   }
   return out.sort((a, b) => a.city.localeCompare(b.city));
 }

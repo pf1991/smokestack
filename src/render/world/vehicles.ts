@@ -2,17 +2,25 @@ import { GOODS } from '../../data/goods';
 import type { GameState, Vec2, Vehicle } from '../../sim/types';
 import { TILE } from '../camera';
 import type { ParticleSystem } from '../particles';
-import { LOCO_HALF, LOCO_STACK, WAGON_HALF, drawLocomotive, drawTruck, drawWagon } from '../sprites';
+import { LOCO_HALF, LOCO_STACK, VEHICLE_SCALE, WAGON_HALF, drawLocomotive, drawTruck, drawWagon } from '../sprites';
 import { type Dir, SPRITE_MARGIN, type TileRange } from './shared';
 
-const LANE_OFFSET = 4;
+export const LANE_OFFSET = 6;
+/** Trucks puff exhaust from this year, one puff per this many ms of real time while moving. */
+export const TRUCK_EXHAUST_YEAR = 1920;
+export const EXHAUST_INTERVAL_MS = 900;
+/** Distance from a truck's centre to its tail pipe, px. */
+const TRUCK_TAIL = 9 * VEHICLE_SCALE;
 /** Wagons behind every locomotive (40 units each at TRAIN capacity 120). */
 const TRAIN_WAGONS = 3;
 /** Steam gives way to diesel from this year. */
 export const DIESEL_YEAR = 1950;
 /** Minimum spacing (tiles) between recorded locomotive positions, and how many are kept. */
 const TRAIL_STEP = 0.2;
-const TRAIL_MAX = 16;
+/** Tiles from the locomotive centre to the far end of the last wagon's orientation sample (+0.25 tile). */
+export const TRAIL_REACH = (LOCO_HALF + 1 + WAGON_HALF + (TRAIN_WAGONS - 1) * (2 * WAGON_HALF + 1)) / TILE + 0.25;
+/** Enough samples to cover the whole consist, plus a 2-sample margin. */
+export const TRAIL_MAX = Math.ceil(TRAIL_REACH / TRAIL_STEP) + 2;
 const DIR_ANGLE: Record<Dir, number> = { E: 0, S: Math.PI / 2, W: Math.PI, N: -Math.PI / 2 };
 
 export interface TrainTrail {
@@ -29,6 +37,8 @@ export interface VehicleRenderState {
   /** Recent locomotive positions (tile coords, newest first) so wagons follow the track. */
   trainTrails: Map<number, TrainTrail>;
   particles: ParticleSystem;
+  /** Real-time (performance.now) stamp of each truck's last exhaust puff; pruned with the vehicles. */
+  lastPuff: Map<number, number>;
 }
 
 export function vehiclePose(vehicleDir: Map<number, Dir>, v: Vehicle, alpha: number): { x: number; y: number; dir: Dir } {
@@ -54,13 +64,14 @@ export function vehiclePose(vehicleDir: Map<number, Dir>, v: Vehicle, alpha: num
   return { x, y, dir };
 }
 
-export function drawVehicles(ctx: CanvasRenderingContext2D, vs: VehicleRenderState, state: GameState, r: TileRange, alpha: number, dt: number): void {
+export function drawVehicles(ctx: CanvasRenderingContext2D, vs: VehicleRenderState, state: GameState, r: TileRange, alpha: number, dt: number, lit = false): void {
+  const now = performance.now();
   for (const id in state.vehicles) {
     const v = state.vehicles[id];
     if (v.pos.x < r.x0 - SPRITE_MARGIN || v.pos.x > r.x1 + SPRITE_MARGIN || v.pos.y < r.y0 - SPRITE_MARGIN || v.pos.y > r.y1 + SPRITE_MARGIN) continue;
     const p = vehiclePose(vs.vehicleDir, v, alpha);
     if (v.kind === 'train') {
-      drawTrainConsist(ctx, vs, state, v, p, dt);
+      drawTrainConsist(ctx, vs, state, v, p, dt, lit);
       continue;
     }
     let cargo: string | null = null;
@@ -70,7 +81,16 @@ export function drawVehicles(ctx: CanvasRenderingContext2D, vs: VehicleRenderSta
         break;
       }
     }
-    drawTruck(ctx, p.x, p.y, p.dir, v.ownerId, cargo);
+    drawTruck(ctx, p.x, p.y, p.dir, v.ownerId, cargo, lit);
+    if (state.date.year >= TRUCK_EXHAUST_YEAR && Math.abs(v.pos.x - v.prevPos.x) + Math.abs(v.pos.y - v.prevPos.y) > 1e-6) {
+      const last = vs.lastPuff.get(v.id);
+      if (last === undefined || now - last >= EXHAUST_INTERVAL_MS) {
+        vs.lastPuff.set(v.id, now);
+        const back = TRUCK_TAIL * (p.dir === 'E' || p.dir === 'S' ? -1 : 1);
+        const horiz = p.dir === 'E' || p.dir === 'W';
+        vs.particles.emitPuff(p.x + (horiz ? back : 0), p.y + (horiz ? 0 : back) - 2);
+      }
+    }
   }
 }
 
@@ -140,7 +160,7 @@ function sampleBack(state: GameState, pl: Vec2[], s: number, back: Vec2): { x: n
 }
 
 /** Locomotive plus wagons following the track behind it; steam puffs before 1950, diesel exhaust after. */
-function drawTrainConsist(ctx: CanvasRenderingContext2D, vs: VehicleRenderState, state: GameState, v: Vehicle, p: { x: number; y: number; dir: Dir }, dt: number): void {
+function drawTrainConsist(ctx: CanvasRenderingContext2D, vs: VehicleRenderState, state: GameState, v: Vehicle, p: { x: number; y: number; dir: Dir }, dt: number, lit: boolean): void {
   const cur = { x: p.x / TILE - 0.5, y: p.y / TILE - 0.5 };
   const pl = trainPolyline(vs.trainTrails, v.id, cur);
   const ang = DIR_ANGLE[p.dir];
@@ -175,7 +195,7 @@ function drawTrainConsist(ctx: CanvasRenderingContext2D, vs: VehicleRenderState,
     drawWagon(ctx, (c.x + 0.5) * TILE, (c.y + 0.5) * TILE, a, fills[i], v.id + i);
   }
   const diesel = state.date.year >= DIESEL_YEAR;
-  drawLocomotive(ctx, p.x, p.y, locoAngle, v.ownerId, diesel);
+  drawLocomotive(ctx, p.x, p.y, locoAngle, v.ownerId, diesel, lit);
   // smoke from the stack
   const moving = Math.abs(v.pos.x - v.prevPos.x) + Math.abs(v.pos.y - v.prevPos.y) > 1e-6;
   const stack = diesel ? LOCO_STACK.diesel : LOCO_STACK.steam;

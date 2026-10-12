@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createGame } from './state';
 import { addDays, advanceHour, compareDates, dateToDays, formatDate, isSummer, isWinter, START_DATE } from './clock';
 
 describe('clock', () => {
@@ -43,7 +44,8 @@ describe('clock', () => {
     expect(compareDates(a, b)).toBe(-1);
     expect(compareDates(b, a)).toBe(1);
     expect(compareDates(a, { ...a })).toBe(0);
-    expect(dateToDays(START_DATE)).toBe(0);
+    expect(dateToDays({ year: 1900, month: 1, day: 1, hour: 0 })).toBe(0);
+    expect(dateToDays(START_DATE)).toBe(90);
     expect(dateToDays({ year: 1901, month: 1, day: 1, hour: 0 })).toBe(360);
   });
 
@@ -52,5 +54,11 @@ describe('clock', () => {
     expect(isWinter(3)).toBe(false);
     expect([7, 8, 9].every(isSummer)).toBe(true);
     expect(isSummer(6)).toBe(false);
+  });
+});
+
+describe('start date', () => {
+  it('new games start on 1 April 1900 at 08:00 (R-P10: the first look is in daylight)', () => {
+    expect(createGame({ seed: 7 }).date).toEqual({ year: 1900, month: 4, day: 1, hour: 8 });
   });
 });

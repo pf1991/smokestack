@@ -1,9 +1,11 @@
+import { BUILDINGS } from '../../data/buildings';
 import type { Building, GameState } from '../../sim/types';
 import { type Camera, TILE } from '../camera';
-import { HEADROOM, houseStyle } from '../sprites';
+import { BUILDING_HEIGHT, HEADROOM, LOCO_NOSE, TRUCK_NOSE, VEHICLE_SCALE, HOUSE_TIERS, houseStyle } from '../sprites';
 import { CHUNK } from '../terrain';
-import { getHouseGlow, getLampGlow, getWindowGlow } from './glows';
-import type { ChunkMeta, Dir, TileRange } from './shared';
+import { LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
+import { LANDMARK_GLOW_PAD, getHouseGlow, getLampGlow, getLandmarkGlow, getWindowGlow } from './glows';
+import { type ChunkMeta, type Dir, HOUSE_STRIDE, type TileRange } from './shared';
 import { vehiclePose } from './vehicles';
 
 
@@ -40,15 +42,18 @@ export function drawNightLights(
       // lit house windows
       ctx.globalAlpha = k * 0.9;
       const hs = m.houses;
-      for (let i = 0; i < hs.length; i += 4) {
+      for (let i = 0; i < hs.length; i += HOUSE_STRIDE) {
         if (!hs[i + 3]) continue;
         const x = hs[i];
         const y = hs[i + 1];
         if (x < r.x0 - 1 || x > r.x1 + 1 || y < r.y0 - 1 || y > r.y1 + 1) continue;
         // a building directly south is drawn over this house, so its windows must not glow through
         if (y + 1 < state.map.height && state.map.tiles[(y + 1) * state.map.width + x].buildingId !== null) continue;
-        const glow = getHouseGlow(style, hs[i + 2], state.date.year);
-        ctx.drawImage(glow as CanvasImageSource, toSX(x * TILE - 6), toSY(y * TILE - 6), (TILE + 12) * z, (TILE + 12) * z);
+        const glow = getHouseGlow(style, hs[i + 2], state.date.year, HOUSE_TIERS[hs[i + 4]]);
+        // taller masks (towers) extend upward: the tile sits at the bottom of the mask
+        const gw = (glow as HTMLCanvasElement).width;
+        const gh = (glow as HTMLCanvasElement).height;
+        ctx.drawImage(glow as CanvasImageSource, toSX(x * TILE - 6), toSY(y * TILE - 6 - (gh - gw)), gw * z, gh * z);
       }
       // street lamps
       ctx.globalAlpha = k;
@@ -63,29 +68,69 @@ export function drawNightLights(
     }
   }
 
+  // landmark windows and floodlights
+  ctx.globalAlpha = k * 0.9;
+  const P = LANDMARK_GLOW_PAD;
+  for (const city of state.cities) {
+    for (const l of city.landmarks) {
+      if (l.pos.x + 1 < r.x0 - 1 || l.pos.x > r.x1 + 1 || l.pos.y + 1 < r.y0 - 1 || l.pos.y > r.y1 + 2) continue;
+      const glow = getLandmarkGlow(l.id);
+      ctx.drawImage(
+        glow as CanvasImageSource,
+        toSX(l.pos.x * TILE - P),
+        toSY(l.pos.y * TILE - LANDMARK_HEADROOM - P),
+        (LANDMARK_PX + P * 2) * z,
+        (LANDMARK_PX + LANDMARK_HEADROOM + P * 2) * z,
+      );
+    }
+  }
+
   // factory windows
   ctx.globalAlpha = k;
-  for (const b of buildings) {
+  for (let i = 0; i < buildings.length; i++) {
+    const b = buildings[i];
     const glow = getWindowGlow(b.typeId);
     if (!glow) continue;
     const working = b.status === 'ok' || b.status === 'no_input' || b.status === 'output_full';
     ctx.globalAlpha = k * (working ? 1 : 0.35);
     const gx = b.pos.x * TILE + glow.ox;
     const gy = b.pos.y * TILE - HEADROOM + glow.oy;
-    ctx.drawImage(glow.surf as CanvasImageSource, toSX(gx), toSY(gy), glow.surf.width * z, glow.surf.height * z);
+    const gh = glowVisibleHeight(buildings, i, gx, gy, glow.surf.width, glow.surf.height);
+    if (gh <= 0) continue;
+    ctx.drawImage(glow.surf as CanvasImageSource, 0, 0, glow.surf.width, gh, toSX(gx), toSY(gy), glow.surf.width * z, gh * z);
   }
 
   // truck headlights
   ctx.globalAlpha = k * 0.8;
-  const HR = 9 * z;
+  const HR = 12 * z;
   for (const id in state.vehicles) {
     const v = state.vehicles[id];
     if (v.pos.x < r.x0 - 1 || v.pos.x > r.x1 + 1 || v.pos.y < r.y0 - 1 || v.pos.y > r.y1 + 1) continue;
     const p = vehiclePose(vehicleDir, v, alpha);
-    const f = v.kind === 'train' ? 14 : 11;
+    // centre the warm blob on the light cones, half a cone ahead of the nose
+    const f = (v.kind === 'train' ? LOCO_NOSE : TRUCK_NOSE) + 5 * VEHICLE_SCALE;
     const fx = p.dir === 'E' ? f : p.dir === 'W' ? -f : 0;
     const fy = p.dir === 'S' ? f : p.dir === 'N' ? -f : 0;
     ctx.drawImage(lamp as CanvasImageSource, toSX(p.x + fx) - HR, toSY(p.y + fy) - HR, HR * 2, HR * 2);
   }
   ctx.restore();
+}
+
+/**
+ * Rows of a window glow at world (gx, gy), w × h, for `buildings[i]` that no raised building drawn
+ * after it covers: like the houses' guard, a raised roof directly in front hides the windows behind
+ * it. `buildings` is in draw order (footprint bottom, then x). Cuts from the top of the first cover.
+ */
+export function glowVisibleHeight(buildings: Building[], i: number, gx: number, gy: number, w: number, h: number): number {
+  let bottom = gy + h;
+  for (let j = i + 1; j < buildings.length; j++) {
+    const c = buildings[j];
+    const def = BUILDINGS[c.typeId];
+    if (!def) continue;
+    const x0 = c.pos.x * TILE;
+    const top = c.pos.y * TILE - (BUILDING_HEIGHT[c.typeId] ?? 0);
+    if (x0 >= gx + w || x0 + def.size.w * TILE <= gx || top >= bottom || (c.pos.y + def.size.h) * TILE <= gy) continue;
+    bottom = top;
+  }
+  return Math.max(0, Math.min(h, Math.floor(bottom - gy)));
 }

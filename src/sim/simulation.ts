@@ -1,11 +1,11 @@
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
-import { migrateSave } from './migrations';
+import { migrateSave, type Migration } from './migrations';
 import { advanceHour, TICKS_PER_DAY } from './clock';
 import { FINANCE_SYSTEM_ID, SYSTEMS } from './systems';
 import type { GameState, SimContext } from './types';
 
-export { SAVE_VERSION } from './migrations';
+export { SAVE_VERSION } from './version';
 const END_YEAR = 2001;
 
 /**
@@ -75,8 +75,19 @@ function isComplete(o: Record<string, unknown>): boolean {
   return Array.isArray(o.cities);
 }
 
-/** Parses and validates a save. Never throws; failures carry a message the UI can show as-is. */
-export function deserialize(json: string): Result<GameState> {
+/** A parsed save plus the migrations applied to it, whose `afterLoad` hooks are still to run. */
+export interface Deserialized {
+  state: GameState;
+  applied: Migration[];
+}
+
+/**
+ * Parses, migrates and validates a save. Never throws; failures carry a message the UI can show
+ * as-is. The migrations' `afterLoad` hooks are NOT run here: they need the fully rebuilt state
+ * (unpacked tiles and layers), so the caller must pass `applied` to runAfterLoad. Load saves with
+ * game/saves.ts unpackState, which does exactly that.
+ */
+export function deserialize(json: string): Result<Deserialized> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
@@ -84,11 +95,12 @@ export function deserialize(json: string): Result<GameState> {
     return err('Save file is corrupted');
   }
   if (!isObject(parsed)) return err('Save file is corrupted');
-  const m = migrateSave(parsed);
+  const applied: Migration[] = [];
+  const m = migrateSave(parsed, undefined, undefined, applied);
   if (!m.ok) return m;
   if (!isComplete(parsed)) return err('Save file is incomplete');
   // saves from before scenarios existed lack these; they play as sandbox
   if (typeof parsed.scenarioId !== 'string') parsed.scenarioId = 'sandbox';
   if (!isObject(parsed.flags)) parsed.flags = {};
-  return ok(parsed as unknown as GameState);
+  return ok({ state: parsed as unknown as GameState, applied });
 }

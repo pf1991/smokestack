@@ -1,7 +1,7 @@
 import { EventBus } from '../core/events';
 import type { Result } from '../core/result';
 import { START_DATE } from './clock';
-import { SAVE_VERSION } from './migrations';
+import { SAVE_VERSION } from './version';
 import { createCompany, STARTING_MONEY } from './finance';
 import { urbanRadius } from './market';
 import { connectToRoads, ensureRoadLink } from './roads';
@@ -67,6 +67,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
       pollution: 0,
       market: {},
       urbanRadius: urbanRadius(population),
+      landmarks: [],
     };
   });
   const player = createCompany('player', 'Test Co.', opts.money ?? STARTING_MONEY);
@@ -112,8 +113,6 @@ export function must<T>(r: Result<T>): T {
 /** Moved to roads.ts (real games use it too); re-exported so existing imports keep working. */
 export { connectToRoads } from './roads';
 
-const manhattan = (a: Vec2, b: Vec2) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-
 /**
  * The balance "reference strategy" (the Task 17 headless furniture chain plus bread), used by
  * balance.test.ts: in the city with the nearest forest, lumber camp → sawmill → furniture factory →
@@ -131,8 +130,11 @@ export function buildReferenceStrategy(
   let best = Infinity;
   for (const c of state.cities) {
     const p = findPlacement(state, 'player', 'lumber_camp', c.center, 30);
-    if (p && manhattan(p, c.center) < best) {
-      best = manhattan(p, c.center);
+    // Euclidean distance from the town's edge (urbanRadius is a Euclidean disc): bigger towns push
+    // industry further out, which is not a worse site
+    const d = p ? Math.hypot(p.x - c.center.x, p.y - c.center.y) - c.urbanRadius : Infinity;
+    if (p && d < best) {
+      best = d;
       city = c;
       campPos = p;
     }

@@ -6,6 +6,7 @@ import { pollutionSystem } from './pollution';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
+import { landmarksMonth } from './landmarks';
 import { goalsMonth } from './scenarios';
 import { companyIds } from './companies';
 import type { SimContext } from './types';
@@ -75,4 +76,6 @@ export const SYSTEMS: SimSystem[] = [
     onYear: fadeWarnings,
   },
   { id: 'goals', onMonth: goalsMonth },
+  // after upkeep's growthMonth, so a town that just spread builds on its new land
+  { id: 'landmarks', onMonth: landmarksMonth },
 ];

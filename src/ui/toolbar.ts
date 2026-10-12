@@ -5,7 +5,8 @@ import { isUnlocked } from '../sim/eras';
 import { ROAD_COST } from '../sim/state';
 import { RAIL_COST } from '../sim/rail';
 import type { GameState, Inventory } from '../sim/types';
-import { h } from './dom';
+import { type Child, h } from './dom';
+import { iconEl } from './icon';
 import { formatMoney } from './format';
 import type { ToolSpec } from './tools';
 import './hud.css';
@@ -27,18 +28,18 @@ function tabOf(def: BuildingDef): TabId | null {
   return outs.length > 0 && outs.every((g) => GOODS[g]?.tier === 1) ? 'refine' : 'manufacture';
 }
 
-function goodsRow(inv: Inventory[]): string {
+function goodsRow(inv: Inventory[]): HTMLElement[] {
   const ids = new Set<string>();
   for (const i of inv) for (const g of Object.keys(i)) ids.add(g);
-  return [...ids].map((g) => GOODS[g]?.icon ?? '?').join(' ');
+  return [...ids].map((g) => iconEl(g, 16, GOODS[g]?.name ?? g));
 }
 
-function flow(def: BuildingDef): string {
+function flow(def: BuildingDef): Child[] {
   const recipes = def.recipes.map((r) => RECIPES[r]).filter(Boolean);
-  if (recipes.length === 0) return def.category === 'retail' ? 'Sells goods to the city' : 'Stores goods';
+  if (recipes.length === 0) return [def.category === 'retail' ? 'Sells goods to the city' : 'Stores goods'];
   const ins = goodsRow(recipes.map((r) => r.inputs));
   const outs = goodsRow(recipes.map((r) => r.outputs));
-  return ins ? `${ins} → ${outs}` : `⛏ → ${outs}`;
+  return [ins.length > 0 ? ins : iconEl('pick', 16, 'Extracts'), ' → ', outs];
 }
 
 /** Buildings shown but not yet buildable (their system arrives in a later task, e.g. railways). */
@@ -81,7 +82,7 @@ export class Toolbar {
       'data-tool': 'inspect',
       title: 'Inspect (Esc)',
       onClick: () => this.select({ kind: 'inspect' }),
-    }, '🔍 Inspect');
+    }, 'Inspect');
     this.toolButtons.set('inspect', inspect);
     tabsRow.appendChild(inspect);
 

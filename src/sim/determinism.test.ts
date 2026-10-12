@@ -40,6 +40,9 @@ describe('determinism', () => {
 
     const b = start(7);
     runDays(b, 360);
+    // the save carries a populated layer: towns have raised landmarks by now
+    expect(b.state.cities.some((c) => c.landmarks.length > 0)).toBe(true);
+    expect(b.state.layers.landmark?.some((v) => v > 0)).toBe(true);
     const loaded = unpackState(packState(b.state));
     expect(loaded.ok ? 'ok' : loaded.error).toBe('ok');
     if (!loaded.ok) return;

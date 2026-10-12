@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { productionDay, retailDay, maintenanceMonth, growthMonth, demandModifier } from './production';
-import { placeBuilding } from './state';
+import { footprint, placeBuilding } from './state';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000, GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
-import { monthlyDemand } from './market';
+import { monthlyDemand, urbanRadius } from './market';
 import { testCtx, testState } from './testkit';
 import type { Building, SimContext } from './types';
 
@@ -45,6 +45,7 @@ describe('production', () => {
   it('farm fallow in January, x1.5 in August', () => {
     const ctx = testCtx();
     const b = place(ctx, 'farm', 5, 5, 'r_grain');
+    ctx.state.date.month = 1;
     productionDay(ctx);
     expect(b.output.grain ?? 0).toBe(0);
     ctx.state.date.month = 8;
@@ -107,7 +108,7 @@ describe('production', () => {
   it('halted building does not produce and clears when passed', () => {
     const ctx = testCtx(testState({ terrain: 'forest' }));
     const b = place(ctx, 'lumber_camp', 5, 5);
-    b.haltedUntil = { year: 1900, month: 1, day: 5, hour: 0 };
+    b.haltedUntil = { year: 1900, month: 4, day: 5, hour: 0 };
     productionDay(ctx);
     expect(b.status).toBe('halted');
     expect(b.output.wood ?? 0).toBe(0);
@@ -241,15 +242,49 @@ describe('production', () => {
   });
 
   it('growth refreshes urban tiles when population crosses a radius boundary', () => {
-    const state = testState({ cities: [{ x: 20, y: 15, population: 2990 }] });
+    const state = testState({ cities: [{ x: 20, y: 15, population: 3990 }] });
     const ctx = testCtx(state);
     const city = state.cities[0];
     const r0 = city.urbanRadius;
     for (const g of Object.keys(DEMAND_PER_1000))
       if (monthlyDemand(city, g, 1900) > 0) city.market[g] = { sold30: 100, demand30: 100, pending: 0 };
     growthMonth(ctx);
-    expect(city.population).toBeGreaterThanOrEqual(3000);
+    expect(city.population).toBeGreaterThanOrEqual(4000);
     expect(city.urbanRadius).toBe(r0 + 1);
     expect(state.map.tiles[15 * state.map.width + 20 + r0 + 1].cityId).toBe(0);
+  });
+
+  it('a growing city lays new streets in its larger disc, never over buildings, rail or deposits', () => {
+    const state = testState({ width: 60, height: 60, cities: [{ x: 30, y: 30, population: 5000 }], streets: true });
+    const ctx = testCtx(state);
+    const city = state.cities[0];
+    const R = urbanRadius(30_000);
+    const tileAt = (x: number, y: number) => state.map.tiles[y * state.map.width + x];
+    // outside the 5k disc, on what will be street rows of the 30k disc
+    const farm = place(ctx, 'farm', 30 + 9, 30 - 1, 'r_grain');
+    tileAt(30, 30 + 9).rail = true;
+    tileAt(30 - 9, 30).deposit = 'coal';
+    const roadsInDisc = () => {
+      let n = 0;
+      for (let y = 30 - R; y <= 30 + R; y++)
+        for (let x = 30 - R; x <= 30 + R; x++) if ((x - 30) ** 2 + (y - 30) ** 2 <= R * R && tileAt(x, y).road) n++;
+      return n;
+    };
+    const before = roadsInDisc();
+    const changed: { x: number; y: number }[] = [];
+    ctx.bus.on('roadChanged', (e) => changed.push(...e.tiles));
+    for (let i = 0; i < 400 && city.population < 30_000; i++) {
+      for (const g of Object.keys(DEMAND_PER_1000))
+        if (monthlyDemand(city, g, state.date.year) > 0) city.market[g] = { sold30: 100, demand30: 100, pending: 0 };
+      growthMonth(ctx);
+    }
+    expect(city.population).toBeGreaterThanOrEqual(30_000);
+    expect(roadsInDisc()).toBeGreaterThan(before);
+    expect(changed.length).toBeGreaterThan(0);
+    for (const p of changed) expect(tileAt(p.x, p.y).road).toBe(true);
+    for (const p of footprint(farm)) expect(tileAt(p.x, p.y).road).toBe(false);
+    expect(tileAt(30, 30 + 9).road).toBe(false);
+    expect(tileAt(30 - 9, 30).road).toBe(false);
+    for (const t of state.map.tiles) if (t.buildingId !== null) expect(t.road).toBe(false);
   });
 });

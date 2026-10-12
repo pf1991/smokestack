@@ -82,8 +82,9 @@ describe('economy balance', () => {
   }, 60_000);
 
   it('the rival lays railways in real games and they run', () => {
-    // seeds whose rival has a long, busy wood haul (seeds 7 and 42 have none worth railing)
-    for (const seed of [3, 14]) {
+    // seeds whose rival has a long, busy wood haul (seeds 7 and 42 have none worth railing);
+    // re-picked for save v3, where larger towns moved seed 3's rival chain off rail
+    for (const seed of [16, 19]) {
       const ctx: SimContext = { state: createGame({ seed, companyName: 'Acme Works', rival: true }), bus: new EventBus() };
       const headlines: string[] = [];
       ctx.bus.on('news', (e) => headlines.push(e.item.headline));

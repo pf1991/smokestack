@@ -6,6 +6,8 @@ export type { Camera };
 
 export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 3;
+/** Zoom a new or loaded game opens at: the diorama (render/regime.ts blends to it from 1.7). */
+export const DEFAULT_ZOOM = 1.75;
 
 export function screenToWorld(cam: Camera, sx: number, sy: number): Vec2 {
   return { x: cam.x + sx / cam.zoom, y: cam.y + sy / cam.zoom };

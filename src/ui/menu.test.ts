@@ -111,3 +111,18 @@ describe('goals panel', () => {
     expect(el.textContent).toContain('1920');
   });
 });
+
+describe('settings: Skip intro', () => {
+  it('the toggle is stored with the other settings', async () => {
+    const { loadSettings } = await import('../game/settings');
+    expect(loadSettings().skipIntro).toBe(false);
+    const { ui, menu } = mount();
+    menu.show('settings');
+    const row = [...ui.querySelectorAll('label')].find((l) => l.textContent === 'Skip intro')!;
+    const box = row.querySelector('input') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change'));
+    expect(loadSettings().skipIntro).toBe(true);
+    expect(loadSettings().volume).toBe(0.6);
+  });
+});

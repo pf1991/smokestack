@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { GameDate } from '../sim/types';
-import { lightLevel, eraGrade, seasonTint, applyAtmosphere, cssFilterFor, easeLight, FAST_MIN_LIGHT } from './atmosphere';
+import { lightLevel, eraGrade, seasonTint, applyAtmosphere, cssFilterFor, easeLight, FAST_MIN_LIGHT, isLit } from './atmosphere';
 
 interface Call {
   op: string;
@@ -68,7 +68,7 @@ describe('lightLevel', () => {
 
 describe('eraGrade', () => {
   it('starts sepia in 1900 and reaches full colour in 1965', () => {
-    expect(eraGrade(1900)).toEqual({ sepia: 0.8, saturate: 0.6 });
+    expect(eraGrade(1900)).toEqual({ sepia: 0.45, saturate: 0.85 });
     expect(eraGrade(1965).sepia).toBe(0);
     expect(eraGrade(1965).saturate).toBeCloseTo(1.15);
   });
@@ -82,7 +82,7 @@ describe('eraGrade', () => {
 
 describe('cssFilterFor', () => {
   it('formats with two decimals', () => {
-    expect(cssFilterFor(1900)).toBe('sepia(0.80) saturate(0.60)');
+    expect(cssFilterFor(1900)).toBe('sepia(0.45) saturate(0.85)');
     expect(cssFilterFor(1990)).toBe('sepia(0.00) saturate(1.15)');
   });
 });
@@ -138,5 +138,12 @@ describe('easeLight', () => {
     }
     expect(min).toBeGreaterThanOrEqual(FAST_MIN_LIGHT);
     expect(maxStep).toBeLessThan(0.01);
+  });
+});
+
+describe('isLit', () => {
+  it('is false at noon and true at night, independent of speed easing', () => {
+    expect(isLit(12)).toBe(false);
+    expect(isLit(22)).toBe(true);
   });
 });

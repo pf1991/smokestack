@@ -5,6 +5,8 @@ import { closeModal, MainMenu, openPauseMenu, showEndScreen, type PauseHost } fr
 import { GameController, type NewGameOpts } from './controller';
 import { createGame } from '../sim/state';
 import { shouldOfferTutorial, Tutorial } from '../ui/tutorial';
+import { playColdOpen } from './coldOpen';
+import { loadSettings } from './settings';
 
 /**
  * Application shell: owns the canvas and UI root and switches between the main menu and a running
@@ -42,10 +44,25 @@ export class App implements PauseHost {
     this.showMenu();
   }
 
+  /**
+   * New Game: plays the cold open (unless "Skip intro" is set), then offers the tutorial, so the
+   * tutorial card never sits on top of the intro. Loads and debug starts go through start() and
+   * never play the intro.
+   */
   startNew(opts: NewGameOpts): void {
     const game = this.start(createGame(opts));
     // new Free Play games get the tutorial until it has been skipped or finished once
-    if (shouldOfferTutorial(game.state.scenarioId)) this.showTutorial(game);
+    const tutorial = shouldOfferTutorial(game.state.scenarioId);
+    const then = () => {
+      if (tutorial) this.showTutorial(game);
+    };
+    if (loadSettings().skipIntro) then();
+    else this.playIntro(game, then);
+  }
+
+  /** Plays the cold open on `game`, then `onDone`; leaving the game mid-intro cancels it. */
+  playIntro(game: GameController, onDone: () => void = () => {}): void {
+    game.addDisposer(playColdOpen(game, onDone));
   }
 
   /** Shows the tutorial card for `game`; it is torn down with the game. */

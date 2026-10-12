@@ -1,0 +1,130 @@
+/* Cold open (game/coldOpen.ts): letterbox bars over the HUD, one brass-framed card at a time. */
+.coldopen {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  cursor: pointer;
+  user-select: none;
+}
+
+.coldopen-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11vh;
+  background: #0d0a08;
+  transition: transform 450ms ease-in;
+  animation: co-bar-in 600ms ease-out;
+}
+.coldopen-top {
+  top: 0;
+  /* tall enough to hide the HUD bar, which slides back into view as the bars leave */
+  height: max(11vh, calc(var(--hud-height, 56px) + 8px));
+  --co-from: -100%;
+  box-shadow: 0 1px 0 rgba(201, 162, 39, 0.35);
+}
+.coldopen-bottom {
+  bottom: 0;
+  /* covers the build toolbar and the ticker */
+  height: max(11vh, 92px);
+  --co-from: 100%;
+  box-shadow: 0 -1px 0 rgba(201, 162, 39, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 24px;
+}
+.coldopen-out .coldopen-top { transform: translateY(-100%); }
+.coldopen-out .coldopen-bottom { transform: translateY(100%); }
+
+.coldopen-hint {
+  font: italic 13px var(--font-body, Georgia, serif);
+  color: rgba(243, 233, 210, 0.55);
+  letter-spacing: 0.04em;
+}
+
+.coldopen-slot {
+  position: absolute;
+  left: max(16px, 4vw);
+  bottom: calc(max(11vh, 92px) + 20px);
+  max-width: calc(100vw - 32px);
+}
+
+.coldopen-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(620px, calc(100vw - 32px));
+  padding: 12px 22px 12px 12px;
+  color: var(--paper, #f3e9d2);
+  background: linear-gradient(160deg, rgba(61, 42, 29, 0.94), rgba(29, 20, 13, 0.94));
+  border: 2px solid var(--brass, #c9a227);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 3px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 4px rgba(232, 199, 90, 0.35),
+    0 10px 28px rgba(0, 0, 0, 0.55);
+  animation: co-card-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: opacity 400ms ease-in;
+}
+.coldopen-out .coldopen-card { opacity: 0; }
+
+.coldopen-art {
+  flex: none;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+}
+
+.coldopen-words { min-width: 0; }
+
+.coldopen-text {
+  font: 22px/1.3 var(--font-display, Georgia, serif);
+  color: var(--paper, #f3e9d2);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  overflow-wrap: anywhere;
+}
+.coldopen-baron .coldopen-text { font-style: italic; }
+.coldopen-family .coldopen-text {
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-light, #e8c75a);
+}
+
+.coldopen-caption {
+  margin-top: 6px;
+  font: 12px var(--font-body, Georgia, serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(243, 233, 210, 0.6);
+}
+
+@keyframes co-bar-in {
+  from { transform: translateY(var(--co-from)); }
+  to { transform: none; }
+}
+@keyframes co-card-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 560px) {
+  .coldopen-art { width: 72px; height: 72px; }
+  .coldopen-text { font-size: 17px; }
+  .coldopen-family .coldopen-text { font-size: 19px; }
+}
+
+/* reduced motion: no slides or fades, the cards simply appear */
+.coldopen-reduced .coldopen-bar,
+.coldopen-reduced .coldopen-card {
+  animation: none;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .coldopen-bar,
+  .coldopen-card {
+    animation: none;
+    transition: none;
+  }
+}

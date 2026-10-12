@@ -18,6 +18,13 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Main menu, scenarios, achievements and save slots:** New Game, Load Game (Autosave plus three manual slots), Achievements and Settings. Progress is saved in the browser's local storage.
 - **Procedural everything:** no image or audio files. Sprites are painted on canvas and sound (cash-register "ka-ching", steam whistles, factory hum) is synthesized with WebAudio.
 
+## What's new in SMOKESTACK II (Phase 1)
+
+- **Cold-open intro:** it plays on New Game. Skip it with Esc, a click or any key, or turn it off with the "Skip intro" setting. Games start in April 1900 and open zoomed in.
+- **Photo mode:** press P or use the HUD camera button to hide the interface and frame a shot. Esc exits, and Export saves a captioned PNG.
+- **Engraved survey map:** zoom out below about 1.5 and the world becomes an engraved survey map with labelled towns. Zoom back in for the diorama, with terrain walls, tilt-shift and sun shadows.
+- **City growth and landmarks:** cities visibly spread over the decades, and they gain landmarks (a town hall, a church, a stadium, a library and more) as they grow.
+
 ## Scenarios
 
 | Scenario | Goal |
@@ -44,7 +51,8 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 | N | The Daily Smokestack (newspaper) |
 | V | Fleet window |
 | Delete | Bulldoze tool (refunds 25% of the building's cost) |
-| Esc | Cancel the tool or close the open window |
+| P | Photo mode (Esc exits) |
+| Esc | Cancel the tool, close the open window, skip the intro or leave photo mode |
 
 ## Run it
 

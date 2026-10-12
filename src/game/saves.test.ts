@@ -71,7 +71,7 @@ describe('saves', () => {
     if (r.ok) expect(r.value).toEqual(state);
     const list = listSaves();
     expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ slot: 'slot1', date: '1 Jan 1900', company: 'Round Trip Ltd', money: 123_456 });
+    expect(list[0]).toMatchObject({ slot: 'slot1', date: '1 Apr 1900', company: 'Round Trip Ltd', money: 123_456 });
     expect(SLOTS).toEqual(['auto', 'slot1', 'slot2', 'slot3']);
   });
 
@@ -121,7 +121,7 @@ describe('saves', () => {
   it('autosaves every January', () => {
     const ctx = testCtx(testState({ year: 1900 }));
     const off = attachAutosave(ctx);
-    runDays(ctx, 359);
+    runDays(ctx, 269);
     expect(listSaves()).toEqual([]);
     runDays(ctx, 2);
     expect(listSaves().map((s) => s.slot)).toEqual(['auto']);

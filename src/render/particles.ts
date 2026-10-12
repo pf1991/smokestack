@@ -57,6 +57,11 @@ export class ParticleSystem {
     }
   }
 
+  /** One exhaust puff at a fixed spot; the caller owns the timing. */
+  emitPuff(wx: number, wy: number): void {
+    this.add({ kind: 'smoke', x: wx, y: wy, vx: 0, vy: -SMOKE_RISE, age: 0, life: SMOKE_LIFE / 2, color: '#3a332b' });
+  }
+
   emitFloatText(wx: number, wy: number, text: string, color: string): void {
     this.add({
       kind: 'text',

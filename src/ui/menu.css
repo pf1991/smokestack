@@ -84,7 +84,7 @@
 .mn-row input[type='text'] { flex: 0 1 260px; min-width: 0; }
 .mn-seed { display: flex; gap: 6px; flex: 0 1 260px; }
 .mn-seed input { flex: 1; min-width: 0; }
-.mn-dice { padding: 2px 8px; font-size: 18px; }
+.mn-dice { padding: 2px 8px; font-size: 12px; }
 .mn-row input[type='range'] { width: 220px; accent-color: var(--brass); }
 .mn-row input[type='checkbox'] { width: 20px; height: 20px; accent-color: var(--brass); }
 

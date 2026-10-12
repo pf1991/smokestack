@@ -6,6 +6,7 @@ import { acceptedGoods, appendStop, legLength, offeredGoods, routeThroughput } f
 import type { Building, GameState, GoodId, Route, RouteStop } from '../../sim/types';
 import { createRoute, deleteRoute, insertStop, ROUTE_COLORS, sellVehicle, updateRoute } from '../../sim/vehicles';
 import { h } from '../dom';
+import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
@@ -381,11 +382,11 @@ class RoutesPanel {
         nameInput,
         h('div', { class: 'rt-stops-line', title: names }, names || 'no stops')),
       h('div', { class: 'rt-stat' },
-        h('b', null, `${trucks.length} ${(KIND_INFO[route.kind] ?? KIND_INFO.truck).icon}`),
+        h('b', null, `${trucks.length} `, iconEl((KIND_INFO[route.kind] ?? KIND_INFO.truck).icon, 16, (KIND_INFO[route.kind] ?? KIND_INFO.truck).many)),
         h('span', null, `~${formatNumber(thr)}/mo`)));
     const children: (HTMLElement | false)[] = [head];
     if (warnings.length > 0) {
-      children.push(h('ul', { class: 'rt-warn' }, warnings.map((w) => h('li', null, `⚠ ${w}`))));
+      children.push(h('ul', { class: 'rt-warn' }, warnings.map((w) => h('li', null, iconEl('warning', 14), ` ${w}`))));
     }
     if (open) children.push(this.routeDetail(route, trucks.length));
     return h('div', { class: `rt-card${open ? ' open' : ''}`, 'data-route': route.id }, children);
@@ -484,7 +485,7 @@ class RoutesPanel {
           title: `${on ? 'Stop' : 'Start'} ${kind === 'load' ? 'loading' : 'unloading'} ${def?.name ?? g}`,
           'aria-pressed': on ? 'true' : 'false',
           onClick: () => commit(on ? stop[kind].filter((x) => x !== g) : [...stop[kind], g]),
-        }, def?.icon ?? g);
+        }, iconEl(g, 16, def?.name ?? g));
       }),
     );
   }
@@ -514,13 +515,13 @@ class RoutesPanel {
       { class: 'rt-stop', 'data-i': i },
       h('div', { class: 'rt-stop-head' },
         h('span', { class: 'rt-num' }, i + 1),
-        h('span', { class: 'rt-bicon' }, buildingIcon(b)),
+        h('span', { class: 'rt-bicon' }, iconEl(buildingIcon(b), 16)),
         h('span', { class: 'rt-bname' }, buildingName(b)),
         h('span', { class: 'rt-ctl' },
           route && h('button', { class: 'rt-mini', 'data-act': 'insert', title: 'Insert a stop after this one', onClick: () => this.startAdding(route, i) }, '＋'),
           h('button', { class: 'rt-mini', 'data-act': 'up', title: 'Move earlier', disabled: i === 0, onClick: () => move(i - 1) }, '↑'),
           h('button', { class: 'rt-mini', 'data-act': 'down', title: 'Move later', disabled: i === n - 1, onClick: () => move(i + 1) }, '↓'),
-          h('button', { class: 'rt-mini', 'data-act': 'remove', title: 'Remove stop', onClick: () => commit(stops.filter((_, j) => j !== i).map((s) => ({ ...s }))) }, '✕'))),
+          h('button', { class: 'rt-mini', 'data-act': 'remove', title: 'Remove stop', onClick: () => commit(stops.filter((_, j) => j !== i).map((s) => ({ ...s }))) }, iconEl('close', 12, 'Remove stop')))),
       h('div', { class: 'rt-summary' }, stopSummary(stop)),
       this.chips('load', stop, loadGoods, (load) => set({ load })),
       this.chips('unload', stop, unloadGoods, (unload) => set({ unload })),

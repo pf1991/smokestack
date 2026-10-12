@@ -135,6 +135,7 @@
 .story .byline { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b5338; margin-bottom: 3px; }
 .story p { margin: 0; font-size: 13.5px; line-height: 1.4; text-align: justify; hyphens: auto; }
 .story.market h3 { font-style: italic; }
+.story.civic .byline { color: #3f5a3a; }
 .paper-quiet { text-align: center; font-style: italic; padding: 24px 0 10px; color: #5a4630; }
 
 .classifieds {

@@ -1,6 +1,6 @@
 import { Sfx } from '../audio/sfx';
 import { EventBus } from '../core/events';
-import { clampCamera, TILE } from '../render/camera';
+import { DEFAULT_ZOOM, clampCamera, TILE } from '../render/camera';
 import type { Camera } from '../render/constants';
 import { WorldRenderer } from '../render/world';
 import { stepTick } from '../sim/simulation';
@@ -12,10 +12,12 @@ import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
 import { attachAchievements } from './achievements';
-import { attachStuckToasts } from './feedback';
+import { attachMilestoneStamps, attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
+import { enterPhotoMode } from './photoMode';
 import { closeAllWindows } from '../ui/window';
+import { clearStamps } from '../ui/juice';
 import { Input } from './input';
 import { ToolController } from './toolController';
 import { biggestCity } from './autoplay';
@@ -56,7 +58,7 @@ export interface NewGameOpts {
  */
 export class GameController {
   ctx!: SimContext;
-  readonly camera: Camera = { x: 0, y: 0, zoom: 1, viewW: 0, viewH: 0 };
+  readonly camera: Camera = { x: 0, y: 0, zoom: DEFAULT_ZOOM, viewW: 0, viewH: 0 };
   renderer!: WorldRenderer;
   readonly tools: ToolController;
   readonly hud: Hud;
@@ -74,6 +76,8 @@ export class GameController {
   /** extra teardown run by destroy() (e.g. the tutorial card and its timer) */
   private disposers: (() => void)[] = [];
   private toolListeners: ((t: ToolSpec) => void)[] = [];
+  /** run at the start of every frame, before the sim step and render (e.g. the cold-open camera) */
+  private frameHooks = new Set<(now: number) => void>();
   /** vehicle the camera is following, if any */
   followId: number | null = null;
   private raf = 0;
@@ -116,6 +120,7 @@ export class GameController {
     this.hud = new Hud(uiRoot, {
       onSpeed: (s) => this.setSpeed(s),
       onOpenPanel: (id) => this.openPanel(id),
+      onPhoto: () => this.togglePhotoMode(),
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
     this.input = new Input(canvas, this);
@@ -157,6 +162,7 @@ export class GameController {
     for (const off of this.busOffs) off();
     const bus = new EventBus();
     this.ctx = { state, bus };
+    this.hud.reset();
     if (!this.renderer) {
       this.renderer = new WorldRenderer(this.canvas, state);
       this.renderer.attachOverlay(this.overlay);
@@ -167,6 +173,8 @@ export class GameController {
       this.renderer.attachEffects(bus),
       Toasts.attach(this.uiRoot, bus),
       attachStuckToasts(this.ctx),
+      attachMilestoneStamps(this.ctx),
+      this.hud.attach(bus),
       attachAutosave(this.ctx),
       attachAchievements(this.ctx),
       bus.on('unlock', () => this.toolbar.update(this.state)),
@@ -249,6 +257,24 @@ export class GameController {
       return;
     }
     this.onPause?.();
+  }
+
+  private exitPhoto: (() => void) | null = null;
+
+  /** True while photo mode is on (Input stops sending the left button and keys to the tools). */
+  get photoActive(): boolean {
+    return this.exitPhoto !== null && document.body.classList.contains('photo-mode');
+  }
+
+  /** P / HUD camera button: enters photo mode, or leaves it when already in. */
+  togglePhotoMode(): void {
+    if (this.exitPhoto && this.photoActive) {
+      this.exitPhoto();
+      return;
+    }
+    if (!this.ctx || this.ended) return;
+    const exit = enterPhotoMode(this);
+    this.exitPhoto = exit;
   }
 
   toggleToolbar(): void {
@@ -370,6 +396,7 @@ export class GameController {
     if (!this.running) return;
     const dt = this.lastFrame === null ? 0 : Math.max(0, now - this.lastFrame);
     this.lastFrame = now;
+    for (const fn of this.frameHooks) fn(now);
     this.input.update(Math.min(dt, 100));
     if (this.followId !== null) {
       const v = this.state.vehicles[this.followId];
@@ -383,11 +410,20 @@ export class GameController {
     this.renderer.render(this.state, this.camera, this.alpha, now);
     if (now - this.lastHud >= HUD_INTERVAL_MS) {
       this.lastHud = now;
-      this.hud.update(this.state);
+      this.hud.update(this.state, now);
     }
+    this.hud.tick(now);
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame(this.frame);
   };
+
+  /** Runs `fn(now)` at the start of every frame until the returned function is called. */
+  addFrameHook(fn: (now: number) => void): () => void {
+    this.frameHooks.add(fn);
+    return () => {
+      this.frameHooks.delete(fn);
+    };
+  }
 
   /** Registers cleanup that must run when this game is destroyed (quit, load, new game). */
   addDisposer(fn: () => void): void {
@@ -397,6 +433,7 @@ export class GameController {
   destroy(): void {
     for (const fn of this.disposers.splice(0)) fn();
     this.running = false;
+    this.frameHooks.clear();
     cancelAnimationFrame(this.raf);
     clearInterval(this.watchdog);
     for (const off of this.busOffs) off();
@@ -408,6 +445,7 @@ export class GameController {
     window.removeEventListener('pointerdown', this.onGesture, true);
     window.removeEventListener('keydown', this.onGesture, true);
     closeAllWindows();
+    clearStamps();
     this.sfx.dispose();
     this.onPause = null;
     this.uiRoot.replaceChildren();
