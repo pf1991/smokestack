@@ -44,10 +44,21 @@ export interface PoliticsLogEntry {
  * Bookkeeping for opinion drivers derived from state diffs (ruling R-Q3), refreshed by factionsMonth.
  * `primed` false means the next factionsMonth only takes a snapshot (a migrated save), so buildings
  * that already existed never count as newly placed.
+ *
+ * Accepted limits of diffing once a month (R-Q3):
+ * - reactions land at the month's end, up to a month after the cause;
+ * - a building placed and demolished within the same month is never seen;
+ * - a removal counts in the towns the building was near at the last month, a placement in the towns
+ *   it is near now; a building near two towns counts in both;
+ * - an ownership change is neither a placement nor a removal (ids are tracked whatever the owner);
+ * - a town that grows over an existing building, or shrinks away from one, does not react;
+ * - a finished contract trimmed from `state.contracts` before the month ends (more than
+ *   MAX_FINISHED finish in one month) is missed;
+ * - sales compare the player's and the Baron's retail revenue only; other companies are ignored.
  */
 export interface PoliticsTrack {
   primed: boolean;
-  /** every player building id at the last factionsMonth */
+  /** every building id, whatever its owner, at the last factionsMonth */
   buildings: number[];
   /** per city id: player building ids within urbanRadius + 4 at the last factionsMonth */
   near: Record<string, number[]>;

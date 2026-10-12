@@ -152,7 +152,7 @@ describe('city panel opinion', () => {
     const rows = [...document.querySelectorAll<HTMLElement>('.insp-opinion')];
     expect(text()).toContain('Opinion of your company');
     expect(rows.map((r) => r.dataset.faction)).toEqual(['workers', 'oldmoney', 'reformers', 'church', 'baron']);
-    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(['Workers', 'Old Money', 'Greens', 'Church', "Baron's Circle"]);
+    expect(rows.map((r) => r.querySelector('.insp-label')!.textContent)).toEqual(['Workers', 'Old Money', 'Greens', 'Church', "Baron's Circle"]);
     const fill = rows[4].querySelector<HTMLElement>('.insp-bar-fill')!;
     expect(fill.style.width).toBe('35%');
     expect(rows[4].querySelector('.insp-bar-label')!.textContent).toBe('35');

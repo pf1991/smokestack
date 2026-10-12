@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FACTION_IDS } from '../../data/factions';
 import { checkInvariants } from '../invariants';
 import { runDays } from '../simulation';
+import { transferOwnership } from '../companies';
 import { demolishBuilding, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import { adjustOpinion, factionsMonth, nationalOpinion, notePoliticsSale } from './factions';
@@ -33,13 +34,17 @@ describe('faction opinion', () => {
     expect(c.opinion.workers).toBe(100);
     adjustOpinion(ctx.state, 'workers', 0, -500, 'down');
     expect(c.opinion.workers).toBe(0);
+    adjustOpinion(ctx.state, 'workers', 0, -5, 'already at the floor');
+    // the log records what was applied after clamping; a no-op is not logged
+    expect(ctx.state.politics.log.map((e) => e.delta)).toEqual([50, -100]);
   });
 
   it("'national' touches every city", () => {
     const ctx = twoTowns();
     adjustOpinion(ctx.state, 'reformers', 'national', -10, 'smog');
     expect(ctx.state.cities.map((c) => c.opinion.reformers)).toEqual([40, 40]);
-    expect(ctx.state.politics.log.at(-1)).toEqual({ date: ctx.state.date, faction: 'reformers', scope: 'national', delta: -10, reason: 'smog' });
+    expect(ctx.state.politics.log.at(-1)).toMatchObject({ date: ctx.state.date, faction: 'reformers', scope: 'national', reason: 'smog' });
+    expect(ctx.state.politics.log.at(-1)!.delta).toBeCloseTo(-10, 10);
   });
 
   it('nationalOpinion is weighted by population', () => {
@@ -51,7 +56,7 @@ describe('faction opinion', () => {
 
   it('caps the log at 200 entries, oldest dropped, and skips tiny changes', () => {
     const ctx = twoTowns();
-    for (let i = 0; i < 205; i++) adjustOpinion(ctx.state, 'church', 0, 1, `r${i}`);
+    for (let i = 0; i < 205; i++) adjustOpinion(ctx.state, 'church', 0, i % 2 ? -1 : 1, `r${i}`);
     adjustOpinion(ctx.state, 'church', 0, 0.4, 'tiny');
     const log = ctx.state.politics.log;
     expect(log.length).toBe(200);
@@ -101,6 +106,18 @@ describe('faction opinion', () => {
       expect(ctx.state.cities[0].opinion.baron).toBeGreaterThanOrEqual(25);
     }
     expect(ctx.state.cities[0].opinion.baron).toBeCloseTo(30, 0);
+  });
+
+  it('a takeover is not counted as new jobs', () => {
+    const ctx = twoTowns();
+    must(placeBuilding(ctx, 'rival', 'sawmill', { x: 18, y: 9 }, 'r_lumber'));
+    factionsMonth(ctx);
+    const before = ctx.state.cities[0].opinion.workers;
+    transferOwnership(ctx, 'rival', 'player');
+    factionsMonth(ctx);
+    expect(ctx.state.politics.log.filter((e) => e.reason === 'New jobs' || e.reason === 'Layoffs')).toEqual([]);
+    expect(ctx.state.cities[0].opinion.workers).toBeCloseTo(before + (50 - before) * 0.02, 10);
+    expect(ctx.state.cities[0].opinion.reformers).toBe(50);
   });
 
   it('a player factory near a town raises workers by 2 the next month; removing it lowers them by 4', () => {

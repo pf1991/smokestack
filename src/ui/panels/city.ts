@@ -77,7 +77,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const landmarks = h('ul', { class: 'insp-landmarks' });
   let landmarkSig = '\0';
   const opinion = FACTION_IDS.map((f: FactionId) => {
-    const label = h('span');
+    const label = h('span', { class: 'insp-label' });
     const b = bar(FACTIONS[f].color);
     const el = h('div', { class: 'insp-stat insp-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el);
     return { f, label, bar: b, el };

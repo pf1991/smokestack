@@ -36,16 +36,22 @@ export function adjustOpinion(
   opts: { log?: boolean } = {},
 ): void {
   if (!Number.isFinite(delta) || delta === 0) return;
+  // the logged delta is what was actually applied after clamping (nationally: the change in nationalOpinion)
+  let applied: number;
   if (scope === 'national') {
+    const before = nationalOpinion(state, faction);
     for (const c of state.cities) c.opinion[faction] = clamp(c.opinion[faction] + delta);
+    applied = nationalOpinion(state, faction) - before;
   } else {
     const city = state.cities.find((c) => c.id === scope);
     if (!city) return;
-    city.opinion[faction] = clamp(city.opinion[faction] + delta);
+    const before = city.opinion[faction];
+    city.opinion[faction] = clamp(before + delta);
+    applied = city.opinion[faction] - before;
   }
-  if (opts.log === false || Math.abs(delta) < LOG_MIN_DELTA) return;
+  if (opts.log === false || Math.abs(applied) < LOG_MIN_DELTA) return;
   const log = state.politics.log;
-  log.push({ date: { ...state.date }, faction, scope, delta, reason });
+  log.push({ date: { ...state.date }, faction, scope, delta: applied, reason });
   if (log.length > LOG_CAP) log.splice(0, log.length - LOG_CAP);
 }
 
@@ -76,11 +82,14 @@ function nearIds(state: GameState, cityId: number): number[] {
   return buildingsNear(state, c.center, c.urbanRadius + NEAR_MARGIN, PLAYER_ID).map((b) => b.id);
 }
 
-/** Jobs and layoffs: player buildings placed or removed near each town since the last month. */
+/**
+ * Jobs and layoffs: player buildings placed or removed near each town since the last month.
+ * `track.buildings` holds every building id whatever its owner, so an ownership change (a takeover
+ * or an heir) is neither a placement nor a removal: only ids that appear or vanish count.
+ */
 function buildingDrivers(state: GameState): void {
   const track = state.politics.track;
-  const current: number[] = [];
-  for (const b of Object.values(state.buildings)) if (b.ownerId === PLAYER_ID) current.push(b.id);
+  const current = Object.keys(state.buildings).map(Number);
   const prevAll = new Set(track.buildings);
   const curAll = new Set(current);
   const near: Record<string, number[]> = {};
@@ -129,7 +138,7 @@ function contractDrivers(state: GameState): void {
 export function factionsMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const c of state.cities) {
-    for (const f of FACTION_IDS) c.opinion[f] = clamp(c.opinion[f] + (50 - c.opinion[f]) * DRIFT);
+    for (const f of FACTION_IDS) adjustOpinion(state, f, c.id, (50 - c.opinion[f]) * DRIFT, 'Drift', { log: false });
   }
   for (const c of state.cities) {
     if (c.pollution > 0) {

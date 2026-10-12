@@ -43,12 +43,19 @@ describe('determinism', () => {
     // the save carries a populated layer: towns have raised landmarks by now
     expect(b.state.cities.some((c) => c.landmarks.length > 0)).toBe(true);
     expect(b.state.layers.landmark?.some((v) => v > 0)).toBe(true);
+    // ...and politics state: opinions have moved off the defaults and the drivers' bookkeeping is filled
+    expect(b.state.cities.some((c) => c.opinion.workers !== 50 || c.opinion.reformers !== 50 || c.opinion.baron !== 35)).toBe(true);
+    expect(b.state.politics.track.primed).toBe(true);
+    expect(b.state.politics.track.buildings.length).toBeGreaterThan(0);
+    expect(Object.values(b.state.politics.track.near).some((ids) => ids.length > 0)).toBe(true);
     const loaded = unpackState(packState(b.state));
     expect(loaded.ok ? 'ok' : loaded.error).toBe('ok');
     if (!loaded.ok) return;
     const c: SimContext = { state: loaded.value, bus: new EventBus() };
     runDays(c, 360);
 
+    expect(c.state.politics).toEqual(a.state.politics);
+    expect(c.state.cities.map((x) => x.opinion)).toEqual(a.state.cities.map((x) => x.opinion));
     expect(stateHash(c.state)).toBe(stateHash(a.state));
   });
 });

@@ -9,6 +9,14 @@ const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'], {
 
 const files = Object.entries(modules).map(([path, src]) => ({ rel: path.replace(/^\.\//, ''), src }));
 
+// src/ui and src/game, for funnels that also bind the layers above the sim
+const outsideModules = import.meta.glob(['../ui/**/*.ts', '../game/**/*.ts', '!../**/*.test.ts'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+const outside = Object.entries(outsideModules).map(([path, src]) => ({ rel: path.replace(/^\.\.\//, ''), src }));
+
 function writers(re: RegExp): string[] {
   return files.filter((f) => re.test(f.src)).map((f) => f.rel).sort();
 }
@@ -17,6 +25,8 @@ describe('single-writer funnels', () => {
   it('scans a non-empty file set that includes subfolders', () => {
     expect(files.length).toBeGreaterThan(0);
     expect(files.map((f) => f.rel)).toContain('rival/index.ts');
+    expect(outside.map((f) => f.rel)).toContain('ui/panels/city.ts');
+    expect(outside.map((f) => f.rel)).toContain('game/controller.ts');
   });
   it('state.buildings is assigned or deleted only by state.ts', () => {
     expect(writers(/\bstate\.buildings\[[^\]]*\]\s*=(?!=)|delete\s+state\.buildings\[/)).toEqual(['state.ts']);
@@ -42,10 +52,40 @@ describe('single-writer funnels', () => {
     expect(writers(/\.pollution\s*[-+*/]?=(?!=)/)).toEqual(['pollution.ts']);
   });
   it('faction opinion is written only by politics/factions.ts', () => {
-    // `.opinion[f] = ...`, `.opinion[f] += ...`, `.opinion.workers = ...` (not comparisons, not reads)
-    const re = /\.opinion(?:\[[^\]]*\]|\.\w+)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
-    for (const w of ['c.opinion[f] = 3;', 'city.opinion[faction] += delta', 'x.opinion.workers=10', 'c.opinion[f]++']) expect(re.test(w), w).toBe(true);
-    for (const w of ['c.opinion[f] === 3', 'const v = c.opinion[f];', 'if (c.opinion.church >= 50)', 'c.opinion = defaultOpinion();']) expect(re.test(w), w).toBe(false);
+    // element/field writes (`.opinion[f] = `, `+=`, `++`, `.opinion.workers = `), `Object.assign(x.opinion, …)`,
+    // and whole-map `.opinion = …` unless the right-hand side is exactly `defaultOpinion()` (initialisers)
+    const re = new RegExp(
+      [
+        String.raw`\.opinion(?:\[[^\]]*\]|\.\w+)\s*(?:[-+*/]?=(?!=)|\+\+|--)`,
+        String.raw`Object\.assign\(\s*[\w.$\[\]]*\.opinion\b`,
+        String.raw`\.opinion\s*=(?!=)(?!\s*defaultOpinion\(\)\s*[;,)\n])`,
+      ].join('|'),
+    );
+    for (const w of [
+      'c.opinion[f] = 3;',
+      'city.opinion[faction] += delta',
+      'x.opinion.workers=10',
+      'c.opinion[f]++',
+      'Object.assign(city.opinion, { workers: 0 });',
+      'Object.assign(state.cities[0].opinion, o)',
+      'c.opinion = { workers: 0 };',
+      'c.opinion = defaultOpinion(); c.opinion = x;',
+      'c.opinion = defaultOpinion().workers;',
+    ]) expect(re.test(w), w).toBe(true);
+    for (const w of [
+      'c.opinion[f] === 3',
+      'const v = c.opinion[f];',
+      'if (c.opinion.church >= 50)',
+      'c.opinion = defaultOpinion();',
+      'opinion: defaultOpinion(),',
+      'Object.assign(c, { pollution: 1 })',
+    ]) expect(re.test(w), w).toBe(false);
     expect(writers(re)).toEqual(['politics/factions.ts']);
+    // the UI and game layers never write opinion either
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
+  it('fresh opinion maps (defaultOpinion()) are created only by the initialisers', () => {
+    const re = /\bopinion\s*[:=]\s*defaultOpinion\(\)/;
+    expect(writers(re)).toEqual(['mapgen.ts', 'migrations.ts', 'testkit.ts']);
   });
 });
