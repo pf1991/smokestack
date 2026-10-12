@@ -84,9 +84,8 @@ describe('vehicles', () => {
 });
 
 describe('train trail', () => {
-  it('TRAIL_MAX covers the last wagon centre distance', async () => {
+  it('TRAIL_MAX covers the last wagon centre (3.0 tiles) plus the rear sample', async () => {
     const { TRAIL_MAX } = await import('./world/vehicles');
-    const lastCentre = (LOCO_HALF + 1 + WAGON_HALF + 2 * (2 * WAGON_HALF + 1)) / TILE;
-    expect(TRAIL_MAX * 0.2).toBeGreaterThanOrEqual(lastCentre);
+    expect(TRAIL_MAX * 0.2).toBeGreaterThanOrEqual(3.25);
   });
 });

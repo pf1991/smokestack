@@ -683,12 +683,12 @@ function vrect(g: Ctx, x: number, y: number, w: number, h: number, c: string): v
 function vcircle(g: Ctx, x: number, y: number, r: number, c: string): void {
   circle(g, x * VEHICLE_SCALE, y * VEHICLE_SCALE, r * VEHICLE_SCALE, c);
 }
-/** Two warm light cones ahead of the nose at x (unscaled), lamps at y1 and y2. Call inside the vehicle's local frame. */
+/** Two warm light cones ahead of the nose at x (px, already scaled), lamps at y1 and y2. Call inside the vehicle's local frame. */
 function headlights(g: Ctx, x: number, y1: number, y2: number): void {
   const S = VEHICLE_SCALE;
   const len = 10 * S;
   for (const y of [y1, y2]) {
-    poly(g, [[x * S, y * S], [x * S + len, (y - 2) * S], [x * S + len, (y + 2) * S]], HEADLIGHT);
+    poly(g, [[x, y * S], [x + len, (y - 2) * S], [x + len, (y + 2) * S]], HEADLIGHT);
   }
 }
 
@@ -705,7 +705,7 @@ export function drawTruck(g: Ctx, px: number, py: number, dir: Dir, ownerId: Own
   vrect(g, 3, -4, 6, 8, ownerColor(ownerId)); // cab
   vrect(g, 6, -3, 2, 6, '#bfe3f2'); // windscreen
   vrect(g, 8, -3, 1, 1, '#fff6c0'); vrect(g, 8, 2, 1, 1, '#fff6c0');
-  if (lit) headlights(g, 9, -2.5, 2.5);
+  if (lit) headlights(g, TRUCK_NOSE, -2.5, 2.5);
   g.restore();
 }
 
@@ -751,7 +751,7 @@ export function drawLocomotive(g: Ctx, px: number, py: number, angle: number, ow
     vrect(g, 12, -4.5, 1.5, 9, '#191919'); // smokebox door
     vrect(g, 13.5, -5, 1.5, 10, '#a3322a'); // buffer beam
     vrect(g, 13, -1, 2, 2, '#f6e7a6'); // lamp
-    if (lit) headlights(g, 15, -3.5, 3.5);
+    if (lit) headlights(g, LOCO_NOSE, -3.5, 3.5);
   } else {
     const hood = (inset: number, color: string): void => {
       const S = VEHICLE_SCALE;
@@ -777,7 +777,7 @@ export function drawLocomotive(g: Ctx, px: number, py: number, angle: number, ow
     vrect(g, 9, -3.5, 2.5, 7, '#bfe3f2'); // cab windscreen
     vrect(g, 9, -3.5, 2.5, 1, '#ffffff');
     vrect(g, 14, -1, 1.5, 2, '#fff6c0'); // headlight
-    if (lit) headlights(g, 15.5, -3, 3);
+    if (lit) headlights(g, LOCO_NOSE, -3, 3);
   }
   g.restore();
 }
