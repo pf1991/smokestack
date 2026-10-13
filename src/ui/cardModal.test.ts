@@ -174,19 +174,21 @@ describe('card modal', () => {
     expect(choiceButtons()[0].disabled).toBe(true);
   });
 
-  it('focuses the first enabled choice and traps Tab inside the clipping', () => {
+  it('traps Tab inside the clipping, from the clipping to the first enabled choice', () => {
     const s = withCard('shop_floor_grumbling');
     s.companies[PLAYER_ID].money = 3000; // the $4,000+ bonus is out of reach
     const t = attach(s);
     t.frame();
     const [bonus, guards, nothing] = choiceButtons();
     expect(bonus.disabled).toBe(true);
-    expect(document.activeElement).toBe(guards);
+    expect(document.activeElement).toBe(document.querySelector('.card-clipping'));
     const tab = (shiftKey = false) => {
       const e = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
       window.dispatchEvent(e);
       expect(e.defaultPrevented).toBe(true);
     };
+    tab();
+    expect(document.activeElement).toBe(guards);
     tab();
     expect(document.activeElement).toBe(nothing);
     tab();
@@ -196,6 +198,36 @@ describe('card modal', () => {
     (document.body as HTMLElement).focus();
     tab();
     expect(document.activeElement).toBe(guards);
+  });
+
+  it('opens with the clipping focused: Space and Enter there do nothing, on a choice they still work', () => {
+    const s = withCard();
+    const t = attach(s);
+    t.frame();
+    const clipping = document.querySelector<HTMLElement>('.card-clipping')!;
+    expect(clipping.tabIndex).toBe(-1);
+    expect(document.activeElement).toBe(clipping);
+    let heard = 0;
+    const under = () => heard++;
+    window.addEventListener('keydown', under);
+    for (const key of [' ', 'Enter']) {
+      const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      clipping.dispatchEvent(e);
+      expect(e.defaultPrevented, key).toBe(true);
+    }
+    expect(heard).toBe(0);
+    expect(s.politics.cards.pending.length).toBe(1);
+    expect(s.speed).toBe(0);
+    // on a focused choice the keys keep their default (button activation) and still stay from the game
+    const b = choiceButtons()[1];
+    b.focus();
+    for (const key of [' ', 'Enter']) {
+      const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      b.dispatchEvent(e);
+      expect(e.defaultPrevented, key).toBe(false);
+    }
+    window.removeEventListener('keydown', under);
+    expect(heard).toBe(0);
   });
 
   it('waits for the cold open and for photo mode to end', () => {

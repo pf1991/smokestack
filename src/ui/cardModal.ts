@@ -84,6 +84,9 @@ export function attachCardModal(host: CardHost): () => void {
     // photo mode) fires underneath; Enter/Space still work on the card's own buttons
     if (e.key === 'Escape') e.preventDefault();
     else if (e.key === 'Tab') trapTab(e);
+    // Space/Enter only act on a focused choice: anywhere else (the clipping) they do nothing, so a
+    // habitual Space to unpause neither picks an answer nor reaches the game
+    else if ((e.key === ' ' || e.key === 'Enter') && !(document.activeElement instanceof HTMLButtonElement && root.contains(document.activeElement))) e.preventDefault();
     else if (e.ctrlKey || e.metaKey || e.altKey) return;
     e.stopImmediatePropagation();
   };
@@ -151,9 +154,8 @@ export function attachCardModal(host: CardHost): () => void {
     else document.body.appendChild(next);
     root = next;
     openUid = inst.uid;
-    // focus the first answer the player can take (the clipping itself if none)
-    const first = clipping.querySelector<HTMLButtonElement>('.card-choice:not(:disabled)');
-    (first ?? clipping).focus({ preventScroll: true });
+    // focus the clipping, not a choice: a habitual Space must never pick an answer (Tab reaches them)
+    clipping.focus({ preventScroll: true });
   }
 
   function choose(uid: number, i: number): void {
