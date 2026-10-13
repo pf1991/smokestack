@@ -72,7 +72,7 @@ export function voteShares(city: City): Record<FactionId, number> {
 }
 
 /** Draws a winner over the shares; always returns a faction (float shortfall falls to the last one). */
-function drawWinner(state: GameState, shares: Record<FactionId, number>): FactionId {
+export function drawWinner(state: GameState, shares: Record<FactionId, number>): FactionId {
   let r = random(state);
   for (const f of FACTION_IDS) {
     r -= shares[f];

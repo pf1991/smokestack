@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { unpackState } from '../../game/saves';
 import { FACTION_IDS, FACTIONS, type FactionId } from '../../data/factions';
+import { err } from '../../core/result';
+import { migrateSave } from '../migrations';
 import { stateHash } from '../hash';
 import { checkInvariants } from '../invariants';
 import { runDays } from '../simulation';
 import { createGame } from '../state';
 import { testCtx, testState } from '../testkit';
 import { EventBus, type GameEvent } from '../../core/events';
-import { electionsMonth, endorse, firstElection, holdElection, monthIndex, newCityPolitics, voteShares } from './elections';
+import { drawWinner, electionsMonth, endorse, firstElection, holdElection, monthIndex, newCityPolitics, voteShares } from './elections';
 
 const fixtures = import.meta.glob('../__fixtures__/phase1.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const phase1 = Object.values(fixtures)[0];
@@ -157,6 +159,32 @@ describe('elections', () => {
     for (const c of ctx.state.cities) expect(c.politics.mayor.name).toBeTruthy();
   }, 120000);
 
+  it('drawWinner falls back to a valid faction when the draw outruns the cumulative sum', () => {
+    const ctx = town();
+    // shares summing below the draw: rngState chosen arbitrarily, shares all zero forces the fallback
+    const zero = { workers: 0, oldmoney: 0, reformers: 0, church: 0, baron: 0 };
+    expect(FACTION_IDS).toContain(drawWinner(ctx.state, zero));
+  });
+
+  it('a decades-overdue election holds exactly once and reschedules into the future', () => {
+    const ctx = town();
+    const ev: number[] = [];
+    ctx.bus.on('election', (e) => ev.push(e.cityId));
+    const now = monthIndex(ctx.state.date);
+    ctx.state.cities[0].politics.nextElection = now - 1200;
+    ctx.state.cities[1].politics.nextElection = now + 20;
+    electionsMonth(ctx);
+    expect(ev).toEqual([0]);
+    expect(ctx.state.cities[0].politics.nextElection).toBeGreaterThan(now);
+  });
+
+  it('rejects a raw save with no numeric date as corrupted', () => {
+    for (const date of [undefined, { year: 'x', month: 1 }]) {
+      const o: Record<string, unknown> = { version: 4, cities: [{ id: 0 }], date };
+      expect(migrateSave(o)).toEqual(err('Save file is corrupted'));
+    }
+  });
+
   describe('endorse', () => {
     const at = (monthsBefore: number) => {
       const ctx = town();
@@ -178,6 +206,10 @@ describe('elections', () => {
       expect(c.politics.endorsed).toBe('church');
       for (const f of FACTION_IDS) expect(c.opinion[f]).toBe(before[f] + (f === 'church' ? 5 : -3));
       expect(ctx.state.cities[1].opinion).toEqual(before);
+      const logs = ctx.state.politics.log.filter((e) => e.reason === 'Election endorsement');
+      expect(logs.length).toBe(FACTION_IDS.length);
+      expect(logs.find((e) => e.faction === 'church')).toMatchObject({ scope: 0, delta: 5 });
+      expect(logs.find((e) => e.faction === 'workers')).toMatchObject({ scope: 0, delta: -3 });
     });
     it('refuses a second endorsement in the same cycle (no switching)', () => {
       const ctx = at(6);
