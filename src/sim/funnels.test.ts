@@ -67,6 +67,13 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['society/upgrades.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
+  it('class mixes are written only by society/classes.ts (and the v6 migration that adds them)', () => {
+    const re = /\.classes\s*=(?!=)|\.(?:working|middle|upper)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
+    for (const w of ['city.classes = next;', 'c.classes = newCityClasses();', 'c.upper -= 0.1', 'k.middle++']) expect(re.test(w), w).toBe(true);
+    for (const w of ['city.classes.upper > 0.15', 'c.working === 1', 'const m = city.classes;']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['migrations.ts', 'society/classes.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
   it('weather is written only by weather.ts (and the v6 migration that adds it)', () => {
     const re = /\.(?:weather|windX|windY|rain|rainDays)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
     for (const w of ['w.windX = 1;', 'state.weather = x', 'o.weather = defaultWeather(1);', 'w.rainDays++']) expect(re.test(w), w).toBe(true);

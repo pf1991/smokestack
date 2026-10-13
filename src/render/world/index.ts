@@ -584,8 +584,10 @@ export class WorldRenderer {
     if (h01(x, y, seed, 31) >= p) return null;
     const variant = hash(x, y, seed, 37) % HOUSE_VARIANTS;
     const litHouse = h01(x, y, seed, 41) < 0.72 ? 1 : 0;
-    // tier inputs (population, year) change only at month end, which invalidates every chunk
-    return [variant, litHouse, HOUSE_TIERS.indexOf(houseTier(city.population, this.state.date.year, d))];
+    // tier inputs (population, year, class mix) change only at month end, which invalidates every
+    // chunk; the per-tile pick spreads the class houses so districts mix
+    const tier = houseTier(city.population, this.state.date.year, d, city.classes, h01(x, y, seed, 43));
+    return [variant, litHouse, HOUSE_TIERS.indexOf(tier)];
   }
 
   /** The chunk's meta, recomputed if it was invalidated. */

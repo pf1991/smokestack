@@ -119,6 +119,15 @@ export interface City {
   politics: CityPolitics;
   /** Phase 3 smog escalation (sim/society/escalation.ts); added to old saves by the v6 migration */
   smog: CitySmog;
+  /** Phase 3 social classes (sim/society/classes.ts): shares summing to 1; added to old saves by the v6 migration */
+  classes: CityClasses;
+}
+
+/** A town's class mix: shares of the population, summing to 1, each within [0.05, 0.85]. */
+export interface CityClasses {
+  working: number;
+  middle: number;
+  upper: number;
 }
 
 export type SmogTier = 0 | 1 | 2 | 3 | 4;

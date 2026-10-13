@@ -4,6 +4,7 @@ import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { pollutionSystem } from './pollution';
 import { escalationMonth } from './society/escalation';
+import { classesMonth } from './society/classes';
 import { regulationMonth } from './society/regulation';
 import { strikesMonth } from './society/strikes';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
@@ -73,12 +74,15 @@ export const SYSTEMS: SimSystem[] = [
   // after upkeep: onDay refreshes city.pollution on the month's last day (before growthMonth reads it),
   // onMonth then owns the final happiness value. Smog escalation (society/escalation.ts) steps right
   // after it: after growthMonth (which reads last month's tier) and before politics, so this month's
-  // tier reaches workforceMonth and any election held this month (tier-4 reformers ×1.5)
+  // tier reaches workforceMonth and any election held this month (tier-4 reformers ×1.5). The class
+  // shift (society/classes.ts) follows escalation: it reads the month's final satisfaction and smog
+  // level, and politics (later) votes with the new mix
   {
     ...pollutionSystem,
     onMonth(ctx) {
       pollutionSystem.onMonth(ctx);
       escalationMonth(ctx);
+      classesMonth(ctx);
       regulationMonth(ctx);
     },
   },

@@ -1,5 +1,6 @@
 import { defaultSociety } from '../data/laws';
 import { newCitySmog } from './society/tiers';
+import { newCityClasses } from './society/classes';
 import { EventBus } from '../core/events';
 import type { Result } from '../core/result';
 import { START_DATE } from './clock';
@@ -76,6 +77,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
       landmarks: [],
       opinion: defaultOpinion(),
       smog: newCitySmog(),
+      classes: newCityClasses(),
       politics: newCityPolitics(id, year, monthIndex({ year, month: 4 })),
     };
   });

@@ -32,6 +32,8 @@ import { startStrike } from './sim/society/strikes';
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
  *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
  *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
+ *  - `classes=<cityId>:<working>,<middle>,<upper>` (dev) set a town's class mix (normalised), e.g. to
+ *    show villas and semis in a screenshot
  *  - `strike=<buildingId>` (dev) start a strike at that building and centre the view on it
  *  - `card=<id>` (dev) open event card `<id>` on load (data/cards/), whatever its era or trigger
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
@@ -156,6 +158,15 @@ if (debugStart) {
     const city = state.cities.find((c) => c.id === smogTier[0]);
     const tier = Math.min(4, Math.max(0, smogTier[1])) as SmogTier;
     if (city) city.smog = { ...city.smog, tier, months: 0, level: Math.max(city.smog.level, SMOG_TIER_THRESHOLDS[tier] + 0.01) };
+  }
+
+  // `classes=<cityId>:<w>,<m>,<u>` sets a town's class mix (normalised), for screenshots of the class houses
+  const classParam = params.get('classes')?.split(':');
+  if (import.meta.env.DEV && classParam?.length === 2) {
+    const city = state.cities.find((c) => c.id === Number(classParam[0]));
+    const [w, m, u] = classParam[1].split(',').map(Number);
+    const sum = w + m + u;
+    if (city && [w, m, u].every((x) => Number.isFinite(x) && x > 0)) city.classes = { working: w / sum, middle: m / sum, upper: u / sum };
   }
 
   const speedParam = Number(params.get('speed'));

@@ -4,6 +4,7 @@ import { POP_CAP } from './market';
 import { POLLUTION_CAP } from './pollution';
 import { footprint } from './state';
 import { STRIKE_MAX_DAYS } from './society/strikeState';
+import { classesValid } from './society/classes';
 import type { GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
@@ -28,6 +29,7 @@ export function checkInvariants(state: GameState): string[] {
     if (!s || ![0, 1, 2, 3, 4].includes(s.tier) || !Number.isInteger(s.months) || !Number.isInteger(s.blackLung) || s.blackLung < 0 || !Number.isFinite(s.level) || s.level < 0 || s.level > 1) {
       out.push(`city ${city.id} (${city.name}): bad smog ${JSON.stringify(s)}`);
     }
+    if (!classesValid(city.classes)) out.push(`city ${city.id} (${city.name}): bad classes ${JSON.stringify(city.classes)}`);
   }
 
   for (const v of Object.values(state.vehicles)) {

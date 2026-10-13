@@ -7,6 +7,7 @@ import { chooseMayorEdicts } from './politics/mayorEdicts';
 import { defaultPolitics } from './politics/types';
 import { defaultWeather } from './weather';
 import { newCitySmog } from './society/tiers';
+import { newCityClasses } from './society/classes';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -90,6 +91,8 @@ export const MIGRATIONS: Migration[] = [
       if (!Array.isArray(cities)) throw new Error('bad cities');
       for (const c of cities as Record<string, unknown>[]) {
         c.smog = newCitySmog(typeof c.pollution === 'number' && Number.isFinite(c.pollution) ? c.pollution : 0);
+        // social classes (Task 7): every town at the initial 1900 mix
+        c.classes = newCityClasses();
       }
       // smoke laws (Task 5): none passed
       o.society = defaultSociety();

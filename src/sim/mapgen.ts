@@ -1,4 +1,5 @@
 import { newCitySmog } from './society/tiers';
+import { newCityClasses } from './society/classes';
 import type { City, GameMap, Terrain, Tile } from './types';
 import { defaultOpinion } from '../data/factions';
 import { START_DATE } from './clock';
@@ -198,6 +199,7 @@ function placeCities(map: GameMap, rng: RngHolder): City[] | null {
       landmarks: [],
       opinion: defaultOpinion(),
       smog: newCitySmog(),
+      classes: newCityClasses(),
       politics: newCityPolitics(id, START_DATE.year, monthIndex(START_DATE)),
     };
   });

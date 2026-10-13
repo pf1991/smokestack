@@ -12,6 +12,7 @@ import { CARDS_BY_ID } from '../../data/cards';
 import { DAYS_PER_MONTH, MONTHS_PER_YEAR, START_DATE } from '../clock';
 import { PLAYER_ID } from '../companies';
 import { canAfford, spend } from '../finance';
+import { INITIAL_CLASSES } from '../market';
 import { publishNews } from '../news';
 import { chance, pick, random } from '../rng';
 import type { City, GameState, SimContext } from '../types';
@@ -62,12 +63,39 @@ export function newCityPolitics(cityIndex: number, startYear: number, nowIndex: 
   };
 }
 
+/** Old Money's class weight is capped here before normalising. */
+export const OLDMONEY_WEIGHT_CAP = 0.4;
+
+/**
+ * The share of the town each faction speaks for, from its class mix (Phase 3 Task 7), normalised to
+ * sum to 1: workers base × working / 0.75, Old Money base × upper / 0.05 (capped at 0.4), reformers
+ * base × middle / 0.2, church and baron at their base weights (FACTIONS[f].weight: 0.40 / 0.18 /
+ * 0.17 / 0.20 / 0.05). At the initial 1900 mix these are exactly the base weights.
+ */
+export function factionWeights(city: City): Record<FactionId, number> {
+  const c = city.classes ?? INITIAL_CLASSES;
+  const w = {} as Record<FactionId, number>;
+  let total = 0;
+  for (const f of FACTION_IDS) {
+    const base = FACTIONS[f].weight;
+    let v = base;
+    if (f === 'workers') v = base * (c.working / INITIAL_CLASSES.working);
+    else if (f === 'oldmoney') v = Math.min(OLDMONEY_WEIGHT_CAP, base * (c.upper / INITIAL_CLASSES.upper));
+    else if (f === 'reformers') v = base * (c.middle / INITIAL_CLASSES.middle);
+    w[f] = v;
+    total += v;
+  }
+  for (const f of FACTION_IDS) w[f] /= total;
+  return w;
+}
+
 export function voteShares(city: City): Record<FactionId, number> {
   const p = city.politics;
   const scores = {} as Record<FactionId, number>;
+  const weights = factionWeights(city);
   let total = 0;
   for (const f of FACTION_IDS) {
-    let s = FACTIONS[f].weight * (0.6 + (0.8 * Math.abs(city.opinion[f] - 50)) / 50);
+    let s = weights[f] * (0.6 + (0.8 * Math.abs(city.opinion[f] - 50)) / 50);
     if (p.endorsed === f) {
       s *= ENDORSE_SHARE_BONUS;
       s *= 1 + 0.25 * Math.min(MAX_SLUSH, Math.max(0, p.slush));

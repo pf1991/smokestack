@@ -18,6 +18,8 @@
  * A third line reports labour unrest (Phase 3 Task 4): strikes started (the `strike` bus event), town-months
  * with workers' opinion below 30 (go-slow) and below 25 (strike risk), and the lowest workers' opinion seen.
  * A fourth line reports the national smoke laws (Task 5): the year each passed and the total fines paid.
+ * A fifth line reports social classes (Task 7): the biggest town's class mix at the last month end
+ * sampled in 2000, and the highest upper and middle shares any town reached.
  */
 import { EventBus } from '../src/core/events';
 import { runAutoplay } from '../src/game/autoplay';
@@ -91,6 +93,9 @@ for (const seed of seeds) {
   let maxTier = 0;
   let maxLevel = 0;
   const fineByMonth = new Map<number, number>();
+  let mix2000 = '';
+  let maxUpper = 0;
+  let maxMiddle = 0;
   while (ctx.state.date.year < endYear && !over) {
     // a year as 12 months of 30 days, sampling every town's smog tier at each month end
     for (let m = 0; m < 12 && !over; m++) {
@@ -103,6 +108,13 @@ for (const seed of seeds) {
         if (c.opinion.workers < 30) slowMonths++;
         if (c.opinion.workers < 25) strikeRiskMonths++;
         minWorkers = Math.min(minWorkers, c.opinion.workers);
+        maxUpper = Math.max(maxUpper, c.classes.upper);
+        maxMiddle = Math.max(maxMiddle, c.classes.middle);
+      }
+      if (ctx.state.date.year === 2000) {
+        const big = ctx.state.cities.reduce((a, b) => (b.population > a.population ? b : a));
+        const k = big.classes;
+        mix2000 = `${big.name} (pop ${big.population}) working ${k.working.toFixed(3)} / middle ${k.middle.toFixed(3)} / upper ${k.upper.toFixed(3)}`;
       }
     }
     problems = checkInvariants(ctx.state);
@@ -135,6 +147,7 @@ for (const seed of seeds) {
   console.log(
     `  laws ${seed}: ${Object.entries(laws).map(([id, l]) => `${id} ${l.passed ?? 'pending'}`).join(', ')} | total fines ${money(totalFines)}`,
   );
+  console.log(`  classes ${seed}: 2000 biggest ${mix2000 || 'n/a'} | max upper ${maxUpper.toFixed(3)}, max middle ${maxMiddle.toFixed(3)}`);
   if (years >= 100) {
     const gate: string[] = [];
     if (over === 'Bankrupt') gate.push('player went bankrupt');

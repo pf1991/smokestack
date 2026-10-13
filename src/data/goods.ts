@@ -60,6 +60,36 @@ export const DEMAND_PER_1000: Record<GoodId, number> = {
   computers: 1.2,
 };
 
+/** A good's demand multiplier per social class (Phase 3 Task 7, sim/society/classes.ts). */
+export interface ClassDemand {
+  working: number;
+  middle: number;
+  upper: number;
+}
+
+const LUXURY: ClassDemand = { working: 0.6, middle: 1.2, upper: 2.0 };
+const STAPLE: ClassDemand = { working: 1.2, middle: 1.0, upper: 0.7 };
+const PLAIN: ClassDemand = { working: 1, middle: 1, upper: 1 };
+
+/**
+ * Class demand multipliers of every good with city demand: luxuries sell to the rich, staples to the
+ * working class, everything else is class-blind. Demand is scaled by the city's class mix against the
+ * initial mix (sim/society/classes.ts classDemandFactor), so a 1900 town keeps its v1 demand.
+ */
+export const CLASS_DEMAND: Record<GoodId, ClassDemand> = {
+  furniture: LUXURY,
+  bread: STAPLE,
+  tools: PLAIN,
+  clothes: STAPLE,
+  cheese: LUXURY,
+  juice: LUXURY,
+  toys: LUXURY,
+  cars: LUXURY,
+  radios: PLAIN,
+  tvs: PLAIN,
+  computers: LUXURY,
+};
+
 export function getGood(id: GoodId): GoodDef {
   const good = GOODS[id];
   if (!good) throw new Error(`Unknown good: ${id}`);

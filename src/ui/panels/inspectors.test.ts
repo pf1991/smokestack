@@ -320,3 +320,22 @@ describe('city panel smog tier', () => {
     expect(limit.textContent).toContain('smog revolt');
   });
 });
+
+describe('city panel class bar', () => {
+  it('shows Working / Middle / Upper segments sized by the class mix', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    const c = state.cities[0];
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    const seg = (k: string) => document.querySelector<HTMLElement>(`.insp-classes [data-class="${k}"]`)!;
+    expect(document.querySelector('.insp-classes .insp-label')!.textContent).toBe('Classes');
+    expect(seg('working').style.width).toBe('75%');
+    expect(seg('working').textContent).toBe('Working 75%');
+    expect(seg('middle').textContent).toBe('Middle 20%');
+    expect(seg('upper').textContent).toBe(''); // too narrow for its label
+    expect(document.querySelector<HTMLElement>('.insp-class-bar')!.title).toBe('Working 75% / Middle 20% / Upper 5%');
+    c.classes = { working: 0.4, middle: 0.4, upper: 0.2 };
+    vi.advanceTimersByTime(1000);
+    expect(seg('upper').style.width).toBe('20%');
+    expect(seg('upper').textContent).toBe('Upper 20%');
+  });
+});

@@ -74,7 +74,13 @@ describe('diorama heights', () => {
   it('HOUSE_TIER_HEIGHT has one entry per tier, rising with density; towers are 28', () => {
     expect(Object.keys(HOUSE_TIER_HEIGHT).sort()).toEqual([...HOUSE_TIERS].sort());
     expect(HOUSE_TIER_HEIGHT.tower).toBe(28);
-    for (let i = 1; i < HOUSE_TIERS.length; i++) expect(HOUSE_TIER_HEIGHT[HOUSE_TIERS[i]]).toBeGreaterThan(HOUSE_TIER_HEIGHT[HOUSE_TIERS[i - 1]]);
+    const density = ['house', 'terrace', 'block', 'tower'] as const;
+    for (let i = 1; i < density.length; i++) expect(HOUSE_TIER_HEIGHT[density[i]]).toBeGreaterThan(HOUSE_TIER_HEIGHT[density[i - 1]]);
+    // the class houses (Phase 3 Task 7) are low-rise: above a plain house, below a block
+    for (const t of ['semi', 'villa'] as const) {
+      expect(HOUSE_TIER_HEIGHT[t]).toBeGreaterThan(HOUSE_TIER_HEIGHT.house);
+      expect(HOUSE_TIER_HEIGHT[t]).toBeLessThan(HOUSE_TIER_HEIGHT.block);
+    }
   });
   it('LANDMARK_HEIGHT covers every landmark; the skyscraper is 40 and the tallest, within the headroom', () => {
     expect(Object.keys(LANDMARK_HEIGHT).sort()).toEqual([...LANDMARK_IDS].sort());

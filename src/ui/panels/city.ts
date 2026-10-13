@@ -120,6 +120,23 @@ export function smogTierLine(city: City): SmogTierLine {
   return { tier, name: SMOG_TIER_NAMES[tier], level: `${(level * 100).toFixed(1)}%`, trend, hint: `${TIER_EFFECTS[tier]}${next} ${SMOG_HINT}.` };
 }
 
+export interface ClassSegment {
+  key: 'working' | 'middle' | 'upper';
+  label: string;
+  share: number;
+  color: string;
+}
+
+const CLASS_LABELS: readonly ClassSegment['key'][] = ['working', 'middle', 'upper'];
+const CLASS_NAMES: Record<ClassSegment['key'], string> = { working: 'Working', middle: 'Middle', upper: 'Upper' };
+const CLASS_COLORS: Record<ClassSegment['key'], string> = { working: '#8a5a3c', middle: '#c9a24a', upper: '#6d4f8f' };
+
+/** The city panel's class bar: Working / Middle / Upper shares (exported for tests). */
+export function classSegments(city: City): ClassSegment[] {
+  const c = city.classes ?? { working: 1, middle: 0, upper: 0 };
+  return CLASS_LABELS.map((key) => ({ key, label: CLASS_NAMES[key], share: c[key], color: CLASS_COLORS[key] }));
+}
+
 /** Where a town's edicts and levers reach (siteCity zone vs workCity staffing, sim/politics/mayorEdicts.ts). */
 export const EDICT_REACH = "Permits and land prices apply within the town's zone (its urban area plus 4 tiles). Wages and tolls apply to works staffed from the town.";
 
@@ -165,6 +182,14 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const smogTierRow = h('div', { class: 'insp-stat insp-smog' },
     h('span', { class: 'insp-label' }, 'Smog tier'),
     h('span', null, smogTierName, ' ', smogTierLevel, ' ', smogTierTrend, h('br'), smogTierHint));
+  const classParts = CLASS_LABELS.map((key) => {
+    const text = h('span', { class: 'insp-class-text' });
+    const el = h('div', { class: 'insp-class-seg', 'data-class': key, style: { background: CLASS_COLORS[key], width: '0%' } }, text);
+    return { key, el, text };
+  });
+  const classRow = h('div', { class: 'insp-stat insp-classes' },
+    h('span', { class: 'insp-label' }, 'Classes'),
+    h('div', { class: 'insp-class-bar', role: 'img' }, ...classParts.map((p) => p.el)));
   const landmarks = h('ul', { class: 'insp-landmarks' });
   let landmarkSig = '\0';
   const edictList = h('ul', { class: 'insp-edicts' });
@@ -230,6 +255,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
     smogTierRow,
+    classRow,
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
     h('div', { class: 'insp-stat insp-mayor' }, h('span', { class: 'insp-label' }, 'Mayor'), h('span', null, mayorName, ' ', mayorChip)),
     h('div', { class: 'insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
@@ -316,6 +342,21 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       const tcls = `insp-trend ${st.trend === 'up' ? 'down' : st.trend === 'down' ? 'up' : ''}`.trim();
       if (smogTierTrend.className !== tcls) smogTierTrend.className = tcls;
       setText(smogTierHint, st.hint);
+      const segs = classSegments(city);
+      const tips: string[] = [];
+      for (let i = 0; i < segs.length; i++) {
+        const sg = segs[i];
+        const part = classParts[i];
+        const w = `${Number((sg.share * 100).toFixed(1))}%`;
+        if (part.el.style.width !== w) part.el.style.width = w;
+        const pct = `${Math.round(sg.share * 100)}%`;
+        // the label shows when the segment has room for it; the tooltip always names all three
+        setText(part.text, sg.share >= 0.12 ? `${sg.label} ${pct}` : '');
+        tips.push(`${sg.label} ${pct}`);
+      }
+      const tip = tips.join(' / ');
+      const barEl = classRow.lastElementChild as HTMLElement;
+      if (barEl.title !== tip) { barEl.title = tip; barEl.setAttribute('aria-label', `Classes: ${tip}`); }
       for (const o of opinion) {
         const v = city.opinion?.[o.f] ?? 50;
         setText(o.label, factionName(o.f, state.date.year));

@@ -15,21 +15,12 @@ import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
-import { computeDailySales, monthlyDemand, monthlyGrowth, satisfaction, updateMarketDay, urbanRadius, type StoreStock } from './market';
+import { averageSatisfaction, computeDailySales, demandModifier, monthlyDemand, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
 import { footprint, layCityStreets, refreshUrbanTiles } from './state';
 import type { Building, City, GameState, GoodId, SimContext, Vec2 } from './types';
 
-/** Product of active (unexpired) modifiers matching the good (or '*') and the city (or null). */
-export function demandModifier(state: GameState, cityId: number, goodId: GoodId): number {
-  let f = 1;
-  for (const m of state.modifiers) {
-    if (compareDates(m.until, state.date) <= 0) continue;
-    if (m.goodId !== '*' && m.goodId !== goodId) continue;
-    if (m.cityId !== null && m.cityId !== cityId) continue;
-    f *= m.factor;
-  }
-  return f;
-}
+/** demandModifier and averageSatisfaction live in market.ts (a leaf for society/classes.ts); re-exported for existing importers. */
+export { averageSatisfaction, demandModifier } from './market';
 
 function extractorEfficiency(state: GameState, b: Building, outputs: string[]): number {
   const tiles = footprint(b).map((p) => state.map.tiles[p.y * state.map.width + p.x]);
@@ -183,10 +174,7 @@ export function growthMonth(ctx: SimContext): void {
   const grown: City[] = [];
   const newStreets: Vec2[] = [];
   for (const city of state.cities) {
-    const sats = Object.keys(DEMAND_PER_1000)
-      .filter((g) => monthlyDemand(city, g, state.date.year, demandModifier(state, city.id, g)) > 0)
-      .map((g) => satisfaction(city, g));
-    const avg = sats.length > 0 ? sats.reduce((a, b) => a + b, 0) / sats.length : 0.4;
+    const avg = averageSatisfaction(state, city);
     city.prevPopulation = city.population;
     city.population = monthlyGrowth(city.population, avg, city.pollution, growthPenalty(city));
     city.happiness = avg;
