@@ -5,6 +5,7 @@ import { BUILDINGS } from './buildings';
 import { LANDMARK_IDS, LANDMARKS } from './landmarks';
 import { defaultOpinion, FACTION_IDS, FACTIONS, factionName } from './factions';
 import { ICON_IDS } from '../render/icons';
+import { CARDS } from './cards';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
 
 describe('content catalog', () => {
@@ -126,5 +127,30 @@ describe('content catalog', () => {
     expect(factionName('reformers', 1960)).toBe('Greens');
     expect(factionName('workers', 1990)).toBe('Workers');
     expect(defaultOpinion()).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
+  });
+
+  it('event cards: unique ids, sane fields, always answerable, city effects only on city cards', () => {
+    expect(new Set(CARDS.map((c) => c.id)).size).toBe(CARDS.length);
+    for (const c of CARDS) {
+      expect(c.id, c.id).toMatch(/^[a-z0-9_]+$/);
+      expect(c.title.length, c.id).toBeGreaterThan(0);
+      expect(c.body.length, c.id).toBeGreaterThan(0);
+      expect(c.years[0], c.id).toBeLessThanOrEqual(c.years[1]);
+      expect(c.weight, c.id).toBeGreaterThan(0);
+      expect(c.cooldownYears, c.id).toBeGreaterThanOrEqual(0);
+      expect(c.choices.length, c.id).toBeGreaterThanOrEqual(2);
+      expect(c.choices[c.defaultChoice], `${c.id} defaultChoice`).toBeDefined();
+      // never trap the player: some choice costs nothing (or pays)
+      expect(c.choices.some((ch) => ch.cost <= 0), `${c.id} has no free choice`).toBe(true);
+      for (const ch of c.choices) {
+        expect(Number.isFinite(ch.cost), `${c.id}: ${ch.label}`).toBe(true);
+        for (const e of ch.effects) {
+          expect(FACTIONS[e.faction], `${c.id}: ${e.faction}`).toBeDefined();
+          if (e.scope === 'city') expect(c.needsCity, `${c.id} has a city effect but needsCity false`).toBe(true);
+        }
+        if (ch.apply) expect(ch.note, `${c.id}: ${ch.label} has apply but no note`).toBeTruthy();
+      }
+      if (!c.needsCity) expect(c.body + c.title, `${c.id} uses {city} without a city`).not.toContain('{city}');
+    }
   });
 });

@@ -14,6 +14,7 @@ import { canAfford, spend } from '../finance';
 import { publishNews } from '../news';
 import { chance, pick, random } from '../rng';
 import type { City, GameState, SimContext } from '../types';
+import { triggerCard } from './cards';
 import { adjustOpinion } from './factions';
 import { chooseMayorEdicts } from './mayorEdicts';
 import type { CityPolitics } from './types';
@@ -101,6 +102,8 @@ export function holdElection(ctx: SimContext, city: City): FactionId {
   const body = FACTION_IDS.map((f) => `${factionName(f, year)} ${Math.round(shares[f] * 100)}%`).join(', ');
   publishNews(ctx, 'politics', `${factionName(winner, year).toUpperCase()} CANDIDATE ${p.mayor.name.toUpperCase()} WINS ${city.name.toUpperCase()}`, `Vote shares: ${body}.`);
   ctx.bus.emit({ type: 'election', cityId: city.id, winner });
+  // the card is opened by the sim itself, never by a bus listener (determinism)
+  triggerCard(ctx, 'election', city.id);
   return winner;
 }
 
@@ -179,6 +182,7 @@ export function scandalMonth(ctx: SimContext): void {
       spend(state.companies[PLAYER_ID], 'events', 2 * slushCost(state.date.year), state.date);
       p.scandalRisk = 0;
       ctx.bus.emit({ type: 'scandal', cityId: city.id });
+      triggerCard(ctx, 'scandal', city.id);
     } else {
       p.scandalRisk = Math.max(0, p.scandalRisk - SCANDAL_RISK_DECAY);
     }

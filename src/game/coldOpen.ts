@@ -153,6 +153,8 @@ export function playColdOpen(game: GameController, onDone: () => void): () => vo
   const finalCam = [...steps].reverse().find((s) => s.camera)!.camera!;
   const prevSpeed = state.speed;
   game.setSpeed(0);
+  // event cards wait until the intro is over
+  game.introActive = true;
 
   const slot = h('div', { class: 'coldopen-slot' });
   const layer = h('div', { class: `coldopen${reduced ? ' coldopen-reduced' : ''}`, 'aria-label': 'Intro' },
@@ -234,6 +236,7 @@ export function playColdOpen(game: GameController, onDone: () => void): () => vo
 
   const cleanup = () => {
     over = true;
+    game.introActive = false;
     offFrame();
     window.removeEventListener('keydown', onKey, true);
     layer.removeEventListener('pointerdown', onPointer);

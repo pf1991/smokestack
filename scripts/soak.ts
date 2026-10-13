@@ -3,8 +3,9 @@
  *
  * Per seed: createGame, the autoplay furniture chain for the player, then yearly `runDays(ctx, 360)`
  * until `--years` years have passed, 1 Jan 2001 or game over, checking every invariant each year.
- * Prints `seed | final year | player net worth | baron net worth | ms | national opinion, elections held`, one line per
- * seed; the last column is each faction's population-weighted opinion of the player in the final year.
+ * Prints `seed | final year | player net worth | baron net worth | ms | national opinion | elections held | cards resolved`,
+ * one line per seed. National opinion is each faction's population-weighted opinion of the player in the
+ * final year; autoplay never opens the UI, so every event card auto-resolves after 60 days.
  * Exits 1 if any invariant fails (or autoplay cannot set up its chain).
  */
 import { EventBus } from '../src/core/events';
@@ -61,7 +62,7 @@ for (const seed of seeds) {
   const note = over ? ` (game over: ${over})` : '';
   const opinion = FACTION_IDS.map((f) => `${f} ${nationalOpinion(state, f).toFixed(1)}`).join(' ');
   console.log(
-    `${seed} | ${state.date.year} | ${money(netWorth(state, 'player'))} | ${money(netWorth(state, 'rival'))} | ${ms} | ${opinion} | elections ${elections}${note}`,
+    `${seed} | ${state.date.year} | ${money(netWorth(state, 'player'))} | ${money(netWorth(state, 'rival'))} | ${ms} | ${opinion} | elections ${elections} | cards ${state.politics.cards.history.length}${note}`,
   );
   if (problems.length > 0) {
     failed = true;

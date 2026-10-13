@@ -62,6 +62,10 @@ export const MIGRATIONS: Migration[] = [
         (c.politics as { edicts: unknown }).edicts = chooseMayorEdicts(c as unknown as City);
       });
       o.politics = defaultPolitics(false);
+      // event cards: the first spring draw is the next 1 April this save reaches (never before 1901)
+      const day = (o.date as { day?: unknown }).day;
+      const pastSpring = date.month > 4 || (date.month === 4 && typeof day === 'number' && day > 1);
+      (o.politics as { nextCardYear: number }).nextCardYear = Math.max(1901, date.year + (pastSpring ? 1 : 0));
       // workforce: every building starts fully staffed until the first monthly recompute
       const buildings = o.buildings;
       if (buildings !== undefined) {
