@@ -76,6 +76,22 @@ describe('fleet panel', () => {
     expect(rows()).toEqual([]);
   });
 
+  it('shows each vehicle’s age and replaces an old one on the same route (Task 8)', () => {
+    const { s, ctx, r1, host } = setup();
+    const a = must(buyTruck(ctx, 'player', r1.id));
+    a.builtYear = s.date.year - 41;
+    PANELS.fleet.open(host);
+    expect(win().querySelector('.fl-age')!.textContent).toBe('41 yr · 74%');
+    const m = s.companies.player.money;
+    click('[data-act="replace"]');
+    expect(s.vehicles[a.id]).toBeUndefined();
+    const [fresh] = Object.values(s.vehicles);
+    expect(fresh.routeId).toBe(r1.id);
+    expect(s.companies.player.money).toBe(m - 4000); // $8,000 new less the $4,000 refund
+    expect(rows()).toEqual([fresh.id]);
+    expect(win().querySelector('.fl-age')!.textContent).toBe('0 yr');
+  });
+
   it('updates in place without replacing rows', () => {
     vi.useFakeTimers();
     try {

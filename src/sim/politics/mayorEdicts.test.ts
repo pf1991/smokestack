@@ -293,7 +293,7 @@ describe('truck tolls', () => {
     };
     const v: Vehicle = {
       id: state.nextId++, kind: 'truck', ownerId: owner, routeId, pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 },
-      path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false,
+      path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900,
     };
     state.vehicles[v.id] = v;
     return v;

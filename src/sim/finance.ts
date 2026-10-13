@@ -62,20 +62,45 @@ export function earn(c: Company, cat: LedgerCategory, amount: number, date: Game
   m.income[cat] = (m.income[cat] ?? 0) + n;
 }
 
-function isLoanStep(amount: number): boolean {
-  return amount > 0 && amount % LOAN_STEP === 0;
+const dollars = (n: number) => `$${n.toLocaleString('en-US')}`;
+
+/**
+ * The loan step at price index `index` (society/economy.ts): LOAN_STEP × index, rounded to $1,000.
+ * Loans are scaled when taken; the balance owed stays nominal (interest is on that balance).
+ */
+export function loanStep(index = 1): number {
+  return Math.max(1000, Math.round((LOAN_STEP * index) / 1000) * 1000);
 }
 
-export function takeLoan(c: Company, amount: number): Result {
-  if (!isLoanStep(amount)) return err('Loans come in $50,000 steps');
-  if (c.loan + amount > MAX_LOAN) return err('Loan limit is $500,000');
+/** The loan limit at price index `index`: MAX_LOAN / LOAN_STEP steps of loanStep(index). */
+export function maxLoan(index = 1): number {
+  return loanStep(index) * (MAX_LOAN / LOAN_STEP);
+}
+
+function isLoanStep(amount: number, index: number): boolean {
+  return amount > 0 && amount % loanStep(index) === 0;
+}
+
+/** Borrows `amount` (a multiple of loanStep(index)) up to maxLoan(index) owed in all. */
+export function takeLoan(c: Company, amount: number, index = 1): Result {
+  if (!isLoanStep(amount, index)) return err(`Loans come in ${dollars(loanStep(index))} steps`);
+  if (c.loan + amount > maxLoan(index)) return err(`Loan limit is ${dollars(maxLoan(index))}`);
   c.loan += amount;
   c.money += amount;
   return ok();
 }
 
-export function repayLoan(c: Company, amount: number): Result {
-  if (!isLoanStep(amount)) return err('Loans come in $50,000 steps');
+/** What one repayment clears now: a loan step, or the whole (nominal) balance when that is smaller. */
+export function repayStep(c: Company, index = 1): number {
+  return Math.min(loanStep(index), c.loan);
+}
+
+/**
+ * Repays `amount`: a multiple of loanStep(index), or exactly the balance owed (a nominal balance from
+ * older, smaller steps need not be a multiple of today's step).
+ */
+export function repayLoan(c: Company, amount: number, index = 1): Result {
+  if (!(amount > 0 && amount === c.loan) && !isLoanStep(amount, index)) return err(`Loans come in ${dollars(loanStep(index))} steps`);
   if (amount > c.loan) return err('Loan is smaller than that repayment');
   if (c.money < amount) return err('Not enough money');
   c.loan -= amount;

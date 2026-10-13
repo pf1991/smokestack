@@ -4,7 +4,7 @@ import type { GameController } from '../../game/controller';
 import { isTyping } from '../../game/input';
 import { acceptedGoods, appendStop, legLength, offeredGoods, routeThroughput } from '../../sim/routeHelpers';
 import type { Building, GameState, GoodId, Route, RouteStop } from '../../sim/types';
-import { createRoute, deleteRoute, insertStop, ROUTE_COLORS, sellVehicle, updateRoute } from '../../sim/vehicles';
+import { createRoute, deleteRoute, insertStop, ROUTE_COLORS, sellRefund, sellVehicle, updateRoute, vehiclePrice } from '../../sim/vehicles';
 import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
@@ -395,7 +395,8 @@ class RoutesPanel {
   private routeDetail(route: Route, trucks: number): HTMLElement {
     const confirming = this.confirmDelete === route.id;
     const info = KIND_INFO[route.kind] ?? KIND_INFO.truck;
-    const refund = routeTrucks(this.state, route.id).length * info.cost * 0.5;
+    const price = vehiclePrice(this.state, route.kind);
+    const refund = routeTrucks(this.state, route.id).length * sellRefund(this.state, route.kind);
     return h(
       'div',
       { class: 'rt-detail' },
@@ -416,8 +417,8 @@ class RoutesPanel {
         h('span', { class: 'rt-trucks' },
           h('button', { class: 'btn rt-sq', 'data-act': 'truck-minus', title: `Sell an idle ${info.one} first (50% refund)`, disabled: trucks === 0, onClick: () => this.truckMinus(route) }, '−'),
           ` ${trucks} ${trucks === 1 ? info.one : info.many} `,
-          h('button', { class: 'btn rt-sq', 'data-act': 'truck-plus', title: `Buy a ${info.one} (${formatMoney(info.cost)})`, onClick: () => this.truckPlus(route) }, '+'),
-          h('small', null, ` ${formatMoney(info.cost)} each`)),
+          h('button', { class: 'btn rt-sq', 'data-act': 'truck-plus', title: `Buy a ${info.one} (${formatMoney(price)})`, onClick: () => this.truckPlus(route) }, '+'),
+          h('small', null, ` ${formatMoney(price)} each`)),
         h('button', {
           class: `btn rt-del${confirming ? ' confirm' : ''}`,
           'data-act': 'delete',
@@ -462,7 +463,7 @@ class RoutesPanel {
             d.buyFirst = (e.target as HTMLInputElement).checked;
           },
         }),
-        ` Buy first ${KIND_INFO[d.kind].one} (${formatMoney(KIND_INFO[d.kind].cost)})`),
+        ` Buy first ${KIND_INFO[d.kind].one} (${formatMoney(vehiclePrice(this.state, d.kind))})`),
       h('div', { class: 'rt-actions' },
         h('button', { class: 'btn', 'data-act': 'done', onClick: () => this.saveDraft() }, 'Done'),
         h('button', { class: 'btn rt-cancel', 'data-act': 'cancel', onClick: () => this.endDraft(true) }, 'Cancel')),

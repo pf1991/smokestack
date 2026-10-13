@@ -56,10 +56,11 @@ export function monthlyDemand(city: City, goodId: GoodId, year: number, modifier
   return (city.population / 1000) * per * lifecycleFactor(goodId, year) * modifier * classDemandFactor(city.classes, goodId);
 }
 
-export function salePrice(goodId: GoodId, ratio: number): number {
+/** Price of one unit at supply ratio `ratio`, at price index `index` (society/economy.ts), rounded. */
+export function salePrice(goodId: GoodId, ratio: number, index = 1): number {
   const base = GOODS[goodId]?.basePrice ?? 0;
   const f = Math.min(1.5, Math.max(0.5, 1.5 - 0.75 * ratio));
-  return Math.max(1, Math.round(base * f));
+  return Math.max(1, Math.round(base * f * index));
 }
 
 export function supplyRatio(entry: MarketEntry | undefined): number {
@@ -73,6 +74,7 @@ export function computeDailySales(
   year: number,
   demandMod: (goodId: GoodId) => number,
   dayOffset = 0,
+  index = 1,
 ): Sale[] {
   const out: Sale[] = [];
   const goodIds = DEMAND_GOODS;
@@ -116,7 +118,7 @@ export function computeDailySales(
       }
       active = active.filter((i) => got[i] < avail[i]);
     }
-    const price = salePrice(goodId, supplyRatio(entry));
+    const price = salePrice(goodId, supplyRatio(entry), index);
     let soldTotal = 0;
     stores.forEach((s, i) => {
       if (got[i] > 0) {

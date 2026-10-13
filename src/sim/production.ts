@@ -16,7 +16,10 @@ import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
 import { averageSatisfaction, computeDailySales, demandModifier, monthlyDemand, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
-import { footprint, layCityStreets, refreshUrbanTiles } from './state';
+import { footprint, layCityStreets, refreshUrbanTiles, ROAD_UPKEEP } from './state';
+import { assetEfficiency } from './society/aging';
+import { atPrices, priceIndex } from './society/economy';
+import { buildingMaintenance } from './society/upgrades';
 import type { Building, City, GameState, GoodId, SimContext, Vec2 } from './types';
 
 /** demandModifier and averageSatisfaction live in market.ts (a leaf for society/classes.ts); re-exported for existing importers. */
@@ -78,7 +81,8 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     const outs = Object.keys(recipe.outputs);
-    const rate = b.staffing * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
+    // staffing and age (society/aging.ts) scale every works' rate alike
+    const rate = b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;
@@ -120,7 +124,7 @@ export function retailDay(ctx: SimContext): void {
     const stores = storesByCity.get(city.id) ?? [];
     const stocks: StoreStock[] = stores.map((b) => ({ buildingId: b.id, ownerId: b.ownerId, stock: loadSource(b) }));
     const mod = (g: GoodId) => demandModifier(state, city.id, g);
-    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset);
+    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state));
     const soldByGood: Record<GoodId, number> = {};
     const soldStores = new Set<number>();
     for (const s of sales) {
@@ -159,10 +163,11 @@ export function maintenanceMonth(ctx: SimContext): void {
   for (const owner of companyIds(state)) {
     const company = state.companies[owner];
     let total = 0;
-    // company edicts (wages, safety, unions) and mayors' minimum wage scale the player's building upkeep only
+    // every building's upkeep is at today's prices × its age factor (society/upgrades.ts buildingMaintenance);
+    // company edicts (wages, safety, unions) and mayors' minimum wage scale the player's only
     if (owner === PLAYER_ID) total = playerBuildingUpkeep(state);
-    else for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += BUILDINGS[b.typeId].maintenance;
-    total += company.roadTiles * 5 + company.railTiles * RAIL_UPKEEP;
+    else for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += buildingMaintenance(state, b);
+    total += atPrices(state, company.roadTiles * ROAD_UPKEEP + company.railTiles * RAIL_UPKEEP);
     if (total > 0) spend(company, 'maintenance', total, state.date);
   }
 }

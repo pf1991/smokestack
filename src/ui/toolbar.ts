@@ -5,6 +5,7 @@ import { isUnlocked } from '../sim/eras';
 import { ROAD_COST } from '../sim/state';
 import { RAIL_COST } from '../sim/rail';
 import { TREE_COST } from '../sim/society/upgrades';
+import { priceIndex } from '../sim/society/economy';
 import type { GameState, Inventory } from '../sim/types';
 import { type Child, h } from './dom';
 import { iconEl } from './icon';
@@ -56,6 +57,8 @@ interface Card {
   tab: TabId;
   /** permanently disabled until its feature ships */
   soon: boolean;
+  cost: HTMLElement;
+  maint: HTMLElement;
 }
 
 export class Toolbar {
@@ -67,6 +70,9 @@ export class Toolbar {
   private readonly toolButtons = new Map<string, HTMLElement>();
   private activeTab: TabId | null = null;
   private selectedKey = 'inspect';
+  /** tool cards whose price follows the price index: [nums element, 1900 price, text around it] */
+  private readonly priced: { el: HTMLElement; base: number; text: (money: string) => string }[] = [];
+  private priceSig = -1;
 
   constructor(root: HTMLElement, private readonly onSelect: (t: ToolSpec) => void) {
     this.root = root;
@@ -111,12 +117,14 @@ export class Toolbar {
         h('div', { class: 'tc-nums' }, cost, maint),
         lock) as HTMLButtonElement;
       if (soon) el.classList.add('locked');
-      this.cards.push({ el, def, locked: soon ? true : null, tab, soon });
+      this.cards.push({ el, def, locked: soon ? true : null, tab, soon, cost, maint });
       this.panels.get(tab)!.appendChild(el);
     }
 
     const transport = this.panels.get('transport')!;
-    const toolCard = (key: string, name: string, desc: string, nums: string, spec: ToolSpec | null) => {
+    const toolCard = (key: string, name: string, desc: string, nums: string, spec: ToolSpec | null, price?: { base: number; text: (money: string) => string }) => {
+      const numsEl = h('div', { class: 'tc-nums' }, nums);
+      if (price) this.priced.push({ el: numsEl, ...price });
       const el = h('button', {
         class: 'tool-card',
         'data-tool': key,
@@ -126,13 +134,14 @@ export class Toolbar {
       },
         h('div', { class: 'tc-name' }, name),
         h('div', { class: 'tc-flow' }, desc),
-        h('div', { class: 'tc-nums' }, nums)) as HTMLButtonElement;
+        numsEl) as HTMLButtonElement;
       this.toolButtons.set(key, el);
       transport.appendChild(el);
     };
-    toolCard('road', 'Road', 'Drag to lay roads (bridges over water)', `${formatMoney(ROAD_COST)}/tile`, { kind: 'road' });
-    toolCard('rail', 'Rail', 'Drag to lay track (level crossings over roads, never water)', `${formatMoney(RAIL_COST)}/tile`, { kind: 'rail' });
-    toolCard('trees', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', `base ${formatMoney(TREE_COST)}/tile`, { kind: 'trees' });
+    const perTile = (m: string) => `${m}/tile`;
+    toolCard('road', 'Road', 'Drag to lay roads (bridges over water)', perTile(formatMoney(ROAD_COST)), { kind: 'road' }, { base: ROAD_COST, text: perTile });
+    toolCard('rail', 'Rail', 'Drag to lay track (level crossings over roads, never water)', perTile(formatMoney(RAIL_COST)), { kind: 'rail' }, { base: RAIL_COST, text: perTile });
+    toolCard('trees', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', perTile(formatMoney(TREE_COST)), { kind: 'trees' }, { base: TREE_COST, text: perTile });
     toolCard('bulldoze', 'Bulldoze', 'Demolish for a 25% refund (Del)', 'Click a building, road or rail', { kind: 'bulldoze' });
 
     this.bar = h('div', { class: 'toolbar' }, tabsRow, body);
@@ -185,6 +194,18 @@ export class Toolbar {
   }
 
   update(state: GameState): void {
+    // prices follow the price index (sim/society/economy.ts): refresh the figures when it moves a cent
+    const index = priceIndex(state);
+    const sig = Math.round(index * 100);
+    if (sig !== this.priceSig) {
+      this.priceSig = sig;
+      const at = (n: number) => formatMoney(Math.round(n * index));
+      for (const c of this.cards) {
+        c.cost.textContent = `base ${at(c.def.cost)}`;
+        c.maint.textContent = `base +${at(c.def.maintenance)}/mo`;
+      }
+      for (const p of this.priced) p.el.textContent = p.text(at(p.base));
+    }
     for (const c of this.cards) {
       if (c.soon) continue;
       const locked = !isUnlocked(state, c.def.id);

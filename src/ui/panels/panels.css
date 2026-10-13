@@ -77,6 +77,12 @@
   gap: 4px;
 }
 
+/* author display rules beat the UA's [hidden] { display: none }: restore it */
+.insp-section[hidden],
+.insp-list[hidden] {
+  display: none;
+}
+
 .insp-stat {
   display: flex;
   justify-content: space-between;

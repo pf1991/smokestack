@@ -1,7 +1,8 @@
 import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import type { GameState, Route, Vehicle } from '../../sim/types';
-import { assignVehicle, sellVehicle, tripsLast30, VEHICLE_KINDS } from '../../sim/vehicles';
+import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle, tripsLast30, vehicleUpkeep } from '../../sim/vehicles';
+import { assetAge, assetEfficiency } from '../../sim/society/aging';
 import type { IconId } from '../../render/icons';
 import { h } from '../dom';
 import { iconEl } from '../icon';
@@ -23,7 +24,6 @@ const FILTERS: { id: FleetFilter; label: string; icon?: IconId }[] = [
 ];
 
 export const STATUS_LABEL = { moving: 'Driving', loading: 'Loading', idle: 'Idle', stuck: 'Stuck' } as const;
-const SELL_REFUND = 0.5;
 
 const playerVehicles = (state: GameState): Vehicle[] =>
   Object.values(state.vehicles)
@@ -53,7 +53,7 @@ export function fleetSummary(state: GameState): string {
   const trains = n('train');
   const idle = vs.filter((v) => v.state === 'idle').length;
   const stuck = vs.filter((v) => v.state === 'stuck').length;
-  const upkeep = vs.reduce((sum, v) => sum + (VEHICLE_KINDS[v.kind]?.spec.maintenance ?? 0), 0);
+  const upkeep = vs.reduce((sum, v) => sum + vehicleUpkeep(state, v), 0);
   return `${trucks} ${trucks === 1 ? 'truck' : 'trucks'} · ${trains} ${trains === 1 ? 'train' : 'trains'} · ${idle} idle · ${stuck} stuck · ${formatMoney(upkeep)}/mo upkeep`;
 }
 
@@ -83,6 +83,15 @@ interface Row {
   status: HTMLElement;
   cargo: HTMLElement;
   trips: HTMLElement;
+  age: HTMLElement;
+  replace: HTMLButtonElement;
+}
+
+/** "41 yr" with the efficiency when it has started to slip (exported for tests). */
+export function ageText(state: GameState, v: Vehicle): string {
+  const age = assetAge(state, v);
+  const eff = assetEfficiency(state, v);
+  return eff < 1 ? `${age} yr · ${Math.round(eff * 100)}%` : `${age} yr`;
 }
 
 class FleetPanel {
@@ -112,10 +121,10 @@ class FleetPanel {
     this.root.append(
       this.summary,
       this.filterBar,
-      h('div', { class: 'fl-head' }, h('span'), h('span', null, 'Route'), h('span', null, 'Status'), h('span', null, 'Cargo'), h('span', { title: 'Completed unloading stops in the last 30 days' }, 'Trips'), h('span')),
+      h('div', { class: 'fl-head' }, h('span'), h('span', null, 'Route'), h('span', null, 'Status'), h('span', null, 'Cargo'), h('span', { title: 'Completed unloading stops in the last 30 days' }, 'Trips'), h('span', { title: 'Years since bought; old vehicles run slower and cost more to keep' }, 'Age'), h('span')),
       this.body,
     );
-    createWindow({ id: 'fleet', title: 'Fleet', content: this.root, width: 560, onClose: () => this.dispose() });
+    createWindow({ id: 'fleet', title: 'Fleet', content: this.root, width: 660, onClose: () => this.dispose() });
     this.timer = window.setInterval(() => this.update(), 1000);
     this.update();
   }
@@ -148,16 +157,20 @@ class FleetPanel {
     const status = h('span', { class: 'fl-status' });
     const cargo = h('span', { class: 'fl-cargo' });
     const trips = h('span', { class: 'fl-trips', title: 'Completed unloading stops in the last 30 days' });
+    const age = h('span', { class: 'fl-age' });
+    const replace = h('button', { class: 'btn fl-btn', 'data-act': 'replace', onClick: () => this.replace(v.id) }, 'Replace') as HTMLButtonElement;
     const el = h('div', { class: 'fl-row', 'data-vehicle': v.id },
       h('span', { class: 'fl-icon', title: v.kind === 'train' ? 'Train' : 'Truck' }, iconEl(v.kind === 'train' ? 'train' : 'truck', 16, v.kind === 'train' ? 'Train' : 'Truck')),
       select,
       status,
       cargo,
       trips,
+      age,
       h('span', { class: 'fl-actions' },
         h('button', { class: 'btn fl-btn', 'data-act': 'locate', title: 'Pan the camera here and select it', onClick: () => this.locate(v.id) }, 'Locate'),
+        replace,
         h('button', { class: 'btn fl-btn fl-sell', 'data-act': 'sell', onClick: () => this.sell(v.id) }, 'Sell')));
-    return { vehicle: v, el, select, optSig: '\0', status, cargo, trips };
+    return { vehicle: v, el, select, optSig: '\0', status, cargo, trips, age, replace };
   }
 
   private locate(id: number): void {
@@ -172,9 +185,20 @@ class FleetPanel {
   private sell(id: number): void {
     const v = this.ctx.state.vehicles[id];
     if (!v) return;
-    const refund = (VEHICLE_KINDS[v.kind]?.spec.cost ?? 0) * SELL_REFUND;
+    const refund = sellRefund(this.ctx.state, v.kind);
     const r = sellVehicle(this.ctx, id);
     if (r.ok) this.toast(`Vehicle sold for ${formatMoney(refund)}`, 'good');
+    else this.toast(r.error, 'bad');
+    this.update();
+  }
+
+  /** Sells the vehicle and buys a new one for its route (sim/vehicles.ts replaceVehicle). */
+  private replace(id: number): void {
+    const v = this.ctx.state.vehicles[id];
+    if (!v) return;
+    const cost = replaceCost(this.ctx.state, v.kind);
+    const r = replaceVehicle(this.ctx, id, 'player');
+    if (r.ok) this.toast(`${v.kind === 'train' ? 'Train' : 'Truck'} replaced for ${formatMoney(cost)}`, 'good');
     else this.toast(r.error, 'bad');
     this.update();
   }
@@ -213,6 +237,9 @@ class FleetPanel {
         row.cargo.replaceChildren(...cargo.nodes);
       }
       text(row.trips, String(tripsLast30(state, v)));
+      text(row.age, ageText(state, v));
+      const tip = `Sell and buy new for this route: ${formatMoney(replaceCost(state, v.kind))} net`;
+      if (row.replace.title !== tip) row.replace.title = tip;
       this.syncSelect(row, v);
     }
   }

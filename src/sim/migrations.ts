@@ -8,6 +8,7 @@ import { defaultPolitics } from './politics/types';
 import { defaultWeather } from './weather';
 import { newCitySmog } from './society/tiers';
 import { newCityClasses } from './society/classes';
+import { defaultEconomy } from './society/economy';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -84,8 +85,9 @@ export const MIGRATIONS: Migration[] = [
     // current pollution. Later Phase 3 tasks extend this entry until the phase merges.
     from: 5,
     migrate(o) {
-      const date = o.date as { month?: unknown } | undefined;
-      if (typeof date?.month !== 'number') throw new Error('bad date');
+      const date = o.date as { month?: unknown; year?: unknown } | undefined;
+      if (typeof date?.month !== 'number' || typeof date.year !== 'number') throw new Error('bad date');
+      const year = date.year;
       o.weather = defaultWeather(date.month);
       const cities = o.cities;
       if (!Array.isArray(cities)) throw new Error('bad cities');
@@ -100,8 +102,20 @@ export const MIGRATIONS: Migration[] = [
       const buildings = o.buildings;
       if (buildings !== undefined) {
         if (typeof buildings !== 'object' || buildings === null) throw new Error('bad buildings');
-        for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) b.strike = null;
+        for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) {
+          b.strike = null;
+          // aging (Task 8): an old save's works count as built this year (their true age is unknown)
+          b.builtYear = year;
+        }
       }
+      const vehicles = o.vehicles;
+      if (vehicles !== undefined) {
+        if (typeof vehicles !== 'object' || vehicles === null) throw new Error('bad vehicles');
+        for (const v of Object.values(vehicles as Record<string, Record<string, unknown>>)) v.builtYear = year;
+      }
+      // inflation (Task 8): the index starts at 1 at load, whatever the year (past inflation is
+      // unknown), so a late-year old save keeps its 1900 prices and inflates from here
+      o.economy = defaultEconomy();
     },
   },
 ];

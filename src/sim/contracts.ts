@@ -8,6 +8,7 @@ import { monthlyDemand, satisfaction } from './market';
 import { publishNews } from './news';
 import { random } from './rng';
 import { nextId } from './state';
+import { atPrices } from './society/economy';
 import type { Contract, GameState, GoodId, OwnerId, SimContext } from './types';
 
 export const MAX_ACTIVE = 3;
@@ -66,7 +67,7 @@ export function offerContracts(ctx: SimContext): Contract | null {
     qty,
     delivered: 0,
     deadline: addDays(state.date, CONTRACT_DAYS),
-    reward: Math.round(qty * good.basePrice * 1.5),
+    reward: Math.round(atPrices(state, qty * good.basePrice * 1.5)),
     status: 'offered',
   };
   state.contracts.push(contract);

@@ -19,6 +19,7 @@ import { publishNews } from '../news';
 import type { GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CompanyEdicts, SafetyLevel, UnionStance, WageLevel } from './types';
+import { atPrices } from '../society/economy';
 
 /**
  * Ruling R-Q11: drift pulls opinion 2% of the gap toward 50 each month, so a constant monthly drive d
@@ -131,6 +132,11 @@ export function edictsMonth(ctx: SimContext): void {
   }
 }
 
+/** Price of endowing landmark `id`: its 1900 price at today's prices (society/economy.ts), rounded. */
+export function philanthropyCost(state: GameState, id: PhilanthropyId): number {
+  return Math.round(atPrices(state, LANDMARKS[id]?.philanthropy?.cost ?? 0));
+}
+
 /** Why the player cannot endow `id` in town `cityId` right now, or null when they can. */
 export function philanthropyBlocker(state: GameState, cityId: number, id: PhilanthropyId): string | null {
   const def = LANDMARKS[id];
@@ -139,7 +145,7 @@ export function philanthropyBlocker(state: GameState, cityId: number, id: Philan
   if (!city) return 'Unknown town';
   if (city.landmarks.some((l) => l.id === id)) return `${city.name} already has a ${def.name.toLowerCase()}`;
   if (state.date.year < def.minYear) return `Not before ${def.minYear}`;
-  if (!canAfford(state.companies[PLAYER_ID], def.philanthropy.cost)) return 'Not enough money';
+  if (!canAfford(state.companies[PLAYER_ID], philanthropyCost(state, id))) return 'Not enough money';
   if (!findLandmarkSite(state, city)) return `No free site in ${city.name}`;
   return null;
 }
@@ -155,7 +161,8 @@ export function buyPhilanthropy(ctx: SimContext, cityId: number, id: Philanthrop
   if (blocked) return err(blocked);
   const city = state.cities.find((c) => c.id === cityId)!;
   const def = LANDMARKS[id];
-  const { cost, effects } = def.philanthropy!;
+  const { effects } = def.philanthropy!;
+  const cost = philanthropyCost(state, id);
   const pos = findLandmarkSite(state, city)!;
   const player = state.companies[PLAYER_ID];
   spend(player, 'events', cost, state.date);

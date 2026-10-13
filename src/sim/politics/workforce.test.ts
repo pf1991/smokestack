@@ -23,7 +23,7 @@ function put(state: GameState, typeId: BuildingTypeId, x: number, y: number, own
     cityId: null,
     haltedUntil: null,
     producedThisMonth: {},
-    staffing: 1,
+    staffing: 1, builtYear: 1900,
   };
   state.buildings[b.id] = b;
   return b;

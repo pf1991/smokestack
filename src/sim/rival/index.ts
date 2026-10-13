@@ -6,7 +6,7 @@
 import type { SimContext } from '../types';
 import { chooseProject } from './market';
 import {
-  advanceProject, clearProjectFlags, manageLoans, maxRivalChains, repayLoans, rivalChainCount, topUpTrucks,
+  advanceProject, clearProjectFlags, manageLoans, maxRivalChains, renewOldAssets, repayLoans, rivalChainCount, topUpTrucks,
 } from './projects';
 import { advanceRail, retryScrap, startRailProject } from './railways';
 
@@ -28,6 +28,7 @@ export function rivalMonth(ctx: SimContext): void {
   if (!state.rivalProject && !state.rivalRail) startRailProject(ctx);
   if (state.rivalRail) advanceRail(ctx);
   topUpTrucks(ctx);
+  renewOldAssets(ctx);
   repayLoans(ctx);
 }
 

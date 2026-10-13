@@ -21,6 +21,7 @@ import { EDICTS, maintenanceFactor } from './edicts';
 import { NEAR_MARGIN, nationalOpinion } from './factions';
 import { forcedEdicts, SMOG_TIER_3 } from '../society/tiers';
 import { buildingMaintenance } from '../society/upgrades';
+import { atPrices } from '../society/economy';
 import type { MayorEdictId } from './types';
 import { workCity } from './workforce';
 
@@ -68,7 +69,7 @@ export const MAYOR_EDICTS: Record<MayorEdictId, MayorEdictInfo> = {
     icon: 'smog',
     effect: `Dirty works near town run at ${SMOG_LIMIT_FACTOR * 100}% while smog is at or above ${SMOG_LIMIT_LEVEL * 100}%`,
   },
-  truck_tolls: { name: 'Truck tolls', icon: 'toll', effect: `$${TRUCK_TOLL}/month per truck stopping in town` },
+  truck_tolls: { name: 'Truck tolls', icon: 'toll', effect: `$${TRUCK_TOLL}/month per truck stopping in town (1900 prices)` },
   minimum_wage: {
     name: 'Minimum wage',
     icon: 'wage',
@@ -178,20 +179,24 @@ export interface PlacementQuote {
   refusal: string | null;
 }
 
-/** What `owner` pays to build `typeId` at `pos` once the town's edicts and levers apply (player only). */
+/**
+ * What `owner` pays to build `typeId` at `pos`: the catalogue cost at today's prices (every company),
+ * then the town's edicts and levers (player only).
+ */
 export function placementQuote(state: GameState, owner: OwnerId, typeId: BuildingTypeId, pos: Vec2): PlacementQuote {
   const def = BUILDINGS[typeId];
-  const base = { cost: def.cost, permit: 0, refusal: null };
+  const price = atPrices(state, def.cost);
+  const base = { cost: Math.round(price), permit: 0, refusal: null };
   if (owner !== PLAYER_ID) return base;
   const city = siteCity(state, typeId, pos);
   if (!city) return base;
-  const cost = Math.round(def.cost * constructionFactor(city, typeId));
+  const cost = Math.round(price * constructionFactor(city, typeId));
   const industry = def.category === 'extractor' || def.category === 'factory';
   if (!industry || !hasEdict(city, 'permits_required')) return { cost, permit: 0, refusal: null };
   if (city.opinion[city.politics.mayor.faction] < PERMIT_REFUSE_BELOW) {
     return { cost, permit: 0, refusal: permitRefusal(city, state.date.year) };
   }
-  const permit = Math.round(def.cost * PERMIT_FEE);
+  const permit = Math.round(price * PERMIT_FEE);
   return { cost: cost + permit, permit, refusal: null };
 }
 
@@ -257,5 +262,5 @@ export function truckTollsMonth(ctx: SimContext): void {
     }
     total += TRUCK_TOLL * towns.size;
   }
-  if (total > 0) spend(state.companies[PLAYER_ID], 'vehicles', total, state.date);
+  if (total > 0) spend(state.companies[PLAYER_ID], 'vehicles', atPrices(state, total), state.date);
 }

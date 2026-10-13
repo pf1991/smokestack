@@ -9,7 +9,7 @@ import type { Building, SimContext } from '../../sim/types';
 import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
 import { startStrike } from '../../sim/society/strikes';
-import { staffingText } from './building';
+import { ageLine, staffingText } from './building';
 import { addDays, formatDate } from '../../sim/clock';
 
 function host(ctx: SimContext) {
@@ -337,5 +337,15 @@ describe('city panel class bar', () => {
     vi.advanceTimersByTime(1000);
     expect(seg('upper').style.width).toBe('20%');
     expect(seg('upper').textContent).toBe('Upper 20%');
+  });
+});
+
+describe('building age (Task 8)', () => {
+  it('reads "Built 1912 (age 41): 74% efficiency"', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = must(placeBuilding(ctx, 'player', 'sawmill', { x: 4, y: 4 }));
+    b.builtYear = 1912;
+    ctx.state.date = { ...ctx.state.date, year: 1953 };
+    expect(ageLine(ctx.state, b)).toBe('Built 1912 (age 41): 74% efficiency');
   });
 });

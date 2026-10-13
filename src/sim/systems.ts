@@ -7,6 +7,7 @@ import { escalationMonth } from './society/escalation';
 import { classesMonth } from './society/classes';
 import { regulationMonth } from './society/regulation';
 import { strikesMonth } from './society/strikes';
+import { economyMonth } from './society/economy';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
@@ -101,4 +102,7 @@ export const SYSTEMS: SimSystem[] = [
   politicsSystem,
   // Phase 3 strikes: after politics, so this month's workers' opinion decides who walks out
   { id: 'strikes', onMonth: strikesMonth },
+  // Phase 3 inflation: last, so every price charged this month used the month's index; finance (always
+  // run last) then values the month-end net worth at the new index that next month's prices use
+  { id: 'economy', onMonth: economyMonth },
 ];

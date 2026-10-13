@@ -22,6 +22,7 @@ import { chooseMayorEdicts } from './mayorEdicts';
 import { workCity } from './workforce';
 import { REVOLT_REFORMER_VOTE, smogTier } from '../society/tiers';
 import type { CityPolitics } from './types';
+import { atPrices } from '../society/economy';
 
 export const ELECTION_TERM = 48;
 /** Oldest entries of `politics.elections` are dropped beyond this. */
@@ -196,8 +197,12 @@ export const SLUSH_RISK = 0.15;
 export const SCANDAL_CHANCE_PER_RISK = 0.1;
 export const SCANDAL_RISK_DECAY = 0.01;
 
-export function slushCost(year: number): number {
-  return Math.round((5000 * (1 + (year - 1900) / 25)) / 500) * 500;
+/** A slush payment in 1900 dollars. */
+export const SLUSH_BASE = 5000;
+
+/** A slush payment now: SLUSH_BASE at today's prices (society/economy.ts), rounded to $500. */
+export function slushCost(state: GameState): number {
+  return Math.round(atPrices(state, SLUSH_BASE) / 500) * 500;
 }
 
 /** Why slush cannot be paid in this city right now, or null. */
@@ -207,7 +212,7 @@ export function slushBlocker(state: GameState, cityId: number): string | null {
   const p = city.politics;
   if (p.endorsed === null) return 'Endorse a faction first';
   if (p.slush >= MAX_SLUSH) return `Slush already paid ${MAX_SLUSH} times this cycle`;
-  if (!canAfford(state.companies[PLAYER_ID], slushCost(state.date.year))) return 'Not enough money';
+  if (!canAfford(state.companies[PLAYER_ID], slushCost(state))) return 'Not enough money';
   return null;
 }
 
@@ -224,7 +229,7 @@ export function paySlush(ctx: SimContext, cityId: number): Result {
   const why = slushBlocker(state, cityId);
   if (why) return err(why);
   const city = state.cities.find((c) => c.id === cityId)!;
-  spend(state.companies[PLAYER_ID], 'events', slushCost(state.date.year), state.date);
+  spend(state.companies[PLAYER_ID], 'events', slushCost(state), state.date);
   city.politics.slush += 1;
   city.politics.scandalRisk += SLUSH_RISK;
   return ok();
@@ -240,7 +245,7 @@ export function scandalMonth(ctx: SimContext): void {
       adjustOpinion(state, 'church', city.id, -6, 'Bribery scandal');
       adjustOpinion(state, 'reformers', 'national', -3, 'Bribery scandal');
       // a consequence, not a purchase: charged even into debt
-      spend(state.companies[PLAYER_ID], 'events', 2 * slushCost(state.date.year), state.date);
+      spend(state.companies[PLAYER_ID], 'events', 2 * slushCost(state), state.date);
       p.scandalRisk = 0;
       ctx.bus.emit({ type: 'scandal', cityId: city.id });
       triggerCard(ctx, 'scandal', city.id);

@@ -5,7 +5,7 @@ import type { Building } from './types';
 function b(typeId: string, recipeId: string | null = null, input = {}, output = {}): Building {
   return {
     id: 1, typeId, ownerId: 'player', pos: { x: 0, y: 0 }, recipeId, input, output,
-    progress: 0, status: 'idle', cityId: null, haltedUntil: null, producedThisMonth: {}, staffing: 1,
+    progress: 0, status: 'idle', cityId: null, haltedUntil: null, producedThisMonth: {}, staffing: 1, builtYear: 1900,
   };
 }
 

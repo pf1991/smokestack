@@ -230,9 +230,13 @@ describe('elections', () => {
 });
 
 describe('slush and scandals', () => {
-  it('slushCost: $5,000 in 1900, $9,000 in 1920', () => {
-    expect(slushCost(1900)).toBe(5000);
-    expect(slushCost(1920)).toBe(9000);
+  it('slushCost: $5,000 at 1900 prices, × the price index rounded to $500', () => {
+    const state = town().state;
+    expect(slushCost(state)).toBe(5000);
+    state.economy.priceIndex = 1.8;
+    expect(slushCost(state)).toBe(9000);
+    state.economy.priceIndex = 17.6;
+    expect(slushCost(state)).toBe(88000);
   });
 
   it('paySlush is refused without an endorsement and on the 4th use; paying raises the share', () => {
@@ -245,7 +249,7 @@ describe('slush and scandals', () => {
     for (let i = 1; i <= 3; i++) {
       const money = ctx.state.companies[PLAYER_ID].money;
       expect(paySlush(ctx, c.id).ok).toBe(true);
-      expect(ctx.state.companies[PLAYER_ID].money).toBe(money - slushCost(ctx.state.date.year));
+      expect(ctx.state.companies[PLAYER_ID].money).toBe(money - slushCost(ctx.state));
       expect(c.politics.slush).toBe(i);
       expect(c.politics.scandalRisk).toBeCloseTo(0.15 * i, 12);
       const now = voteShares(c).church;
@@ -285,7 +289,7 @@ describe('slush and scandals', () => {
       scandalMonth(ctx);
     }
     expect(events).toEqual([{ type: 'scandal', cityId: c.id }]);
-    expect(p.money).toBe(-2 * slushCost(ctx.state.date.year));
+    expect(p.money).toBe(-2 * slushCost(ctx.state));
     expect(c.opinion.reformers).toBeLessThan(before.reformers);
     expect(c.opinion.church).toBeLessThan(before.church);
     expect(c.politics.scandalRisk).toBe(0);

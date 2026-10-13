@@ -1,4 +1,5 @@
 import { defaultSociety } from '../data/laws';
+import { defaultEconomy } from './society/economy';
 import { newCitySmog } from './society/tiers';
 import { newCityClasses } from './society/classes';
 import { EventBus } from '../core/events';
@@ -108,6 +109,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     politics: defaultPolitics(),
     weather: defaultWeather(START_DATE.month),
     society: defaultSociety(),
+    economy: defaultEconomy(),
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

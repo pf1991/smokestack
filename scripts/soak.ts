@@ -21,6 +21,8 @@
  * A fifth line reports social classes (Task 7): the class mix at the last month end sampled in 2000 of
  * the biggest town and of the cleanest town (lowest mean smog level over the run), and the highest
  * upper and middle shares any town reached.
+ * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
+ * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
 import { EventBus } from '../src/core/events';
 import { runAutoplay } from '../src/game/autoplay';
@@ -99,6 +101,7 @@ for (const seed of seeds) {
   const levelSum = new Map<number, number>();
   let maxUpper = 0;
   let maxMiddle = 0;
+  let index2000 = Number.NaN;
   while (ctx.state.date.year < endYear && !over) {
     // a year as 12 months of 30 days, sampling every town's smog tier at each month end
     for (let m = 0; m < 12 && !over; m++) {
@@ -116,6 +119,7 @@ for (const seed of seeds) {
         levelSum.set(c.id, (levelSum.get(c.id) ?? 0) + c.smog.level);
       }
       if (ctx.state.date.year === 2000) {
+        index2000 = ctx.state.economy.priceIndex;
         const big = ctx.state.cities.reduce((a, b) => (b.population > a.population ? b : a));
         const k = big.classes;
         mix2000 = `${big.name} (pop ${big.population}) working ${k.working.toFixed(3)} / middle ${k.middle.toFixed(3)} / upper ${k.upper.toFixed(3)}`;
@@ -155,6 +159,14 @@ for (const seed of seeds) {
     `  laws ${seed}: ${Object.entries(laws).map(([id, l]) => `${id} ${l.passed ?? 'pending'}`).join(', ')} | total fines ${money(totalFines)}`,
   );
   console.log(`  classes ${seed}: 2000 biggest ${mix2000 || 'n/a'} | cleanest ${clean2000 || 'n/a'} | max upper ${maxUpper.toFixed(3)}, max middle ${maxMiddle.toFixed(3)}`);
+  const idx = state.economy.priceIndex;
+  const ages = (owner: string) => {
+    const bs = Object.values(state.buildings).filter((b) => b.ownerId === owner);
+    return bs.length > 0 ? (bs.reduce((t, b) => t + (state.date.year - b.builtYear), 0) / bs.length).toFixed(1) : 'n/a';
+  };
+  console.log(
+    `  economy ${seed}: priceIndex 2000 ${Number.isFinite(index2000) ? index2000.toFixed(2) : 'n/a'}, final ${idx.toFixed(2)} | real net worth (1900 $) player ${money(netWorth(state, 'player') / idx)}, baron ${money(netWorth(state, 'rival') / idx)} | avg building age player ${ages('player')}, baron ${ages('rival')}`,
+  );
   if (years >= 100) {
     const gate: string[] = [];
     if (over === 'Bankrupt') gate.push('player went bankrupt');

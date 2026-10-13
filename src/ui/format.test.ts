@@ -19,6 +19,14 @@ describe('formatMoney', () => {
     expect(formatMoney(-1250000)).toBe('-$1.25M');
   });
 
+  it('keeps inflated late-game figures short (eight digits and up, Task 8)', () => {
+    expect(formatMoney(12_345_678)).toBe('$12.35M');
+    expect(formatMoney(-31_205_802)).toBe('-$31.21M');
+    expect(formatMoney(176_100_000)).toBe('$176.1M');
+    expect(formatMoney(1_760_000_000_000)).toBe('$1760B');
+    for (const n of [12_345_678, 987_654_321, 98_765_432_109]) expect(formatMoney(n).length).toBeLessThanOrEqual(9);
+  });
+
   it('abbreviates billions with B', () => {
     expect(formatMoney(1000000000)).toBe('$1B');
     expect(formatMoney(2500000000)).toBe('$2.5B');

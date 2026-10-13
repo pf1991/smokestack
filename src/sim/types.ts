@@ -67,6 +67,8 @@ export interface Building {
   strike?: BuildingStrike | null;
   /** smoke abatement bought for this works (sim/society/upgrades.ts); absent means none */
   upgrades?: BuildingUpgrades;
+  /** the year it was built or last renewed (sim/society/aging.ts); set to the load year for old saves */
+  builtYear: number;
 }
 
 /** A works' smoke abatement (sim/society/upgrades.ts). */
@@ -181,6 +183,8 @@ export interface Vehicle {
   stuckNotified: boolean;
   /** ticks at which this vehicle completed an unloading stop (pruned to the last 30 days); absent in old saves */
   trips30?: number[];
+  /** the year it was bought (sim/society/aging.ts); set to the load year for old saves */
+  builtYear: number;
 }
 
 export type LedgerCategory =
@@ -320,6 +324,16 @@ export interface GameState {
   weather: Weather;
   /** Phase 3 national smoke laws (sim/society/regulation.ts); added to old saves by the v6 migration */
   society: SocietyState;
+  /** Phase 3 inflation (sim/society/economy.ts); added to old saves by the v6 migration at index 1 */
+  economy: EconomyState;
+}
+
+/** The price level (sim/society/economy.ts). */
+export interface EconomyState {
+  /** 1 in 1900; every price and cost is its 1900 figure × this */
+  priceIndex: number;
+  /** the index at each of the last 120 month ends, oldest first */
+  history: number[];
 }
 
 export interface SimContext {

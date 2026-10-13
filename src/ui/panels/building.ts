@@ -20,7 +20,8 @@ import {
 import { isWorks, SLOWDOWN_FACTOR, SLOWDOWN_OPINION, strikeActive, strikeEnd } from '../../sim/society/strikeState';
 import { loadSource } from '../../sim/inventory';
 import { STATION_TYPE, stationAccess } from '../../sim/rail';
-import { accessTiles, DEMOLITION_REFUND, demolishBuilding, footprint } from '../../sim/state';
+import { accessTiles, demolishBuilding, demolitionRefund, footprint } from '../../sim/state';
+import { assetAge, assetEfficiency, assetUpkeep, renewBuilding, renewCost, renewRefusal } from '../../sim/society/aging';
 import type { GameController } from '../../game/controller';
 import { offeredGoods } from '../../sim/routeHelpers';
 import { housingFactory, workCity } from '../../sim/politics/workforce';
@@ -125,6 +126,11 @@ export function complianceLines(state: GameState, b: Building): { text: string; 
     const fine = Math.round(BUILDINGS[b.typeId].pollution * FINE_RATE * priceIndex(state));
     return { text: `Fined ${formatMoney(fine)}/mo under the ${law.title}`, ok: false };
   });
+}
+
+/** "Built 1912 (age 41): 74% efficiency" (exported for tests). */
+export function ageLine(state: GameState, b: Building): string {
+  return `Built ${b.builtYear} (age ${assetAge(state, b)}): ${Math.round(assetEfficiency(state, b) * 100)}% efficiency`;
 }
 
 /** Plain-language explanation of what the building is doing (exported for tests). */
@@ -251,6 +257,21 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const inList = new KeyedList<Row>(inBox, makeRow);
   const outList = new KeyedList<Row>(outBox, makeRow);
 
+  const ageText = h('div', { class: 'insp-age-line' });
+  const renew = h('button', {
+    class: 'btn insp-renew',
+    onClick: () => {
+      const r = renewBuilding(host.ctx, id, 'player');
+      host.ctx.bus.emit(
+        r.ok
+          ? { type: 'toast', message: `${def0.name} renewed for ${formatMoney(r.value.cost)}`, tone: 'good' }
+          : { type: 'toast', message: r.error, tone: 'bad' },
+      );
+      view.update();
+    },
+  }) as HTMLButtonElement;
+  const ageSection = h('div', { class: 'insp-section insp-age' }, h('div', { class: 'insp-label' }, 'Age'), ageText, renew);
+
   let confirming = false;
   let confirmTimer = 0;
   const demolish = h('button', {
@@ -268,10 +289,11 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         return;
       }
       clearTimeout(confirmTimer);
+      const refund = demolitionRefund(host.ctx.state, b);
       const r = demolishBuilding(host.ctx, id, 'player');
       host.ctx.bus.emit(
         r.ok
-          ? { type: 'toast', message: `${def0.name} demolished — refunded ${formatMoney(def0.cost * DEMOLITION_REFUND)}`, tone: 'good' }
+          ? { type: 'toast', message: `${def0.name} demolished — refunded ${formatMoney(refund)}`, tone: 'good' }
           : { type: 'toast', message: r.error, tone: 'bad' },
       );
     },
@@ -292,6 +314,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     produced,
     routesSection,
     upgradesSection,
+    ageSection,
     demolish,
   );
 
@@ -423,10 +446,22 @@ function buildView(host: InspectorHost, id: number): InspectorView {
           );
         }
       }
+      // aging (sim/society/aging.ts): efficiency falls and upkeep rises after 15 years; renewing resets it
+      setText(ageText, ageLine(state, b));
+      const upkeepF = assetUpkeep(state, b);
+      setClass(ageText, upkeepF > 1 ? 'insp-age-line insp-warn' : 'insp-age-line insp-muted');
+      renew.hidden = !mine;
+      if (mine) {
+        const why = renewRefusal(state, b, 'player');
+        setText(renew, `Renew ${formatMoney(renewCost(state, b))}${upkeepF > 1 ? ` — upkeep ×${upkeepF.toFixed(2)} now` : ''}`);
+        if (renew.disabled !== (why !== null)) renew.disabled = why !== null;
+        const tip = why ?? 'Overhaul the works: as good as new again';
+        if (renew.title !== tip) renew.title = tip;
+      }
       demolish.hidden = !mine;
       setText(
         demolish,
-        confirming ? `Confirm demolish (+${formatMoney(def.cost * DEMOLITION_REFUND)} refund)` : 'Demolish',
+        confirming ? `Confirm demolish (+${formatMoney(demolitionRefund(state, b))} refund)` : 'Demolish',
       );
       setClass(demolish, `btn insp-demolish${confirming ? ' confirm' : ''}`);
       // company housing takes no cargo: its line replaces the status, stock and route rows

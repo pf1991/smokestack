@@ -1,6 +1,6 @@
 import { BUILDINGS } from '../../data/buildings';
 import { LANDMARKS, PHILANTHROPY_IDS, type PhilanthropyId } from '../../data/landmarks';
-import { buyPhilanthropy, philanthropyBlocker } from '../../sim/politics/edicts';
+import { buyPhilanthropy, philanthropyBlocker, philanthropyCost } from '../../sim/politics/edicts';
 import {
   activeEdicts,
   CHURCH_OBJECTION,
@@ -15,6 +15,7 @@ import { endorse, ENDORSE_WINDOW, monthIndex, paySlush, slushBlocker, slushCost,
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
 import { demandModifier } from '../../sim/production';
+import { priceIndex } from '../../sim/society/economy';
 import { forcedEdicts, SMOG_HINT, SMOG_TIER_NAMES, SMOG_TIER_THRESHOLDS } from '../../sim/society/tiers';
 import type { City, GameState } from '../../sim/types';
 import { h } from '../dom';
@@ -47,7 +48,7 @@ export function cityDemand(state: GameState, city: City): GoodDemand[] {
     const demand = monthlyDemand(city, goodId, state.date.year, demandModifier(state, city.id, goodId));
     if (demand <= 0) continue;
     const sat = satisfaction(city, goodId);
-    const price = salePrice(goodId, supplyRatio(city.market[goodId]));
+    const price = salePrice(goodId, supplyRatio(city.market[goodId]), priceIndex(state));
     out.push({ goodId, demand, satisfaction: sat, price, unmetValue: demand * (1 - sat) * price });
   }
   return out.sort((a, b) => b.unmetValue - a.unmetValue || a.goodId.localeCompare(b.goodId));
@@ -202,6 +203,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   });
   const gifts = PHILANTHROPY_IDS.map((id: PhilanthropyId) => {
     const def = LANDMARKS[id];
+    // the price follows inflation: refreshed in update()
+    const label = h('span', null, ` Endow a ${def.name.toLowerCase()} — ${formatMoney(philanthropyCost(host.ctx.state, id))}`);
     const btn = h('button', {
       class: 'insp-endow',
       'data-endow': id,
@@ -212,8 +215,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
           : { type: 'toast', message: r.error, tone: 'bad' });
         view.update();
       },
-    }, iconEl(id, 16), ` Endow a ${def.name.toLowerCase()} — ${formatMoney(def.philanthropy!.cost)}`);
-    return { id, btn };
+    }, iconEl(id, 16), label);
+    return { id, btn, label };
   });
   const mayorName = h('span', { class: 'insp-mayor-name' });
   const mayorChip = h('span', { class: 'insp-chip' });
@@ -286,6 +289,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         if ((g.btn as HTMLButtonElement).disabled !== disabled) (g.btn as HTMLButtonElement).disabled = disabled;
         const tip = why ?? `Opinion in ${city.name}: ${effectsLine(g.id, state.date.year)}`;
         if (g.btn.title !== tip) g.btn.title = tip;
+        setText(g.label, ` Endow a ${LANDMARKS[g.id].name.toLowerCase()} — ${formatMoney(philanthropyCost(state, g.id))}`);
       }
       const pol = city.politics;
       const year = state.date.year;
@@ -305,7 +309,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         setText(endorseBtn, done ? 'Endorsed' : 'Endorse');
         const odds = slushOdds(city);
         const why = slushBlocker(state, city.id);
-        const cost = formatMoney(slushCost(year));
+        const cost = formatMoney(slushCost(state));
         setText(slushBtn, `Slush ${cost}`);
         if (slushBtn.disabled !== (why !== null)) slushBtn.disabled = why !== null;
         const tip = why ?? `Pay ${cost} to tilt the vote. Raises scandal risk.`;

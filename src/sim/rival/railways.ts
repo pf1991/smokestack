@@ -9,7 +9,8 @@ import { demolishBuilding, findPlacement, placeBuilding } from '../state';
 import type { Building, City, GameState, GoodId, Route, SimContext, Vec2 } from '../types';
 import { assignVehicle, buyTruck, createRoute, deleteRoute, TRUCK, updateRoute } from '../vehicles';
 import { affordable, centreOf, cityName, rivalChainCount, trucksOn, unwrap } from './projects';
-import { FULL_RATIO, MAX_STALL_MONTHS, RIVAL_RESERVE } from './shared';
+import { FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
+import { atPrices } from '../society/economy';
 
 /** A leg is worth a railway from this many tiles of road... */
 export const RAIL_MIN_LEG = 25;
@@ -67,7 +68,8 @@ export function maxRivalRailLines(state: GameState): number {
 }
 
 /** Two stations, `tiles` of track and one train. */
-const railSetupCost = (tiles: number) => 2 * BUILDINGS[STATION_TYPE].cost + tiles * RAIL_COST + TRAIN.cost;
+/** A railway's setup cost at today's prices: two stations, the track and a train. */
+const railSetupCost = (state: GameState, tiles: number) => atPrices(state, 2 * BUILDINGS[STATION_TYPE].cost + tiles * RAIL_COST + TRAIN.cost);
 
 function flagList(state: GameState, key: string): string[] {
   const v = state.flags[key];
@@ -108,7 +110,7 @@ const manhattan = (a: Vec2, b: Vec2) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y
  */
 function railCandidates(state: GameState): { leg: Leg; length: number }[] {
   const money = state.companies.rival.money;
-  if (money - railSetupCost(RAIL_MIN_LEG) < RIVAL_RESERVE) return [];
+  if (money - railSetupCost(state, RAIL_MIN_LEG) < rivalReserve(state)) return [];
   const blockedLegs = flagList(state, F_RAIL_BLOCKED);
   const short = flagList(state, F_RAIL_SHORT);
   const out: { leg: Leg; length: number }[] = [];
@@ -128,7 +130,7 @@ function railCandidates(state: GameState): { leg: Leg; length: number }[] {
       flagAdd(state, F_RAIL_SHORT, String(route.id));
       continue;
     }
-    if (money - railSetupCost(length) < RIVAL_RESERVE) continue;
+    if (money - railSetupCost(state, length) < rivalReserve(state)) continue;
     out.push({ leg, length });
   }
   return out.sort((a, b) => b.length - a.length || a.leg.route.id - b.leg.route.id);
@@ -153,7 +155,7 @@ export function startRailProject(ctx: SimContext): void {
       flagAdd(state, F_RAIL_BLOCKED, `${leg.source.id}>${leg.dest.id}`);
       continue;
     }
-    if (state.companies.rival.money - railSetupCost(plan.length) < RIVAL_RESERVE) continue;
+    if (state.companies.rival.money - railSetupCost(state, plan.length) < rivalReserve(state)) continue;
     startRail(state, leg, length, plan);
     return;
   }
@@ -236,16 +238,16 @@ function roadUpStation(
   stationFirst: boolean,
   maxFeeder: number,
 ): 'ok' | 'money' | 'fail' {
-  const c = connectToRoads(ctx, station, { owner: 'rival', reserve: RIVAL_RESERVE });
+  const c = connectToRoads(ctx, station, { owner: 'rival', reserve: rivalReserve(ctx.state) });
   if (!c.ok) return c.error === 'Not enough money' ? 'money' : 'fail';
   const [a, b] = stationFirst ? [station, served] : [served, station];
-  const l = ensureRoadLink(ctx, 'rival', a, b, RIVAL_RESERVE);
+  const l = ensureRoadLink(ctx, 'rival', a, b, rivalReserve(ctx.state));
   if (!l.ok) return l.error === 'Not enough money' ? 'money' : 'fail';
   // the network may link them only by the very detour the railway is meant to cut: then lay a
   // direct road; a feeder still longer than half the old haul (e.g. round a mountain) is a failure
   let feeder = legLength(ctx.state, a, b);
   if (feeder !== null && feeder <= maxFeeder) return 'ok';
-  const d = buildDirectRoad(ctx, 'rival', a, b, RIVAL_RESERVE);
+  const d = buildDirectRoad(ctx, 'rival', a, b, rivalReserve(ctx.state));
   if (!d.ok) return d.error === 'Not enough money' ? 'money' : 'fail';
   feeder = legLength(ctx.state, a, b);
   return feeder !== null && feeder <= maxFeeder ? 'ok' : 'fail';
@@ -331,7 +333,7 @@ export function advanceRail(ctx: SimContext): void {
       return;
     }
     // keep the train's price in hand too, so finished track never waits long for its locomotive
-    const r = ensureRailLink(ctx, 'rival', a, b, RIVAL_RESERVE + TRAIN.cost);
+    const r = ensureRailLink(ctx, 'rival', a, b, rivalReserve(state) + atPrices(state, TRAIN.cost));
     if (!r.ok) {
       if (r.error === 'Not enough money') return railStall(ctx);
       abandonRail(ctx, 'no track could be laid');

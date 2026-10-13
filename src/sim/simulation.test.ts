@@ -88,7 +88,8 @@ describe('stepTick', () => {
     const apr = s.companies.player.ledger.find((m) => m.year === 1900 && m.month === 4);
     expect(apr?.expense.maintenance).toBe(BUILDINGS.sawmill.maintenance);
     expect(apr?.cashEnd).toBe(afterBuild - BUILDINGS.sawmill.maintenance);
-    expect(apr?.netWorthEnd).toBe(apr!.cashEnd + BUILDINGS.sawmill.cost * 0.5);
+    // assets are valued at the month-end price index (the economy system steps before finance closes)
+    expect(apr?.netWorthEnd).toBe(apr!.cashEnd + Math.round(BUILDINGS.sawmill.cost * 0.5 * s.economy.priceIndex));
     expect(s.companies.player.ledger.find((m) => m.month === 5)?.expense.maintenance ?? 0).toBe(0);
   });
 

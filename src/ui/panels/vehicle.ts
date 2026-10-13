@@ -1,7 +1,8 @@
 import { BUILDINGS } from '../../data/buildings';
 import { getGood } from '../../data/goods';
 import type { GameController } from '../../game/controller';
-import { assignVehicle, sellVehicle, VEHICLE_KINDS } from '../../sim/vehicles';
+import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle } from '../../sim/vehicles';
+import { assetAge, assetEfficiency } from '../../sim/society/aging';
 import { routeOptions } from './fleet';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
@@ -10,7 +11,6 @@ import { openInspector, setText, type InspectorHost, type InspectorView } from '
 import type { PanelDef } from './index';
 
 const STATE_LABEL = { moving: 'Driving', loading: 'Loading / unloading', stuck: 'Stuck — no path', idle: 'Idle' } as const;
-const SELL_REFUND = 0.5;
 
 function buildView(host: InspectorHost, id: number): InspectorView {
   const owner = h('span', { class: 'insp-badge' });
@@ -45,8 +45,8 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     onClick: () => {
       const veh = host.ctx.state.vehicles[id];
       if (!veh) return;
+      const refund = sellRefund(host.ctx.state, veh.kind);
       const r = sellVehicle(host.ctx, id);
-      const refund = (VEHICLE_KINDS[veh.kind]?.spec.cost ?? 0) * SELL_REFUND;
       host.ctx.bus.emit(
         r.ok
           ? { type: 'toast', message: `Vehicle sold for ${formatMoney(refund)}`, tone: 'good' }
@@ -54,8 +54,23 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       );
     },
   });
+  const age = h('span');
+  // sell and rebuy at today's price for the same route (sim/vehicles.ts replaceVehicle); the new vehicle has a new id
+  const replace = h('button', {
+    class: 'btn insp-replace',
+    onClick: () => {
+      const veh = host.ctx.state.vehicles[id];
+      if (!veh) return;
+      const r = replaceVehicle(host.ctx, id, 'player');
+      host.ctx.bus.emit(
+        r.ok
+          ? { type: 'toast', message: `${veh.kind === 'train' ? 'Train' : 'Truck'} replaced`, tone: 'good' }
+          : { type: 'toast', message: r.error, tone: 'bad' },
+      );
+    },
+  });
   const view: InspectorView = {
-    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner), stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), follow, sell),
+    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner), stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), stat('Age', age), follow, replace, sell),
     update() {
       const s = host.ctx.state;
       const v = s.vehicles[id];
@@ -92,7 +107,10 @@ function buildView(host: InspectorHost, id: number): InspectorView {
           : `Empty (0 / ${v.capacity})`,
       );
       sell.hidden = v.ownerId !== 'player';
-      setText(sell, `Sell (+${formatMoney((VEHICLE_KINDS[v.kind]?.spec.cost ?? 0) * SELL_REFUND)})`);
+      setText(sell, `Sell (+${formatMoney(sellRefund(s, v.kind))})`);
+      setText(age, `Bought ${v.builtYear} (age ${assetAge(s, v)}): ${Math.round(assetEfficiency(s, v) * 100)}% speed`);
+      replace.hidden = v.ownerId !== 'player';
+      setText(replace, `Replace (${formatMoney(replaceCost(s, v.kind))})`);
       return true;
     },
     dispose: () => {

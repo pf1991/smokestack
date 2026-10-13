@@ -62,7 +62,7 @@ describe('checkInvariants', () => {
       capacity: 10,
       state: 'idle',
       waitTicks: 0,
-      stuckNotified: false,
+      stuckNotified: false, builtYear: 1900,
     };
     state.vehicles[v.id] = v;
     const msgs = checkInvariants(state);

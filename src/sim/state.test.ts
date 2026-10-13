@@ -46,7 +46,7 @@ function addVehicle(s: GameState, routeId: number | null, pos: Vec2): Vehicle {
     capacity: 20,
     state: 'moving',
     waitTicks: 0,
-    stuckNotified: false,
+    stuckNotified: false, builtYear: 1900,
   };
   s.vehicles[v.id] = v;
   return v;

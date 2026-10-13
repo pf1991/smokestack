@@ -22,7 +22,7 @@ function world(year = 1990, money = 1e8, light = false): { ctx: SimContext; b: B
   b.status = 'ok';
   return { ctx, b };
 }
-const setIndex = (state: GameState, pi: number) => ((state as GameState & { economy?: { priceIndex: number } }).economy = { priceIndex: pi });
+const setIndex = (state: GameState, pi: number) => (state.economy = { priceIndex: pi, history: [] });
 const at = (ctx: SimContext, x: number, y: number) => ctx.state.map.tiles[y * ctx.state.map.width + x].pollution;
 const total = (ctx: SimContext) => ctx.state.map.tiles.reduce((s, t) => s + t.pollution, 0);
 
@@ -82,11 +82,11 @@ describe('scrubbers', () => {
     const before = currentLedger(ctx.state.companies.player, ctx.state.date).expense.construction ?? 0;
     must(buyUpgrade(ctx, b.id, 'scrubber'));
     expect(currentLedger(ctx.state.companies.player, ctx.state.date).expense.construction).toBe(before + Math.round(def.cost * 0.6));
-    // upkeep: the scrubber's ×1.1 surcharge follows prices (×1.2 at index 2)
+    // upkeep: the scrubber's ×1.1 multiplies the indexed maintenance once (Task 8; was R-S8's 1 + 0.1 × index)
     setIndex(ctx.state, 1);
     expect(playerBuildingUpkeep(ctx.state)).toBeCloseTo(def.maintenance * 1.1, 6);
     setIndex(ctx.state, 2);
-    expect(playerBuildingUpkeep(ctx.state)).toBeCloseTo(def.maintenance * 1.2, 6);
+    expect(playerBuildingUpkeep(ctx.state)).toBeCloseTo(def.maintenance * 2 * 1.1, 6);
   });
 
   it('refuses another company’s works, a smokeless building, and an empty purse', () => {

@@ -5,10 +5,9 @@ import { regimeBlend } from '../render/regime';
 import type { Ghost, Selection } from '../render/world';
 import { canAfford } from '../sim/finance';
 import {
-  BRIDGE_COST,
   buildRoad,
   canPlaceBuilding,
-  DEMOLITION_REFUND,
+  demolitionRefund,
   demolishBuilding,
   footprint,
   lPath,
@@ -16,7 +15,7 @@ import {
   plantForest,
   plantQuote,
   removeRoad,
-  ROAD_COST,
+  roadTileCost,
 } from '../sim/state';
 import { buildRail, railQuote, removeRail } from '../sim/rail';
 import type { GameState, SimContext, Vec2 } from '../sim/types';
@@ -61,7 +60,7 @@ export function roadQuote(state: GameState, tiles: Vec2[]): { cost: number; erro
     if (t.road || seen.has(i)) continue;
     if (t.terrain === 'mountain' || t.buildingId !== null) return { cost, error: 'Cannot build road there' };
     seen.add(i);
-    cost += t.terrain === 'water' ? BRIDGE_COST : ROAD_COST;
+    cost += roadTileCost(state, t.terrain === 'water');
   }
   if (!canAfford(state.companies.player, cost)) return { cost, error: 'Not enough money' };
   return { cost, error: null };
@@ -356,7 +355,7 @@ export class ToolController {
         if (!b) return null;
         const def = BUILDINGS[b.typeId];
         const mine = b.ownerId === 'player';
-        const label = mine ? `Demolish ${def.name} +${formatMoney(def.cost * DEMOLITION_REFUND)}` : 'Not your building';
+        const label = mine ? `Demolish ${def.name} +${formatMoney(demolitionRefund(this.state, b))}` : 'Not your building';
         return { kind: 'tiles', tiles: footprint(b), valid: mine, label };
       }
       if (!tile) return null;

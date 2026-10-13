@@ -135,6 +135,7 @@ pairs.forEach(([a, b], i) => {
     state: 'moving',
     waitTicks: 0,
     stuckNotified: false,
+    builtYear: state.date.year,
   };
   state.vehicles[v.id] = v;
   movers.push({ v, path, t, dirn: 1, speed: 0.5 });

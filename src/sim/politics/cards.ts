@@ -23,6 +23,7 @@ import { assetValue, nextId } from '../state';
 import type { GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CardInstance } from './types';
+import { priceIndex } from '../society/economy';
 
 /** Days a card may stay unanswered before it resolves itself with its default choice. */
 export const AUTO_RESOLVE_DAYS = 60;
@@ -145,11 +146,12 @@ export function triggerCard(ctx: SimContext, trigger: CardDef['trigger'], cityId
 }
 
 /**
- * Ruling R-Q8: card money grows with the century and with the player. The larger of the era scale
- * (1 in 1900, 3 in 1950) and the wealth scale (player net worth / $300,000), clamped to 1..40.
+ * Ruling R-Q8 (era term replaced by the price index in Task 8): card money grows with prices and with
+ * the player. The larger of the price index (society/economy.ts) and the wealth scale (player net
+ * worth / $300,000), clamped to 1..40.
  */
 export function cardScale(state: GameState): number {
-  const era = 1 + (state.date.year - 1900) / 25;
+  const era = priceIndex(state);
   // net worth as rival/takeover.ts's netWorth (not imported: it would close an import cycle)
   const c = state.companies[PLAYER_ID];
   const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / BASE_NET_WORTH;

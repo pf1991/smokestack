@@ -13,7 +13,8 @@ import { BUILDINGS } from '../../data/buildings';
 import { PLAYER_ID } from '../companies';
 import { canAfford, spend } from '../finance';
 import type { Building, GameState, SimContext } from '../types';
-import { priceIndex } from './economy';
+import { assetUpkeep } from './aging';
+import { atPrices, priceIndex } from './economy';
 import { scrubberTier } from './lawState';
 
 export type ScrubberTier = 1 | 2 | 3;
@@ -61,17 +62,21 @@ export function scrubberEmission(b: Building): number {
 }
 
 /**
- * Maintenance multiplier of the fitted scrubber: 1 + (upkeep − 1) × priceIndex, so the scrubber's
- * running cost (the part above the plain works' upkeep) follows prices; ×1 when none.
+ * Maintenance multiplier of the fitted scrubber (×1 when none). Applied on top of the indexed
+ * maintenance (buildingMaintenance), so it follows prices without being scaled twice (Task 8,
+ * superseding ruling R-S8's 1 + (upkeep − 1) × priceIndex).
  */
-export function scrubberUpkeepFactor(state: GameState, b: Building): number {
+export function scrubberUpkeepFactor(b: Building): number {
   const t = scrubberTier(b);
-  return t > 0 ? 1 + (SCRUBBER_TIERS[t - 1].upkeep - 1) * priceIndex(state) : 1;
+  return t > 0 ? SCRUBBER_TIERS[t - 1].upkeep : 1;
 }
 
-/** Monthly maintenance of building `b` before company edicts: catalogue maintenance × scrubber upkeep. */
+/**
+ * Monthly maintenance of building `b` before company edicts: catalogue maintenance at today's prices
+ * × its age factor (society/aging.ts) × scrubber upkeep.
+ */
 export function buildingMaintenance(state: GameState, b: Building): number {
-  return BUILDINGS[b.typeId].maintenance * scrubberUpkeepFactor(state, b);
+  return atPrices(state, BUILDINGS[b.typeId].maintenance) * assetUpkeep(state, b) * scrubberUpkeepFactor(b);
 }
 
 /** True for works that make smoke (only these can be fitted). */

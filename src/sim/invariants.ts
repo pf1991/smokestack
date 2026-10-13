@@ -34,6 +34,7 @@ export function checkInvariants(state: GameState): string[] {
 
   for (const v of Object.values(state.vehicles)) {
     if (v.routeId !== null && !state.routes[v.routeId]) out.push(`vehicle ${v.id}: route ${v.routeId} does not exist`);
+    if (!Number.isInteger(v.builtYear) || v.builtYear > state.date.year) out.push(`vehicle ${v.id}: builtYear ${v.builtYear} is not a past year`);
   }
 
   for (const r of Object.values(state.routes)) {
@@ -47,6 +48,7 @@ export function checkInvariants(state: GameState): string[] {
   for (const b of Object.values(state.buildings)) {
     const s = b.staffing;
     if (typeof s !== 'number' || !Number.isFinite(s) || s < 0 || s > 1) out.push(`building ${b.id}: staffing ${s} outside [0, 1]`);
+    if (!Number.isInteger(b.builtYear) || b.builtYear > state.date.year) out.push(`building ${b.id}: builtYear ${b.builtYear} is not a past year`);
     const k = b.strike;
     if (k) {
       const ok = Number.isInteger(k.until) && Number.isInteger(k.since) && k.until > k.since && k.until - k.since <= STRIKE_MAX_DAYS
@@ -82,6 +84,8 @@ export function checkInvariants(state: GameState): string[] {
   for (const [k, v] of [['windX', w?.windX], ['windY', w?.windY]] as const) {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < -1 || v > 1) out.push(`weather: wind ${k} ${v} outside [-1, 1]`);
   }
+  const pi = state.economy?.priceIndex;
+  if (typeof pi !== 'number' || !Number.isFinite(pi) || pi <= 0) out.push(`economy: priceIndex ${pi} is not a finite number > 0`);
   if (typeof w?.rain !== 'boolean') out.push(`weather: rain ${w?.rain} is not a boolean`);
   const rd = w?.rainDays;
   if (typeof rd !== 'number' || !Number.isFinite(rd) || rd < 0) out.push(`weather: rainDays ${rd} is not a finite number >= 0`);

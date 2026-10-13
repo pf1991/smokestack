@@ -129,3 +129,12 @@
   gap: 8px;
   margin-top: 8px;
 }
+
+/* the price index sparkline: a short strip under the index line */
+.finance-chart.finance-index-chart {
+  height: 90px;
+}
+
+.finance-index-info p {
+  margin: 0 0 4px;
+}
