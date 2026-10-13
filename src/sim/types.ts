@@ -69,6 +69,10 @@ export interface Building {
   upgrades?: BuildingUpgrades;
   /** the year it was built or last renewed (sim/society/aging.ts); set to the load year for old saves */
   builtYear: number;
+  /** the Baron's buildings only (rival/insolvency.ts, R-S13): revenue a store took this month */
+  salesThisMonth?: number;
+  /** the Baron's buildings only: the last 12 months' earnings (sales or output value, less upkeep), oldest first */
+  earnings12?: number[];
 }
 
 /** A works' smoke abatement (sim/society/upgrades.ts). */

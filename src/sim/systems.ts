@@ -11,6 +11,7 @@ import { economyMonth } from './society/economy';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
+import { recordBaronEarnings } from './rival/insolvency';
 import { landmarksMonth } from './landmarks';
 import { politicsSystem } from './politics';
 import { companyLoanRate } from './politics/mayorEdicts';
@@ -65,6 +66,8 @@ export const SYSTEMS: SimSystem[] = [
     id: 'upkeep',
     onMonth(ctx) {
       maintenanceMonth(ctx);
+      // before growthMonth clears producedThisMonth (R-S13)
+      recordBaronEarnings(ctx);
       growthMonth(ctx);
     },
   },

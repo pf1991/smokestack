@@ -1,5 +1,8 @@
 /**
- * Century soak: `npm run soak -- --seeds 7,42,1234 --years 100 [--edicts harsh|kind]`
+ * Century soak: `npm run soak -- --seeds 7,42,1234 --years 100 [--edicts harsh|kind] [--renew]`
+ *
+ * `--renew` (ruling R-S15) renews every player building aged 30 or more once a year, at each year end
+ * (society/aging.ts renewBuilding), and reports how many renewals were made. Off by default.
  *
  * `--edicts harsh` (low wages, minimal safety, crush the union) or `--edicts kind` (generous, high,
  * recognise) sets the player's company edicts right after autoplay and holds them for the run.
@@ -35,6 +38,7 @@ import { netWorth } from '../src/sim/rival/takeover';
 import { runDays } from '../src/sim/simulation';
 import { createGame } from '../src/sim/state';
 import { nationalBlackLung } from '../src/sim/society/escalation';
+import { assetAge, renewBuilding } from '../src/sim/society/aging';
 
 const END_YEAR = 2001;
 
@@ -53,8 +57,10 @@ const EDICT_SETS: Record<string, CompanyEdicts> = {
   kind: { wage: 'generous', safety: 'high', union: 'recognise' },
 };
 const edictsArg = arg('edicts');
+const renew = process.argv.includes('--renew');
+const RENEW_AGE = 30;
 if (seeds.length === 0 || !Number.isInteger(years) || years < 1 || (edictsArg !== undefined && !EDICT_SETS[edictsArg])) {
-  console.error('usage: npm run soak -- --seeds 7,42,1234 --years 100 [--edicts harsh|kind]');
+  console.error('usage: npm run soak -- --seeds 7,42,1234 --years 100 [--edicts harsh|kind] [--renew]');
   process.exit(2);
 }
 
@@ -102,6 +108,7 @@ for (const seed of seeds) {
   let maxUpper = 0;
   let maxMiddle = 0;
   let index2000 = Number.NaN;
+  let renewals = 0;
   while (ctx.state.date.year < endYear && !over) {
     // a year as 12 months of 30 days, sampling every town's smog tier at each month end
     for (let m = 0; m < 12 && !over; m++) {
@@ -126,6 +133,11 @@ for (const seed of seeds) {
         const cl = ctx.state.cities.reduce((a, b) => ((levelSum.get(b.id) ?? 0) < (levelSum.get(a.id) ?? 0) ? b : a));
         const q = cl.classes;
         clean2000 = `${cl.name} (pop ${cl.population}) working ${q.working.toFixed(3)} / middle ${q.middle.toFixed(3)} / upper ${q.upper.toFixed(3)}`;
+      }
+    }
+    if (renew) {
+      for (const b of Object.values(ctx.state.buildings)) {
+        if (b.ownerId === 'player' && assetAge(ctx.state, b) >= RENEW_AGE && renewBuilding(ctx, b.id, 'player').ok) renewals++;
       }
     }
     problems = checkInvariants(ctx.state);
@@ -165,7 +177,7 @@ for (const seed of seeds) {
     return bs.length > 0 ? (bs.reduce((t, b) => t + (state.date.year - b.builtYear), 0) / bs.length).toFixed(1) : 'n/a';
   };
   console.log(
-    `  economy ${seed}: priceIndex 2000 ${Number.isFinite(index2000) ? index2000.toFixed(2) : 'n/a'}, final ${idx.toFixed(2)} | real net worth (1900 $) player ${money(netWorth(state, 'player') / idx)}, baron ${money(netWorth(state, 'rival') / idx)} | avg building age player ${ages('player')}, baron ${ages('rival')}`,
+    `  economy ${seed}: priceIndex 2000 ${Number.isFinite(index2000) ? index2000.toFixed(2) : 'n/a'}, final ${idx.toFixed(2)} | real net worth (1900 $) player ${money(netWorth(state, 'player') / idx)}, baron ${money(netWorth(state, 'rival') / idx)} | avg building age player ${ages('player')}, baron ${ages('rival')}${renew ? ` | renewals ${renewals}` : ''}`,
   );
   if (years >= 100) {
     const gate: string[] = [];

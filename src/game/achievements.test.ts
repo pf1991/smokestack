@@ -50,6 +50,17 @@ describe('achievements', () => {
     expect(checkAchievements(s, new Set())).toEqual(expect.arrayContaining(['baron_busted', 'millionaire', 'centennial']));
   });
 
+  it('millionaire and clean_hands count real money: net worth / price index (R-S14)', () => {
+    const s = testState({ year: 1990 });
+    s.economy.priceIndex = 13;
+    s.companies.player.money = 12_000_000; // under $1M in 1900 dollars
+    const ids = () => checkAchievements(s, new Set());
+    expect(ids()).not.toContain('millionaire');
+    expect(ids()).not.toContain('clean_hands');
+    s.companies.player.money = 13_100_000;
+    expect(ids()).toEqual(expect.arrayContaining(['millionaire', 'clean_hands']));
+  });
+
   it('baron_busted announced by the takeover is recorded without a second fanfare', () => {
     const ctx = testCtx(testState());
     ctx.state.flags.takeover = true;

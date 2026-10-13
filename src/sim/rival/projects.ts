@@ -26,7 +26,7 @@ const F_BUILDINGS = 'rivalBuildings';
 const F_FAILS = 'rivalFails';
 const F_STALL = 'rivalStall';
 
-function projectIds(state: GameState): number[] {
+export function projectIds(state: GameState): number[] {
   const v = state.flags[F_BUILDINGS];
   return typeof v === 'string' && v ? v.split(',').map(Number) : [];
 }

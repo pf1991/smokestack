@@ -46,6 +46,11 @@ export function atPrices(state: GameState, amount: number): number {
   return amount * state.economy.priceIndex;
 }
 
+/** `nominal` dollars today in 1900 dollars (nominal / price index): ruling R-S14's real money. */
+export function realMoney(state: GameState, nominal: number): number {
+  return nominal / state.economy.priceIndex;
+}
+
 /** Monthly: the index grows by (1 + rate)^(1/12) for the month that is ending; history keeps 10 years. */
 export function economyMonth(ctx: SimContext): void {
   const e = ctx.state.economy;

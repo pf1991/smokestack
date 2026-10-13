@@ -7,7 +7,7 @@ import { growthPenalty, PROTEST_FACTOR } from './society/tiers';
 import { protestedBuildings } from './society/escalation';
 import { SLOWDOWN_FACTOR, slowedBuildings, strikeActive } from './society/strikeState';
 import { strikeOver } from './society/strikes';
-import { companyIds, PLAYER_ID } from './companies';
+import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
 import { RECIPES } from '../data/recipes';
@@ -133,6 +133,11 @@ export function retailDay(ctx: SimContext): void {
       src[s.goodId] = (src[s.goodId] ?? 0) - s.qty;
       const company = state.companies[s.ownerId];
       earn(company, 'sales', s.revenue, state.date);
+      // the Baron's per-store takings feed his insolvency guard (rival/insolvency.ts)
+      if (s.ownerId === BARON_ID) {
+        const store = state.buildings[s.buildingId];
+        store.salesThisMonth = (store.salesThisMonth ?? 0) + s.revenue;
+      }
       const sbg = currentLedger(company, state.date).salesByGood;
       sbg[s.goodId] = (sbg[s.goodId] ?? 0) + s.revenue;
       soldByGood[s.goodId] = (soldByGood[s.goodId] ?? 0) + s.qty;
