@@ -132,3 +132,12 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['mapgen.ts', 'migrations.ts', 'testkit.ts']);
   });
 });
+
+describe('layering', () => {
+  it('no file in src/sim imports from src/ui or src/render', () => {
+    const bad = files
+      .filter((f) => /from\s+['"](\.\.\/)+(ui|render)\//.test(f.src))
+      .map((f) => f.rel);
+    expect(bad).toEqual([]);
+  });
+});

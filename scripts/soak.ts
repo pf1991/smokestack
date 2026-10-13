@@ -24,6 +24,8 @@
  * A fifth line reports social classes (Task 7): the class mix at the last month end sampled in 2000 of
  * the biggest town and of the cleanest town (lowest mean smog level over the run), and the highest
  * upper and middle shares any town reached.
+ * Phase 3 gate (years >= 100, ruling R-S12): smog tier >= 2 somewhere, a law passed, priceIndex 2000 in [14, 22], no NaN
+ * in the smog field (Tile.pollution scanned yearly), player solvent.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
@@ -109,6 +111,7 @@ for (const seed of seeds) {
   let maxMiddle = 0;
   let index2000 = Number.NaN;
   let renewals = 0;
+  let smogNaN = false;
   while (ctx.state.date.year < endYear && !over) {
     // a year as 12 months of 30 days, sampling every town's smog tier at each month end
     for (let m = 0; m < 12 && !over; m++) {
@@ -140,6 +143,7 @@ for (const seed of seeds) {
         if (b.ownerId === 'player' && assetAge(ctx.state, b) >= RENEW_AGE && renewBuilding(ctx, b.id, 'player').ok) renewals++;
       }
     }
+    if (ctx.state.cities.some((c) => !Number.isFinite(c.smog.level) || !Number.isFinite(c.pollution)) || ctx.state.map.tiles.some((t) => Number.isNaN(t.pollution))) smogNaN = true;
     problems = checkInvariants(ctx.state);
     for (const c of ctx.state.cities) {
       for (const f of FACTION_IDS) {
@@ -186,6 +190,11 @@ for (const seed of seeds) {
     if (elections < 100) gate.push(`only ${elections} elections (need 100)`);
     if (pinFails.size > 0) gate.push(`opinion pinned 10+ years: ${[...pinFails].join(', ')}`);
     if (!baronBuilt) gate.push('the Baron never built anything');
+    if (maxTier < 2) gate.push(`smog never reached tier 2 (max ${maxTier})`);
+    if (!Object.values(laws).some((l) => l.passed != null)) gate.push('no regulation law passed');
+    if (!(index2000 >= 14 && index2000 <= 22)) gate.push(`priceIndex 2000 ${index2000} outside [14, 22] (R-S12)`);
+    if (smogNaN) gate.push('NaN in the smog field');
+    if (netWorth(state, 'player') <= 0) gate.push('player not solvent at the end');
     if (gate.length > 0) {
       failed = true;
       for (const g of gate) console.log(`  GATE FAIL (${seed}): ${g}`);

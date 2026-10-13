@@ -10,7 +10,7 @@ import { random } from './rng';
 import { nextId } from './state';
 import { atPrices } from './society/economy';
 // a pure, DOM-free leaf: inflated rewards read "$1.2M" like every other figure in the game
-import { formatMoney } from '../ui/format';
+import { formatMoney } from '../core/money';
 import type { Contract, GameState, GoodId, OwnerId, SimContext } from './types';
 
 export const MAX_ACTIVE = 3;
