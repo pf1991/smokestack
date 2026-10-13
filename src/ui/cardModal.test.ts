@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
+import { CARDS_BY_ID } from '../data/cards';
 import { PLAYER_ID } from '../sim/companies';
+import { choiceCost } from '../sim/politics/cards';
+import { formatMoney } from './format';
 import { createGame } from '../sim/state';
 import { packState, unpackState } from '../game/saves';
 import type { GameState, Speed } from '../sim/types';
@@ -11,9 +14,7 @@ function host(state: GameState, opts: { photo?: boolean; intro?: boolean } = {})
   const uiRoot = document.createElement('div');
   document.body.appendChild(uiRoot);
   const hooks = new Set<(now: number) => void>();
-  const toasts: string[] = [];
   const bus = new EventBus();
-  bus.on('toast', (e) => toasts.push(e.message));
   const h = {
     uiRoot,
     ctx: { state, bus },
@@ -33,7 +34,7 @@ function host(state: GameState, opts: { photo?: boolean; intro?: boolean } = {})
   const frame = () => {
     for (const fn of [...hooks]) fn(0);
   };
-  return { h: h as CardHost & typeof h, uiRoot, frame, toasts, hooks };
+  return { h: h as CardHost & typeof h, uiRoot, frame, hooks };
 }
 
 function withCard(cardId = 'founders_parade', cityId: number | null = 0): GameState {
@@ -91,7 +92,7 @@ describe('card modal', () => {
     const m = s.companies[PLAYER_ID].money;
     choiceButtons()[1].click();
     expect(s.politics.cards.pending).toEqual([]);
-    expect(s.companies[PLAYER_ID].money).toBe(m + 2000);
+    expect(s.companies[PLAYER_ID].money).toBe(m - choiceCost(s, CARDS_BY_ID.founders_parade.choices[1]));
     expect(modal()).toBeNull();
     expect(s.speed).toBe(4);
   });
@@ -148,6 +149,53 @@ describe('card modal', () => {
     t.frame();
     expect(modal()).not.toBeNull();
     expect(s.speed).toBe(0);
+  });
+
+  it('shows the scaled cost that resolving books', () => {
+    const s = withCard();
+    s.date.year = 1950; // era scale 3
+    const t = attach(s);
+    t.frame();
+    const shown = [...document.querySelectorAll('.card-cost')].map((e) => e.textContent);
+    expect(shown).toEqual([formatMoney(9000), `+${formatMoney(6000)}`]);
+    const m = s.companies[PLAYER_ID].money;
+    choiceButtons()[0].click();
+    expect(s.companies[PLAYER_ID].money).toBe(m - 9000);
+  });
+
+  it('prints a refusal inside the clipping and keeps the card', () => {
+    const s = withCard();
+    const t = attach(s);
+    t.frame();
+    s.companies[PLAYER_ID].money = 10; // the choice was affordable when drawn
+    choiceButtons()[0].click();
+    expect(document.querySelector('.card-clipping .card-error')!.textContent).toBe('Not enough money');
+    expect(s.politics.cards.pending.length).toBe(1);
+    expect(choiceButtons()[0].disabled).toBe(true);
+  });
+
+  it('focuses the first enabled choice and traps Tab inside the clipping', () => {
+    const s = withCard('shop_floor_grumbling');
+    s.companies[PLAYER_ID].money = 3000; // the $4,000+ bonus is out of reach
+    const t = attach(s);
+    t.frame();
+    const [bonus, guards, nothing] = choiceButtons();
+    expect(bonus.disabled).toBe(true);
+    expect(document.activeElement).toBe(guards);
+    const tab = (shiftKey = false) => {
+      const e = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
+      window.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    };
+    tab();
+    expect(document.activeElement).toBe(nothing);
+    tab();
+    expect(document.activeElement).toBe(guards);
+    tab(true);
+    expect(document.activeElement).toBe(nothing);
+    (document.body as HTMLElement).focus();
+    tab();
+    expect(document.activeElement).toBe(guards);
   });
 
   it('waits for the cold open and for photo mode to end', () => {

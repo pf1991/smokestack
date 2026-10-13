@@ -19,7 +19,7 @@ import { PLAYER_ID } from '../companies';
 import { canAfford, earn, spend } from '../finance';
 import { publishNews } from '../news';
 import { random } from '../rng';
-import { nextId } from '../state';
+import { assetValue, nextId } from '../state';
 import type { GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CardInstance } from './types';
@@ -28,6 +28,14 @@ import type { CardInstance } from './types';
 export const AUTO_RESOLVE_DAYS = 60;
 /** The first spring with a card. */
 export const FIRST_CARD_YEAR = 1901;
+/** Oldest entries of `cards.history` are dropped beyond this. */
+export const HISTORY_CAP = 200;
+/** The scale of a starting company's net worth: authored costs are for a company this size. */
+export const BASE_NET_WORTH = 300_000;
+export const MAX_CARD_SCALE = 40;
+
+type CardTable = Readonly<Record<string, CardDef>>;
+
 /** Spring cards are drawn on this day (1 April). */
 export const SPRING_MONTH = 4;
 export const SPRING_DAY = 1;
@@ -123,13 +131,31 @@ export function triggerCard(ctx: SimContext, trigger: CardDef['trigger'], cityId
   openCard(ctx, trigger, cityId);
 }
 
+/**
+ * Ruling R-Q8: card money grows with the century and with the player. The larger of the era scale
+ * (1 in 1900, 3 in 1950) and the wealth scale (player net worth / $300,000), clamped to 1..40.
+ */
+export function cardScale(state: GameState): number {
+  const era = 1 + (state.date.year - 1900) / 25;
+  // net worth as rival/takeover.ts's netWorth (not imported: it would close an import cycle)
+  const c = state.companies[PLAYER_ID];
+  const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / BASE_NET_WORTH;
+  return Math.min(MAX_CARD_SCALE, Math.max(1, era, wealth));
+}
+
+/** A choice's cost now, in today's dollars, rounded to $100 (negative: money received). */
+export function choiceCost(state: GameState, choice: CardChoice): number {
+  return Math.round((choice.cost * cardScale(state)) / 100) * 100;
+}
+
 export function canAffordChoice(state: GameState, choice: CardChoice): boolean {
-  return choice.cost <= 0 || canAfford(state.companies[PLAYER_ID], choice.cost);
+  const cost = choiceCost(state, choice);
+  return cost <= 0 || canAfford(state.companies[PLAYER_ID], cost);
 }
 
 /** The card's title and body with `{city}` and `{faction}` filled in. */
-export function cardText(state: GameState, inst: CardInstance): { title: string; body: string } {
-  const card = CARDS_BY_ID[inst.cardId];
+export function cardText(state: GameState, inst: CardInstance, defs: CardTable = CARDS_BY_ID): { title: string; body: string } {
+  const card = defs[inst.cardId];
   if (!card) return { title: '', body: '' };
   const city = state.cities.find((c) => c.id === inst.cityId);
   const year = state.date.year;
@@ -143,21 +169,22 @@ export function cardText(state: GameState, inst: CardInstance): { title: string;
  * 'events', applies the effects through adjustOpinion, runs `apply`, records the card in history
  * and prints the decision in the papers.
  */
-export function resolveCard(ctx: SimContext, uid: number, choice: number): Result {
+export function resolveCard(ctx: SimContext, uid: number, choice: number, defs: CardTable = CARDS_BY_ID): Result {
   const { state } = ctx;
   const cards = state.politics.cards;
   const idx = cards.pending.findIndex((p) => p.uid === uid);
   if (idx < 0) return err('No such card');
   const inst = cards.pending[idx];
-  const card = CARDS_BY_ID[inst.cardId];
+  const card = defs[inst.cardId];
   if (!card) return err('No such card');
   const c = card.choices[choice];
   if (!c) return err('No such choice');
   if (!canAffordChoice(state, c)) return err('Not enough money');
   const player = state.companies[PLAYER_ID];
-  if (c.cost > 0) spend(player, 'events', c.cost, state.date);
-  else if (c.cost < 0) earn(player, 'events', -c.cost, state.date);
-  const { title } = cardText(state, inst);
+  const cost = choiceCost(state, c);
+  if (cost > 0) spend(player, 'events', cost, state.date);
+  else if (cost < 0) earn(player, 'events', -cost, state.date);
+  const { title } = cardText(state, inst, defs);
   for (const e of c.effects) {
     const scope = e.scope === 'national' ? 'national' : inst.cityId;
     if (scope === null) continue;
@@ -166,32 +193,33 @@ export function resolveCard(ctx: SimContext, uid: number, choice: number): Resul
   c.apply?.(ctx, inst.cityId);
   cards.pending.splice(cards.pending.indexOf(inst), 1);
   cards.history.push({ id: card.id, year: state.date.year });
+  if (cards.history.length > HISTORY_CAP) cards.history.splice(0, cards.history.length - HISTORY_CAP);
   publishNews(ctx, 'politics', title.toUpperCase(), `${player.name} chose: ${c.label}.`);
   return ok();
 }
 
 /** Resolves every card pending AUTO_RESOLVE_DAYS or more: default choice, else the first affordable one. */
-export function cardsDay(ctx: SimContext): void {
+export function cardsDay(ctx: SimContext, defs: CardTable = CARDS_BY_ID): void {
   const { state } = ctx;
   const cards = state.politics.cards;
   // registries are append-only, but a save could still name a card this build does not know
   // (in place: the controller holds the array to notice new cards)
-  for (let i = cards.pending.length - 1; i >= 0; i--) if (!CARDS_BY_ID[cards.pending[i].cardId]) cards.pending.splice(i, 1);
+  for (let i = cards.pending.length - 1; i >= 0; i--) if (!defs[cards.pending[i].cardId]) cards.pending.splice(i, 1);
   const today = dateToDays(state.date);
   for (const inst of [...cards.pending]) {
-    if (today - inst.openedDay >= AUTO_RESOLVE_DAYS) autoResolve(ctx, inst.uid);
+    if (today - inst.openedDay >= AUTO_RESOLVE_DAYS) autoResolve(ctx, inst.uid, defs);
   }
 }
 
 /** Answers pending card `uid` as a headless run would: its default choice, else the first affordable one. */
-export function autoResolve(ctx: SimContext, uid: number): Result {
+export function autoResolve(ctx: SimContext, uid: number, defs: CardTable = CARDS_BY_ID): Result {
   const { state } = ctx;
   const inst = state.politics.cards.pending.find((p) => p.uid === uid);
-  const card = inst && CARDS_BY_ID[inst.cardId];
+  const card = inst && defs[inst.cardId];
   if (!card) return err('No such card');
   const def = card.choices[card.defaultChoice];
   const choice = def && canAffordChoice(state, def) ? card.defaultChoice : card.choices.findIndex((c) => canAffordChoice(state, c));
-  return resolveCard(ctx, uid, choice);
+  return resolveCard(ctx, uid, choice, defs);
 }
 
 /** Opens card `cardId` now, whatever its trigger, era or cooldown (dev and tests); false if unknown or no town for a city card. */

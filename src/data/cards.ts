@@ -20,7 +20,12 @@ export interface CardEffect {
 
 export interface CardChoice {
   label: string;
-  /** money spent (positive) or received (negative), booked under 'events' */
+  /**
+   * Money spent (positive) or received (negative), booked under 'events', in 1900 dollars for a
+   * starting $300,000 company. The engine scales it at display and resolve time (ruling R-Q8,
+   * `cardScale`/`choiceCost` in sim/politics/cards.ts: x3 in 1950, x10 at $3M net worth, at most
+   * x40) and rounds to $100, so author every cost in those base units.
+   */
   cost: number;
   effects: CardEffect[];
   /** extra consequences beyond the effects; describe them in `note` */
@@ -31,6 +36,7 @@ export interface CardChoice {
 
 export type CardTrigger = 'spring' | 'election' | 'scandal' | 'strike' | 'disaster' | 'invention' | 'crash';
 
+/** All money in a card's choices is authored in 1900 dollars for a starting $300,000 company (see CardChoice.cost). */
 export interface CardDef {
   id: string;
   title: string;

@@ -8,7 +8,8 @@ import { runDays } from '../simulation';
 import { createGame } from '../state';
 import { testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
-import { AUTO_RESOLVE_DAYS, autoResolve, cardCity, cardsDay, cardText, drawSpringCard, eligibleCards, forceCard, resolveCard, triggerCard } from './cards';
+import { AUTO_RESOLVE_DAYS, autoResolve, canAffordChoice, cardCity, cardScale, cardsDay, cardText, choiceCost, drawSpringCard, eligibleCards, forceCard, HISTORY_CAP, resolveCard, triggerCard } from './cards';
+import { netWorth } from '../rival/takeover';
 import { holdElection } from './elections';
 
 const town = (year = 1905, seed = 3) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
@@ -149,9 +150,11 @@ describe('resolveCard', () => {
     open(ctx, 'founders_parade', 1);
     const m = money(ctx);
     const w = ctx.state.cities[1].opinion.workers;
+    const cost = choiceCost(ctx.state, CARDS_BY_ID.founders_parade.choices[0]);
+    expect(cost).toBe(3700); // 3000 x 1.24 (1906), rounded to $100
     const r = resolveCard(ctx, 500, 0);
     expect(r.ok).toBe(true);
-    expect(money(ctx)).toBe(m - 3000);
+    expect(money(ctx)).toBe(m - 3700);
     expect(ctx.state.cities[1].opinion.workers).toBe(w + 4);
     expect(ctx.state.cities[0].opinion.workers).toBe(50);
     expect(pending(ctx)).toEqual([]);
@@ -160,7 +163,7 @@ describe('resolveCard', () => {
     expect(news.kind).toBe('politics');
     expect(news.body).toContain('Sponsor a float');
     const ledger = ctx.state.companies[PLAYER_ID].ledger.at(-1)!;
-    expect(ledger.expense.events).toBe(3000);
+    expect(ledger.expense.events).toBe(3700);
   });
 
   it('earns a negative cost under events', () => {
@@ -168,8 +171,8 @@ describe('resolveCard', () => {
     open(ctx, 'founders_parade', 0);
     const m = money(ctx);
     expect(resolveCard(ctx, 500, 1).ok).toBe(true);
-    expect(money(ctx)).toBe(m + 2000);
-    expect(ctx.state.companies[PLAYER_ID].ledger.at(-1)!.income.events).toBe(2000);
+    expect(money(ctx)).toBe(m + 2400); // -2000 x 1.2 (1905)
+    expect(ctx.state.companies[PLAYER_ID].ledger.at(-1)!.income.events).toBe(2400);
   });
 
   it('applies national effects to every town and runs apply', () => {
@@ -215,24 +218,26 @@ describe('cardsDay', () => {
     expect(AUTO_RESOLVE_DAYS).toBe(60);
     cardsDay(ctx);
     expect(pending(ctx)).toEqual([]);
-    expect(money(ctx)).toBe(m + 8000); // default 0: sell steel
+    expect(money(ctx)).toBe(m + 9900); // default 0: sell steel, 8000 x 1.24
   });
 
   it('falls back to the first affordable choice when the default is unaffordable', () => {
     const ctx = town();
-    const def = CARDS_BY_ID.letter_to_editor;
-    const was = def.defaultChoice;
-    (def as { defaultChoice: number }).defaultChoice = 0; // $5,000
-    try {
-      ctx.state.companies[PLAYER_ID].money = 100;
-      pending(ctx).push({ uid: 7, cardId: 'letter_to_editor', cityId: null, openedDay: dateToDays(ctx.state.date) - 60 });
-      cardsDay(ctx);
-      expect(pending(ctx)).toEqual([]);
-      expect(money(ctx)).toBe(100);
-      expect(ctx.state.cities[0].opinion.reformers).toBe(48);
-    } finally {
-      (def as { defaultChoice: number }).defaultChoice = was;
-    }
+    const dear = card({
+      id: 'dear',
+      choices: [
+        { label: 'pay', cost: 5000, effects: [{ faction: 'church', scope: 'national', delta: 5 }] },
+        { label: 'refuse', cost: 0, effects: [{ faction: 'reformers', scope: 'national', delta: -2 }] },
+      ],
+      defaultChoice: 0,
+    });
+    ctx.state.companies[PLAYER_ID].money = 100;
+    pending(ctx).push({ uid: 7, cardId: 'dear', cityId: null, openedDay: dateToDays(ctx.state.date) - 60 });
+    cardsDay(ctx, { dear });
+    expect(pending(ctx)).toEqual([]);
+    expect(money(ctx)).toBe(100);
+    expect(ctx.state.cities[0].opinion.reformers).toBe(48);
+    expect(ctx.state.cities[0].opinion.church).toBe(50);
   });
 
   it('drops pending cards whose definition no longer exists', () => {
@@ -252,8 +257,64 @@ describe('forceCard and autoResolve', () => {
     const inst = pending(ctx)[0];
     const m = money(ctx);
     expect(autoResolve(ctx, inst.uid).ok).toBe(true);
-    expect(money(ctx)).toBe(m + 8000);
+    expect(money(ctx)).toBe(m + 8000 * 3); // 1950: era scale 3
     expect(autoResolve(ctx, inst.uid).ok).toBe(false);
+  });
+});
+
+describe('card money scaling (R-Q8)', () => {
+  const steel = CARDS_BY_ID.war_office.choices[0]; // -8000
+  const bonds = CARDS_BY_ID.war_office.choices[1]; // 5000
+
+  it('is 1 in 1900 for a starting $300k company', () => {
+    const ctx = town(1900);
+    expect(netWorth(ctx.state, PLAYER_ID)).toBe(300_000);
+    expect(cardScale(ctx.state)).toBe(1);
+    expect(choiceCost(ctx.state, bonds)).toBe(5000);
+    expect(choiceCost(ctx.state, steel)).toBe(-8000);
+  });
+
+  it('follows the era: 3 in 1950', () => {
+    const ctx = town(1950);
+    expect(cardScale(ctx.state)).toBe(3);
+    expect(choiceCost(ctx.state, bonds)).toBe(15000);
+  });
+
+  it('follows wealth: 10 at $3M net worth', () => {
+    const ctx = town(1900);
+    ctx.state.companies[PLAYER_ID].money = 3_000_000;
+    expect(cardScale(ctx.state)).toBe(10);
+    expect(choiceCost(ctx.state, bonds)).toBe(50000);
+  });
+
+  it('is capped at 40', () => {
+    const ctx = town(1900);
+    ctx.state.companies[PLAYER_ID].money = 1e9;
+    expect(cardScale(ctx.state)).toBe(40);
+    at(ctx, 2000, 4);
+    ctx.state.companies[PLAYER_ID].money = 0;
+    expect(cardScale(ctx.state)).toBe(5);
+  });
+
+  it('affordability uses the scaled cost', () => {
+    const ctx = town(1950);
+    ctx.state.companies[PLAYER_ID].money = 10_000; // affords 5000 but not 15000
+    expect(canAffordChoice(ctx.state, bonds)).toBe(false);
+    pending(ctx).push({ uid: 3, cardId: 'war_office', cityId: null, openedDay: 0 });
+    expect(resolveCard(ctx, 3, 1)).toEqual({ ok: false, error: 'Not enough money' });
+  });
+});
+
+describe('history cap', () => {
+  it(`keeps the newest ${HISTORY_CAP} entries`, () => {
+    const ctx = town();
+    const h = ctx.state.politics.cards.history;
+    for (let i = 0; i < HISTORY_CAP; i++) h.push({ id: `old${i}`, year: 1901 });
+    pending(ctx).push({ uid: 4, cardId: 'letter_to_editor', cityId: null, openedDay: 0 });
+    expect(resolveCard(ctx, 4, 1).ok).toBe(true);
+    expect(h.length).toBe(HISTORY_CAP);
+    expect(h[0].id).toBe('old1');
+    expect(h.at(-1)).toEqual({ id: 'letter_to_editor', year: 1905 });
   });
 });
 
@@ -298,5 +359,4 @@ it('the seed table exercises every engine feature', () => {
   expect(CARDS.some((c) => c.trigger === 'scandal')).toBe(true);
   expect(choices.some((c) => c.apply)).toBe(true);
   expect(choices.some((c) => c.cost < 0)).toBe(true);
-  expect(card({}).id).toBe('x');
 });
