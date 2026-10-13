@@ -8,7 +8,7 @@ import { lifecycleFactor, monthlyDemand } from '../market';
 import { factionWeights, voteShares } from '../politics/elections';
 import { testState } from '../testkit';
 import type { City, SimContext } from '../types';
-import { CLASS_MAX, CLASS_MIN, INITIAL_CLASSES, classDemandFactor, classesMonth, newCityClasses, stepClasses } from './classes';
+import { CLASS_CLAMPS, INITIAL_CLASSES, classDemandFactor, classesMonth, newCityClasses, stepClasses } from './classes';
 
 function ctxWith(cities = 1): SimContext {
   const state = testState({ cities: Array.from({ length: cities }, (_, i) => ({ x: 6 + i * 12, y: 10 })) });
@@ -37,8 +37,8 @@ describe('social classes', () => {
         c = stepClasses(c, e.sat, e.smog, e.year);
         expect(Math.abs(sum(c) - 1)).toBeLessThan(1e-9);
         for (const k of ['working', 'middle', 'upper'] as const) {
-          expect(c[k]).toBeGreaterThanOrEqual(CLASS_MIN - 1e-12);
-          expect(c[k]).toBeLessThanOrEqual(CLASS_MAX + 1e-12);
+          expect(c[k]).toBeGreaterThanOrEqual(CLASS_CLAMPS[k][0] - 1e-12);
+          expect(c[k]).toBeLessThanOrEqual(CLASS_CLAMPS[k][1] + 1e-12);
         }
       }
     }
@@ -46,11 +46,44 @@ describe('social classes', () => {
 
   it('applies the brief deltas for one month', () => {
     const c = stepClasses(newCityClasses(), 0.5, 0, 1900);
-    expect(c.middle).toBeCloseTo(0.2 + 0.0004 * 1.5, 12);
-    expect(c.upper).toBeCloseTo(0.05 + 0.0001 * 0.5, 12);
+    expect(c.middle).toBeCloseTo(0.2 + 0.00015 * 1.5, 12);
+    expect(c.upper).toBeCloseTo(0.05 + 0.00012 * 0.5, 12);
     expect(c.working).toBeCloseTo(1 - c.middle - c.upper, 12);
-    // the post-war boom adds 0.0002 to the middle class
-    expect(stepClasses(newCityClasses(), 0.5, 0, 1946).middle - c.middle).toBeCloseTo(0.0002, 12);
+    // the post-war boom adds 0.0001 to the middle class from 1945
+    expect(stepClasses(newCityClasses(), 0.5, 0, 1944).middle).toBe(c.middle);
+    expect(stepClasses(newCityClasses(), 0.5, 0, 1945).middle - c.middle).toBeCloseTo(0.0001, 12);
+    // smog flight: −0.00025 × the 0..1 smog figure
+    expect(stepClasses(newCityClasses(), 0, 0.4, 1900).upper).toBeCloseTo(0.05 - 0.00025 * 0.4, 12);
+  });
+
+  it('pins working at its clamps by moving the middle class first, then the upper (R-S9 clamps)', () => {
+    expect(CLASS_CLAMPS).toEqual({ working: [0.2, 0.85], middle: [0.1, 0.6], upper: [0.03, 0.3] });
+    const low = stepClasses({ working: 0.2, middle: 0.6, upper: 0.2 }, 1, 0, 1990);
+    expect(low.working).toBeCloseTo(0.2, 12);
+    expect(low.middle).toBeCloseTo(0.6 - 0.00012, 12);
+    expect(low.upper).toBeCloseTo(0.20012, 12);
+    const high = stepClasses({ working: 0.85, middle: 0.1, upper: 0.05 }, 0, 1, 1900);
+    expect(high.working).toBeCloseTo(0.85, 12);
+    expect(high.upper).toBeCloseTo(0.04975, 12);
+    expect(high.middle).toBeCloseTo(0.10025, 12);
+  });
+
+  it('R-S9 calibration: a clean prosperous town (sat 0.6) reaches upper 0.12–0.15 by 2000; a smoggy one keeps upper near 0.05', () => {
+    let clean = newCityClasses();
+    let smoggy = newCityClasses();
+    for (let y = 1900; y < 2000; y++) {
+      for (let m = 0; m < 12; m++) {
+        clean = stepClasses(clean, 0.6, 0, y);
+        smoggy = stepClasses(smoggy, 0.6, 0.35, y);
+      }
+    }
+    // the R-S9 rates give middle 0.2 + 1200 × 0.00024 + 660 × 0.0001 = 0.554 (the ruling's ~0.40
+    // target would need lower rates); upper 0.05 + 1200 × 0.000072 = 0.1364
+    expect(clean.middle).toBeCloseTo(0.554, 6);
+    expect(clean.upper).toBeCloseTo(0.1364, 6);
+    expect(clean.working).toBeCloseTo(0.3096, 6);
+    expect(smoggy.upper).toBeGreaterThan(0.03);
+    expect(smoggy.upper).toBeLessThan(0.07);
   });
 
   it('pollution lowers the upper share (the rich flee smog)', () => {
@@ -71,7 +104,7 @@ describe('social classes', () => {
     const ctx = ctxWith();
     ctx.state.cities[0].classes = { working: 0.7, middle: 0.2, upper: 0.05 };
     expect(checkInvariants(ctx.state).some((m) => m.includes('classes'))).toBe(true);
-    ctx.state.cities[0].classes = { working: 0.92, middle: 0.04, upper: 0.04 };
+    ctx.state.cities[0].classes = { working: 0.9, middle: 0.07, upper: 0.03 };
     expect(checkInvariants(ctx.state).some((m) => m.includes('classes'))).toBe(true);
   });
 });

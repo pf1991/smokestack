@@ -1030,8 +1030,8 @@ export const HOUSE_TIER_HEIGHT: Record<HouseTier, number> = { house: 6, terrace:
 export const HOUSE_HEADROOM = HOUSE_TIER_HEIGHT.tower - 6 + 2;
 /** Fraction of the urban radius that counts as the city core. */
 export const CORE_FRAC = 0.35;
-/** Villas appear once a town's upper class exceeds this share; semis once its middle class exceeds SEMI_MIDDLE. */
-export const VILLA_UPPER = 0.15;
+/** Villas appear once a town's upper class exceeds this share (ruling R-S9; plan 0.15); semis once its middle class exceeds SEMI_MIDDLE. */
+export const VILLA_UPPER = 0.1;
 export const SEMI_MIDDLE = 0.35;
 /** Share of eligible tiles given to villas per unit of upper share, and the cap on the semis' share. */
 export const VILLA_PER_UPPER = 2;
