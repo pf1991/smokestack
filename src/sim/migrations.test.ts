@@ -6,10 +6,12 @@ import { urbanRadius } from './market';
 import { migrateSave, runAfterLoad, SAVE_VERSION, type Migration } from './migrations';
 import { runDays } from './simulation';
 import { testCtx, testState } from './testkit';
+import { defaultWeather } from './weather';
 
 const fixtures = import.meta.glob('./__fixtures__/phase*.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const phase0 = fixtures['./__fixtures__/phase0.save.json'];
 const phase1 = fixtures['./__fixtures__/phase1.save.json'];
+const phase2 = fixtures['./__fixtures__/phase2.save.json'];
 
 describe('migrateSave', () => {
   it('rejects a SMOKESTACK I save', () => {
@@ -117,14 +119,11 @@ describe('v3 -> v4: landmarks', () => {
 });
 
 describe('v4 -> v5: politics', () => {
-  it('is the current version', () => {
-    expect(SAVE_VERSION).toBe(5);
-  });
   it('gives every city the default opinion and the save default politics', () => {
     const o: Record<string, unknown> = { version: 4, date: { year: 1900, month: 4 }, cities: [{ id: 0 }, { id: 1 }] };
     const r = migrateSave(o);
     expect(r.ok).toBe(true);
-    expect(o.version).toBe(5);
+    expect(o.version).toBe(SAVE_VERSION);
     for (const c of o.cities as { opinion: unknown }[]) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
     const cs = o.cities as { politics: { mayor: { name: string; faction: string }; council: string; nextElection: number; edicts: unknown[] } }[];
     for (const c of cs) {
@@ -139,13 +138,13 @@ describe('v4 -> v5: politics', () => {
     for (const b of Object.values(o.buildings as Record<string, { staffing: unknown }>)) expect(b.staffing).toBe(1);
   });
   for (const [name, raw] of [['phase0', phase0], ['phase1', phase1]] as const) {
-    it(`${name}.save.json migrates to v5 with every city at 50 (Baron 35) and holds invariants`, () => {
+    it(`${name}.save.json migrates to the current version with every city at 50 (Baron 35) and holds invariants`, () => {
       expect(raw).toBeDefined();
       const r = unpackState(raw);
       expect(r.ok).toBe(true);
       if (!r.ok) return;
       const s = r.value;
-      expect(s.version).toBe(5);
+      expect(s.version).toBe(SAVE_VERSION);
       expect(s.cities.length).toBeGreaterThan(0);
       for (const c of s.cities) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
       expect(s.politics.edicts).toEqual({ wage: 'fair', safety: 'standard', union: 'tolerate' });
@@ -162,4 +161,29 @@ describe('v4 -> v5: politics', () => {
       expect(checkInvariants(ctx.state)).toEqual([]);
     });
   }
+});
+
+describe('v5 -> v6: smog and society', () => {
+  it('is the current version', () => {
+    expect(SAVE_VERSION).toBe(6);
+  });
+  it('gives a raw v5 save the prevailing weather of its month', () => {
+    const o: Record<string, unknown> = { version: 5, date: { year: 1930, month: 1 }, cities: [] };
+    expect(migrateSave(o).ok).toBe(true);
+    expect(o.version).toBe(6);
+    expect(o.weather).toEqual(defaultWeather(1));
+  });
+  it('phase2.save.json migrates to v6 with a default weather and holds invariants', () => {
+    expect(phase2).toBeDefined();
+    const raw = JSON.parse(phase2) as { version: number; date: { month: number } };
+    expect(raw.version).toBe(5);
+    const r = unpackState(phase2);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.value.version).toBe(6);
+    expect(r.value.weather).toEqual(defaultWeather(raw.date.month));
+    expect(checkInvariants(r.value)).toEqual([]);
+    const ctx = testCtx(r.value);
+    runDays(ctx, 31);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
 });

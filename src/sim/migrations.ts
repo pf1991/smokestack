@@ -4,6 +4,7 @@ import { defaultOpinion } from '../data/factions';
 import { monthIndex, newCityPolitics } from './politics/elections';
 import { chooseMayorEdicts } from './politics/mayorEdicts';
 import { defaultPolitics } from './politics/types';
+import { defaultWeather } from './weather';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -72,6 +73,16 @@ export const MIGRATIONS: Migration[] = [
         if (typeof buildings !== 'object' || buildings === null) throw new Error('bad buildings');
         for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) b.staffing = 1;
       }
+    },
+  },
+  {
+    // v6: Phase 3 smog and society. Weather starts calm and dry, blowing the month's prevailing wind.
+    // Later Phase 3 tasks extend this entry until the phase merges.
+    from: 5,
+    migrate(o) {
+      const date = o.date as { month?: unknown } | undefined;
+      if (typeof date?.month !== 'number') throw new Error('bad date');
+      o.weather = defaultWeather(date.month);
     },
   },
 ];

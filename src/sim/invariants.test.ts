@@ -16,6 +16,26 @@ describe('checkInvariants', () => {
     expect(msgs[0]).toContain('player');
   });
 
+  it('flags tile pollution that is non-finite or outside [0, cap]', () => {
+    for (const bad of [NaN, Infinity, -0.5, 100.5]) {
+      const state = createGame({ seed: 7 });
+      state.map.tiles[123].pollution = bad;
+      const msgs = checkInvariants(state);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toContain('pollution');
+    }
+  });
+
+  it('flags wind components outside [-1, 1]', () => {
+    for (const [windX, windY] of [[1.2, 0], [0, -1.01], [NaN, 0]]) {
+      const state = createGame({ seed: 7 });
+      state.weather = { ...state.weather, windX, windY };
+      const msgs = checkInvariants(state);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toContain('wind');
+    }
+  });
+
   it('flags a vehicle on a missing route', () => {
     const state = createGame({ seed: 7 });
     const v: Vehicle = {

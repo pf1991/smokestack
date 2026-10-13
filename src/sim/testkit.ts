@@ -4,6 +4,7 @@ import { START_DATE } from './clock';
 import { SAVE_VERSION } from './version';
 import { defaultOpinion } from '../data/factions';
 import { defaultPolitics } from './politics/types';
+import { defaultWeather } from './weather';
 import { monthIndex, newCityPolitics } from './politics/elections';
 import { createCompany, STARTING_MONEY } from './finance';
 import { urbanRadius } from './market';
@@ -100,6 +101,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     flags: {},
     layers: {},
     politics: defaultPolitics(),
+    weather: defaultWeather(START_DATE.month),
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

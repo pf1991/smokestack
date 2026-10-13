@@ -223,6 +223,16 @@ export interface RivalRailProject {
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
 
+/** Today's weather (sim/weather.ts). Wind (+x east, +y south) carries smog; rain washes it out. */
+export interface Weather {
+  /** each in [-1, 1] */
+  windX: number;
+  windY: number;
+  rain: boolean;
+  /** consecutive rain days up to today (0 on a dry day) */
+  rainDays: number;
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -251,6 +261,8 @@ export interface GameState {
   layers: Record<string, number[]>;
   /** Phase 2 politics (sim/politics); added to old saves by the v5 migration */
   politics: PoliticsState;
+  /** Phase 3 weather (sim/weather.ts); added to old saves by the v6 migration */
+  weather: Weather;
 }
 
 export interface SimContext {

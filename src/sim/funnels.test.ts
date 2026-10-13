@@ -48,8 +48,17 @@ describe('single-writer funnels', () => {
     for (const w of ['t.road = false;', 't.buildingId = null;', 'if (t.buildingId === id)', 't.rail == true']) expect(re.test(w), w).toBe(false);
     expect(writers(re)).toEqual(['rail.ts', 'state.ts']);
   });
-  it('pollution is written only in pollution.ts', () => {
-    expect(writers(/\.pollution\s*[-+*/]?=(?!=)/)).toEqual(['pollution.ts']);
+  it('pollution is written only in pollution.ts (smogDay and the city figures)', () => {
+    const re = /\.pollution\s*[-+*/]?=(?!=)/;
+    for (const w of ['tiles[i].pollution += amount;', 't.pollution = p;', 'c.pollution=0']) expect(re.test(w), w).toBe(true);
+    for (const w of ['t.pollution === 0', 'const p = t.pollution;', 'if (t.pollution !== 0)']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['pollution.ts']);
+  });
+  it('weather is written only by weather.ts (and the v6 migration that adds it)', () => {
+    const re = /\.(?:weather|windX|windY|rain|rainDays)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
+    for (const w of ['w.windX = 1;', 'state.weather = x', 'o.weather = defaultWeather(1);', 'w.rainDays++']) expect(re.test(w), w).toBe(true);
+    for (const w of ['if (weather.rain)', 'w.rain === true', 'const wx = weather.windX;']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['migrations.ts', 'weather.ts']);
   });
   it('faction opinion is written only by politics/factions.ts', () => {
     // element/field writes (`.opinion[f] = `, `+=`, `++`, `.opinion.workers = `), `Object.assign(x.opinion, …)`,

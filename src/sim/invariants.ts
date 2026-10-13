@@ -1,6 +1,7 @@
 import { FACTION_IDS } from '../data/factions';
 import { companyIds } from './companies';
 import { POP_CAP } from './market';
+import { POLLUTION_CAP } from './pollution';
 import { footprint } from './state';
 import type { GameState } from './types';
 
@@ -45,6 +46,18 @@ export function checkInvariants(state: GameState): string[] {
       const tile = map.tiles[t.y * map.width + t.x];
       if (tile.buildingId !== b.id) out.push(`building ${b.id}: tile (${t.x},${t.y}) has buildingId ${tile.buildingId}`);
     }
+  }
+
+  for (let i = 0; i < map.tiles.length; i++) {
+    const p = map.tiles[i].pollution;
+    if (!Number.isFinite(p) || p < 0 || p > POLLUTION_CAP) {
+      out.push(`tile (${i % map.width},${Math.floor(i / map.width)}): pollution ${p} outside [0, ${POLLUTION_CAP}]`);
+    }
+  }
+
+  const w = state.weather;
+  for (const [k, v] of [['windX', w?.windX], ['windY', w?.windY]] as const) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < -1 || v > 1) out.push(`weather: wind ${k} ${v} outside [-1, 1]`);
   }
 
   const n = map.width * map.height;

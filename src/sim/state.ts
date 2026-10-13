@@ -8,6 +8,8 @@ import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
 import { SAVE_VERSION } from './version';
 import { defaultPolitics } from './politics/types';
+import { defaultWeather } from './weather';
+import { terrainChanged } from './terrainEpoch';
 import { monthIndex, newCityPolitics } from './politics/elections';
 import { housingFactory } from './politics/workforce';
 import { chooseMayorEdicts, placementQuote } from './politics/mayorEdicts';
@@ -155,6 +157,7 @@ export function layCityStreets(map: GameMap, city: City, landmarks?: readonly nu
   const r = urbanRadius(city.population);
   const { x: cx, y: cy } = city.center;
   const added: Vec2[] = [];
+  let cleared = false;
   for (let y = cy - r; y <= cy + r; y++) {
     for (let x = cx - r; x <= cx + r; x++) {
       const t = tileOf(map, x, y);
@@ -165,7 +168,10 @@ export function layCityStreets(map: GameMap, city: City, landmarks?: readonly nu
       // where discs overlap the nearer city owns the land (refreshUrbanTiles): one grid, not two
       if (t.cityId !== null && t.cityId !== city.id) continue;
       // settled land: towns clear their forest and hills so stores (grass/sand) fit
-      if (t.terrain === 'forest' || t.terrain === 'hills') t.terrain = 'grass';
+      if (t.terrain === 'forest' || t.terrain === 'hills') {
+        t.terrain = 'grass';
+        cleared = true;
+      }
       if ((x - cx) % 3 !== 0 && (y - cy) % 3 !== 0) continue;
       if (t.road) continue;
       t.road = true;
@@ -173,6 +179,7 @@ export function layCityStreets(map: GameMap, city: City, landmarks?: readonly nu
     }
   }
   if (added.length > 0) invalidatePaths(map);
+  if (cleared) terrainChanged(map);
   return added;
 }
 
@@ -291,6 +298,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     flags: {},
     layers: {},
     politics: defaultPolitics(),
+    weather: defaultWeather(START_DATE.month),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {

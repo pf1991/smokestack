@@ -233,7 +233,7 @@ describe('saves', () => {
     };
     const corrupted = { ok: false, error: 'Save file is corrupted' };
     const incomplete = { ok: false, error: 'Save file is incomplete' };
-    expect(SAVE_VERSION).toBe(5);
+    expect(SAVE_VERSION).toBe(6);
     expect(deserialize('{')).toEqual(corrupted);
     expect(deserialize('')).toEqual(corrupted);
     expect(deserialize('null')).toEqual(corrupted);
@@ -254,6 +254,7 @@ describe('saves', () => {
     expect(deserialize(variant((o) => (o.routes = [])))).toEqual(incomplete);
     expect(deserialize(variant((o) => (o.cities = {})))).toEqual(incomplete);
     expect(deserialize(variant((o) => delete o.politics))).toEqual(incomplete);
+    expect(deserialize(variant((o) => delete o.weather))).toEqual(incomplete);
     expect(deserialize(variant(() => undefined)).ok).toBe(true);
   });
 });
