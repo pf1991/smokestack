@@ -4,6 +4,7 @@
  * paper-friendly night grade, and the italic city names on the overlay canvas.
  */
 import { BUILDINGS } from '../../data/buildings';
+import { FACTIONS } from '../../data/factions';
 import type { LandmarkId } from '../../data/landmarks';
 import type { Building, City, GameState } from '../../sim/types';
 import { TILE, type Camera } from '../camera';
@@ -202,6 +203,9 @@ export interface ScreenRect {
 
 const overlaps = (a: ScreenRect, b: ScreenRect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+/** Extra label width for the mayor-faction dot. */
+const DOT_SPACE = 12;
+
 interface CityLabel {
   x: number;
   y: number;
@@ -210,6 +214,8 @@ interface CityLabel {
   size: number;
   /** measured text width, filled on first draw */
   width: number;
+  /** read live for the mayor-faction dot (the mayor changes at elections) */
+  city: City;
 }
 
 /**
@@ -238,6 +244,7 @@ export class CityLabelCache {
           font: cityLabelFont(c.population),
           size: cityLabelSize(c.population),
           width: -1,
+          city: c,
         }));
     }
     return this.labels;
@@ -269,15 +276,25 @@ export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: num
     const sy = (l.y - cam.y) * cam.zoom;
     if (sx < -200 || sy < -50 || sx > cam.viewW + 200 || sy > cam.viewH + 50) continue;
     g.font = l.font;
-    if (l.width < 0) l.width = g.measureText(l.text).width + 8;
+    if (l.width < 0) l.width = g.measureText(l.text).width + 8 + DOT_SPACE;
     const box = { x: sx - l.width / 2, y: sy - l.size * 0.7, w: l.width, h: l.size * 1.4 };
     if (avoid.some((a) => overlaps(a, box)) || placed.some((p) => overlaps(p, box))) continue;
     placed.push(box);
     g.strokeStyle = 'rgba(239,228,200,0.9)';
     g.lineWidth = Math.max(3, l.size * 0.28);
-    g.strokeText(l.text, sx, sy);
+    const tx = sx + DOT_SPACE / 2;
+    g.strokeText(l.text, tx, sy);
     g.fillStyle = '#2e2418';
-    g.fillText(l.text, sx, sy);
+    g.fillText(l.text, tx, sy);
+    // mayor-faction dot before the name
+    const dr = Math.max(3, l.size * 0.22);
+    g.beginPath();
+    g.arc(tx - (l.width - DOT_SPACE - 8) / 2 - dr - 2, sy, dr, 0, Math.PI * 2);
+    g.fillStyle = FACTIONS[l.city.politics.mayor.faction].color;
+    g.fill();
+    g.strokeStyle = '#2e2418';
+    g.lineWidth = 1;
+    g.stroke();
   }
   g.restore();
 }

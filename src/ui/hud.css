@@ -124,6 +124,7 @@
 
 .hud-speed.active,
 .hud-smog.active,
+.hud-factions.active,
 .tb-tab.active {
   color: var(--walnut);
   background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
@@ -308,4 +309,16 @@
   .hud-panels {
     margin-left: 0;
   }
+}
+
+.hud-faction-mode {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--paper);
+  background: #2f2016;
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+}
+.hud-faction-mode[hidden] {
+  display: none;
 }

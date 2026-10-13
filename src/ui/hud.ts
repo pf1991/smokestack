@@ -4,6 +4,7 @@ import { monthProfit } from '../sim/finance';
 export { eraName };
 import type { GameState, Speed } from '../sim/types';
 import { setOverlay } from '../render/overlays';
+import { factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
 import { h } from './dom';
 import { iconEl } from './icon';
 import { formatMoney } from './format';
@@ -93,6 +94,27 @@ export class Hud {
       },
     }, iconEl('smog', 16), ' Smog');
     panels.appendChild(smog);
+    const modeSel = h('select', {
+      class: 'hud-faction-mode',
+      title: 'What the faction map shows',
+      'aria-label': 'Faction map mode',
+      onChange: () => setFactionMode((modeSel as HTMLSelectElement).value as FactionMode),
+    }, ...factionModes(1900).map((m) => h('option', { value: m.value }, m.label)));
+    (modeSel as HTMLSelectElement).value = getFactionMode();
+    modeSel.hidden = true;
+    const factions = h('button', {
+      class: 'hud-panel-btn hud-factions',
+      title: 'Toggle faction map',
+      'aria-pressed': 'false',
+      onClick: () => {
+        const on = factions.getAttribute('aria-pressed') !== 'true';
+        factions.setAttribute('aria-pressed', String(on));
+        factions.classList.toggle('active', on);
+        modeSel.hidden = !on;
+        setOverlay('factions', on);
+      },
+    }, iconEl('city', 16), ' Factions');
+    panels.append(factions, modeSel);
     const photo = h('button', {
       class: 'hud-panel-btn hud-photo',
       title: 'Photo mode (P)',

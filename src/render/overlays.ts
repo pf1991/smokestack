@@ -1,6 +1,7 @@
 import type { GameState } from '../sim/types';
 import type { Camera } from './constants';
 import { pollutionOverlay } from './pollutionOverlay';
+import { factionOverlay } from './factionOverlay';
 
 /** A toggleable map overlay drawn by the WorldRenderer after the ghost, before atmosphere. */
 export interface Overlay {
@@ -13,7 +14,7 @@ export interface Overlay {
  * Overlay registry. Append-only: later tasks push their overlay here
  * (e.g. Task 24's pollution heat map). On merge conflicts keep both sides.
  */
-export const OVERLAYS: Overlay[] = [pollutionOverlay];
+export const OVERLAYS: Overlay[] = [pollutionOverlay, factionOverlay];
 
 /** Enables or disables the overlay with `id`; unknown ids are ignored. */
 export function setOverlay(id: string, enabled: boolean): void {
