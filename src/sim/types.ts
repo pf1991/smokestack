@@ -76,8 +76,8 @@ export interface BuildingStrike {
   since: number;
   /** the town the works hires from: the strike card's town */
   cityId: number;
-  /** true while its strike card is unanswered (the card's `apply` acts on it: `strikeTarget`) */
-  open: boolean;
+  /** uid of its pending strike card (the card's `apply` acts on this strike: `strikeTarget`); null when none is open */
+  cardUid: number | null;
 }
 
 export interface MarketEntry {

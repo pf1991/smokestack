@@ -123,7 +123,7 @@ describe('survey strike placard', () => {
     drawSurveySymbols(g, ctx.state, [b], r, new Map(), 0, 1);
     expect(rects).toHaveLength(0);
     const today = dateToDays(ctx.state.date);
-    b.strike = { until: today + 30, reason: 'Pay and hours', since: today, cityId: 0, open: false };
+    b.strike = { until: today + 30, reason: 'Pay and hours', since: today, cityId: 0, cardUid: null };
     drawSurveySymbols(g, ctx.state, [b], r, new Map(), 0, 1);
     // the placard: the board and its red stripe
     expect(rects).toHaveLength(2);

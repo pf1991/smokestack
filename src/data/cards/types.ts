@@ -8,6 +8,7 @@
  * card needs a choice with `cost <= 0`, so the player can always answer it, and `needsCity: true`
  * whenever any effect has `scope: 'city'` (the catalog test checks both).
  */
+import type { CardInstance } from '../../sim/politics/types';
 import type { GameState, SimContext } from '../../sim/types';
 import type { FactionId } from '../factions';
 
@@ -27,8 +28,11 @@ export interface CardChoice {
    */
   cost: number;
   effects: CardEffect[];
-  /** extra consequences beyond the effects; describe them in `note` */
-  apply?: (ctx: SimContext, cityId: number | null) => void;
+  /**
+   * extra consequences beyond the effects; describe them in `note`. `inst` is the card instance being
+   * answered (strike cards find their strike by its uid); absent only when a test calls it directly.
+   */
+  apply?: (ctx: SimContext, cityId: number | null, inst?: CardInstance) => void;
   /** extra effect text shown to the player */
   note?: string;
 }

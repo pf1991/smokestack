@@ -9,6 +9,7 @@ import type { Building, SimContext } from '../../sim/types';
 import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
 import { startStrike } from '../../sim/society/strikes';
+import { staffingText } from './building';
 import { addDays, formatDate } from '../../sim/clock';
 
 function host(ctx: SimContext) {
@@ -79,6 +80,8 @@ describe('building panel', () => {
     expect(document.querySelector('.insp-reason')!.textContent).toBe(`On strike until ${formatDate(addDays(ctx.state.date, 45))} — Pay and hours`);
     expect(text()).toContain('On strike');
     expect(document.querySelector('.insp-staff')!.textContent).toBe('Staff 100% — go-slow in Ashford (×0.9)');
+    b.staffing = 0.85;
+    expect(staffingText(ctx.state, b)).toBe('Staff 85% — short of hands in Ashford; go-slow (×0.9)');
   });
 
   it('hides the staffing row for stores and depots', () => {

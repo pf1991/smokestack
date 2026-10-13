@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus, type GameEvent } from '../../core/events';
+import { STRIKE_CARDS } from '../../data/cards/triggered';
 import { addDays, dateToDays } from '../clock';
 import { checkInvariants } from '../invariants';
 import { migrateSave } from '../migrations';
@@ -19,8 +20,6 @@ import {
   strikeTarget,
 } from './strikeState';
 import { startStrike, strikeChance, strikesMonth } from './strikes';
-// after the sim imports: data/cards/triggered.ts as the first import closes a (pre-existing) cycle
-import { STRIKE_CARDS } from '../../data/cards/triggered';
 
 /** A town at (20,20), pop 6000, with a second town far east at (80,20), in 1905 (cards run from 1901). */
 function towns(): SimContext {
@@ -217,8 +216,7 @@ describe('a strike', () => {
     const b = mill(ctx);
     startStrike(ctx, b, ctx.state.cities[0]);
     expect(ctx.state.politics.cards.pending).toHaveLength(0);
-    expect(b.strike!.open).toBe(false);
-    expect(strikeTarget(ctx.state, 0)).toBeNull();
+    expect(b.strike!.cardUid).toBeNull();
   });
 
   it('opens a strike card for the town, emits a strike event and prints the news', () => {
@@ -231,11 +229,12 @@ describe('a strike', () => {
     expect(pending.length).toBe(1);
     expect(STRIKE_CARDS.map((c) => c.id)).toContain(pending[0].cardId);
     expect(pending[0].cityId).toBe(0);
-    expect(b.strike!.open).toBe(true);
+    expect(b.strike!.cardUid).toBe(pending[0].uid);
     expect(b.strike!.reason.length).toBeGreaterThan(0);
     expect(events).toEqual([{ type: 'strike', buildingId: b.id, cityId: 0 }]);
     expect(ctx.state.news.at(-1)!.kind).toBe('protest');
-    expect(strikeTarget(ctx.state, 0)?.id).toBe(b.id);
+    expect(strikeTarget(ctx.state, pending[0].uid)?.id).toBe(b.id);
+    expect(checkInvariants(ctx.state)).toEqual([]);
   });
 
   it('the reason follows the company edicts', () => {
@@ -265,7 +264,7 @@ describe('strike cards', () => {
     const uid = nextId(ctx.state);
     ctx.state.politics.cards.pending.push({ uid, cardId, cityId: 0, openedDay: today(ctx) });
     b.strike!.until = today(ctx) + 60;
-    b.strike!.open = true;
+    b.strike!.cardUid = uid;
     return { ctx, b, city, uid };
   }
 
@@ -302,7 +301,7 @@ describe('strike cards', () => {
         expect(ctx.state.companies.player.money).toBe(money);
         expect(city.opinion.workers).toBe(20);
         expect(b.strike!.until).toBe(until);
-        expect(b.strike!.open).toBe(false);
+        expect(b.strike!.cardUid).toBeNull();
       });
 
       it('Break it: workers −12, oldmoney +4, ends in 7 days, scandal risk +0.1', () => {
@@ -312,6 +311,7 @@ describe('strike cards', () => {
         expect(city.opinion.workers).toBe(8);
         expect(city.opinion.oldmoney).toBe(54);
         expect(b.strike!.until).toBe(today(ctx) + 7);
+        expect(b.strike!.cardUid).toBeNull();
         expect(city.politics.scandalRisk).toBeCloseTo(risk + 0.1, 12);
       });
     });
@@ -325,17 +325,67 @@ describe('strike cards', () => {
     expect(b.strike!.until).toBe(today(ctx) + 3);
   });
 
-  it('the target is the town’s oldest strike whose card is still open', () => {
+  it('each card acts only on its own strike: Concede on the newer card ends only the newer strike', () => {
     const ctx = towns();
     const a = mill(ctx, { x: 29, y: 14 });
     const b = mill(ctx, { x: 29, y: 19 });
     startStrike(ctx, a, ctx.state.cities[0]);
     nextDay(ctx);
     startStrike(ctx, b, ctx.state.cities[0]);
-    expect(strikeTarget(ctx.state, 0)?.id).toBe(a.id);
-    a.strike!.open = false;
-    expect(strikeTarget(ctx.state, 0)?.id).toBe(b.id);
-    expect(strikeTarget(ctx.state, 1)).toBeNull();
+    const pending = ctx.state.politics.cards.pending;
+    expect(pending).toHaveLength(2);
+    const [older, newer] = pending;
+    expect(a.strike!.cardUid).toBe(older.uid);
+    expect(b.strike!.cardUid).toBe(newer.uid);
+    expect(strikeTarget(ctx.state, older.uid)?.id).toBe(a.id);
+    expect(strikeTarget(ctx.state, newer.uid)?.id).toBe(b.id);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+    const card = STRIKE_CARDS.find((c) => c.id === newer.cardId)!;
+    expect(resolveCard(ctx, newer.uid, card.choices.findIndex((c) => c.label.startsWith('Concede'))).ok).toBe(true);
+    expect(b.strike).toBeNull();
+    expect(a.strike).not.toBeNull();
+    expect(a.strike!.cardUid).toBe(older.uid);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+
+  it('a strike that ends on its own withdraws its unanswered card, with a news line', () => {
+    const ctx = towns();
+    const b = mill(ctx);
+    startStrike(ctx, b, ctx.state.cities[0]);
+    const uid = b.strike!.cardUid!;
+    b.strike!.until = today(ctx) + 2;
+    for (let i = 0; i < 3; i++) {
+      productionDay(ctx);
+      nextDay(ctx);
+    }
+    expect(b.strike).toBeNull();
+    expect(ctx.state.politics.cards.pending.some((p) => p.uid === uid)).toBe(false);
+    expect(ctx.state.news.at(-1)!.body).toBe('The strike at the Town 0 Sawmill ended on its own.');
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+
+  it('a strike whose card was answered ends quietly, leaving other pending cards alone', () => {
+    const ctx = towns();
+    const a = mill(ctx, { x: 29, y: 14 });
+    const b = mill(ctx, { x: 29, y: 19 });
+    startStrike(ctx, a, ctx.state.cities[0]);
+    startStrike(ctx, b, ctx.state.cities[0]);
+    const [first] = ctx.state.politics.cards.pending;
+    const card = STRIKE_CARDS.find((c) => c.id === first.cardId)!;
+    resolveCard(ctx, first.uid, card.defaultChoice);
+    a.strike!.until = today(ctx) + 1;
+    const news = ctx.state.news.length;
+    productionDay(ctx);
+    nextDay(ctx);
+    productionDay(ctx);
+    expect(a.strike).toBeNull();
+    expect(ctx.state.news.length).toBe(news);
+    expect(ctx.state.politics.cards.pending.map((p) => p.uid)).toEqual([b.strike!.cardUid]);
+  });
+
+  it('a card instance with no bound strike does nothing', () => {
+    expect(strikeTarget(towns().state, 12345)).toBeNull();
+    expect(strikeTarget(towns().state, null)).toBeNull();
   });
 });
 
@@ -355,6 +405,14 @@ describe('demolition mid-strike', () => {
 });
 
 describe('invariants', () => {
+  it('flag a strike bound to a card that is not pending', () => {
+    const ctx = towns();
+    const b = mill(ctx);
+    startStrike(ctx, b, ctx.state.cities[0]);
+    b.strike!.cardUid = 9999;
+    expect(checkInvariants(ctx.state).some((m) => m.includes('not pending'))).toBe(true);
+  });
+
   it('flag a strike longer than 120 days or with no reason', () => {
     const ctx = towns();
     const b = mill(ctx);

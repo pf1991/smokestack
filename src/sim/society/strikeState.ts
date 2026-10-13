@@ -4,9 +4,9 @@
  * code, so the card tables can use it without an import cycle.
  *
  * A strike lives on its building (`Building.strike`), so demolishing the building removes it with
- * nothing left behind. A strike card instance stores only its town, so the card's `apply` finds its
- * building with `strikeTarget`: the town's oldest strike whose card is still open (`open`), ties to
- * the lower building id.
+ * nothing left behind. Each strike is bound to the strike card it opened by the card's uid
+ * (`strike.cardUid`); the card's `apply` receives its instance and acts only on that strike
+ * (`strikeTarget`). A strike that ends on its own withdraws its card (strikes.ts `strikeOver`).
  */
 import { BUILDINGS } from '../../data/buildings';
 import { PLAYER_ID } from '../companies';
@@ -51,34 +51,29 @@ export function slowedBuildings(state: GameState): Set<number> {
   return out;
 }
 
-/** The building a strike card in town `cityId` acts on: the oldest strike there with its card open. */
-export function strikeTarget(state: GameState, cityId: number | null): Building | null {
-  if (cityId === null) return null;
-  let best: Building | null = null;
-  for (const b of Object.values(state.buildings)) {
-    const s = b.strike;
-    if (!s || !s.open || s.cityId !== cityId) continue;
-    if (!best || s.since < best.strike!.since || (s.since === best.strike!.since && b.id < best.id)) best = b;
-  }
-  return best;
+/** The building whose strike is bound to pending strike card `uid` (null: none, e.g. demolished or already over). */
+export function strikeTarget(state: GameState, uid: number | null | undefined): Building | null {
+  if (uid === null || uid === undefined) return null;
+  for (const b of Object.values(state.buildings)) if (b.strike && b.strike.cardUid === uid) return b;
+  return null;
 }
 
-/** Concede: the strike ends now. */
-export function concedeStrike(state: GameState, cityId: number | null): void {
-  const b = strikeTarget(state, cityId);
+/** Concede: the strike bound to card `uid` ends now. */
+export function concedeStrike(state: GameState, uid: number | null | undefined): void {
+  const b = strikeTarget(state, uid);
   if (b) b.strike = null;
 }
 
-/** Wait it out: the strike goes on; its card is answered. */
-export function waitOutStrike(state: GameState, cityId: number | null): void {
-  const b = strikeTarget(state, cityId);
-  if (b?.strike) b.strike.open = false;
+/** Wait it out: the strike bound to card `uid` goes on; its card is answered. */
+export function waitOutStrike(state: GameState, uid: number | null | undefined): void {
+  const b = strikeTarget(state, uid);
+  if (b?.strike) b.strike.cardUid = null;
 }
 
-/** Break it: the strike ends within `days` (never later than it would have). */
-export function breakStrike(state: GameState, cityId: number | null, today: number, days: number): void {
-  const b = strikeTarget(state, cityId);
+/** Break it: the strike bound to card `uid` ends within `days` (never later than it would have). */
+export function breakStrike(state: GameState, uid: number | null | undefined, today: number, days: number): void {
+  const b = strikeTarget(state, uid);
   if (!b?.strike) return;
   b.strike.until = Math.min(b.strike.until, today + days);
-  b.strike.open = false;
+  b.strike.cardUid = null;
 }

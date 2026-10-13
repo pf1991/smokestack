@@ -6,6 +6,7 @@ import { playerBuildingUpkeep, SMOG_LIMIT_FACTOR, smogLimited } from './politics
 import { growthPenalty, PROTEST_FACTOR } from './society/tiers';
 import { protestedBuildings } from './society/escalation';
 import { SLOWDOWN_FACTOR, slowedBuildings, strikeActive } from './society/strikeState';
+import { strikeOver } from './society/strikes';
 import { companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
@@ -64,13 +65,14 @@ export function productionDay(ctx: SimContext): void {
   const today = dateToDays(state.date);
   for (const b of Object.values(state.buildings)) {
     const def = BUILDINGS[b.typeId];
-    // a striking works produces nothing; the strike is cleared on the day it ends (society/strikes.ts)
+    // a striking works produces nothing; on the day it ends the strike is cleared and an unanswered
+    // strike card withdrawn (society/strikes.ts)
     if (b.strike) {
       if (strikeActive(b.strike, today)) {
         b.status = 'halted';
         continue;
       }
-      b.strike = null;
+      strikeOver(ctx, b);
     }
     if (b.haltedUntil) {
       if (compareDates(b.haltedUntil, state.date) > 0) {

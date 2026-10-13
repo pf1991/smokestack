@@ -10,8 +10,9 @@
  *   works in id order; a town's first strike ends its rolls for the month, so at most one new strike
  *   starts per town per month.
  * - A strike lasts randInt(30, 90) days (hard cap 120: `strikeEnd`). The works produces nothing and
- *   shows 'halted'. It opens a strike card for the town (data/cards/triggered.ts) whose choices
- *   concede, wait it out or break it (strikeState.ts).
+ *   shows 'halted'. It opens a strike card for the town (data/cards/triggered.ts), bound to the
+ *   strike by its uid, whose choices concede, wait it out or break it (strikeState.ts). A strike that
+ *   ends while its card is unanswered withdraws the card (`strikeOver`).
  *
  * Deterministic: only the state rng (`chance`, `randInt`).
  */
@@ -53,7 +54,7 @@ export function startStrike(ctx: SimContext, b: Building, city: City): void {
   const today = dateToDays(state.date);
   const days = randInt(state, STRIKE_MIN_DAYS, STRIKE_MAX_ROLL_DAYS);
   const reason = strikeReason(state, city);
-  b.strike = { until: today + days, reason, since: today, cityId: city.id, open: false };
+  b.strike = { until: today + days, reason, since: today, cityId: city.id, cardUid: null };
   b.status = 'halted';
   const name = BUILDINGS[b.typeId].name;
   publishNews(
@@ -66,8 +67,25 @@ export function startStrike(ctx: SimContext, b: Building, city: City): void {
   const pending = state.politics.cards.pending;
   const before = pending.length;
   triggerCard(ctx, 'strike', city.id);
-  // only a strike whose card opened is that card's target (both strike cards may already be open)
-  b.strike.open = pending.length > before;
+  // bind the card this strike opened (none when both strike cards are already open, or before 1901)
+  b.strike.cardUid = pending.length > before ? pending[pending.length - 1].uid : null;
+}
+
+/**
+ * A strike has run its course (called by productionDay on its end day): clears it and, when its card
+ * is still unanswered, withdraws that card with a news line, so the card never acts on another strike.
+ */
+export function strikeOver(ctx: SimContext, b: Building): void {
+  const s = b.strike;
+  b.strike = null;
+  if (!s || s.cardUid === null) return;
+  const pending = ctx.state.politics.cards.pending;
+  const i = pending.findIndex((p) => p.uid === s.cardUid);
+  if (i < 0) return;
+  pending.splice(i, 1);
+  const city = ctx.state.cities.find((c) => c.id === s.cityId);
+  const where = `${city ? `${city.name} ` : ''}${BUILDINGS[b.typeId].name}`;
+  publishNews(ctx, 'protest', `THE STRIKE AT THE ${where.toUpperCase()} IS OVER`, `The strike at the ${where} ended on its own.`);
 }
 
 /** Monthly: rolls strikes in towns below STRIKE_OPINION (towns, then works, in id order). */

@@ -40,14 +40,24 @@ export function checkInvariants(state: GameState): string[] {
     }
   }
 
+  /** strike card uid → the building whose strike it is bound to */
+  const strikeCards = new Map<number, number>();
   for (const b of Object.values(state.buildings)) {
     const s = b.staffing;
     if (typeof s !== 'number' || !Number.isFinite(s) || s < 0 || s > 1) out.push(`building ${b.id}: staffing ${s} outside [0, 1]`);
     const k = b.strike;
     if (k) {
       const ok = Number.isInteger(k.until) && Number.isInteger(k.since) && k.until > k.since && k.until - k.since <= STRIKE_MAX_DAYS
-        && typeof k.reason === 'string' && k.reason.length > 0 && typeof k.open === 'boolean' && state.cities.some((c) => c.id === k.cityId);
+        && typeof k.reason === 'string' && k.reason.length > 0 && state.cities.some((c) => c.id === k.cityId);
       if (!ok) out.push(`building ${b.id}: bad strike ${JSON.stringify(k)}`);
+      // a bound card is a pending card, and no other strike is bound to it
+      if (k.cardUid !== null && k.cardUid !== undefined) {
+        if (!Number.isInteger(k.cardUid) || !state.politics.cards.pending.some((p) => p.uid === k.cardUid)) {
+          out.push(`building ${b.id}: strike card ${k.cardUid} is not pending`);
+        }
+        if (strikeCards.has(k.cardUid)) out.push(`building ${b.id}: strike card ${k.cardUid} also bound to building ${strikeCards.get(k.cardUid)}`);
+        strikeCards.set(k.cardUid, b.id);
+      }
     }
     for (const t of footprint(b)) {
       if (t.x < 0 || t.y < 0 || t.x >= map.width || t.y >= map.height) {

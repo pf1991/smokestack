@@ -9,10 +9,11 @@ import type { FactionId } from '../factions';
 import type { LandmarkId } from '../landmarks';
 import { addDays, compareDates, dateToDays } from '../../sim/clock';
 import { PLAYER_ID } from '../../sim/companies';
-import { pushModifier } from '../../sim/events';
+import { pushModifier } from '../../sim/modifiers';
 import { NEAR_MARGIN } from '../../sim/politics/factions';
 import { buildingsNear } from '../../sim/spatial';
 import { breakStrike, concedeStrike, waitOutStrike } from '../../sim/society/strikeState';
+import type { CardInstance } from '../../sim/politics/types';
 import type { Building, GameState, GoodId, SimContext } from '../../sim/types';
 import { cityOf, type CardEffect } from './types';
 
@@ -66,14 +67,14 @@ export const BREAK_STRIKE_DAYS = 7;
 export const BREAK_STRIKE_RISK = 0.1;
 
 /**
- * The strike cards' three resolutions (sim/society/strikes.ts), acting on the town's oldest strike
- * with its card open (`strikeTarget`). Opinion goes in the choices' `effects`, not here.
+ * The strike cards' three resolutions (sim/society/strikes.ts), acting only on the strike bound to
+ * the card being answered (`inst.uid`, `strikeTarget`). Opinion goes in the choices' `effects`.
  */
 export const strikeResolution = {
-  concede: (ctx: SimContext, cityId: number | null) => concedeStrike(ctx.state, cityId),
-  wait: (ctx: SimContext, cityId: number | null) => waitOutStrike(ctx.state, cityId),
-  break: (ctx: SimContext, cityId: number | null) => {
-    breakStrike(ctx.state, cityId, dateToDays(ctx.state.date), BREAK_STRIKE_DAYS);
+  concede: (ctx: SimContext, _cityId: number | null, inst?: CardInstance) => concedeStrike(ctx.state, inst?.uid),
+  wait: (ctx: SimContext, _cityId: number | null, inst?: CardInstance) => waitOutStrike(ctx.state, inst?.uid),
+  break: (ctx: SimContext, cityId: number | null, inst?: CardInstance) => {
+    breakStrike(ctx.state, inst?.uid, dateToDays(ctx.state.date), BREAK_STRIKE_DAYS);
     scandalRisk(ctx, cityId, BREAK_STRIKE_RISK);
   },
 };

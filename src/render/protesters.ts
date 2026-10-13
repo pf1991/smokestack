@@ -11,8 +11,8 @@
  *
  * Strike pickets (Phase 3 Task 4) reuse the same marchers: 3–5 per striking works (fixed per
  * building), pacing at the works' southernmost access tile (and the next road tile along, when there
- * is one). Diorama only, per frame, drawn just after the buildings: a picket on a road behind its
- * works would otherwise vanish under the works' roof.
+ * is one). Diorama only, per frame, interleaved into the y-sorted building pass (`picketGroups`): a
+ * building whose bottom row lies south of the pickets covers them, any other is drawn under them.
  */
 import { BUILDINGS } from '../data/buildings';
 import { dateToDays } from '../sim/clock';
@@ -250,11 +250,32 @@ export function picketPath(state: GameState, b: Building): Vec2[] {
   return [a];
 }
 
-/** World-space draw of the pickets at every striking works among `buildings` (the visible ones). */
-export function drawPickets(g: Ctx, state: GameState, buildings: readonly Building[], nowMs: number): void {
+/** One striking works' pickets: where they pace, how many, and their depth for the y-sorted building pass. */
+export interface PicketGroup {
+  path: Vec2[];
+  count: number;
+  seed: number;
+  /** the row just below the pickets' lowest tile: they go behind buildings whose bottom row is lower */
+  depth: number;
+}
+
+/** Picket groups at every striking works among `buildings` (the visible ones), shallowest first. */
+export function picketGroups(state: GameState, buildings: readonly Building[]): PicketGroup[] {
   const today = dateToDays(state.date);
+  const out: PicketGroup[] = [];
   for (const b of buildings) {
     if (!b.strike || !strikeActive(b.strike, today)) continue;
-    drawMarchers(g, picketPath(state, b), picketCount(b), b.id, nowMs);
+    const path = picketPath(state, b);
+    out.push({ path, count: picketCount(b), seed: b.id, depth: Math.max(...path.map((p) => p.y)) + 1 });
   }
+  return out.sort((a, b) => a.depth - b.depth || a.seed - b.seed);
+}
+
+export function drawPicketGroup(g: Ctx, p: PicketGroup, nowMs: number): void {
+  drawMarchers(g, p.path, p.count, p.seed, nowMs);
+}
+
+/** World-space draw of the pickets at every striking works among `buildings`, in depth order. */
+export function drawPickets(g: Ctx, state: GameState, buildings: readonly Building[], nowMs: number): void {
+  for (const p of picketGroups(state, buildings)) drawPicketGroup(g, p, nowMs);
 }

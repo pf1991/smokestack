@@ -28,16 +28,20 @@ const STATUS_LABEL: Record<Building['status'], string> = {
 
 const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name}`];
 
-/** The inspector's staffing line: "Staff 100%", "Staff 85% — short of hands in Ashford", or "Staff 75% — remote works". */
+/**
+ * The inspector's staffing line: "Staff 100%", "Staff 85% — short of hands in Ashford", "Staff 75% — remote works",
+ * with a go-slow appended: "Staff 85% — short of hands in Ashford; go-slow (×0.9)" or "Staff 100% — go-slow in Ashford (×0.9)".
+ */
 export function staffingText(state: GameState, b: Building): string {
   // floored, so a building one hand short never reads "100%"
   const pct = `Staff ${Math.floor(b.staffing * 100 + 1e-9)}%`;
   const city = workCity(state, b);
   // a go-slow (society/strikeState.ts): the player's works hired from a town below 30 workers' opinion
-  const slow = isWorks(b) && city && city.opinion.workers < SLOWDOWN_OPINION ? ` — go-slow in ${city.name} (×${SLOWDOWN_FACTOR})` : '';
-  if (b.staffing >= 1) return pct + slow;
-  if (slow) return pct + slow;
-  return city ? `${pct} — short of hands in ${city.name}` : `${pct} — remote works`;
+  const slow = isWorks(b) && city !== null && city.opinion.workers < SLOWDOWN_OPINION;
+  const parts: string[] = [];
+  if (b.staffing < 1) parts.push(city ? `short of hands in ${city.name}` : 'remote works');
+  if (slow) parts.push(parts.length > 0 ? `go-slow (×${SLOWDOWN_FACTOR})` : `go-slow in ${city!.name} (×${SLOWDOWN_FACTOR})`);
+  return parts.length > 0 ? `${pct} — ${parts.join('; ')}` : pct;
 }
 
 /** Company housing's line: who it houses hands for, or a warning when its factory is gone (null for other buildings). */

@@ -192,7 +192,7 @@ export function resolveCard(ctx: SimContext, uid: number, choice: number, defs: 
     if (scope === null) continue;
     adjustOpinion(state, e.faction, scope, e.delta, title);
   }
-  c.apply?.(ctx, inst.cityId);
+  c.apply?.(ctx, inst.cityId, inst);
   cards.pending.splice(cards.pending.indexOf(inst), 1);
   cards.history.push({ id: card.id, year: state.date.year, choice });
   if (cards.history.length > HISTORY_CAP) cards.history.splice(0, cards.history.length - HISTORY_CAP);

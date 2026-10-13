@@ -3,7 +3,7 @@ import { placeBuilding } from '../sim/state';
 import { must, testCtx, testState } from '../sim/testkit';
 import type { GameState } from '../sim/types';
 import { protestSite } from '../sim/society/escalation';
-import { drawMarchers, drawPickets, marcherCount, MAX_MARCHERS, MAX_PICKETS, MIN_MARCHERS, MIN_PICKETS, PATH_TILES, picketCount, picketPath, Protesters, protestRoute } from './protesters';
+import { drawMarchers, drawPickets, marcherCount, MAX_MARCHERS, MAX_PICKETS, MIN_MARCHERS, MIN_PICKETS, PATH_TILES, picketCount, picketGroups, picketPath, Protesters, protestRoute } from './protesters';
 import { dateToDays } from '../sim/clock';
 
 /** A context that records every method call and accepts any property write. */
@@ -128,7 +128,7 @@ describe('strike pickets', () => {
     const idle = mockCtx();
     drawPickets(idle.g, state, [a, b], 0);
     expect(idle.calls).toEqual([]);
-    a.strike = { until: today + 30, reason: 'Pay and hours', since: today, cityId: 0, open: false };
+    a.strike = { until: today + 30, reason: 'Pay and hours', since: today, cityId: 0, cardUid: null };
     const one = mockCtx();
     drawPickets(one.g, state, [a, b], 0);
     expect(count(one.calls, 'fill')).toBe(4);
@@ -137,5 +137,15 @@ describe('strike pickets', () => {
     const none = mockCtx();
     drawPickets(none.g, state, [a, b], 0);
     expect(none.calls).toEqual([]);
+  });
+
+  it('picket groups carry their depth (the row below their lowest tile), shallowest first', () => {
+    const state = scene();
+    const [a, b] = Object.values(state.buildings);
+    const today = dateToDays(state.date);
+    for (const x of [b, a]) x.strike = { until: today + 30, reason: 'Pay and hours', since: today, cityId: 0, cardUid: null };
+    const groups = picketGroups(state, [b, a]);
+    expect(groups.map((g) => g.seed)).toEqual([a.id, b.id]);
+    for (const g of groups) expect(g.depth).toBe(Math.max(...g.path.map((p) => p.y)) + 1);
   });
 });

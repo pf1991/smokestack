@@ -2,7 +2,7 @@
  * World renderer: composes everything the player sees on the map canvas.
  *
  * Layer order: terrain → roads → houses → sun shadows → vehicles → smog protesters (render/protesters.ts)
- * → buildings (y-sorted) → strike pickets (render/protesters.ts) → particles →
+ * → buildings (y-sorted, strike pickets interleaved by depth: render/protesters.ts) → particles →
  * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
  * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts) → overlay
  * legends (screen space, unfiltered overlay canvas when attached).
@@ -35,7 +35,7 @@ import { OVERLAYS } from '../overlays';
 import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { SmogHaze } from '../smogHaze';
-import { drawPickets, Protesters } from '../protesters';
+import { drawPicketGroup, picketGroups, type PicketGroup, Protesters } from '../protesters';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { TiltShiftBudget, applyTiltShift, insetsFromRects, type ViewInsets } from '../tiltShift';
@@ -341,9 +341,8 @@ export class WorldRenderer {
       this.drawShadows(ctx, state, r, light, blend);
       drawVehicles(ctx, this, state, r, alpha, dt, lit);
       this.protesters.draw(ctx, state, r, nowMs);
-      this.drawBuildings(ctx, visBuildings);
-      // strike pickets at the gates of striking works, over the buildings (render/protesters.ts)
-      drawPickets(ctx, state, visBuildings, nowMs);
+      // strike pickets at the gates of striking works, depth-sorted with the buildings (render/protesters.ts)
+      this.drawBuildings(ctx, visBuildings, picketGroups(state, visBuildings), nowMs);
     }
     // smoke (and sparks, puffs) are hidden on the map side of the blend
     const smoke = blend >= 0.5;
@@ -790,8 +789,15 @@ export class WorldRenderer {
     ctx.restore();
   }
 
-  private drawBuildings(ctx: CanvasRenderingContext2D, list: Building[]): void {
+  /**
+   * Buildings in y-sorted order (bottom row, then x), with the strike pickets interleaved: a picket
+   * group is drawn before the first building whose bottom row lies below the pickets' tiles.
+   */
+  private drawBuildings(ctx: CanvasRenderingContext2D, list: Building[], pickets: PicketGroup[] = [], nowMs = 0): void {
+    let pi = 0;
     for (const b of list) {
+      const bottom = b.pos.y + BUILDINGS[b.typeId].size.h;
+      while (pi < pickets.length && pickets[pi].depth < bottom) drawPicketGroup(ctx, pickets[pi++], nowMs);
       const variant = b.typeId === 'farm' && b.recipeId ? b.recipeId.replace(/^r_/, '') : '';
       const sprite = getBuildingSprite(b.typeId, b.ownerId, variant);
       const x = b.pos.x * TILE;
@@ -822,6 +828,7 @@ export class WorldRenderer {
         ctx.fillRect(b.pos.x * TILE, b.pos.y * TILE, def.size.w * TILE - 4, def.size.h * TILE - 4);
       }
     }
+    while (pi < pickets.length) drawPicketGroup(ctx, pickets[pi++], nowMs);
   }
 
   /** 0..1 how much of a live-placed building has been revealed (1 when not animating). */
