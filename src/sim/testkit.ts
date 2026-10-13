@@ -4,6 +4,7 @@ import { START_DATE } from './clock';
 import { SAVE_VERSION } from './version';
 import { defaultOpinion } from '../data/factions';
 import { defaultPolitics } from './politics/types';
+import { monthIndex, newCityPolitics } from './politics/elections';
 import { createCompany, STARTING_MONEY } from './finance';
 import { urbanRadius } from './market';
 import { connectToRoads, ensureRoadLink } from './roads';
@@ -71,6 +72,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
       urbanRadius: urbanRadius(population),
       landmarks: [],
       opinion: defaultOpinion(),
+      politics: newCityPolitics(id, year, monthIndex({ year, month: 4 })),
     };
   });
   const player = createCompany('player', 'Test Co.', opts.money ?? STARTING_MONEY);

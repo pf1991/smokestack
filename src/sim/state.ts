@@ -8,6 +8,7 @@ import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
 import { SAVE_VERSION } from './version';
 import { defaultPolitics } from './politics/types';
+import { monthIndex, newCityPolitics } from './politics/elections';
 import { housingFactory } from './politics/workforce';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
@@ -297,6 +298,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     state.companies.player.money = scenario.money;
     if (scenario.startYear >= 1910) state.flags.oilRevealed = true;
   }
+  cities.forEach((c, i) => (c.politics = newCityPolitics(i, state.date.year, monthIndex(state.date))));
   refreshUrbanTiles(state);
   return state;
 }

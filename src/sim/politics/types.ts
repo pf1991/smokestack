@@ -97,3 +97,14 @@ export function defaultPolitics(primed = true): PoliticsState {
     history: [],
   };
 }
+
+/** A city's mayor, council and election bookkeeping. Month indices are `year * 12 + (month - 1)`. */
+export interface CityPolitics {
+  mayor: { name: string; faction: FactionId; since: number };
+  council: FactionId;
+  nextElection: number;
+  endorsed: FactionId | null;
+  slush: number;
+  scandalRisk: number;
+  edicts: MayorEdictId[];
+}

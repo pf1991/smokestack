@@ -91,7 +91,7 @@ describe('v2 -> v3: cities spread', () => {
 
 describe('v3 -> v4: landmarks', () => {
   it('gives every city an empty landmark list', () => {
-    const o: Record<string, unknown> = { version: 3, cities: [{ id: 0, name: 'A' }, { id: 1, name: 'B', landmarks: [{ id: 'church', pos: { x: 1, y: 1 } }] }] };
+    const o: Record<string, unknown> = { version: 3, date: { year: 1900, month: 4 }, cities: [{ id: 0, name: 'A' }, { id: 1, name: 'B', landmarks: [{ id: 'church', pos: { x: 1, y: 1 } }] }] };
     const r = migrateSave(o);
     expect(r.ok).toBe(true);
     expect(o.version).toBe(SAVE_VERSION);
@@ -121,15 +121,20 @@ describe('v4 -> v5: politics', () => {
     expect(SAVE_VERSION).toBe(5);
   });
   it('gives every city the default opinion and the save default politics', () => {
-    const o: Record<string, unknown> = { version: 4, cities: [{ id: 0 }, { id: 1 }] };
+    const o: Record<string, unknown> = { version: 4, date: { year: 1900, month: 4 }, cities: [{ id: 0 }, { id: 1 }] };
     const r = migrateSave(o);
     expect(r.ok).toBe(true);
     expect(o.version).toBe(5);
     for (const c of o.cities as { opinion: unknown }[]) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
+    const cs = o.cities as { politics: { mayor: { name: string; faction: string }; council: string; nextElection: number; edicts: unknown[] } }[];
+    for (const c of cs) {
+      expect(c.politics).toMatchObject({ council: 'workers', edicts: [], mayor: { faction: 'workers' } });
+      expect(c.politics.nextElection).toBeGreaterThanOrEqual(1900 * 12 + 3 + 6);
+    }
     expect(o.politics).toMatchObject({ edicts: { wage: 'fair', safety: 'standard', union: 'tolerate' }, cards: { pending: [], history: [] }, log: [] });
   });
   it('sets staffing 1 on every raw building', () => {
-    const o: Record<string, unknown> = { version: 4, cities: [], buildings: { 3: { id: 3 }, 7: { id: 7 } } };
+    const o: Record<string, unknown> = { version: 4, date: { year: 1900, month: 4 }, cities: [], buildings: { 3: { id: 3 }, 7: { id: 7 } } };
     expect(migrateSave(o).ok).toBe(true);
     for (const b of Object.values(o.buildings as Record<string, { staffing: unknown }>)) expect(b.staffing).toBe(1);
   });

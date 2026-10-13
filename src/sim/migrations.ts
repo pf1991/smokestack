@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '../core/result';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { defaultOpinion } from '../data/factions';
+import { monthIndex, newCityPolitics } from './politics/elections';
 import { defaultPolitics } from './politics/types';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { GameState } from './types';
@@ -50,7 +51,13 @@ export const MIGRATIONS: Migration[] = [
     migrate(o) {
       const cities = o.cities;
       if (!Array.isArray(cities)) throw new Error('bad cities');
-      for (const c of cities as Record<string, unknown>[]) c.opinion = defaultOpinion();
+      const date = o.date as { year?: unknown; month?: unknown } | undefined;
+      if (typeof date?.year !== 'number' || typeof date.month !== 'number') throw new Error('bad date');
+      const now = monthIndex({ year: date.year, month: date.month });
+      (cities as Record<string, unknown>[]).forEach((c, i) => {
+        c.opinion = defaultOpinion();
+        c.politics = newCityPolitics(i, date.year as number, now);
+      });
       o.politics = defaultPolitics(false);
       // workforce: every building starts fully staffed until the first monthly recompute
       const buildings = o.buildings;

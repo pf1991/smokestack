@@ -26,3 +26,5 @@
 .pol-none { color: var(--paper-shade); font-style: italic; }
 .insp-philanthropy { display: flex; flex-direction: column; gap: 4px; }
 .insp-philanthropy button { text-align: left; }
+.insp-chip { display: inline-block; padding: 0 8px; border-radius: 9px; color: #fff; font-size: 12px; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
+.insp-endorse[hidden] { display: none; }

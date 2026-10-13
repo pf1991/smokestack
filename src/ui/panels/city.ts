@@ -3,6 +3,7 @@ import { LANDMARKS, PHILANTHROPY_IDS, type PhilanthropyId } from '../../data/lan
 import { buyPhilanthropy, philanthropyBlocker } from '../../sim/politics/edicts';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
+import { endorse, ENDORSE_WINDOW, monthIndex } from '../../sim/politics/elections';
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
 import { demandModifier } from '../../sim/production';
@@ -15,6 +16,7 @@ import './politics.css';
 import { bar, type Bar, KeyedList, openInspector, setText, type InspectorHost, type InspectorView } from './inspect';
 import type { PanelDef } from './index';
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const PLAYER_COLOR = '#2f6fb5';
 const RIVAL_COLOR = '#b5302f';
 
@@ -108,6 +110,26 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     }, iconEl(id, 16), ` Endow a ${def.name.toLowerCase()} — ${formatMoney(def.philanthropy!.cost)}`);
     return { id, btn };
   });
+  const mayorName = h('span', { class: 'insp-mayor-name' });
+  const mayorChip = h('span', { class: 'insp-chip' });
+  const councilChip = h('span', { class: 'insp-chip' });
+  const electionRow = h('span');
+  const endorseSel = h(
+    'select',
+    { class: 'insp-endorse-select', 'aria-label': 'Faction to endorse' },
+    ...FACTION_IDS.map((f) => h('option', { value: f }, FACTIONS[f].name)),
+  ) as HTMLSelectElement;
+  const endorseBtn = h('button', {
+    class: 'insp-endorse-btn',
+    onClick: () => {
+      const r = endorse(host.ctx, cityId, endorseSel.value as FactionId);
+      host.ctx.bus.emit(r.ok
+        ? { type: 'toast', message: `You endorsed the ${FACTIONS[endorseSel.value as FactionId].name} candidate`, tone: 'good' }
+        : { type: 'toast', message: r.error, tone: 'bad' });
+      view.update();
+    },
+  }, 'Endorse') as HTMLButtonElement;
+  const endorseRow = h('div', { class: 'insp-stat insp-endorse' }, h('span', { class: 'insp-label' }, 'Endorse'), h('span', null, endorseSel, ' ', endorseBtn));
   const tbody = h('tbody');
   const rows = new KeyedList<GoodRow>(tbody, makeRow);
   const el = h(
@@ -117,6 +139,10 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
+    h('div', { class: 'insp-stat insp-mayor' }, h('span', { class: 'insp-label' }, 'Mayor'), h('span', null, mayorName, ' ', mayorChip)),
+    h('div', { class: 'insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
+    h('div', { class: 'insp-stat insp-election' }, h('span', { class: 'insp-label' }, 'Next election'), electionRow),
+    endorseRow,
     h('div', { class: 'insp-section insp-opinions' }, h('div', { class: 'insp-label' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
     h('div', { class: 'insp-section insp-philanthropy' }, h('div', { class: 'insp-label' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
     h(
@@ -138,6 +164,23 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         if ((g.btn as HTMLButtonElement).disabled !== disabled) (g.btn as HTMLButtonElement).disabled = disabled;
         const tip = why ?? `Opinion in ${city.name}: ${effectsLine(g.id, state.date.year)}`;
         if (g.btn.title !== tip) g.btn.title = tip;
+      }
+      const pol = city.politics;
+      const year = state.date.year;
+      setText(mayorName, pol.mayor.name);
+      for (const [chip, f] of [[mayorChip, pol.mayor.faction], [councilChip, pol.council]] as const) {
+        setText(chip, factionName(f, year));
+        chip.style.background = FACTIONS[f].color;
+      }
+      const due = pol.nextElection;
+      setText(electionRow, `${MONTH_NAMES[due % 12]} ${Math.floor(due / 12)}`);
+      const open = due - monthIndex(state.date) <= ENDORSE_WINDOW;
+      endorseRow.hidden = !open;
+      if (open) {
+        const done = pol.endorsed !== null;
+        if (endorseSel.disabled !== done) endorseSel.disabled = endorseBtn.disabled = done;
+        if (done && endorseSel.value !== pol.endorsed) endorseSel.value = pol.endorsed!;
+        setText(endorseBtn, done ? 'Endorsed' : 'Endorse');
       }
       setText(pop, formatNumber(city.population));
       const diff = city.population - city.prevPopulation;

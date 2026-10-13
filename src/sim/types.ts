@@ -1,7 +1,7 @@
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
 import type { LandmarkId } from '../data/landmarks';
-import type { PoliticsState } from './politics/types';
+import type { CityPolitics, PoliticsState } from './politics/types';
 
 export type GoodId = string;
 export type BuildingTypeId = string;
@@ -88,6 +88,8 @@ export interface City {
   landmarks: { id: LandmarkId; pos: Vec2 }[];
   /** each faction's opinion of the player's company, 0..100; written only by sim/politics/factions.ts */
   opinion: Record<FactionId, number>;
+  /** mayor, council and election schedule (sim/politics/elections.ts) */
+  politics: CityPolitics;
 }
 
 export interface RouteStop {
