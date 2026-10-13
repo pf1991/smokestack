@@ -458,6 +458,20 @@ const UI_PAINTERS: Record<string, Painter> = {
     rect(g, 4.5, 9.5, 7.5, 3.9, C.smoke, false);
     line(g, [5.5, 9.8, 8, 8.2], C.paperShade, 1);
   },
+  // a conifer on a trunk: the tree-planting tool
+  tree: (g) => {
+    rect(g, 7, 11.5, 2, 3.5, C.walnut);
+    poly(g, [8, 1.5, 13, 8, 3, 8], C.green);
+    poly(g, [8, 4.5, 14, 12, 2, 12], C.green);
+    line(g, [8, 6, 10.5, 9.5], C.paperShade, 0.8);
+  },
+  // a chimney capped by a filter box, a thin wisp above: smoke scrubbers
+  scrubber: (g) => {
+    rect(g, 6, 8, 4, 7, C.red);
+    rect(g, 4, 5, 8, 3.5, C.steel);
+    line(g, [5, 6.7, 11, 6.7], C.slate, 0.8);
+    blob(g, [[8.5, 2.8, 1.6]], C.paperShade);
+  },
   // weather vane arrow, pointing east (the HUD rotates it to the wind)
   wind: (g) => {
     // fletching: two pairs of feathers swept back from the shaft

@@ -22,6 +22,8 @@ import { layerAt } from './layers';
 import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
 import { SCENARIOS } from './scenarios';
+import { priceIndex } from './society/economy';
+import { TREE_COST } from './society/upgrades';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
 
 export const ROAD_COST = 500;
@@ -613,6 +615,64 @@ export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resu
   invalidatePaths(map);
   ctx.bus.emit({ type: 'roadChanged', tiles: todo });
   return ok();
+}
+
+// ---------------------------------------------------------------------------
+// tree planting
+
+/** Why trees cannot be planted on tile (x, y), or null when they can (open grass only). */
+export function plantRefusal(state: GameState, x: number, y: number): string | null {
+  const t = tileOf(state.map, x, y);
+  if (!t || !Number.isInteger(x) || !Number.isInteger(y)) return 'Out of bounds';
+  if (layerAt(state, LANDMARK_LAYER, x, y) > 0) return LANDMARK_BLOCKED;
+  if (t.buildingId !== null) return 'Not under a building';
+  if (t.road || t.rail) return 'Not on roads or rail';
+  if (t.cityId !== null) return 'Town land is not for planting';
+  if (t.deposit !== null) return 'Not on a mineral deposit';
+  if (t.terrain === 'water') return 'Trees do not grow on water';
+  if (t.terrain !== 'grass') return 'Trees need open grass';
+  return null;
+}
+
+/** Price of planting `tiles` (forest already standing is skipped, free), or the first tile's refusal. */
+export function plantQuote(state: GameState, owner: OwnerId, tiles: Vec2[]): { tiles: Vec2[]; cost: number; error: string | null } {
+  const { map } = state;
+  const seen = new Set<number>();
+  const todo: Vec2[] = [];
+  const each = Math.round(TREE_COST * priceIndex(state));
+  for (const p of tiles) {
+    const t = tileOf(map, p.x, p.y);
+    if (t && t.terrain === 'forest' && t.cityId === null && t.buildingId === null) continue;
+    const refusal = plantRefusal(state, p.x, p.y);
+    if (refusal) return { tiles: todo, cost: todo.length * each, error: refusal };
+    const i = p.y * map.width + p.x;
+    if (seen.has(i)) continue;
+    seen.add(i);
+    todo.push({ x: p.x, y: p.y });
+  }
+  const cost = todo.length * each;
+  const company = state.companies[owner];
+  if (!company || !canAfford(company, cost)) return { tiles: todo, cost, error: 'Not enough money' };
+  return { tiles: todo, cost, error: null };
+}
+
+/**
+ * Plants forest on open grass tiles (TREE_COST × price index each, booked as 'construction').
+ * Atomic like buildRoad: any refused tile (town land, road, rail, building, deposit, landmark,
+ * water, other terrain) refuses the lot. Forest already standing is skipped for free. Reports the
+ * change through terrainChanged (smog decay classes) and a 'terrainChanged' event (the renderer).
+ */
+export function plantForest(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Result<{ planted: number; cost: number }> {
+  const { state } = ctx;
+  const q = plantQuote(state, owner, tiles);
+  if (q.error) return err(q.error);
+  if (q.tiles.length === 0) return ok({ planted: 0, cost: 0 });
+  const { map } = state;
+  for (const p of q.tiles) map.tiles[p.y * map.width + p.x].terrain = 'forest';
+  terrainChanged(map);
+  spend(state.companies[owner], 'construction', q.cost, state.date);
+  ctx.bus.emit({ type: 'terrainChanged', tiles: q.tiles });
+  return ok({ planted: q.tiles.length, cost: q.cost });
 }
 
 // ---------------------------------------------------------------------------

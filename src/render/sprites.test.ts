@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BUILDINGS } from '../data/buildings';
 import { TILE } from './constants';
-import { chimneyOffsets, spriteKey, houseStyle, houseTier, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS, LOCO_HALF, WAGON_HALF, drawTruck, BUILDING_HEIGHT, HOUSE_TIER_HEIGHT, HOUSE_TIERS, getBuildingSprite, buildingCasters, houseCaster } from './sprites';
+import { chimneyOffsets, spriteKey, houseStyle, houseTier, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS, LOCO_HALF, WAGON_HALF, drawTruck, BUILDING_HEIGHT, HOUSE_TIER_HEIGHT, HOUSE_TIERS, getBuildingSprite, buildingCasters, houseCaster, TALL_STACK, upgradeHeadroom, upgradeKey, upgradedChimneyOffsets } from './sprites';
 import { MAX_CASTER_Z } from './shadows';
 import { LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_HEIGHT } from './landmarks';
 import { LANDMARK_IDS } from '../data/landmarks';
@@ -91,6 +91,29 @@ describe('diorama heights', () => {
     const c = getBuildingSprite('steel_mill', 'player');
     expect(c.height).toBeGreaterThan(c.width);
     expect(c.height).toBe(BUILDINGS.steel_mill.size.h * TILE + HEADROOM);
+  });
+  it('upgraded sprites are per-building variants: taller by the upgrade headroom, smoke from the raised tops', () => {
+    const fake = () => ({ width: 0, height: 0, getContext: () => null });
+    vi.stubGlobal('document', { createElement: fake });
+    const up = { scrubber: 2 as const, tallChimney: true };
+    const plain = getBuildingSprite('steel_mill', 'player');
+    const tall = getBuildingSprite('steel_mill', 'player', '', up);
+    expect(tall).not.toBe(plain);
+    expect(getBuildingSprite('steel_mill', 'player', '', { scrubber: 2, tallChimney: true })).toBe(tall);
+    expect(getBuildingSprite('steel_mill', 'player', '', { scrubber: 0, tallChimney: false })).toBe(plain);
+    expect(upgradeKey(up)).toBe('s2t');
+    expect(upgradeHeadroom(up)).toBeGreaterThanOrEqual(TALL_STACK);
+    expect(tall.height).toBe(plain.height + upgradeHeadroom(up));
+    const base = chimneyOffsets('steel_mill');
+    const raisedTops = upgradedChimneyOffsets('steel_mill', up);
+    raisedTops.forEach((c, i) => {
+      expect(c.x).toBe(base[i].x);
+      expect(c.y).toBe(base[i].y - upgradeHeadroom(up));
+      // still inside the upgraded sprite, which is drawn upgradeHeadroom rows higher
+      expect(c.y + upgradeHeadroom(up)).toBeGreaterThanOrEqual(0);
+    });
+    const zs = (cs: { z: number }[]) => Math.max(...cs.map((c) => c.z));
+    expect(zs(buildingCasters('textile_mill', up))).toBeGreaterThan(zs(buildingCasters('textile_mill')));
   });
   it('every building casts a shadow from its raised body, no taller than MAX_CASTER_Z', () => {
     for (const def of Object.values(BUILDINGS)) {

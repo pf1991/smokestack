@@ -13,6 +13,8 @@ import {
   footprint,
   lPath,
   placeBuilding,
+  plantForest,
+  plantQuote,
   removeRoad,
   ROAD_COST,
 } from '../sim/state';
@@ -63,6 +65,23 @@ export function roadQuote(state: GameState, tiles: Vec2[]): { cost: number; erro
   }
   if (!canAfford(state.companies.player, cost)) return { cost, error: 'Not enough money' };
   return { cost, error: null };
+}
+
+/** Every tile of the rectangle with corners `a` and `b`, row by row. */
+export function rectTiles(a: Vec2, b: Vec2): Vec2[] {
+  const out: Vec2[] = [];
+  for (let y = Math.min(a.y, b.y); y <= Math.max(a.y, b.y); y++) {
+    for (let x = Math.min(a.x, b.x); x <= Math.max(a.x, b.x); x++) out.push({ x, y });
+  }
+  return out;
+}
+
+/** The tree tool's ghost label: "Plant 12 trees $3,600", or the refusal. */
+export function treeLabel(state: GameState, tiles: Vec2[]): { valid: boolean; label: string } {
+  const q = plantQuote(state, 'player', tiles);
+  if (q.error) return { valid: false, label: q.error };
+  if (q.tiles.length === 0) return { valid: false, label: 'Forest already' };
+  return { valid: true, label: `Plant ${q.tiles.length} ${q.tiles.length === 1 ? 'tree' : 'trees'} ${formatMoney(q.cost)}` };
 }
 
 function tileAt(state: GameState, p: Vec2) {
@@ -133,6 +152,7 @@ export class ToolController {
         break;
       case 'road':
       case 'rail':
+      case 'trees':
         this.dragStart = { ...tile };
         break;
       case 'bulldoze':
@@ -174,6 +194,10 @@ export class ToolController {
     if (start && (this.tool.kind === 'road' || this.tool.kind === 'rail')) {
       const tiles = lPath(start, tile);
       const r = this.tool.kind === 'rail' ? buildRail(this.game.ctx, 'player', tiles) : buildRoad(this.game.ctx, 'player', tiles);
+      if (!r.ok) this.toast(r.error, 'bad');
+    }
+    if (start && this.tool.kind === 'trees') {
+      const r = plantForest(this.game.ctx, 'player', rectTiles(start, tile));
       if (!r.ok) this.toast(r.error, 'bad');
     }
     this.refreshGhost();
@@ -307,6 +331,12 @@ export class ToolController {
       const q = roadQuote(this.state, tiles);
       const label = q.error ?? (q.cost > 0 ? `Road ${formatMoney(q.cost)}` : 'Road (already built)');
       return { kind: 'tiles', tiles, valid: q.error === null, label };
+    }
+    if (t.kind === 'trees') {
+      const end = hover ?? this.dragStart;
+      if (!end) return null;
+      const tiles = this.dragStart ? rectTiles(this.dragStart, end) : [end];
+      return { kind: 'tiles', tiles, ...treeLabel(this.state, tiles) };
     }
     if (!hover) return null;
     if (t.kind === 'build') {

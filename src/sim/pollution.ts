@@ -4,6 +4,7 @@ import { publishNews } from './news';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { terrainEpoch } from './terrainEpoch';
 import { weatherDay } from './weather';
+import { hasTallChimney, scrubberEmission, TALL_CHIMNEY_ADVECT, TALL_CHIMNEY_REACH } from './society/upgrades';
 import type { Building, GameMap, GameState, SimContext } from './types';
 
 export const POLLUTION_DECAY = 0.97;
@@ -26,11 +27,24 @@ export const POCKET_KEEP = 0.5;
 const CLEAN = 1e-4;
 
 /**
- * Emission scale of building `b` (1 = unabated). Phase 3 abatement (scrubbers, Task 6) lowers it;
+ * Emission scale of building `b` (1 = unabated): its scrubber tier's multiplier (society/upgrades.ts).
  * smogDay multiplies every source's daily emission by it.
  */
-export function emissionFactor(_state: GameState, _b: Building): number {
-  return 1;
+export function emissionFactor(_state: GameState, b: Building): number {
+  return scrubberEmission(b);
+}
+
+/**
+ * Tile `steps` tiles downwind of (x, y): the dominant wind axis moves `steps`, the other axis its
+ * share rounded (wind (1, 0.4) → 2 east, 1 south for 2 steps). Null when calm or off the map.
+ */
+export function downwindTile(map: GameMap, wx: number, wy: number, x: number, y: number, steps: number): number | null {
+  const m = Math.max(Math.abs(wx), Math.abs(wy));
+  if (m === 0) return null;
+  const tx = x + Math.round((wx / m) * steps);
+  const ty = y + Math.round((wy / m) * steps);
+  if (tx < 0 || ty < 0 || tx >= map.width || ty >= map.height) return null;
+  return ty * map.width + tx;
 }
 
 /**
@@ -52,7 +66,12 @@ for (let code = 0; code < 32; code++) {
 /**
  * Daily smog step (Phase 3), after weatherDay has rolled today's wind and rain:
  *  1. emission: every 'ok' building adds `def.pollution × SOURCE_FACTOR × emissionFactor` to its
- *     centre tile and half that to each orthogonal neighbour;
+ *     centre tile and half that to each orthogonal neighbour. A tall chimney lifts the plume clear
+ *     of the works: the same cross pattern comes down downwind instead, (1 − TALL_CHIMNEY_ADVECT)
+ *     of it centred TALL_CHIMNEY_REACH (2) tiles downwind and TALL_CHIMNEY_ADVECT (0.4) of it one
+ *     tile further. That is how the building's own 0.4 advection share is applied, since step 2
+ *     moves the combined field; parts that would land off the map are lost (as blown smog is).
+ *     In a calm the plume falls on the works as usual;
  *  2. advection: each tile sends ADVECT of its smog one tile downwind (split x/y by |wind|) and
  *     DIFFUSE equally to its 4 neighbours (smog blown off the map is lost);
  *  3. decay: ×0.97, then ×0.94 on forest, ×0.95 on hills and mountain, ×0.90 on park landmark
@@ -80,12 +99,14 @@ export function smogDay(ctx: SimContext): void {
     const c = fp[Math.floor(fp.length / 2)];
     if (c.x < 0 || c.y < 0 || c.x >= width || c.y >= height) continue;
     const i = c.y * width + c.x;
-    emit(tiles, dirty, i, amount);
-    const half = amount * 0.5;
-    if (c.x > 0) emit(tiles, dirty, i - 1, half);
-    if (c.x < width - 1) emit(tiles, dirty, i + 1, half);
-    if (c.y > 0) emit(tiles, dirty, i - width, half);
-    if (c.y < height - 1) emit(tiles, dirty, i + width, half);
+    if (hasTallChimney(b) && (weather.windX !== 0 || weather.windY !== 0)) {
+      const near = downwindTile(map, weather.windX, weather.windY, c.x, c.y, TALL_CHIMNEY_REACH);
+      const far = downwindTile(map, weather.windX, weather.windY, c.x, c.y, TALL_CHIMNEY_REACH + 1);
+      if (near !== null) emitCross(tiles, dirty, width, height, near, amount * (1 - TALL_CHIMNEY_ADVECT));
+      if (far !== null) emitCross(tiles, dirty, width, height, far, amount * TALL_CHIMNEY_ADVECT);
+      continue;
+    }
+    emitCross(tiles, dirty, width, height, i, amount);
   }
 
   // snapshot the smog tiles and enlist their neighbours (the tiles that can receive smog today)
@@ -142,6 +163,18 @@ export function smogDay(ctx: SimContext): void {
     else member[i] = 0;
   }
   list.length = kept;
+}
+
+/** `amount` on tile i and half of it on each orthogonal neighbour inside the map. */
+function emitCross(tiles: GameMap['tiles'], dirty: DirtySet, width: number, height: number, i: number, amount: number): void {
+  const y = (i / width) | 0;
+  const x = i - y * width;
+  emit(tiles, dirty, i, amount);
+  const half = amount * 0.5;
+  if (x > 0) emit(tiles, dirty, i - 1, half);
+  if (x < width - 1) emit(tiles, dirty, i + 1, half);
+  if (y > 0) emit(tiles, dirty, i - width, half);
+  if (y < height - 1) emit(tiles, dirty, i + width, half);
 }
 
 function emit(tiles: GameMap['tiles'], dirty: DirtySet, i: number, amount: number): void {

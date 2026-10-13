@@ -68,6 +68,30 @@ describe('ToolController', () => {
     expect(after?.kind === 'tiles' ? after.tiles : []).toHaveLength(1);
   });
 
+  it('tree drag plants a rectangle of grass with a cost preview, and names a refused tile', () => {
+    const { ctx, tc, toasts } = setup();
+    const W = ctx.state.map.width;
+    tc.setTool({ kind: 'trees' });
+    const before = ctx.state.companies.player.money;
+    tc.pointerDown({ x: 2, y: 2 });
+    tc.pointerMove({ x: 4, y: 3 });
+    const g = tc.ghost();
+    expect(g?.kind === 'tiles' && g.valid).toBe(true);
+    expect(g?.kind === 'tiles' ? g.label : '').toBe('Plant 6 trees $1,800');
+    tc.pointerUp({ x: 4, y: 3 });
+    expect(ctx.state.map.tiles[3 * W + 4].terrain).toBe('forest');
+    expect(ctx.state.companies.player.money).toBe(before - 1800);
+    must(buildRoad(ctx, 'player', [{ x: 8, y: 8 }]));
+    tc.pointerDown({ x: 7, y: 7 });
+    tc.pointerMove({ x: 9, y: 9 });
+    const bad = tc.ghost();
+    expect(bad?.kind === 'tiles' && bad.valid).toBe(false);
+    expect(bad?.kind === 'tiles' ? bad.label : '').toBe('Not on roads or rail');
+    tc.pointerUp({ x: 9, y: 9 });
+    expect(ctx.state.map.tiles[7 * W + 7].terrain).toBe('grass');
+    expect(toasts().at(-1)?.message).toBe('Not on roads or rail');
+  });
+
   it('rail drag lays track over a road crossing; bulldoze lifts the rail and keeps the road', () => {
     const { ctx, tc } = setup();
     const W = ctx.state.map.width;

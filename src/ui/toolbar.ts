@@ -4,6 +4,7 @@ import { RECIPES } from '../data/recipes';
 import { isUnlocked } from '../sim/eras';
 import { ROAD_COST } from '../sim/state';
 import { RAIL_COST } from '../sim/rail';
+import { TREE_COST } from '../sim/society/upgrades';
 import type { GameState, Inventory } from '../sim/types';
 import { type Child, h } from './dom';
 import { iconEl } from './icon';
@@ -131,6 +132,7 @@ export class Toolbar {
     };
     toolCard('road', 'Road', 'Drag to lay roads (bridges over water)', `${formatMoney(ROAD_COST)}/tile`, { kind: 'road' });
     toolCard('rail', 'Rail', 'Drag to lay track (level crossings over roads, never water)', `${formatMoney(RAIL_COST)}/tile`, { kind: 'rail' });
+    toolCard('trees', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', `base ${formatMoney(TREE_COST)}/tile`, { kind: 'trees' });
     toolCard('bulldoze', 'Bulldoze', 'Demolish for a 25% refund (Del)', 'Click a building, road or rail', { kind: 'bulldoze' });
 
     this.bar = h('div', { class: 'toolbar' }, tabsRow, body);

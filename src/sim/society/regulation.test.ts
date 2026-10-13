@@ -100,7 +100,7 @@ describe('fines', () => {
   it('does not fine compliant buildings', () => {
     const { ctx, b } = enforced();
     setSales(ctx, 1e6);
-    (b as Building & { upgrades?: { scrubber: number } }).upgrades = { scrubber: 1 };
+    b.upgrades = { scrubber: 1, tallChimney: false };
     expect(monthlyFines(ctx.state)).toBe(0);
   });
 

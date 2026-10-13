@@ -2,7 +2,8 @@ import type { LandmarkId } from '../../data/landmarks';
 import type { Vec2 } from '../../sim/types';
 import { TILE } from '../camera';
 import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
-import { HOUSE_HEADROOM, chimneyOffsets, drawHouse, type HouseTier, windowRects } from '../sprites';
+import { HOUSE_HEADROOM, chimneyOffsets, drawHouse, type HouseTier, upgradedChimneyOffsets, upgradeKey, windowRects } from '../sprites';
+import type { BuildingUpgrades } from '../../sim/types';
 import { type Ctx, type Surface, makeSurface } from './shared';
 
 /** A small garden tree for empty urban tiles. */
@@ -77,10 +78,15 @@ export function getHouseGlow(style: string, variant: number, year: number, tier:
 }
 
 const chimneyCache = new Map<string, Vec2[]>();
-/** chimneyOffsets() allocates; cache per type so smoke emission is allocation-free per frame. */
-export function chimneysOf(typeId: string): Vec2[] {
-  let c = chimneyCache.get(typeId);
-  if (!c) chimneyCache.set(typeId, (c = chimneyOffsets(typeId)));
+/**
+ * chimneyOffsets() allocates; cache per (type, upgrades) so smoke emission is allocation-free per
+ * frame. Upgraded stacks (tall chimney, scrubber box) emit from their raised tops.
+ */
+export function chimneysOf(typeId: string, upgrades?: BuildingUpgrades | null): Vec2[] {
+  const ukey = upgradeKey(upgrades);
+  const key = ukey ? `${typeId}|${ukey}` : typeId;
+  let c = chimneyCache.get(key);
+  if (!c) chimneyCache.set(key, (c = ukey ? upgradedChimneyOffsets(typeId, upgrades) : chimneyOffsets(typeId)));
   return c;
 }
 

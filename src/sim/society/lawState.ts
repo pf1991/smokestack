@@ -7,9 +7,9 @@ import { LAWS, LAW_IDS, LOBBY_DELAY_MONTHS, type LawId } from '../../data/laws';
 import { PLAYER_ID } from '../companies';
 import type { Building, GameState } from '../types';
 
-/** Scrubber tier fitted to a works (Task 6 adds `Building.upgrades.scrubber`); 0 when none. */
+/** Scrubber tier fitted to a works (sim/society/upgrades.ts); 0 when none. */
 export function scrubberTier(b: Building): number {
-  return (b as Building & { upgrades?: { scrubber?: number } }).upgrades?.scrubber ?? 0;
+  return b.upgrades?.scrubber ?? 0;
 }
 
 /** Player polluters below the law's scrubber tier. */

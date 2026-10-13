@@ -65,6 +65,16 @@ export interface Building {
   staffing: number;
   /** a strike at this works (sim/society/strikes.ts); null or absent when there is none */
   strike?: BuildingStrike | null;
+  /** smoke abatement bought for this works (sim/society/upgrades.ts); absent means none */
+  upgrades?: BuildingUpgrades;
+}
+
+/** A works' smoke abatement (sim/society/upgrades.ts). */
+export interface BuildingUpgrades {
+  /** scrubber tier fitted, 0 = none (a new tier replaces the previous one) */
+  scrubber: 0 | 1 | 2 | 3;
+  /** a tall chimney: the smoke lands downwind instead of on the works */
+  tallChimney: boolean;
 }
 
 /** A strike at a building (sim/society/strikes.ts). Days are `dateToDays` numbers. */

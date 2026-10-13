@@ -17,7 +17,7 @@
  * Nothing here touches `document` at import time; canvases are created lazily.
  */
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
-import type { BuildingTypeId, OwnerId, Vec2 } from '../sim/types';
+import type { BuildingTypeId, BuildingUpgrades, OwnerId, Vec2 } from '../sim/types';
 import { TILE } from './constants';
 import { drawIcon } from './icons';
 import type { ShadowCaster } from './shadows';
@@ -160,6 +160,60 @@ export function chimneyOffsets(typeId: string): Vec2[] {
   if (!def) return [];
   const dy = LIFT_ROOM - chimneyLift(def);
   return flatChimneys(typeId).map((c) => ({ x: c.x, y: c.y + dy }));
+}
+
+// ---------------------------------------------------------------- smoke abatement (sim/society/upgrades.ts)
+
+/** Px a tall chimney adds to each stack. */
+export const TALL_STACK = 12;
+/** Px a scrubber's filter box rises above the stack top it sits on. */
+const SCRUB_RISE = 2;
+const SCRUB_H = 6;
+
+/** Sprite cache key part for a building's visible upgrades: '' when none, else e.g. 's2t' (scrubber 2, tall). */
+export function upgradeKey(u: BuildingUpgrades | null | undefined): string {
+  if (!u || (u.scrubber === 0 && !u.tallChimney)) return '';
+  return `s${u.scrubber}${u.tallChimney ? 't' : ''}`;
+}
+
+/** Rows an upgraded sprite adds above the plain sprite's top (it is drawn that much higher). */
+export function upgradeHeadroom(u: BuildingUpgrades | null | undefined): number {
+  if (!u) return 0;
+  return (u.tallChimney ? TALL_STACK : 0) + (u.scrubber > 0 ? SCRUB_RISE : 0);
+}
+
+/**
+ * Chimney tops of an upgraded building, in the plain sprite's coordinates (y may go negative above
+ * it): raised by a tall chimney and by a scrubber's filter box. Smoke emits here.
+ */
+export function upgradedChimneyOffsets(typeId: string, u: BuildingUpgrades | null | undefined): Vec2[] {
+  const rise = upgradeHeadroom(u);
+  return chimneyOffsets(typeId).map((c) => ({ x: c.x, y: c.y - rise }));
+}
+
+/** Paints the upgrades onto an upgraded sprite whose plain sprite was drawn `extra` rows down. */
+function paintUpgrades(g: Ctx, def: BuildingDef, u: BuildingUpgrades, extra: number): void {
+  const w = def.id === 'textile_mill' ? 3 : 6;
+  for (const c of chimneyOffsets(def.id)) {
+    let top = c.y + extra;
+    if (u.tallChimney) {
+      // the stack grows up from its old cap, banded in the works' colour like the original
+      stack(g, c.x, top - TALL_STACK, top + 3, def.color, w);
+      top -= TALL_STACK;
+    }
+    if (u.scrubber > 0) {
+      // a grey filter box clamped over the stack top, one rivet line per tier
+      const bw = w + 4;
+      const x = c.x - bw / 2;
+      const y = top - SCRUB_RISE;
+      rect(g, x + 1, y + 1, bw, SCRUB_H, 'rgba(0,0,0,0.25)');
+      rect(g, x, y, bw, SCRUB_H, '#8d949b');
+      rect(g, x, y, bw, 1, '#c3c9ce');
+      rect(g, x + bw - 1, y, 1, SCRUB_H, '#5d646b');
+      rect(g, x, y + SCRUB_H - 1, bw, 1, '#4c5258');
+      for (let t = 0; t < u.scrubber; t++) rect(g, x + 1, y + 2 + t, bw - 2, 0.6, '#5d646b');
+    }
+  }
 }
 
 type WinRect = { x: number; y: number; w: number; h: number };
@@ -866,9 +920,13 @@ const casterCache = new Map<string, ShadowCaster[]>();
  * Sun-shadow casters of a building type in footprint-local px (footprint top-left at 0, 0): its
  * raised body plus chimneys, towers and masts, matching the sprite.
  */
-export function buildingCasters(typeId: string): ShadowCaster[] {
-  const hit = casterCache.get(typeId);
+export function buildingCasters(typeId: string, upgrades?: BuildingUpgrades | null): ShadowCaster[] {
+  const ukey = upgradeKey(upgrades);
+  const key = ukey ? `${typeId}|${ukey}` : typeId;
+  const hit = casterCache.get(key);
   if (hit) return hit;
+  // an upgraded stack is taller: its chimney casters rise with it
+  const rise = upgradeHeadroom(upgrades);
   const def = BUILDINGS[typeId];
   let out: ShadowCaster[] = [];
   if (def && !isBox(def)) out = extractorCasters(def);
@@ -883,14 +941,14 @@ export function buildingCasters(typeId: string): ShadowCaster[] {
     // things standing on the roof: their foot is on the roof at flat y = foot, so on the ground at foot - HR0 - lift + z
     const ground = (foot: number): number => foot - HR0 - lift + z;
     const cw = typeId === 'textile_mill' ? 3 : 6;
-    for (const c of flatChimneys(typeId)) out.push({ x: c.x - cw / 2, y: ground(HR0 + 6) - 2, w: cw, d: 4, z: z + HR0 + 6 - c.y });
+    for (const c of flatChimneys(typeId)) out.push({ x: c.x - cw / 2, y: ground(HR0 + 6) - 2, w: cw, d: 4, z: z + HR0 + 6 - c.y + rise });
     if (typeId === 'steel_mill') { const fx = Math.round(W * 0.68); out.push({ x: fx - 10, y: ground(48) - 6, w: 18, d: 6, z: z + 40 }); }
     // the radio mast is drawn lying along the roof; its shadow is a modest mast's, not a 100 px one
     if (typeId === 'electronics_plant') { const mx = Math.round(W * 0.7); out.push({ x: mx - 1, y: ground(HR0 + 30) - 2, w: 3, d: 2, z: z + 34, taper: true }); }
     if (typeId === 'glassworks') { const kx = Math.round(W * 0.68); out.push({ x: kx - 12, y: ground(HR0 + 36) - 8, w: 24, d: 8, z: z + 30, taper: true }); }
     if (typeId === 'train_station') out.push({ x: 8, y: ground(HR0 + 10) - 6, w: 10, d: 6, z: z + 20 });
   }
-  casterCache.set(typeId, out);
+  casterCache.set(key, out);
   return out;
 }
 
@@ -898,12 +956,32 @@ const cache = new Map<string, HTMLCanvasElement>();
 
 /**
  * Cached building sprite, W = size.w*TILE, H = size.h*TILE + HEADROOM (footprint starts at y = HEADROOM).
- * `variant` only matters for farms: 'grain' | 'cotton' | 'fruit'.
+ * `variant` only matters for farms: 'grain' | 'cotton' | 'fruit'. With visible `upgrades` (scrubber,
+ * tall chimney) it is a per-building variant cached by (type, owner, upgrades), upgradeHeadroom rows
+ * taller at the top: draw it that much higher than the plain sprite.
  */
-export function getBuildingSprite(typeId: string, ownerId: OwnerId, variant = ''): HTMLCanvasElement {
+export function getBuildingSprite(typeId: string, ownerId: OwnerId, variant = '', upgrades?: BuildingUpgrades | null): HTMLCanvasElement {
   const def = BUILDINGS[typeId];
   if (!def) throw new Error(`Unknown building: ${typeId}`);
   const v = def.id === 'farm' ? variant || 'grain' : '';
+  const ukey = upgradeKey(upgrades);
+  if (ukey && upgrades) {
+    const ukeyFull = `${spriteKey(typeId, ownerId, v)}|${ukey}`;
+    let u = cache.get(ukeyFull);
+    if (u) return u;
+    const plain = getBuildingSprite(typeId, ownerId, v);
+    const extra = upgradeHeadroom(upgrades);
+    u = document.createElement('canvas');
+    u.width = plain.width;
+    u.height = plain.height + extra;
+    const ug = u.getContext('2d');
+    if (ug) {
+      ug.drawImage(plain, 0, extra);
+      paintUpgrades(ug, def, upgrades, extra);
+    }
+    cache.set(ukeyFull, u);
+    return u;
+  }
   const key = spriteKey(typeId, ownerId, v);
   let c = cache.get(key);
   if (c) return c;

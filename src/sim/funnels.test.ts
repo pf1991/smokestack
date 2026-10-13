@@ -60,6 +60,13 @@ describe('single-writer funnels', () => {
     for (const w of ["t.terrain === 'forest'", "if (t.terrain == 'hills')", 'const ter = tiles[i].terrain;', 'terrain: Terrain']) expect(re.test(w), w).toBe(false);
     expect(writers(re)).toEqual(['state.ts']);
   });
+  it('building upgrades are written only by society/upgrades.ts', () => {
+    const re = /\.upgrades\s*=(?!=)|\.(?:scrubber|tallChimney)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
+    for (const w of ['b.upgrades = up;', 'up.scrubber = 2', 'b.upgrades.tallChimney=true', 'u.scrubber++']) expect(re.test(w), w).toBe(true);
+    for (const w of ['b.upgrades?.scrubber ?? 0', 'u.tallChimney === true', 'const up = b.upgrades;']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['society/upgrades.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
   it('weather is written only by weather.ts (and the v6 migration that adds it)', () => {
     const re = /\.(?:weather|windX|windY|rain|rainDays)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
     for (const w of ['w.windX = 1;', 'state.weather = x', 'o.weather = defaultWeather(1);', 'w.rainDays++']) expect(re.test(w), w).toBe(true);

@@ -52,7 +52,7 @@ describe('pollution', () => {
     expect(pollutionDay).toBe(smogDay);
   });
 
-  it('emissionFactor is 1 until scrubbers exist', () => {
+  it('emissionFactor is 1 without a scrubber', () => {
     const { ctx, b } = millCtx();
     expect(emissionFactor(ctx.state, b)).toBe(1);
   });

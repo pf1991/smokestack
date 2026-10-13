@@ -5,7 +5,8 @@ import { App } from './game/app';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
 import { runAutoplay } from './game/autoplay';
 import { runDays, stepTick } from './sim/simulation';
-import { createGame } from './sim/state';
+import { canPlaceBuilding, createGame, placeBuilding } from './sim/state';
+import { buyUpgrade } from './sim/society/upgrades';
 import type { SmogTier, Speed } from './sim/types';
 import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
 import { autoResolve, forceCard } from './sim/politics/cards';
@@ -95,6 +96,38 @@ if (debugStart) {
       focus = { x: Math.round(b.pos.x + size.w / 2), y: Math.round(b.pos.y + size.h / 2) };
     }
   }
+  // `upgrades=1` builds two steel mills side by side near the first town, the east one with a
+  // tier 2 scrubber and a tall chimney (needs a year ≥ 1948: add skipYears=50), and centres on them
+  let upgradedId: number | null = null;
+  if (import.meta.env.DEV && params.get('upgrades') === '1' && state.cities[0]) {
+    const player = state.companies.player;
+    player.money += 1e6;
+    const c = state.cities[0].center;
+    const near = { x: c.x + state.cities[0].urbanRadius + 6, y: c.y };
+    // the first spot (spiral out from `near`) with room for both mills a tile apart
+    const w = BUILDINGS.steel_mill.size.w;
+    let a: { x: number; y: number } | null = null;
+    for (let r = 0; r < 40 && !a; r++) {
+      for (let dy = -r; dy <= r && !a; dy++) {
+        for (let dx = -r; dx <= r && !a; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const p = { x: near.x + dx, y: near.y + dy };
+          if (canPlaceBuilding(state, 'player', 'steel_mill', p).ok && canPlaceBuilding(state, 'player', 'steel_mill', { x: p.x + w + 1, y: p.y }).ok) a = p;
+        }
+      }
+    }
+    const pa = a ? placeBuilding(setup, 'player', 'steel_mill', a) : null;
+    const pb = a ? placeBuilding(setup, 'player', 'steel_mill', { x: a.x + w + 1, y: a.y }) : null;
+    if (pa?.ok && pb?.ok) {
+      buyUpgrade(setup, pb.value.id, 'scrubber');
+      buyUpgrade(setup, pb.value.id, 'scrubber');
+      buyUpgrade(setup, pb.value.id, 'tallChimney');
+      pa.value.status = 'ok';
+      pb.value.status = 'ok';
+      upgradedId = pb.value.id;
+      focus = { x: pb.value.pos.x, y: pa.value.pos.y + 1 };
+    }
+  }
   const cardParam = params.get('card');
   // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen
   if (import.meta.env.DEV && (params.get('cards') === '0' || cardParam)) {
@@ -147,6 +180,7 @@ if (debugStart) {
       const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');
       if (r) g.openPanel('routes', r.id);
     }
+    if (import.meta.env.DEV && upgradedId !== null && params.get('inspectup') === '1') g.openPanel('building', upgradedId);
     if (import.meta.env.DEV && params.get('inspect2') === '1') {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
     }

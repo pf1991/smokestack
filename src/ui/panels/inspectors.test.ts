@@ -141,6 +141,43 @@ describe('building panel', () => {
   });
 });
 
+describe('building panel upgrades', () => {
+  it('offers the next scrubber tier and a tall chimney, buys them, and shows law compliance', () => {
+    const ctx = testCtx(testState({ year: 1950, money: 1e7 }));
+    ctx.state.date.year = 1950;
+    const b = place(ctx, 'steel_mill', 10, 10);
+    ctx.state.society.laws.smoke_abatement = { passed: 1925, enforcedFrom: 0, lobbied: false };
+    ctx.state.society.laws.clean_air = { passed: 1950, enforcedFrom: 0, lobbied: false };
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(text()).toContain('Scrubber: none');
+    expect(text()).toContain('Fined $2,400/mo under the Clean Air Act');
+    expect(text()).toContain("Below the Smoke Abatement Act's tier 1");
+    const scrub = document.querySelector<HTMLButtonElement>('button[data-act="scrubber"]')!;
+    expect(scrub.textContent).toContain('Fit tier 1 scrubber $18,000 — smoke ×0.7, upkeep ×1.1');
+    scrub.click();
+    expect(b.upgrades?.scrubber).toBe(1);
+    expect(text()).toContain('Compliant with the Smoke Abatement Act');
+    scrub.click();
+    expect(b.upgrades?.scrubber).toBe(2);
+    expect(text()).toContain('Compliant with the Clean Air Act');
+    // tier 3 waits for 1985
+    expect(scrub.disabled).toBe(true);
+    expect(text()).toContain('Tier 3 scrubbers arrive in 1985');
+    const tall = document.querySelector<HTMLButtonElement>('button[data-act="tall-chimney"]')!;
+    tall.click();
+    expect(b.upgrades?.tallChimney).toBe(true);
+    expect(tall.disabled).toBe(true);
+    expect(tall.textContent).toBe('Tall chimney built');
+  });
+
+  it('hides upgrades for smokeless and rival buildings', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const wh = place(ctx, 'warehouse', 5, 5);
+    PANELS.building.open(host(ctx) as never, wh.id);
+    expect(document.querySelector<HTMLElement>('.insp-upgrades')!.hidden).toBe(true);
+  });
+});
+
 describe('city panel', () => {
   it('lists craved goods sorted by unmet demand', () => {
     const state = testState({ cities: [{ x: 10, y: 10, population: 10000 }] });

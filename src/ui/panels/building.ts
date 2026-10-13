@@ -2,6 +2,21 @@ import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
 import { getGood } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { addDays, dateToDays, formatDate, isWinter } from '../../sim/clock';
+import { FINE_RATE, LAWS, type LawId } from '../../data/laws';
+import { monthIndex } from '../../sim/politics/elections';
+import { priceIndex } from '../../sim/society/economy';
+import { enforcedLaws, scrubberTier } from '../../sim/society/lawState';
+import {
+  buyUpgrade,
+  canAbate,
+  hasTallChimney,
+  nextScrubber,
+  SCRUBBER_TIERS,
+  TALL_CHIMNEY_REACH,
+  upgradeCost,
+  upgradeRefusal,
+  type UpgradeKind,
+} from '../../sim/society/upgrades';
 import { isWorks, SLOWDOWN_FACTOR, SLOWDOWN_OPINION, strikeActive, strikeEnd } from '../../sim/society/strikeState';
 import { loadSource } from '../../sim/inventory';
 import { STATION_TYPE, stationAccess } from '../../sim/rail';
@@ -76,6 +91,40 @@ export function strikeText(state: GameState, b: Building): string | null {
   const today = dateToDays(state.date);
   if (!b.strike || !strikeActive(b.strike, today)) return null;
   return `On strike until ${formatDate(addDays(state.date, strikeEnd(b.strike) - today))} — ${b.strike.reason}`;
+}
+
+/** "Scrubber: none" or "Scrubber: tier 2 (smoke ×0.45, upkeep ×1.2)". */
+export function scrubberText(b: Building): string {
+  const t = scrubberTier(b);
+  if (t === 0) return 'Scrubber: none';
+  const d = SCRUBBER_TIERS[t - 1];
+  return `Scrubber: tier ${t} (smoke ×${d.emission}, upkeep ×${d.upkeep})`;
+}
+
+/** Label of the next-scrubber button: "Fit tier 1 scrubber $9,000 — smoke ×0.7, upkeep ×1.1", or null at tier 3. */
+export function scrubberOffer(state: GameState, b: Building): string | null {
+  const next = nextScrubber(b);
+  if (!next) return null;
+  return `Fit tier ${next.tier} scrubber ${formatMoney(upgradeCost(state, b, 'scrubber'))} — smoke ×${next.emission}, upkeep ×${next.upkeep}`;
+}
+
+/**
+ * One line per enforced smoke law for the player's polluting works: "Compliant with the Clean Air
+ * Act", "Fined $2,400/mo under the Clean Air Act" for the strictest law it fails (R-S7: one fine per
+ * works), and "Below the Smoke Abatement Act's tier 1" for laxer laws it also fails.
+ */
+export function complianceLines(state: GameState, b: Building): { text: string; ok: boolean }[] {
+  const tier = scrubberTier(b);
+  const laws = enforcedLaws(state, monthIndex(state.date)).sort((x, y) => LAWS[y].tier - LAWS[x].tier);
+  let fined = false;
+  return laws.map((id: LawId) => {
+    const law = LAWS[id];
+    if (tier >= law.tier) return { text: `Compliant with the ${law.title}`, ok: true };
+    if (fined) return { text: `Below the ${law.title}'s tier ${law.tier}`, ok: false };
+    fined = true;
+    const fine = Math.round(BUILDINGS[b.typeId].pollution * FINE_RATE * priceIndex(state));
+    return { text: `Fined ${formatMoney(fine)}/mo under the ${law.title}`, ok: false };
+  });
 }
 
 /** Plain-language explanation of what the building is doing (exported for tests). */
@@ -173,6 +222,32 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     title: 'Pick a destination on the map: creates a route and buys a vehicle',
     onClick: () => startSendGoods(host as unknown as GameController, id),
   });
+  const buy = (kind: UpgradeKind) => {
+    const r = buyUpgrade(host.ctx, id, kind);
+    host.ctx.bus.emit(
+      r.ok
+        ? { type: 'toast', message: kind === 'tallChimney' ? 'Tall chimney built' : 'Scrubber fitted', tone: 'good' }
+        : { type: 'toast', message: r.error, tone: 'bad' },
+    );
+    view.update();
+  };
+  const scrubLine = h('div', { class: 'insp-muted insp-scrubber' });
+  const scrubBtn = h('button', { class: 'btn insp-upgrade', 'data-act': 'scrubber', onClick: () => buy('scrubber') }) as HTMLButtonElement;
+  const scrubWhy = h('div', { class: 'insp-muted insp-upgrade-why' });
+  const chimneyBtn = h('button', { class: 'btn insp-upgrade', 'data-act': 'tall-chimney', onClick: () => buy('tallChimney') }) as HTMLButtonElement;
+  const chimneyWhy = h('div', { class: 'insp-muted insp-upgrade-why' });
+  const lawBox = h('div', { class: 'insp-laws' });
+  const upgradesSection = h(
+    'div',
+    { class: 'insp-section insp-upgrades' },
+    h('div', { class: 'insp-label' }, iconEl('scrubber', 14), ' Upgrades'),
+    scrubLine,
+    scrubBtn,
+    scrubWhy,
+    chimneyBtn,
+    chimneyWhy,
+    lawBox,
+  );
   const inList = new KeyedList<Row>(inBox, makeRow);
   const outList = new KeyedList<Row>(outBox, makeRow);
 
@@ -216,6 +291,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     outSection,
     produced,
     routesSection,
+    upgradesSection,
     demolish,
   );
 
@@ -313,6 +389,39 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       if (send.dataset.kind !== (isStation ? 'train' : 'truck')) {
         send.dataset.kind = isStation ? 'train' : 'truck';
         send.replaceChildren(iconEl(send.dataset.kind, 16), ' Send goods to…');
+      }
+      // smoke abatement: the player's polluting works only
+      upgradesSection.hidden = !mine || !canAbate(b);
+      if (!upgradesSection.hidden) {
+        setText(scrubLine, scrubberText(b));
+        const offer = scrubberOffer(state, b);
+        scrubBtn.hidden = offer === null;
+        const scrubNo = offer === null ? null : upgradeRefusal(state, b, 'scrubber');
+        if (offer) setText(scrubBtn, offer);
+        scrubBtn.disabled = scrubNo !== null;
+        scrubWhy.hidden = scrubNo === null;
+        if (scrubNo) setText(scrubWhy, scrubNo);
+        const tall = hasTallChimney(b);
+        setText(
+          chimneyBtn,
+          tall
+            ? 'Tall chimney built'
+            : `Build tall chimney ${formatMoney(upgradeCost(state, b, 'tallChimney'))} — smoke lands ${TALL_CHIMNEY_REACH}+ tiles downwind`,
+        );
+        const chimneyNo = tall ? null : upgradeRefusal(state, b, 'tallChimney');
+        chimneyBtn.disabled = tall || chimneyNo !== null;
+        chimneyWhy.hidden = chimneyNo === null;
+        if (chimneyNo) setText(chimneyWhy, chimneyNo);
+        const lines = complianceLines(state, b);
+        const lsig = lines.map((l) => l.text).join('|') || '-';
+        if (lawBox.dataset.sig !== lsig) {
+          lawBox.dataset.sig = lsig;
+          lawBox.replaceChildren(
+            ...(lines.length > 0
+              ? lines.map((l) => h('div', { class: l.ok ? 'insp-muted insp-law' : 'insp-warn insp-law' }, l.text))
+              : [h('div', { class: 'insp-muted insp-law' }, 'No smoke law in force yet')]),
+          );
+        }
       }
       demolish.hidden = !mine;
       setText(

@@ -20,6 +20,7 @@ import type { Building, BuildingTypeId, City, GameState, OwnerId, SimContext, Ve
 import { EDICTS, maintenanceFactor } from './edicts';
 import { NEAR_MARGIN, nationalOpinion } from './factions';
 import { forcedEdicts, SMOG_TIER_3 } from '../society/tiers';
+import { buildingMaintenance } from '../society/upgrades';
 import type { MayorEdictId } from './types';
 import { workCity } from './workforce';
 
@@ -207,7 +208,8 @@ export function smogLimited(state: GameState): Set<number> {
 }
 
 /**
- * The player's monthly building upkeep: each building's maintenance × the company edicts. A
+ * The player's monthly building upkeep: each building's maintenance (× its scrubber's upkeep,
+ * society/upgrades.ts) × the company edicts. A
  * minimum-wage town is a floor on the wage part: there the wage multiplier is at least
  * MINIMUM_WAGE_FACTOR, so 'low' and 'fair' both pay ×1.1 and 'generous' (×1.25) pays its own rate,
  * nothing stacked. Safety and union multiply as usual.
@@ -221,7 +223,7 @@ export function playerBuildingUpkeep(state: GameState): number {
   let total = 0;
   for (const b of Object.values(state.buildings)) {
     if (b.ownerId !== PLAYER_ID) continue;
-    const m = BUILDINGS[b.typeId].maintenance;
+    const m = buildingMaintenance(state, b);
     const city = anyMinWage ? workCity(state, b) : null;
     total += m * (city && hasEdict(city, 'minimum_wage') ? minWage : normal);
   }

@@ -40,9 +40,10 @@ import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { TiltShiftBudget, applyTiltShift, insetsFromRects, type ViewInsets } from '../tiltShift';
 import { MAX_CASTER_Z, MAX_SHADOW_LENGTH, SHADOW_COLOR, type SunVector, easeSun, shadowAlpha, targetSun, traceShadow } from '../shadows';
-import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier } from '../sprites';
+import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier, upgradeHeadroom } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
 import { chimneysOf, paintGardenTree } from './glows';
+import { scrubberEmission } from '../../sim/society/upgrades';
 import { drawNightLights } from './night';
 import { paintRailTile } from './rails';
 import { hasLamp, paintBridgeTile, paintRoadTile, roadEra, roadMask } from './roads';
@@ -246,6 +247,11 @@ export class WorldRenderer {
         this.invalidate(e.tiles);
         // a spreading city also clears forest/hills between its new streets (see layCityStreets):
         // redraw terrain (both the diorama and survey surfaces) over the streets' bounding box + 1
+        this.terrain.invalidateAround(e.tiles);
+      }),
+      bus.on('terrainChanged', (e) => {
+        // planted forest: redraw the terrain surfaces (trees) and the road/house chunks over it
+        this.invalidate(e.tiles);
         this.terrain.invalidateAround(e.tiles);
       }),
       bus.on('railChanged', (e) => {
@@ -780,7 +786,7 @@ export class WorldRenderer {
       // a building still rising casts a shadow that grows with its reveal
       const zk = this.revealOf(b.id);
       if (zk <= 0) continue;
-      for (const c of buildingCasters(b.typeId)) traceShadow(ctx, c, b.pos.x * TILE, b.pos.y * TILE, vx, vy, false, zk);
+      for (const c of buildingCasters(b.typeId, b.upgrades)) traceShadow(ctx, c, b.pos.x * TILE, b.pos.y * TILE, vx, vy, false, zk);
     }
     ctx.save();
     ctx.globalAlpha = k;
@@ -799,9 +805,10 @@ export class WorldRenderer {
       const bottom = b.pos.y + BUILDINGS[b.typeId].size.h;
       while (pi < pickets.length && pickets[pi].depth < bottom) drawPicketGroup(ctx, pickets[pi++], nowMs);
       const variant = b.typeId === 'farm' && b.recipeId ? b.recipeId.replace(/^r_/, '') : '';
-      const sprite = getBuildingSprite(b.typeId, b.ownerId, variant);
+      const sprite = getBuildingSprite(b.typeId, b.ownerId, variant, b.upgrades);
       const x = b.pos.x * TILE;
-      const y = b.pos.y * TILE - HEADROOM;
+      // an upgraded sprite (tall chimney, scrubber) carries extra rows on top
+      const y = b.pos.y * TILE - HEADROOM - upgradeHeadroom(b.upgrades);
       const cs = this.constructing.get(b.id);
       if (cs) {
         const stage = constructionStage(performance.now() - cs.start);
@@ -815,7 +822,7 @@ export class WorldRenderer {
             }
           }
           // the scaffold rises to the raised roof, not to the top of the chimney headroom
-          const scaffoldH = sprite.height - HEADROOM + (BUILDING_HEIGHT[b.typeId] ?? 0) + 4;
+          const scaffoldH = sprite.height - upgradeHeadroom(b.upgrades) - HEADROOM + (BUILDING_HEIGHT[b.typeId] ?? 0) + 4;
           drawConstruction(ctx, sprite, x, y, sprite.width, sprite.height, stage, scaffoldH);
           continue;
         }
@@ -851,12 +858,13 @@ export class WorldRenderer {
     const vy1 = cam.y + cam.viewH / cam.zoom + margin * 2;
     for (const id in state.buildings) {
       const b = state.buildings[id];
-      const density = b.status === 'ok' ? 1 : b.status === 'no_input' ? 0.15 : 0;
+      // a scrubbed stack smokes as much lighter as its emission factor (sim/society/upgrades.ts)
+      const density = (b.status === 'ok' ? 1 : b.status === 'no_input' ? 0.15 : 0) * scrubberEmission(b);
       if (density === 0 || this.isScaffolding(b.id)) continue;
       const bx = b.pos.x * TILE;
       const by = b.pos.y * TILE - HEADROOM;
       if (bx < vx0 || bx > vx1 || by < vy0 || by > vy1) continue;
-      for (const o of chimneysOf(b.typeId)) this.particles.emitSmoke(bx + o.x, by + o.y, density, dt);
+      for (const o of chimneysOf(b.typeId, b.upgrades)) this.particles.emitSmoke(bx + o.x, by + o.y, density, dt);
     }
   }
 }

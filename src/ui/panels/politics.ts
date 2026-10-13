@@ -4,11 +4,11 @@
  * smog escalation) and the latest political log entries.
  */
 import type { GameController } from '../../game/controller';
-import { BUILDINGS } from '../../data/buildings';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { PLAYER_ID } from '../../sim/companies';
 import { EDICT_KEYS, EDICTS, MAX_EDICT_DRIVE, maintenanceFactor, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
 import { playerBuildingUpkeep } from '../../sim/politics/mayorEdicts';
+import { buildingMaintenance } from '../../sim/society/upgrades';
 import { nationalOpinion, opinionTrend } from '../../sim/politics/factions';
 import { nationalBlackLung } from '../../sim/society/escalation';
 import { LAWS, LAW_IDS } from '../../data/laws';
@@ -41,7 +41,7 @@ export function effectsText(opt: EdictOption, year: number): string {
 /** The player's building upkeep before edicts, per month. */
 function baseUpkeep(state: GameState): number {
   let total = 0;
-  for (const b of Object.values(state.buildings)) if (b.ownerId === PLAYER_ID) total += BUILDINGS[b.typeId].maintenance;
+  for (const b of Object.values(state.buildings)) if (b.ownerId === PLAYER_ID) total += buildingMaintenance(state, b);
   return total;
 }
 
