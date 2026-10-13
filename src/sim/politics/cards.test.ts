@@ -23,6 +23,21 @@ const at = (ctx: SimContext, year: number, month: number, day = 1) => {
 };
 const pending = (ctx: SimContext) => ctx.state.politics.cards.pending;
 const money = (ctx: SimContext) => ctx.state.companies[PLAYER_ID].money;
+/** the winner Brill would elect now: the draw ignores the outgoing mayor, so a clone elects the same one */
+const winnerOf = (ctx: SimContext) => {
+  const copy = structuredClone(ctx.state);
+  return holdElection(testCtx(copy), copy.cities[1]);
+};
+/** make Brill's coming election a turnover */
+const turnover = (ctx: SimContext) => {
+  ctx.state.cities[1].politics.mayor.faction = winnerOf(ctx) === 'workers' ? 'church' : 'workers';
+};
+/** a player sawmill that hires from Brill */
+const hireFromBrill = (ctx: SimContext) => {
+  ctx.state.companies[PLAYER_ID].money = 1e7;
+  must(placeBuilding(ctx, 'player', 'sawmill', { x: 35, y: 26 }));
+  expect(playerHiresFrom(ctx.state, 1)).toBe(true);
+};
 
 function card(over: Partial<CardDef>): CardDef {
   return {
@@ -127,8 +142,10 @@ describe('eligibility filters', () => {
 });
 
 describe('triggers from the sim', () => {
-  it('an election opens the new mayor card for that town', () => {
+  it('an election opens an election card for that town', () => {
     const ctx = town();
+    hireFromBrill(ctx);
+    turnover(ctx);
     holdElection(ctx, ctx.state.cities[1]);
     expect(pending(ctx)).toMatchObject([{ cityId: 1 }]);
     expect(CARDS_BY_ID[pending(ctx)[0].cardId].trigger).toBe('election');
@@ -400,36 +417,48 @@ describe('card content (Task 8)', () => {
   });
 });
 
-describe('election cards only when it matters (R-Q10)', () => {
-  // the draw ignores the outgoing mayor, so clones of one state elect the same winner
-  const winnerOf = (ctx: SimContext) => holdElection(testCtx(structuredClone(ctx.state)), structuredClone(ctx.state).cities[1]);
+describe('election cards only when it matters (R-Q10b)', () => {
   const elect = (ctx: SimContext) => {
     holdElection(ctx, ctx.state.cities[1]);
     return pending(ctx).filter((p) => CARDS_BY_ID[p.cardId].trigger === 'election').length;
   };
 
-  it('opens a card when the winning faction differs from the outgoing mayor', () => {
+  it('turnover in a town the player hires from: a card', () => {
     const ctx = town();
-    const w = winnerOf(ctx);
-    ctx.state.cities[1].politics.mayor.faction = w === 'workers' ? 'church' : 'workers';
+    hireFromBrill(ctx);
+    turnover(ctx);
     expect(elect(ctx)).toBe(1);
   });
 
-  it('no card when the same faction is returned and no player works hire from the town', () => {
+  it('turnover in a town the player does not hire from: no card', () => {
     const ctx = town();
-    const w = winnerOf(ctx);
-    ctx.state.cities[1].politics.mayor.faction = w;
+    turnover(ctx);
     expect(playerHiresFrom(ctx.state, 1)).toBe(false);
     expect(elect(ctx)).toBe(0);
   });
 
-  it('a card when the same faction is returned in a town the player hires from', () => {
+  it('same faction returned in a town the player hires from: no card', () => {
     const ctx = town();
-    ctx.state.companies[PLAYER_ID].money = 1e7;
-    must(placeBuilding(ctx, 'player', 'sawmill', { x: 35, y: 26 }));
-    expect(playerHiresFrom(ctx.state, 1)).toBe(true);
-    const w = winnerOf(ctx);
-    ctx.state.cities[1].politics.mayor.faction = w;
+    hireFromBrill(ctx);
+    ctx.state.cities[1].politics.mayor.faction = winnerOf(ctx);
+    expect(elect(ctx)).toBe(0);
+  });
+
+  it('at most one election card per calendar year, pending or answered', () => {
+    const ctx = town();
+    hireFromBrill(ctx);
+    turnover(ctx);
+    expect(elect(ctx)).toBe(1);
+    // a second turnover the same year: skipped while the first is pending...
+    turnover(ctx);
+    expect(elect(ctx)).toBe(1);
+    // ...and after it was answered
+    expect(autoResolve(ctx, pending(ctx)[0].uid).ok).toBe(true);
+    turnover(ctx);
+    expect(elect(ctx)).toBe(0);
+    // next year a turnover opens one again
+    at(ctx, ctx.state.date.year + 1, 2);
+    turnover(ctx);
     expect(elect(ctx)).toBe(1);
   });
 

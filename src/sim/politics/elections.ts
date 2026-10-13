@@ -8,7 +8,8 @@
 import { err, ok, type Result } from '../../core/result';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { POLITICIANS } from '../../data/politicians';
-import { MONTHS_PER_YEAR } from '../clock';
+import { CARDS_BY_ID } from '../../data/cards';
+import { DAYS_PER_MONTH, MONTHS_PER_YEAR, START_DATE } from '../clock';
 import { PLAYER_ID } from '../companies';
 import { canAfford, spend } from '../finance';
 import { publishNews } from '../news';
@@ -104,10 +105,26 @@ export function holdElection(ctx: SimContext, city: City): FactionId {
   const body = FACTION_IDS.map((f) => `${factionName(f, year)} ${Math.round(shares[f] * 100)}%`).join(', ');
   publishNews(ctx, 'politics', `${factionName(winner, year).toUpperCase()} CANDIDATE ${p.mayor.name.toUpperCase()} WINS ${city.name.toUpperCase()}`, `Vote shares: ${body}.`);
   ctx.bus.emit({ type: 'election', cityId: city.id, winner });
-  // the card is opened by the sim itself, never by a bus listener (determinism); ruling R-Q10:
-  // only when it matters to the player, a change of faction or a town their works hire from
-  if (winner !== outgoing || playerHiresFrom(state, city.id)) triggerCard(ctx, 'election', city.id);
+  // the card is opened by the sim itself, never by a bus listener (determinism); ruling R-Q10b:
+  // only for a turnover in a town the player hires from, and at most one election card a year
+  if (winner !== outgoing && playerHiresFrom(state, city.id) && !electionCardThisYear(state)) triggerCard(ctx, 'election', city.id);
   return winner;
+}
+
+/**
+ * Whether an election card was already opened this calendar year: one still pending that opened
+ * this year, or one answered this year (answered within AUTO_RESOLVE_DAYS of opening, so never
+ * before the year it opened; one opened late last year and answered this year also counts, which
+ * only errs towards fewer cards).
+ */
+export function electionCardThisYear(state: GameState): boolean {
+  const year = state.date.year;
+  const { pending, history } = state.politics.cards;
+  const perYear = MONTHS_PER_YEAR * DAYS_PER_MONTH;
+  return (
+    pending.some((p) => CARDS_BY_ID[p.cardId]?.trigger === 'election' && START_DATE.year + Math.floor(p.openedDay / perYear) === year) ||
+    history.some((h) => h.year === year && CARDS_BY_ID[h.id]?.trigger === 'election')
+  );
 }
 
 /** Whether any player building hires from town `cityId` (its `workCity`). */
