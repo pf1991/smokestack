@@ -458,6 +458,21 @@ const UI_PAINTERS: Record<string, Painter> = {
     rect(g, 4.5, 9.5, 7.5, 3.9, C.smoke, false);
     line(g, [5.5, 9.8, 8, 8.2], C.paperShade, 1);
   },
+  // weather vane arrow, pointing east (the HUD rotates it to the wind)
+  wind: (g) => {
+    // fletching: two pairs of feathers swept back from the shaft
+    for (const x of [1.4, 4.4]) {
+      bar(g, [x, 4.2, x + 2.6, 8], C.brass, 1.4);
+      bar(g, [x, 11.8, x + 2.6, 8], C.brass, 1.4);
+    }
+    bar(g, [1.6, 8, 10, 8], C.brassLight, 2);
+    poly(g, [8.5, 3.5, 15, 8, 8.5, 12.5], C.brassLight);
+  },
+  rain: (g) => {
+    for (const x of [4.6, 8.2, 11.8]) bar(g, [x, 11, x - 1.2, 14.6], C.glass, 1.4);
+    blob(g, [[4.8, 7, 3], [8.4, 4.8, 3.7], [11.6, 7.2, 2.9]], C.paperShade);
+    rect(g, 4.6, 6.6, 7.4, 3.4, C.paperShade, false);
+  },
   play: (g) => poly(g, [4.5, 2.5, 13, 8, 4.5, 13.5], C.brassLight),
   pause: (g) => {
     rect(g, 3.5, 2.5, 3.2, 11, C.brassLight);

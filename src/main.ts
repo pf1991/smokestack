@@ -95,6 +95,12 @@ if (debugStart) {
     }
   }
 
+  // `rain=1` makes today a rain day (until the next day's weather roll), for screenshots
+  if (import.meta.env.DEV && params.get('rain') === '1') {
+    state.weather.rain = true;
+    state.weather.rainDays = Math.max(1, state.weather.rainDays);
+  }
+
   const speedParam = Number(params.get('speed'));
   if (params.has('speed') && [0, 1, 2, 4, 8].includes(speedParam)) state.speed = speedParam as Speed;
 
@@ -108,6 +114,9 @@ if (debugStart) {
       g.camera.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomParam));
       if (focus) g.centerOn(focus);
     }
+    // `at=x,y` centres the view on a tile (screenshots of a given district)
+    const at = params.get('at')?.split(',').map(Number);
+    if (import.meta.env.DEV && at?.length === 2 && at.every(Number.isFinite)) g.centerOn({ x: at[0], y: at[1] });
     if (import.meta.env.DEV && params.get('tiltshift') === '1') g.renderer.forceTiltShift = true;
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
     if (import.meta.env.DEV && params.get('openroute') === '1') {

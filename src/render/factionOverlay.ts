@@ -63,7 +63,7 @@ const LEGEND_W = 168;
 const ROW_H = 18;
 
 /** Screen y of the top edge of the bottom chrome (toolbar, ticker), or null while it is not in the page. */
-function measureChromeTop(viewH: number): number | null {
+export function measureChromeTop(viewH: number): number | null {
   if (typeof document === 'undefined') return null;
   let top = viewH;
   let found = false;
@@ -135,6 +135,12 @@ function paintLegend(ctx: CanvasRenderingContext2D, year: number, w: number, h: 
   ctx.fillText(RAMP_LABELS[2], bx + bw, by + 13);
 }
 
+/** Height of the faction legend while the overlay is on (0 when off), so other legends stack above it. */
+export function factionLegendHeight(): number {
+  if (!factionOverlay.enabled) return 0;
+  return mode === 'mayor' ? FACTION_IDS.length * ROW_H + 26 : ROW_H + 32;
+}
+
 let legendStamp = '';
 let legendSurface: LegendSurface | null = null;
 let legendH = 0;
@@ -156,7 +162,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera
   const stamp = `${mode}|${year}|${dpr}`;
   if (stamp !== legendStamp) {
     legendStamp = stamp;
-    legendH = (mode === 'mayor' ? FACTION_IDS.length * ROW_H + 26 : ROW_H + 32);
+    legendH = mode === 'mayor' ? FACTION_IDS.length * ROW_H + 26 : ROW_H + 32;
     legendDpr = dpr;
     legendSurface = makeSurface(Math.ceil(LEGEND_W * dpr), Math.ceil(legendH * dpr));
     if (legendSurface) {

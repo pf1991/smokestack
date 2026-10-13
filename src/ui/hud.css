@@ -88,6 +88,24 @@
   min-width: 118px;
 }
 
+.hud-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Weather vane: a brass arrow turned to the wind, a rain cloud beside it on wet days. */
+.hud-wind {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  cursor: help;
+}
+
+.hud-wind .icon[data-icon='wind'] {
+  transition: transform 0.6s ease-out;
+}
+
 .hud-speeds {
   display: flex;
   gap: 3px;

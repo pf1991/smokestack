@@ -2,7 +2,8 @@
  * World renderer: composes everything the player sees on the map canvas.
  *
  * Layer order: terrain → roads → houses → sun shadows → vehicles → buildings (y-sorted) → particles →
- * selection / route polyline → ghost → overlays → atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts).
+ * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
+ * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts).
  * Vehicles go under buildings: they never drive on a footprint, so the only overlap is a raised roof
  * or chimney in front of a road behind it, which must hide the vehicle.
  * Sun shadows (render/shadows.ts) are one path per frame, filled once: every house, landmark and
@@ -31,6 +32,7 @@ import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
 import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
+import { SmogHaze } from '../smogHaze';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { TiltShiftBudget, applyTiltShift, insetsFromRects, type ViewInsets } from '../tiltShift';
@@ -147,6 +149,8 @@ export class WorldRenderer {
   private insets: ViewInsets = { top: 0, bottom: 0 };
   private insetsH = -1;
   private readonly tiltBudget = new TiltShiftBudget();
+  /** per-chunk smog haze, rebuilt once per game day for chunks in view */
+  private readonly haze = new SmogHaze();
   /** keep the tilt-shift on even when frames are slow (DEV `tiltshift=1`, for screenshots) */
   forceTiltShift = false;
   private readonly labels = new CityLabelCache();
@@ -340,6 +344,8 @@ export class WorldRenderer {
 
     this.particles.update(dt);
     if (smoke) this.particles.draw(ctx, cam);
+    // smog veils the diorama (faded by the blend); the atmosphere grade below darkens it at night
+    if (diorama) this.haze.draw(ctx, state, cam, blend, nowMs);
 
     if (survey) {
       this.terrain.drawSurvey(ctx, cam, 1 - blend);
