@@ -6,7 +6,9 @@
  * Monthly (`classesMonth`), for every town, from its mean market satisfaction `s` (0..1, the same
  * figure growthMonth reads) and its smog `p`:
  *  - middle += 0.00015 × (1 + s), plus 0.0001 from 1945 (the post-war boom);
- *  - upper  += 0.00012 × s − 0.00025 × p (the rich flee smog);
+ *  - upper  += 0.00012 × prosperity − 0.00025 × p (the rich flee smog), prosperity =
+ *    0.5 × clamp(population / 40000, 0, 1) + 0.5 × s (ruling R-S10: autoplay supplies one good, so
+ *    raw satisfaction alone never moved the upper class);
  *  - working takes up the remainder;
  *  - clamps: working [0.2, 0.85], middle [0.1, 0.6], upper [0.03, 0.3] (see stepClasses).
  * Rates and clamps are controller ruling R-S9: the plan's (0.0004 / 0.0002 / 0.0001 / 0.0006,
@@ -49,17 +51,25 @@ export function newCityClasses(): CityClasses {
 
 const clampTo = (x: number, [lo, hi]: readonly [number, number]): number => Math.min(hi, Math.max(lo, x));
 
+/** Town size at which the size half of prosperity saturates (ruling R-S10). */
+export const PROSPERITY_POP = 40_000;
+
+/** Prosperity 0..1 (ruling R-S10): 0.5 × clamp(population / 40000, 0, 1) + 0.5 × satisfaction. */
+export function prosperity(population: number, sat: number): number {
+  return 0.5 * Math.min(1, Math.max(0, population / PROSPERITY_POP)) + 0.5 * sat;
+}
+
 /**
  * One month's step from mix `c` (pure): `sat` is the mean satisfaction 0..1, `smog` the 0..1 smog
- * figure (level × 5, clamped), `year` the game year. Middle and upper move and are clamped; working
+ * figure (level × 5, clamped), `year` the game year, `population` the town's (for prosperity). Middle and upper move and are clamped; working
  * takes the remainder. If that leaves working's clamp, working is pinned and the difference is taken
  * from (or given to) the middle class first, then the upper class, each within its own clamp, so the
  * mix always sums to 1 with every class inside its clamp.
  */
-export function stepClasses(c: Readonly<CityClasses>, sat: number, smog: number, year: number): CityClasses {
+export function stepClasses(c: Readonly<CityClasses>, sat: number, smog: number, year: number, population = 0): CityClasses {
   const M = CLASS_CLAMPS.middle, U = CLASS_CLAMPS.upper, W = CLASS_CLAMPS.working;
   let middle = clampTo(c.middle + MIDDLE_GROWTH * (1 + sat) + (year >= POSTWAR_YEAR ? POSTWAR_BOOM : 0), M);
-  let upper = clampTo(c.upper + UPPER_GROWTH * sat - UPPER_SMOG_FLIGHT * smog, U);
+  let upper = clampTo(c.upper + UPPER_GROWTH * prosperity(population, sat) - UPPER_SMOG_FLIGHT * smog, U);
   let working = 1 - middle - upper;
   if (working < W[0]) {
     // too few workers: take the excess from the middle class, then the upper
@@ -88,7 +98,7 @@ export function classesMonth(ctx: SimContext): void {
   for (const city of state.cities) {
     const sat = Math.min(1, Math.max(0, averageSatisfaction(state, city)));
     const smog = Math.min(1, Math.max(0, (city.smog?.level ?? 0) * SMOG_HEALTH_SCALE));
-    city.classes = stepClasses(city.classes ?? newCityClasses(), sat, smog, year);
+    city.classes = stepClasses(city.classes ?? newCityClasses(), sat, smog, year, city.population);
   }
 }
 
