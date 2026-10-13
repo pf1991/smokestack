@@ -7,7 +7,9 @@ import { BUILDINGS, HOUSING_OPINION } from '../../data/buildings';
 import { FACTION_IDS, type FactionId } from '../../data/factions';
 import { BARON_ID, PLAYER_ID } from '../companies';
 import { buildingsNear } from '../spatial';
+import { DAYS_PER_MONTH, dateToDays, MONTHS_PER_YEAR } from '../clock';
 import type { GameState, OwnerId, SimContext } from '../types';
+import type { OpinionSample } from './types';
 import { housingCity } from './workforce';
 
 /** Oldest entries are dropped beyond this. */
@@ -180,11 +182,30 @@ export function opinionHistoryYear(ctx: SimContext): void {
   if (history.length > HISTORY_CAP) history.splice(0, history.length - HISTORY_CAP);
 }
 
+/** A trend shown in the politics window: the change in national opinion since the sample of `since`. */
+export interface OpinionTrend {
+  delta: number;
+  /** the year whose year-end sample is the baseline */
+  since: number;
+}
+
 /**
- * National opinion of `faction` now minus the latest yearly sample (taken at most 12 months ago),
- * or null before the first year has ended.
+ * National opinion of `faction` now against a yearly sample: the most recent one taken at least
+ * 12 months ago, else the first sample. Null while fewer than 2 samples exist and none is a year old.
  */
-export function opinionTrend(state: GameState, faction: FactionId): number | null {
-  const last = state.politics.history?.at(-1);
-  return last ? nationalOpinion(state, faction) - last.national[faction] : null;
+export function opinionTrend(state: GameState, faction: FactionId): OpinionTrend | null {
+  const history = state.politics.history ?? [];
+  const now = dateToDays(state.date);
+  let base: OpinionSample | undefined;
+  for (let i = history.length - 1; i >= 0; i--) {
+    // a sample is taken at the end of its year, i.e. on the first day of the next
+    const takenAt = dateToDays({ year: history[i].year + 1, month: 1, day: 1, hour: 0 });
+    if (now - takenAt >= MONTHS_PER_YEAR * DAYS_PER_MONTH) {
+      base = history[i];
+      break;
+    }
+  }
+  if (!base && history.length >= 2) base = history[0];
+  if (!base) return null;
+  return { delta: nationalOpinion(state, faction) - base.national[faction], since: base.year };
 }

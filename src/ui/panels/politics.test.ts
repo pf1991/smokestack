@@ -2,7 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameController } from '../../game/controller';
 import { adjustOpinion, opinionHistoryYear } from '../../sim/politics/factions';
-import { testCtx, testState } from '../../sim/testkit';
+import { buildRoad, demolishBuilding, lPath, placeBuilding } from '../../sim/state';
+import { must, testCtx, testState } from '../../sim/testkit';
+import { sendTargets, stopPickSet, stopProblem } from './routeActions';
 import type { SimContext } from '../../sim/types';
 import { PANELS } from './index';
 
@@ -63,7 +65,9 @@ describe('politics window', () => {
 
   it('shows five national opinion bars with trends against the yearly sample, and the latest log', () => {
     const ctx = testCtx(testState({ cities: [{ x: 10, y: 10, population: 6000 }] }));
+    // one sample of 1900, and no other: the trend shows "–" until it is 12 months old
     opinionHistoryYear(ctx);
+    ctx.state.date = { ...ctx.state.date, year: 1902 };
     adjustOpinion(ctx.state, 'workers', 0, 10, 'Contract delivered');
     adjustOpinion(ctx.state, 'church', 0, -5, 'Contract failed');
     for (let i = 0; i < 10; i++) adjustOpinion(ctx.state, 'reformers', 0, 1, `Gift ${i}`);
@@ -75,6 +79,7 @@ describe('politics window', () => {
     expect(trend('workers').textContent).toBe('▲ +10');
     expect(trend('church').className).toBe('pol-trend down');
     expect(trend('oldmoney').textContent).toBe('–');
+    expect(trend('workers').title).toBe('Change since 1900');
     const log = [...win().querySelectorAll<HTMLElement>('.pol-log li')];
     expect(log).toHaveLength(8);
     expect(log[0].textContent).toContain('Gift 9');
@@ -95,5 +100,45 @@ describe('city panel philanthropy', () => {
     expect(ctx.state.cities[0].landmarks.map((l) => l.id)).toEqual(['park']);
     expect(btn('park').disabled).toBe(true);
     expect(btn('park').title).toBe('Town 0 already has a park');
+  });
+});
+
+describe('company housing in the routes UI and its inspector', () => {
+  function site() {
+    const ctx = testCtx(testState({ width: 80, height: 60, money: 1e7, cities: [{ x: 20, y: 20, population: 6000 }] }));
+    const s = ctx.state;
+    // a wood source next to a sawmill, the housing between, and a road along the south of them all
+    for (let y = 30; y < 32; y++) for (let x = 30; x < 32; x++) s.map.tiles[y * s.map.width + x].terrain = 'forest';
+    const camp = must(placeBuilding(ctx, 'player', 'lumber_camp', { x: 30, y: 30 }));
+    const mill = must(placeBuilding(ctx, 'player', 'sawmill', { x: 36, y: 30 }));
+    const home = must(placeBuilding(ctx, 'player', 'company_housing', { x: 40, y: 30 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 29, y: 33 }, { x: 44, y: 33 })));
+    return { ctx, camp, mill, home };
+  }
+
+  it('is refused as a stop and absent from send targets and the stop picker', () => {
+    const { ctx, camp, mill, home } = site();
+    expect(stopProblem(ctx.state, home, 'truck')).toBe('Company Housing takes no cargo');
+    const targets = sendTargets(ctx.state, camp);
+    expect(targets.valid).toContain(mill.id);
+    expect([...targets.valid, ...targets.blocked]).not.toContain(home.id);
+    const pick = stopPickSet(ctx.state, 'truck', null);
+    expect([...pick.valid, ...pick.blocked]).not.toContain(home.id);
+  });
+
+  it('the inspector says whom it houses, or warns when its factory is gone; no cargo rows', () => {
+    const { ctx, mill, home } = site();
+    PANELS.building.open(game(ctx) as never, home.id);
+    const line = () => document.querySelector<HTMLElement>('.insp-housing')!;
+    expect(line().textContent).toBe('Houses 150 hands for Sawmill (Town 0)');
+    expect(line().hidden).toBe(false);
+    const visible = (sel: string) => [...document.querySelectorAll<HTMLElement>(sel)].filter((e) => !e.hidden && !e.closest('[hidden]'));
+    expect(visible('[data-act="send-goods"]')).toEqual([]);
+    const shown = visible('.insp > :not(.insp-head), .insp-head > *').map((e) => e.textContent).join('|');
+    for (const word of ['Nothing in stock', 'Inputs', 'Routes', 'Handling cargo', 'Not on any route', 'Idle']) expect(shown).not.toContain(word);
+    must(demolishBuilding(ctx, mill.id, 'player'));
+    vi.advanceTimersByTime(1000);
+    expect(line().textContent).toBe('No factory within 3 tiles — housing stands empty');
+    expect(line().className).toContain('insp-warn');
   });
 });

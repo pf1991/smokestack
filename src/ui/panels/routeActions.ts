@@ -4,7 +4,7 @@ import type { GameController } from '../../game/controller';
 import type { IconId } from '../../render/icons';
 import type { Selection } from '../../render/world';
 import { earn } from '../../sim/finance';
-import { acceptsGood } from '../../sim/inventory';
+import { acceptsGood, handlesCargo, noCargoError } from '../../sim/inventory';
 import { buyTrain, STATION_TYPE, TRAIN } from '../../sim/rail';
 import { appendStop, offeredGoods } from '../../sim/routeHelpers';
 import type { Building, GameState, Route, RouteStop } from '../../sim/types';
@@ -38,6 +38,7 @@ export function stopSummary(stop: RouteStop): string {
 /** Why a building cannot be a stop of a `kind` route (null when it can). */
 export function stopProblem(state: GameState, b: Building, kind: Kind): string | null {
   if (b.ownerId !== 'player') return 'Not your building';
+  if (!handlesCargo(b)) return noCargoError(b);
   if (kind === 'train') {
     if (b.typeId !== STATION_TYPE) return 'Trains only stop at train stations';
     if (stopAccess(state, b, 'train').length === 0) return `${buildingName(b)} has no rail access`;
@@ -54,7 +55,7 @@ export interface PickSet {
 export function stopPickSet(state: GameState, kind: Kind, exclude: number | null): PickSet {
   const out: PickSet = { valid: [], blocked: [] };
   for (const b of Object.values(state.buildings)) {
-    if (b.ownerId !== 'player' || b.id === exclude) continue;
+    if (b.ownerId !== 'player' || b.id === exclude || !handlesCargo(b)) continue;
     if (kind === 'train' && b.typeId !== STATION_TYPE) continue;
     (stopProblem(state, b, kind) === null ? out.valid : out.blocked).push(b.id);
   }
@@ -67,7 +68,7 @@ export function sendTargets(state: GameState, src: Building): PickSet & { kind: 
   const goods = offeredGoods(src);
   const out: PickSet & { kind: Kind } = { kind, valid: [], blocked: [] };
   for (const b of Object.values(state.buildings)) {
-    if (b.ownerId !== 'player' || b.id === src.id) continue;
+    if (b.ownerId !== 'player' || b.id === src.id || !handlesCargo(b)) continue;
     if (kind === 'train') {
       if (b.typeId !== STATION_TYPE) continue;
     } else if (!goods.some((g) => acceptsGood(b, g))) continue;

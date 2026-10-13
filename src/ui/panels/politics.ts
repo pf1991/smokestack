@@ -138,11 +138,12 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
       setText(r.label, factionName(r.f, year));
       r.bar.set(v / 100, String(Math.round(v)));
       const t = opinionTrend(state, r.f);
-      const dir = t === null || Math.abs(t) < STEADY ? '' : t > 0 ? 'up' : 'down';
-      setText(r.trend, t === null || dir === '' ? '–' : `${dir === 'up' ? '▲' : '▼'} ${signed(t)}`);
+      const dir = t === null || Math.abs(t.delta) < STEADY ? '' : t.delta > 0 ? 'up' : 'down';
+      setText(r.trend, t === null || dir === '' ? '–' : `${dir === 'up' ? '▲' : '▼'} ${signed(t.delta)}`);
       const cls = `pol-trend ${dir}`.trim();
       if (r.trend.className !== cls) r.trend.className = cls;
-      r.trend.title = t === null ? 'No yearly sample yet' : 'Change over the last year';
+      const tip = t === null ? 'Not enough history yet' : `Change since ${t.since}`;
+      if (r.trend.title !== tip) r.trend.title = tip;
     }
     const entries = state.politics.log.slice(-LOG_SHOWN).reverse();
     const sig = `${state.politics.log.length}|${entries.map((e) => `${e.date.year}.${e.date.month}.${e.faction}.${e.delta}`).join(',')}`;

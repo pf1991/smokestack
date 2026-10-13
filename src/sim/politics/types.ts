@@ -66,6 +66,8 @@ export interface PoliticsTrack {
   contractsSeen: number[];
   /** per city id: this month's retail revenue of the player and the Baron (reset monthly) */
   sales: Record<string, { player: number; baron: number }>;
+  /** ids of the player's company housing with no factory within reach at the last check (politics/housing.ts) */
+  orphans: number[];
 }
 
 /** National opinion of every faction, sampled once a year (at year end) for the politics window's trends. */
@@ -91,7 +93,7 @@ export function defaultPolitics(primed = true): PoliticsState {
     cards: { pending: [], history: [] },
     nextCardYear: 1901,
     log: [],
-    track: { primed, buildings: [], near: {}, contractsSeen: [], sales: {} },
+    track: { primed, buildings: [], near: {}, contractsSeen: [], sales: {}, orphans: [] },
     history: [],
   };
 }

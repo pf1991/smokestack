@@ -1,6 +1,6 @@
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
-import { BUILDINGS, type BuildingDef } from '../data/buildings';
+import { BUILDINGS, HOUSING_RADIUS, type BuildingDef } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { COMPANY_NAMES } from '../data/names';
 import { getRecipe, RECIPES, recipeEra } from '../data/recipes';
@@ -304,7 +304,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
 // ---------------------------------------------------------------------------
 // placement
 
-export const HOUSING_TOO_FAR = 'Company housing must stand within 3 tiles of one of your factories';
+export const HOUSING_TOO_FAR = `Company housing must stand within ${HOUSING_RADIUS} tiles of one of your factories`;
 
 interface PlacementPlan {
   def: BuildingDef;

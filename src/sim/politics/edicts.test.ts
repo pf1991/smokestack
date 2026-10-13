@@ -5,7 +5,11 @@ import { LANDMARK_LAYER, landmarksMonth } from '../landmarks';
 import { layerAt } from '../layers';
 import { monthProfit } from '../finance';
 import { maintenanceMonth } from '../production';
-import { canPlaceBuilding, HOUSING_TOO_FAR, placeBuilding } from '../state';
+import { acceptsGood, handlesCargo } from '../inventory';
+import { acceptedGoods, appendStop, offeredGoods, suggestStops } from '../routeHelpers';
+import { canPlaceBuilding, demolishBuilding, HOUSING_TOO_FAR, placeBuilding } from '../state';
+import { createRoute } from '../vehicles';
+import { housingMonth } from './housing';
 import { must, testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
 import { buyPhilanthropy, edictsMonth, maintenanceFactor, philanthropyBlocker, setEdict } from './edicts';
@@ -111,16 +115,38 @@ describe('company edicts', () => {
 });
 
 describe('opinion history', () => {
-  it('appends one sample of national opinion per year; the trend compares with it', () => {
+  it('appends one sample of national opinion per year', () => {
     const ctx = town();
-    expect(opinionTrend(ctx.state, 'workers')).toBeNull();
     opinionHistoryYear(ctx);
     expect(ctx.state.politics.history).toEqual([{ year: 1900, national: { workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 } }]);
-    must(setEdict(ctx, 'wage', 'generous'));
-    edictsMonth(ctx);
-    expect(opinionTrend(ctx.state, 'workers')).toBeCloseTo(2, 12);
-    expect(opinionTrend(ctx.state, 'church')).toBe(0);
     expect(politicsSystem.onYear).toBe(opinionHistoryYear);
+  });
+
+  it('the trend compares with the latest sample at least 12 months old, else the first, else none', () => {
+    const ctx = town();
+    const { state } = ctx;
+    const sample = (year: number, workers: number) =>
+      state.politics.history.push({ year, national: { workers, oldmoney: 50, reformers: 50, church: 50, baron: 35 } });
+    expect(opinionTrend(state, 'workers')).toBeNull();
+    // one sample, taken at the end of 1900: in 1901 it is under 12 months old
+    sample(1900, 40);
+    state.date = { year: 1901, month: 6, day: 1, hour: 0 };
+    expect(opinionTrend(state, 'workers')).toBeNull();
+    // from 1 Jan 1902 it is a year old
+    state.date = { year: 1902, month: 1, day: 1, hour: 0 };
+    expect(opinionTrend(state, 'workers')).toEqual({ delta: 10, since: 1900 });
+    // a 1901 sample is too young in mid-1902: the 1900 one is still the baseline
+    sample(1901, 45);
+    state.date = { year: 1902, month: 6, day: 1, hour: 0 };
+    expect(opinionTrend(state, 'workers')).toEqual({ delta: 10, since: 1900 });
+    state.date = { year: 1903, month: 2, day: 1, hour: 0 };
+    expect(opinionTrend(state, 'workers')).toEqual({ delta: 5, since: 1901 });
+    // two samples, neither a year old (a hand-made history): the change since the first
+    state.politics.history = [];
+    sample(1902, 30);
+    sample(1903, 35);
+    state.date = { year: 1903, month: 6, day: 1, hour: 0 };
+    expect(opinionTrend(state, 'workers')).toEqual({ delta: 20, since: 1902 });
   });
 });
 
@@ -159,8 +185,16 @@ describe('philanthropy', () => {
     expect(ctx.state.companies.player.money).toBe(money - 25000);
   });
 
+  it('respects the landmark minYear: no library before 1905', () => {
+    const ctx = town();
+    expect(buyPhilanthropy(ctx, 0, 'library')).toEqual({ ok: false, error: 'Not before 1905' });
+    expect(LANDMARKS.park.minYear).toBe(1900);
+    expect(LANDMARKS.hospital.minYear).toBe(1900);
+  });
+
   it('library and hospital: their prices and effects', () => {
     const ctx = town();
+    ctx.state.date.year = 1905;
     const money = ctx.state.companies.player.money;
     must(buyPhilanthropy(ctx, 0, 'library'));
     must(buyPhilanthropy(ctx, 0, 'hospital'));
@@ -242,5 +276,48 @@ describe('company housing', () => {
     const w1 = city.opinion.workers;
     factionsMonth(ctx);
     expect(city.opinion.workers).toBeCloseTo(w1 + (50 - w1) * 0.02, 10);
+  });
+});
+
+describe('company housing takes no cargo', () => {
+  function site() {
+    const ctx = town(1e7);
+    const mill = must(placeBuilding(ctx, 'player', 'sawmill', { x: 36, y: 30 }));
+    const home = must(placeBuilding(ctx, 'player', 'company_housing', { x: 40, y: 30 }));
+    const store = must(placeBuilding(ctx, 'player', 'warehouse', { x: 46, y: 30 }));
+    return { ctx, mill, home, store };
+  }
+
+  it('accepts no goods and offers none', () => {
+    const { home } = site();
+    expect(handlesCargo(home)).toBe(false);
+    expect(acceptsGood(home, 'lumber')).toBe(false);
+    expect(acceptedGoods(home)).toEqual([]);
+    expect(offeredGoods(home)).toEqual([]);
+  });
+
+  it('is refused as a route stop, and never suggested as one', () => {
+    const { ctx, mill, home, store } = site();
+    // housing first: its refusal comes before any access check
+    const r = createRoute(ctx, 'player', 'Bad', [
+      { buildingId: home.id, load: [], unload: ['lumber'] },
+      { buildingId: mill.id, load: ['lumber'], unload: [] },
+    ]);
+    expect(r).toEqual({ ok: false, error: 'Company Housing takes no cargo' });
+    expect(suggestStops(ctx.state, [mill.id, home.id, store.id]).map((s) => s.buildingId)).toEqual([mill.id, store.id]);
+    const stops = suggestStops(ctx.state, [mill.id, store.id]);
+    expect(appendStop(ctx.state, stops, home.id)).toEqual(stops);
+  });
+
+  it('a housing block whose factory is demolished publishes one politics warning', () => {
+    const { ctx, mill } = site();
+    housingMonth(ctx);
+    const news = ctx.state.news.length;
+    must(demolishBuilding(ctx, mill.id, 'player'));
+    housingMonth(ctx);
+    expect(ctx.state.news.length).toBe(news + 1);
+    expect(ctx.state.news.at(-1)).toMatchObject({ kind: 'politics', headline: 'COMPANY HOUSING NEAR TOWN 0 STANDS EMPTY' });
+    housingMonth(ctx);
+    expect(ctx.state.news.length).toBe(news + 1);
   });
 });

@@ -117,6 +117,7 @@ export function philanthropyBlocker(state: GameState, cityId: number, id: Philan
   const city = state.cities.find((c) => c.id === cityId);
   if (!city) return 'Unknown town';
   if (city.landmarks.some((l) => l.id === id)) return `${city.name} already has a ${def.name.toLowerCase()}`;
+  if (state.date.year < def.minYear) return `Not before ${def.minYear}`;
   if (!canAfford(state.companies[PLAYER_ID], def.philanthropy.cost)) return 'Not enough money';
   if (!findLandmarkSite(state, city)) return `No free site in ${city.name}`;
   return null;

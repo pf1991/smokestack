@@ -1,4 +1,4 @@
-import { BUILDINGS, type BuildingDef } from '../data/buildings';
+import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS, type BuildingDef } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
 import { isUnlocked } from '../sim/eras';
@@ -36,7 +36,7 @@ function goodsRow(inv: Inventory[]): HTMLElement[] {
 
 function flow(def: BuildingDef): Child[] {
   const recipes = def.recipes.map((r) => RECIPES[r]).filter(Boolean);
-  if (def.id === 'company_housing') return ['Houses hands for a factory within 3 tiles'];
+  if (def.id === 'company_housing') return [`Houses ${HOUSING_POOL} hands; must stand within ${HOUSING_RADIUS} tiles of a factory`];
   if (recipes.length === 0) return [def.category === 'retail' ? 'Sells goods to the city' : 'Stores goods'];
   const ins = goodsRow(recipes.map((r) => r.inputs));
   const outs = goodsRow(recipes.map((r) => r.outputs));

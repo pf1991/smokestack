@@ -25,7 +25,9 @@ const LABELS: Record<LedgerCategory, string> = {
 };
 // rows come from the sim's category lists, so the statement and monthProfit cannot drift apart
 const INCOME_CATS = INCOME_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
-const EXPENSE_CATS = EXPENSE_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
+// spending under 'events' is philanthropy and takeover deals, not windfalls: its own label on the expense side
+const EXPENSE_LABELS: Partial<Record<LedgerCategory, string>> = { events: 'Gifts & deals' };
+const EXPENSE_CATS = EXPENSE_CATEGORIES.map((cat) => ({ cat, label: EXPENSE_LABELS[cat] ?? LABELS[cat] }));
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const monthKey = (m: { year: number; month: number }) => m.year * 12 + m.month;

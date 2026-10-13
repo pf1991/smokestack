@@ -1,7 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
-import { acceptsGood, loadSource } from './inventory';
+import { acceptsGood, handlesCargo, loadSource } from './inventory';
 import { findPath, roadPassable } from './pathfinding';
 import { accessTiles } from './state';
 import type { Building, GameState, GoodId, Route, RouteStop } from './types';
@@ -13,7 +13,7 @@ export const TICKS_PER_MONTH = 720;
 /** Goods a building hands to trucks: its recipe outputs, or whatever a warehouse/station holds. */
 export function offeredGoods(b: Building): GoodId[] {
   const def = BUILDINGS[b.typeId];
-  if (!def || def.category === 'retail') return [];
+  if (!def || def.category === 'retail' || !handlesCargo(b)) return [];
   if (def.category === 'logistics') return Object.keys(loadSource(b));
   const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
   return recipe ? Object.keys(recipe.outputs) : [];
@@ -47,6 +47,8 @@ export function suggestStop(state: GameState, buildingId: number, prevStops: Rou
 /** Appends a stop pre-filled by `suggestStop`; earlier stops also start loading what the new one accepts. */
 export function appendStop(state: GameState, stops: RouteStop[], buildingId: number): RouteStop[] {
   const nb = state.buildings[buildingId];
+  // a building that takes no cargo is never offered as a stop
+  if (nb && !handlesCargo(nb)) return stops.map((s) => ({ buildingId: s.buildingId, load: [...s.load], unload: [...s.unload] }));
   const updated = stops.map((s) => {
     const sb = state.buildings[s.buildingId];
     const extra = sb && nb ? offeredGoods(sb).filter((g) => acceptsGood(nb, g) && !s.load.includes(g)) : [];
@@ -57,7 +59,7 @@ export function appendStop(state: GameState, stops: RouteStop[], buildingId: num
 
 /** Pairwise suggestion for a whole list of buildings (used by autoplay). */
 export function suggestStops(state: GameState, buildingIds: number[]): RouteStop[] {
-  const bs = buildingIds.map((id) => state.buildings[id]).filter((b): b is Building => b !== undefined);
+  const bs = buildingIds.map((id) => state.buildings[id]).filter((b): b is Building => b !== undefined && handlesCargo(b));
   const loads = bs.map((b, i) => offeredGoods(b).filter((g) => bs.some((o, j) => j !== i && acceptsGood(o, g))));
   return bs.map((b, i) => ({
     buildingId: b.id,

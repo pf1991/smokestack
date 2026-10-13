@@ -9,6 +9,20 @@ function sharesStorage(b: Building): boolean {
   return cat === 'retail' || cat === 'logistics';
 }
 
+/**
+ * True when the building can take part in cargo routes at all. A storage-less depot (company
+ * housing) takes no cargo: it is never a route stop and never a send target.
+ */
+export function handlesCargo(b: Building): boolean {
+  const def = BUILDINGS[b.typeId];
+  return def !== undefined && !(def.category === 'logistics' && def.storage <= 0);
+}
+
+/** The refusal for a building that `handlesCargo` rejects, e.g. "Company Housing takes no cargo". */
+export function noCargoError(b: Building): string {
+  return `${BUILDINGS[b.typeId]?.name ?? 'This building'} takes no cargo`;
+}
+
 export function acceptsGood(b: Building, goodId: GoodId): boolean {
   const good = GOODS[goodId];
   const def = BUILDINGS[b.typeId];
@@ -21,7 +35,7 @@ export function acceptsGood(b: Building, goodId: GoodId): boolean {
     case 'retail':
       return good.tier === 2;
     case 'logistics':
-      return true;
+      return def.storage > 0;
     case 'extractor':
       return false;
   }
