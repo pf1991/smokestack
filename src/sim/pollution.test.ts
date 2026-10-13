@@ -36,6 +36,18 @@ describe('pollution', () => {
     expect(at(ctx, 17, 11)).toBe(0);
   });
 
+  it('one day of a low-pollution source: the centre holds strictly more than its neighbour', () => {
+    const ctx = testCtx(testState({ width: 40, height: 30, money: 1e7 }));
+    // textile mill (pollution 2): far below the cap after one day, so the kernel shape shows
+    must(placeBuilding(ctx, 'player', 'textile_mill', { x: 10, y: 10 }, 'r_fabric')).status = 'ok';
+    calm(ctx);
+    smogDay(ctx);
+    expect(at(ctx, 11, 11)).toBeLessThan(POLLUTION_CAP);
+    expect(at(ctx, 11, 11)).toBeGreaterThan(at(ctx, 12, 11));
+    expect(at(ctx, 12, 11)).toBeGreaterThan(at(ctx, 13, 11));
+    expect(at(ctx, 13, 11)).toBeGreaterThan(0);
+  });
+
   it('pollutionDay is the old name of smogDay', () => {
     expect(pollutionDay).toBe(smogDay);
   });

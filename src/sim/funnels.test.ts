@@ -54,6 +54,12 @@ describe('single-writer funnels', () => {
     for (const w of ['t.pollution === 0', 'const p = t.pollution;', 'if (t.pollution !== 0)']) expect(re.test(w), w).toBe(false);
     expect(writers(re)).toEqual(['pollution.ts']);
   });
+  it('terrain is written only by state.ts (callers must report changes through terrainChanged)', () => {
+    const re = /\.terrain\s*=(?!=)/;
+    for (const w of ["t.terrain = 'grass';", "tile.terrain='forest'", 'map.tiles[i].terrain = t;']) expect(re.test(w), w).toBe(true);
+    for (const w of ["t.terrain === 'forest'", "if (t.terrain == 'hills')", 'const ter = tiles[i].terrain;', 'terrain: Terrain']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['state.ts']);
+  });
   it('weather is written only by weather.ts (and the v6 migration that adds it)', () => {
     const re = /\.(?:weather|windX|windY|rain|rainDays)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
     for (const w of ['w.windX = 1;', 'state.weather = x', 'o.weather = defaultWeather(1);', 'w.rainDays++']) expect(re.test(w), w).toBe(true);

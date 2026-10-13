@@ -36,6 +36,16 @@ describe('checkInvariants', () => {
     }
   });
 
+  it('flags a non-boolean rain flag and a bad rainDays count', () => {
+    for (const patch of [{ rain: 1 }, { rain: undefined }, { rainDays: -1 }, { rainDays: NaN }, { rainDays: '2' }]) {
+      const state = createGame({ seed: 7 });
+      state.weather = { ...state.weather, ...(patch as object) };
+      const msgs = checkInvariants(state);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toMatch(/rain/);
+    }
+  });
+
   it('flags a vehicle on a missing route', () => {
     const state = createGame({ seed: 7 });
     const v: Vehicle = {

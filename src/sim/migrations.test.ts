@@ -183,7 +183,18 @@ describe('v5 -> v6: smog and society', () => {
     expect(r.value.weather).toEqual(defaultWeather(raw.date.month));
     expect(checkInvariants(r.value)).toEqual([]);
     const ctx = testCtx(r.value);
-    runDays(ctx, 31);
+    runDays(ctx, 360);
     expect(checkInvariants(ctx.state)).toEqual([]);
   });
+  for (const [name, raw] of [['phase0', phase0], ['phase1', phase1], ['phase2', phase2]] as const) {
+    it(`${name}.save.json migrates and plays a full year (360 days) with invariants intact`, () => {
+      const r = unpackState(raw);
+      if (!r.ok) throw new Error(r.error);
+      expect(r.value.version).toBe(SAVE_VERSION);
+      const ctx = testCtx(r.value);
+      runDays(ctx, 360);
+      expect(checkInvariants(ctx.state)).toEqual([]);
+      expect(ctx.state.map.tiles.some((t) => t.pollution > 0)).toBe(true);
+    });
+  }
 });

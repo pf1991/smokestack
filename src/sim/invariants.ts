@@ -59,6 +59,9 @@ export function checkInvariants(state: GameState): string[] {
   for (const [k, v] of [['windX', w?.windX], ['windY', w?.windY]] as const) {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < -1 || v > 1) out.push(`weather: wind ${k} ${v} outside [-1, 1]`);
   }
+  if (typeof w?.rain !== 'boolean') out.push(`weather: rain ${w?.rain} is not a boolean`);
+  const rd = w?.rainDays;
+  if (typeof rd !== 'number' || !Number.isFinite(rd) || rd < 0) out.push(`weather: rainDays ${rd} is not a finite number >= 0`);
 
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {
