@@ -195,6 +195,7 @@ export function resolveCard(ctx: SimContext, uid: number, choice: number, defs: 
   cards.history.push({ id: card.id, year: state.date.year });
   if (cards.history.length > HISTORY_CAP) cards.history.splice(0, cards.history.length - HISTORY_CAP);
   publishNews(ctx, 'politics', title.toUpperCase(), `${player.name} chose: ${c.label}.`);
+  ctx.bus.emit({ type: 'cardResolved', cardId: card.id, uid });
   return ok();
 }
 

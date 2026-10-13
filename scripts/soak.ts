@@ -4,12 +4,14 @@
  * Per seed: createGame, the autoplay furniture chain for the player, then yearly `runDays(ctx, 360)`
  * until `--years` years have passed, 1 Jan 2001 or game over, checking every invariant each year.
  * Prints `seed | final year | player net worth | baron net worth | ms | national opinion | elections held | cards resolved`,
- * one line per seed. National opinion is each faction's population-weighted opinion of the player in the
+ * one line per seed (cards resolved counts every answered card, split by trigger, through the
+ * `cardResolved` bus event: `cards.history` is capped). National opinion is each faction's population-weighted opinion of the player in the
  * final year; autoplay never opens the UI, so every event card auto-resolves after 60 days.
  * Exits 1 if any invariant fails (or autoplay cannot set up its chain).
  */
 import { EventBus } from '../src/core/events';
 import { runAutoplay } from '../src/game/autoplay';
+import { CARDS_BY_ID } from '../src/data/cards';
 import { FACTION_IDS } from '../src/data/factions';
 import { checkInvariants } from '../src/sim/invariants';
 import { nationalOpinion } from '../src/sim/politics/factions';
@@ -43,6 +45,13 @@ for (const seed of seeds) {
   let over = '';
   let elections = 0;
   ctx.bus.on('election', () => elections++);
+  const cards: Record<string, number> = {};
+  let cardTotal = 0;
+  ctx.bus.on('cardResolved', (e) => {
+    const t = CARDS_BY_ID[e.cardId]?.trigger ?? 'unknown';
+    cards[t] = (cards[t] ?? 0) + 1;
+    cardTotal++;
+  });
   ctx.bus.on('gameOver', (e) => (over = e.reason));
   const r = runAutoplay(ctx);
   if (!r.ok) {
@@ -62,7 +71,7 @@ for (const seed of seeds) {
   const note = over ? ` (game over: ${over})` : '';
   const opinion = FACTION_IDS.map((f) => `${f} ${nationalOpinion(state, f).toFixed(1)}`).join(' ');
   console.log(
-    `${seed} | ${state.date.year} | ${money(netWorth(state, 'player'))} | ${money(netWorth(state, 'rival'))} | ${ms} | ${opinion} | elections ${elections} | cards ${state.politics.cards.history.length}${note}`,
+    `${seed} | ${state.date.year} | ${money(netWorth(state, 'player'))} | ${money(netWorth(state, 'rival'))} | ${ms} | ${opinion} | elections ${elections} | cards ${cardTotal} (${Object.entries(cards).map(([t, n]) => `${t} ${n}`).join(', ')})${note}`,
   );
   if (problems.length > 0) {
     failed = true;

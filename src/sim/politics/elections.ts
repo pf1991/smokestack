@@ -17,6 +17,7 @@ import type { City, GameState, SimContext } from '../types';
 import { triggerCard } from './cards';
 import { adjustOpinion } from './factions';
 import { chooseMayorEdicts } from './mayorEdicts';
+import { workCity } from './workforce';
 import type { CityPolitics } from './types';
 
 export const ELECTION_TERM = 48;
@@ -90,6 +91,7 @@ export function holdElection(ctx: SimContext, city: City): FactionId {
   const p = city.politics;
   const shares = voteShares(city);
   const winner = drawWinner(state, shares);
+  const outgoing = p.mayor.faction;
   const now = monthIndex(state.date);
   p.mayor = { name: mayorName(state, winner), faction: winner, since: now };
   p.council = winner;
@@ -102,9 +104,15 @@ export function holdElection(ctx: SimContext, city: City): FactionId {
   const body = FACTION_IDS.map((f) => `${factionName(f, year)} ${Math.round(shares[f] * 100)}%`).join(', ');
   publishNews(ctx, 'politics', `${factionName(winner, year).toUpperCase()} CANDIDATE ${p.mayor.name.toUpperCase()} WINS ${city.name.toUpperCase()}`, `Vote shares: ${body}.`);
   ctx.bus.emit({ type: 'election', cityId: city.id, winner });
-  // the card is opened by the sim itself, never by a bus listener (determinism)
-  triggerCard(ctx, 'election', city.id);
+  // the card is opened by the sim itself, never by a bus listener (determinism); ruling R-Q10:
+  // only when it matters to the player, a change of faction or a town their works hire from
+  if (winner !== outgoing || playerHiresFrom(state, city.id)) triggerCard(ctx, 'election', city.id);
   return winner;
+}
+
+/** Whether any player building hires from town `cityId` (its `workCity`). */
+export function playerHiresFrom(state: GameState, cityId: number): boolean {
+  return Object.values(state.buildings).some((b) => b.ownerId === PLAYER_ID && workCity(state, b)?.id === cityId);
 }
 
 export function electionsMonth(ctx: SimContext): void {

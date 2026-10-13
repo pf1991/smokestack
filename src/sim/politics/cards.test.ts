@@ -10,7 +10,9 @@ import { testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
 import { AUTO_RESOLVE_DAYS, autoResolve, canAffordChoice, cardCity, cardScale, cardsDay, cardText, choiceCost, drawSpringCard, eligibleCards, forceCard, HISTORY_CAP, resolveCard, triggerCard } from './cards';
 import { netWorth } from '../rival/takeover';
-import { holdElection } from './elections';
+import { holdElection, playerHiresFrom } from './elections';
+import { placeBuilding } from '../state';
+import { must } from '../testkit';
 import { runAutoplay } from '../../game/autoplay';
 import { checkInvariants } from '../invariants';
 import { stateHash } from '../hash';
@@ -395,5 +397,48 @@ describe('card content (Task 8)', () => {
       const { title, body } = cardText(ctx.state, { uid: 1, cardId: c.id, cityId, openedDay: 0 });
       expect(title + body, c.id).not.toMatch(/[{}]/);
     }
+  });
+});
+
+describe('election cards only when it matters (R-Q10)', () => {
+  // the draw ignores the outgoing mayor, so clones of one state elect the same winner
+  const winnerOf = (ctx: SimContext) => holdElection(testCtx(structuredClone(ctx.state)), structuredClone(ctx.state).cities[1]);
+  const elect = (ctx: SimContext) => {
+    holdElection(ctx, ctx.state.cities[1]);
+    return pending(ctx).filter((p) => CARDS_BY_ID[p.cardId].trigger === 'election').length;
+  };
+
+  it('opens a card when the winning faction differs from the outgoing mayor', () => {
+    const ctx = town();
+    const w = winnerOf(ctx);
+    ctx.state.cities[1].politics.mayor.faction = w === 'workers' ? 'church' : 'workers';
+    expect(elect(ctx)).toBe(1);
+  });
+
+  it('no card when the same faction is returned and no player works hire from the town', () => {
+    const ctx = town();
+    const w = winnerOf(ctx);
+    ctx.state.cities[1].politics.mayor.faction = w;
+    expect(playerHiresFrom(ctx.state, 1)).toBe(false);
+    expect(elect(ctx)).toBe(0);
+  });
+
+  it('a card when the same faction is returned in a town the player hires from', () => {
+    const ctx = town();
+    ctx.state.companies[PLAYER_ID].money = 1e7;
+    must(placeBuilding(ctx, 'player', 'sawmill', { x: 35, y: 26 }));
+    expect(playerHiresFrom(ctx.state, 1)).toBe(true);
+    const w = winnerOf(ctx);
+    ctx.state.cities[1].politics.mayor.faction = w;
+    expect(elect(ctx)).toBe(1);
+  });
+
+  it('the cardResolved event fires for every answered card', () => {
+    const ctx = town();
+    const seen: string[] = [];
+    ctx.bus.on('cardResolved', (e) => seen.push(e.cardId));
+    forceCard(ctx, 'letter_to_editor');
+    expect(resolveCard(ctx, pending(ctx)[0].uid, 1).ok).toBe(true);
+    expect(seen).toEqual(['letter_to_editor']);
   });
 });

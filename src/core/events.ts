@@ -20,6 +20,8 @@ export type GameEvent =
   | { type: 'contract'; contractId: number; status: 'offered' | 'active' | 'done' | 'failed' }
   | { type: 'landmarkBuilt'; cityId: number; id: LandmarkId }
   | { type: 'election'; cityId: number; winner: FactionId }
+  /** an event card was answered (by the player or auto-resolved) */
+  | { type: 'cardResolved'; cardId: string; uid: number }
   | { type: 'scandal'; cityId: number }
   | { type: 'gameOver'; reason: string }
   | { type: 'victory'; reason: string };
