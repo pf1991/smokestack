@@ -11,6 +11,9 @@ import type { SimContext } from '../types';
 import { AUTO_RESOLVE_DAYS, autoResolve, canAffordChoice, cardCity, cardScale, cardsDay, cardText, choiceCost, drawSpringCard, eligibleCards, forceCard, HISTORY_CAP, resolveCard, triggerCard } from './cards';
 import { netWorth } from '../rival/takeover';
 import { holdElection } from './elections';
+import { runAutoplay } from '../../game/autoplay';
+import { checkInvariants } from '../invariants';
+import { stateHash } from '../hash';
 
 const town = (year = 1905, seed = 3) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
 const at = (ctx: SimContext, year: number, month: number, day = 1) => {
@@ -116,7 +119,8 @@ describe('eligibility filters', () => {
     triggerCard(ctx, 'election', null);
     expect(pending(ctx)).toEqual([]);
     triggerCard(ctx, 'election', 1);
-    expect(pending(ctx)).toMatchObject([{ cardId: 'new_mayor', cityId: 1 }]);
+    expect(pending(ctx)).toMatchObject([{ cityId: 1 }]);
+    expect(CARDS_BY_ID[pending(ctx)[0].cardId].trigger).toBe('election');
   });
 });
 
@@ -124,10 +128,11 @@ describe('triggers from the sim', () => {
   it('an election opens the new mayor card for that town', () => {
     const ctx = town();
     holdElection(ctx, ctx.state.cities[1]);
-    expect(pending(ctx)).toMatchObject([{ cardId: 'new_mayor', cityId: 1 }]);
+    expect(pending(ctx)).toMatchObject([{ cityId: 1 }]);
+    expect(CARDS_BY_ID[pending(ctx)[0].cardId].trigger).toBe('election');
     const text = cardText(ctx.state, pending(ctx)[0]);
-    expect(text.title).toBe('A New Mayor for Brill');
-    expect(text.body).not.toContain('{');
+    expect(text.body).toContain('Brill');
+    expect(text.title + text.body).not.toContain('{');
   });
 
   it('a scandal opens the reporters card for that town', async () => {
@@ -359,4 +364,36 @@ it('the seed table exercises every engine feature', () => {
   expect(CARDS.some((c) => c.trigger === 'scandal')).toBe(true);
   expect(choices.some((c) => c.apply)).toBe(true);
   expect(choices.some((c) => c.cost < 0)).toBe(true);
+});
+
+describe('card content (Task 8)', () => {
+  // `new_mayor` (Task 7 seed) is the one card whose apply moves opinion: it targets the mayor's faction
+  const applied = CARDS.flatMap((c) => c.choices.filter((ch) => ch.apply).map((ch) => ({ c, ch }))).filter(({ c }) => c.id !== 'new_mayor');
+
+  it('apply hooks exist, move no opinion, keep invariants and are deterministic', () => {
+    expect(applied.length).toBeGreaterThanOrEqual(10);
+    for (const { c, ch } of applied) {
+      const run = () => {
+        const ctx = testCtx(createGame({ seed: 11 }));
+        expect(runAutoplay(ctx).ok).toBe(true);
+        at(ctx, Math.max(c.years[0], 1901), 4, 1);
+        const cityId = c.needsCity ? cardCity(ctx.state, c) : null;
+        const before = JSON.stringify(ctx.state.cities.map((x) => x.opinion));
+        ch.apply!(ctx, cityId);
+        expect(JSON.stringify(ctx.state.cities.map((x) => x.opinion)), `${c.id}: ${ch.label} moved opinion`).toBe(before);
+        expect(checkInvariants(ctx.state), `${c.id}: ${ch.label}`).toEqual([]);
+        return stateHash(ctx.state);
+      };
+      expect(run(), `${c.id}: ${ch.label} not deterministic`).toBe(run());
+    }
+  });
+
+  it('every card text fills its placeholders', () => {
+    const ctx = town(1950);
+    for (const c of CARDS) {
+      const cityId = c.needsCity ? ctx.state.cities[0].id : null;
+      const { title, body } = cardText(ctx.state, { uid: 1, cardId: c.id, cityId, openedDay: 0 });
+      expect(title + body, c.id).not.toMatch(/[{}]/);
+    }
+  });
 });

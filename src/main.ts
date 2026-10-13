@@ -28,7 +28,7 @@ import { autoResolve, forceCard } from './sim/politics/cards';
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
  *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
  *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
- *  - `card=<id>` (dev) open event card `<id>` on load (data/cards.ts), whatever its era or trigger
+ *  - `card=<id>` (dev) open event card `<id>` on load (data/cards/), whatever its era or trigger
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
  *  - `fps=1` (dev) after a 3 s warm-up, average the requestAnimationFrame rate over 5 s and put it
  *    in the document title as `FPS <avg> (<frames> frames, worst <ms> ms)` (read it via CDP)

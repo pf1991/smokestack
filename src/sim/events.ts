@@ -10,7 +10,7 @@ import type { Building, GoodId, NewsItem, SimContext } from './types';
 
 const DAYS_PER_MONTH = 30;
 
-function pushModifier(ctx: SimContext, tag: string, goodId: GoodId | '*', cityId: number | null, factor: number, days: number): void {
+export function pushModifier(ctx: SimContext, tag: string, goodId: GoodId | '*', cityId: number | null, factor: number, days: number): void {
   const { state } = ctx;
   state.modifiers.push({ id: `${tag}:${nextId(state)}`, goodId, cityId, factor, until: addDays(state.date, days) });
 }

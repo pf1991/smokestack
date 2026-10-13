@@ -153,4 +153,45 @@ describe('content catalog', () => {
       if (!c.needsCity) expect(c.body + c.title, `${c.id} uses {city} without a city`).not.toContain('{city}');
     }
   });
+
+  it('event cards: Task 8 counts, era spread, bounds and faction coverage', () => {
+    const by = (t: string) => CARDS.filter((c) => c.trigger === t);
+    expect(CARDS.length).toBeGreaterThanOrEqual(60);
+    const spring = by('spring');
+    expect(spring.length).toBeGreaterThanOrEqual(40);
+    // era cards: at least 8 spring cards whose whole year range lies inside each quarter-century
+    for (const [from, to] of [[1900, 1924], [1925, 1949], [1950, 1974], [1975, 2000]]) {
+      const n = spring.filter((c) => c.years[0] >= from && c.years[1] <= to).length;
+      expect(n, `spring cards in ${from}-${to}`).toBeGreaterThanOrEqual(8);
+    }
+    expect(by('election').length).toBeGreaterThanOrEqual(6);
+    expect(by('scandal').length).toBeGreaterThanOrEqual(4);
+    expect(by('disaster').length).toBeGreaterThanOrEqual(4);
+    expect(by('crash').length).toBeGreaterThanOrEqual(4);
+    expect(by('strike').length).toBeGreaterThanOrEqual(2);
+    expect(by('invention').length).toBeGreaterThanOrEqual(2);
+    for (const c of CARDS) {
+      expect(c.choices.length, c.id).toBeLessThanOrEqual(3);
+      expect(c.years[0], c.id).toBeGreaterThanOrEqual(1901);
+      expect(c.years[1], c.id).toBeLessThanOrEqual(2000);
+      expect(Number.isInteger(c.defaultChoice) && c.defaultChoice >= 0 && c.defaultChoice < c.choices.length, `${c.id} defaultChoice`).toBe(true);
+      // ruling R-Q8: authored in 1900 dollars for a $300k company; the engine scales them
+      const maxCost = c.trigger === 'crash' || c.trigger === 'disaster' ? 60_000 : 15_000;
+      for (const ch of c.choices) {
+        expect(Math.abs(ch.cost), `${c.id}: ${ch.label} cost`).toBeLessThanOrEqual(maxCost);
+        expect(ch.label.length, `${c.id}: ${ch.label}`).toBeLessThan(40);
+        const net: Record<string, number> = {};
+        for (const e of ch.effects) {
+          expect(Math.abs(e.delta), `${c.id}: ${ch.label} ${e.faction}`).toBeLessThanOrEqual(15);
+          const k = `${e.faction}:${e.scope}`;
+          net[k] = (net[k] ?? 0) + e.delta;
+        }
+        for (const [k, v] of Object.entries(net)) expect(Math.abs(v), `${c.id}: ${ch.label} ${k}`).toBeLessThanOrEqual(15);
+      }
+    }
+    const used = new Set(CARDS.flatMap((c) => c.choices.flatMap((ch) => ch.effects.map((e) => e.faction))));
+    for (const f of FACTION_IDS) expect(used.has(f), `no card touches ${f}`).toBe(true);
+    const baronCards = CARDS.filter((c) => c.choices.some((ch) => ch.effects.some((e) => e.faction === 'baron')));
+    expect(baronCards.length).toBeGreaterThanOrEqual(6);
+  });
 });
