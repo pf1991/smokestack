@@ -6,6 +6,7 @@ import { buyTruck, createRoute } from '../../sim/vehicles';
 import { demolishBuilding, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import type { Building, SimContext } from '../../sim/types';
+import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
 
 function host(ctx: SimContext) {
@@ -164,6 +165,36 @@ describe('city panel', () => {
     expect(items.map((li) => li.textContent)).toEqual(['Church', 'Town Hall']);
     expect(items[0].querySelector('img[data-icon="church"]')).not.toBeNull();
     expect(items[1].querySelector('img[data-icon="town_hall"]')).not.toBeNull();
+  });
+});
+
+describe('city panel edicts', () => {
+  it('lists the edicts in force with icons and effect lines, and the faction levers', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    const c = state.cities[0];
+    c.politics.mayor.faction = 'baron';
+    c.politics.edicts = ['truck_tolls', 'permits_required'];
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    const items = () => [...document.querySelectorAll<HTMLElement>('.insp-edicts li')];
+    expect(items().map((li) => li.dataset.edict)).toEqual(['truck_tolls', 'permits_required']);
+    expect(items()[0].querySelector('img[data-icon="toll"]')).not.toBeNull();
+    expect(items()[1].querySelector('img[data-icon="permit"]')).not.toBeNull();
+    expect(items()[0].textContent).toContain('Truck tolls');
+    expect(items()[0].textContent).toContain('$40/month');
+    expect(items()[1].title).toContain('permit');
+    c.politics.edicts = [];
+    adjustOpinion(state, 'church', c.id, -40, 'test');
+    adjustOpinion(state, 'oldmoney', c.id, -20, 'test');
+    vi.advanceTimersByTime(1000);
+    expect(items().map((li) => li.dataset.edict)).toEqual(['land', 'church']);
+    expect(items()[0].textContent).toContain('×1.10');
+    expect(items()[1].textContent).toContain('+25%');
+  });
+
+  it('says so when no edict is in force', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    expect(document.querySelector('.insp-edicts')!.textContent).toContain('None in force');
   });
 });
 

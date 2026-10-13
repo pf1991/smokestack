@@ -2,9 +2,10 @@ import { err, ok, type Result } from '../core/result';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { defaultOpinion } from '../data/factions';
 import { monthIndex, newCityPolitics } from './politics/elections';
+import { chooseMayorEdicts } from './politics/mayorEdicts';
 import { defaultPolitics } from './politics/types';
 import { layCityStreets, refreshUrbanTiles } from './state';
-import type { GameState } from './types';
+import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
 
 // versions live in the leaf module version.ts (state.ts needs SAVE_VERSION and must not import this module)
@@ -57,6 +58,8 @@ export const MIGRATIONS: Migration[] = [
       (cities as Record<string, unknown>[]).forEach((c, i) => {
         c.opinion = defaultOpinion();
         c.politics = newCityPolitics(i, date.year as number, now);
+        // the default mayor's edicts (chooseMayorEdicts reads only the mayor and the opinion set above)
+        (c.politics as { edicts: unknown }).edicts = chooseMayorEdicts(c as unknown as City);
       });
       o.politics = defaultPolitics(false);
       // workforce: every building starts fully staffed until the first monthly recompute

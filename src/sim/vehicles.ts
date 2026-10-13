@@ -3,6 +3,7 @@ import { err, ok } from '../core/result';
 import { canAfford, earn, spend } from './finance';
 import { acceptsGood, handlesCargo, loadSource, noCargoError, storageLeft } from './inventory';
 import { findPath, pathMemo, pathStillPassable, roadPassable, type Passable } from './pathfinding';
+import { truckTollsMonth } from './politics/mayorEdicts';
 import { accessTiles, nextId } from './state';
 import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -279,12 +280,14 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
   return ok();
 }
 
+/** Monthly: each vehicle's upkeep, then mayors' truck tolls on the player (both under 'vehicles'). */
 export function vehicleMaintenanceMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const veh of Object.values(state.vehicles)) {
     const def = VEHICLE_KINDS[veh.kind];
     if (def) spend(state.companies[veh.ownerId], 'vehicles', def.spec.maintenance, state.date);
   }
+  truckTollsMonth(ctx);
 }
 
 // ---------------------------------------------------------------------------

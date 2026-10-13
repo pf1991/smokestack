@@ -1,6 +1,14 @@
 import { BUILDINGS } from '../../data/buildings';
 import { LANDMARKS, PHILANTHROPY_IDS, type PhilanthropyId } from '../../data/landmarks';
 import { buyPhilanthropy, philanthropyBlocker } from '../../sim/politics/edicts';
+import {
+  activeEdicts,
+  CHURCH_OBJECTION,
+  churchFactor,
+  landPriceFactor,
+  MAYOR_EDICTS,
+  reformersDemandPermits,
+} from '../../sim/politics/mayorEdicts';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { endorse, ENDORSE_WINDOW, monthIndex, paySlush, slushBlocker, slushCost, slushOdds } from '../../sim/politics/elections';
@@ -82,6 +90,34 @@ function effectsLine(id: PhilanthropyId, year: number): string {
     .join(', ');
 }
 
+interface EdictLine {
+  key: string;
+  icon: string;
+  name: string;
+  effect: string;
+}
+
+/** The town's edicts in force, then the faction levers on construction (exported for tests). */
+export function cityEdictLines(city: City, year: number): EdictLine[] {
+  const out: EdictLine[] = activeEdicts(city).map((id) => {
+    const info = MAYOR_EDICTS[id];
+    const forced = id === 'permits_required' && !city.politics.edicts.includes(id) && reformersDemandPermits(city);
+    const by = forced ? `${factionName('reformers', year)} demand` : `${factionName(city.politics.mayor.faction, year)} mayor`;
+    return { key: id, icon: info.icon, name: info.name, effect: `${info.effect} (${by})` };
+  });
+  const land = landPriceFactor(city);
+  if (Math.abs(land - 1) >= 0.005) {
+    out.push({ key: 'land', icon: 'top_hat', name: 'Land price', effect: `Building here costs ×${land.toFixed(2)} (Old Money)` });
+  }
+  if (churchFactor(city) !== 1) {
+    out.push({
+      key: 'church', icon: 'church', name: 'Community objections',
+      effect: `Building here costs +${Math.round((CHURCH_OBJECTION - 1) * 100)}% (${factionName('church', year)})`,
+    });
+  }
+  return out;
+}
+
 function buildView(host: InspectorHost, cityId: number): InspectorView {
   const pop = h('span');
   const trend = h('span', { class: 'insp-trend' });
@@ -89,6 +125,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const smog = bar('#6b6b70');
   const landmarks = h('ul', { class: 'insp-landmarks' });
   let landmarkSig = '\0';
+  const edictList = h('ul', { class: 'insp-edicts' });
+  let edictSig = '\0';
   const opinion = FACTION_IDS.map((f: FactionId) => {
     const label = h('span', { class: 'insp-label' });
     const b = bar(FACTIONS[f].color);
@@ -154,6 +192,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
     h('div', { class: 'insp-stat insp-election' }, h('span', { class: 'insp-label' }, 'Next election'), electionRow),
     endorseRow,
+    h('div', { class: 'insp-section insp-mayor-edicts' }, h('div', { class: 'insp-label' }, 'Edicts'), edictList),
     h('div', { class: 'insp-section insp-opinions' }, h('div', { class: 'insp-label' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
     h('div', { class: 'insp-section insp-philanthropy' }, h('div', { class: 'insp-label' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
     h(
@@ -201,6 +240,20 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         if (slushBtn.title !== tip) slushBtn.title = tip;
         const pct = (x: number) => `${Math.round(x * 100)}%`;
         setText(slushInfo, odds ? `Win odds ${pct(odds.now)} \u2192 ${pct(odds.after)} | Scandal risk: ${pct(pol.scandalRisk)}` : '');
+      }
+      const lines = cityEdictLines(city, year);
+      const esig = lines.map((l) => `${l.key}:${l.effect}`).join('|');
+      if (esig !== edictSig) {
+        edictSig = esig;
+        edictList.replaceChildren(
+          ...(lines.length > 0
+            ? lines.map((l) =>
+                h('li', { 'data-edict': l.key, title: `${l.name}: ${l.effect}` },
+                  iconEl(l.icon, 16),
+                  h('span', null, h('b', null, l.name), h('small', { class: 'insp-edict-effect' }, l.effect))),
+              )
+            : [h('li', { class: 'insp-none' }, 'None in force')]),
+        );
       }
       setText(pop, formatNumber(city.population));
       const diff = city.population - city.prevPopulation;

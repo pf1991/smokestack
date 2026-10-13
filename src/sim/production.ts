@@ -2,7 +2,7 @@ import { LANDMARK_LAYER } from './landmarkTiles';
 import { recordSale } from './scenarios';
 import { onSale } from './contracts';
 import { notePoliticsSale } from './politics/factions';
-import { maintenanceFactor } from './politics/edicts';
+import { playerBuildingUpkeep, SMOG_LIMIT_FACTOR, smogLimited } from './politics/mayorEdicts';
 import { companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
@@ -52,6 +52,8 @@ function addOutput(b: Building, goodId: GoodId, amount: number, cap: number): vo
 
 export function productionDay(ctx: SimContext): void {
   const { state } = ctx;
+  // mayors' smog limits hold some of the player's dirty works back (politics/mayorEdicts.ts)
+  const limited = smogLimited(state);
   for (const b of Object.values(state.buildings)) {
     const def = BUILDINGS[b.typeId];
     if (b.haltedUntil) {
@@ -67,9 +69,10 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     const outs = Object.keys(recipe.outputs);
+    const rate = limited.has(b.id) ? b.staffing * SMOG_LIMIT_FACTOR : b.staffing;
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
-      const eff = extractorEfficiency(state, b, outs) * b.staffing;
+      const eff = extractorEfficiency(state, b, outs) * rate;
       for (const g of outs) addOutput(b, g, recipe.outputs[g] * eff, def.storage);
       b.status = outs.some((g) => (b.output[g] ?? 0) >= def.storage) ? 'output_full' : 'ok';
       continue;
@@ -83,7 +86,7 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     b.status = 'ok';
-    b.progress += b.staffing / recipe.days;
+    b.progress += rate / recipe.days;
     if (b.progress >= 1 - 1e-9) {
       for (const [g, q] of Object.entries(recipe.inputs)) b.input[g] -= q;
       for (const g of outs) addOutput(b, g, recipe.outputs[g], def.storage);
@@ -147,9 +150,9 @@ export function maintenanceMonth(ctx: SimContext): void {
   for (const owner of companyIds(state)) {
     const company = state.companies[owner];
     let total = 0;
-    for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += BUILDINGS[b.typeId].maintenance;
-    // company edicts (wages, safety, unions) scale the player's building upkeep only
-    if (owner === PLAYER_ID) total *= maintenanceFactor(state.politics.edicts);
+    // company edicts (wages, safety, unions) and mayors' minimum wage scale the player's building upkeep only
+    if (owner === PLAYER_ID) total = playerBuildingUpkeep(state);
+    else for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += BUILDINGS[b.typeId].maintenance;
     total += company.roadTiles * 5 + company.railTiles * RAIL_UPKEEP;
     if (total > 0) spend(company, 'maintenance', total, state.date);
   }

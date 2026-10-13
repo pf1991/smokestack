@@ -15,6 +15,7 @@ import { publishNews } from '../news';
 import { chance, pick, random } from '../rng';
 import type { City, GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
+import { chooseMayorEdicts } from './mayorEdicts';
 import type { CityPolitics } from './types';
 
 export const ELECTION_TERM = 48;
@@ -95,6 +96,7 @@ export function holdElection(ctx: SimContext, city: City): FactionId {
   while (p.nextElection <= now) p.nextElection += ELECTION_TERM;
   p.endorsed = null;
   p.slush = 0;
+  p.edicts = chooseMayorEdicts(city);
   const year = state.date.year;
   const body = FACTION_IDS.map((f) => `${factionName(f, year)} ${Math.round(shares[f] * 100)}%`).join(', ');
   publishNews(ctx, 'politics', `${factionName(winner, year).toUpperCase()} CANDIDATE ${p.mayor.name.toUpperCase()} WINS ${city.name.toUpperCase()}`, `Vote shares: ${body}.`);

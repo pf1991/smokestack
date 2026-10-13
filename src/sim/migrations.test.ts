@@ -128,7 +128,7 @@ describe('v4 -> v5: politics', () => {
     for (const c of o.cities as { opinion: unknown }[]) expect(c.opinion).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
     const cs = o.cities as { politics: { mayor: { name: string; faction: string }; council: string; nextElection: number; edicts: unknown[] } }[];
     for (const c of cs) {
-      expect(c.politics).toMatchObject({ council: 'workers', edicts: [], mayor: { faction: 'workers' } });
+      expect(c.politics).toMatchObject({ council: 'workers', edicts: ['minimum_wage'], mayor: { faction: 'workers' } });
       expect(c.politics.nextElection).toBeGreaterThanOrEqual(1900 * 12 + 3 + 6);
     }
     expect(o.politics).toMatchObject({ edicts: { wage: 'fair', safety: 'standard', union: 'tolerate' }, cards: { pending: [], history: [] }, log: [] });

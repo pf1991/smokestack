@@ -1,7 +1,8 @@
 import type { Result } from '../../core/result';
 import type { GameController } from '../../game/controller';
 import { GOODS } from '../../data/goods';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, LOAN_RATE, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
+import { loanRate } from '../../sim/politics/mayorEdicts';
 import { assetValue } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
 import { barChart, cssColor, lineChart } from '../charts';
@@ -210,10 +211,12 @@ export const financePanel: PanelDef = {
       if (bars.length > 0) barChart(goodsCanvas, bars);
 
       // Loans.
-      const interest = Math.round((player.loan * LOAN_RATE) / 12);
+      // the player's rate follows national Old Money opinion (sim/politics/mayorEdicts.ts)
+      const rate = loanRate(state);
+      const interest = Math.round((player.loan * rate) / 12);
       loanInfo.replaceChildren(
         h('p', null, `Current loan: ${formatMoney(player.loan)}`),
-        h('p', null, `Monthly interest: ${formatMoney(interest)}`),
+        h('p', null, `Monthly interest: ${formatMoney(interest)} (${(rate * 100).toFixed(1)}% a year, set by Old Money)`),
       );
     }
 

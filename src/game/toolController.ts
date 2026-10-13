@@ -42,6 +42,11 @@ export function centredPos(typeId: string, tile: Vec2): Vec2 {
   return { x: tile.x - Math.floor((def.size.w - 1) / 2), y: tile.y - Math.floor((def.size.h - 1) / 2) };
 }
 
+/** The build ghost's label: "Sawmill $20,000", or "Sawmill $20,000 +$2,000 permit" (the two add up to what is charged). */
+export function buildLabel(name: string, cost: number, permit: number): string {
+  return permit > 0 ? `${name} ${formatMoney(cost - permit)} +${formatMoney(permit)} permit` : `${name} ${formatMoney(cost)}`;
+}
+
 /** Cost of laying road on `tiles` (existing road is free), or the reason it cannot be built. */
 export function roadQuote(state: GameState, tiles: Vec2[]): { cost: number; error: string | null } {
   const { map } = state;
@@ -308,7 +313,7 @@ export class ToolController {
       const def = BUILDINGS[t.typeId];
       const pos = centredPos(t.typeId, hover);
       const r = canPlaceBuilding(this.state, 'player', t.typeId, pos);
-      const label = r.ok ? `${def?.name ?? t.typeId} ${formatMoney(r.value.cost)}` : r.error;
+      const label = r.ok ? buildLabel(def?.name ?? t.typeId, r.value.cost, r.value.permit) : r.error;
       return { kind: 'building', typeId: t.typeId, pos, valid: r.ok, label };
     }
     if (t.kind === 'bulldoze') {

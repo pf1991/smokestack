@@ -141,7 +141,8 @@ describe('elections', () => {
       expect(c.politics.nextElection).toBeGreaterThanOrEqual(now + 6);
       expect(c.politics.mayor.faction).toBe('workers');
       expect(c.politics.council).toBe('workers');
-      expect(c.politics.edicts).toEqual([]);
+      // the default (Workers) mayor's edicts, chosen on migration
+      expect(c.politics.edicts).toEqual(['minimum_wage']);
     }
     expect(checkInvariants(r.value)).toEqual([]);
   });

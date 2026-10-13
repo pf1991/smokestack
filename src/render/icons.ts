@@ -518,6 +518,31 @@ const UI_PAINTERS: Record<string, Painter> = {
     rect(g, 4, 5, 8, 7, C.brass);
     line(g, [4, 12, 12, 5], C.ink, OUTLINE);
   },
+  // mayor edicts (city panel)
+  permit: (g) => {
+    poly(g, [3, 1.5, 10.5, 1.5, 13, 4, 13, 14.5, 3, 14.5], C.paper);
+    for (const [x1, y] of [[11, 5.5], [11, 7.5], [8, 9.5]]) line(g, [5, y, x1, y], C.slate, 1);
+    circ(g, 10.3, 11.6, 2.4, C.red);
+    line(g, [9.2, 11.6, 10.1, 12.5, 11.5, 10.7], C.paper, 0.9);
+  },
+  toll: (g) => {
+    rect(g, 2, 4, 2.6, 10.5, C.slate);
+    g.beginPath();
+    g.rect(3.3, 6, 11.2, 2.6);
+    fs(g, C.paper);
+    for (const x of [5.6, 9.6]) rect(g, x, 6, 2, 2.6, C.red, false);
+    g.beginPath();
+    g.rect(3.3, 6, 11.2, 2.6);
+    g.stroke();
+    circ(g, 3.3, 7.3, 1.3, C.brass);
+    rect(g, 1, 13.5, 5, 1.4, C.coal);
+  },
+  wage: (g) => {
+    rect(g, 1.5, 5, 13, 9, C.paperShade);
+    poly(g, [1.5, 5, 8, 10, 14.5, 5], C.paper);
+    circ(g, 11.5, 4.5, 3, C.brassLight);
+    line(g, [11.5, 3, 11.5, 6], C.brassDark, 1.1);
+  },
 };
 
 const ACHIEVEMENT_PAINTERS: Record<string, Painter> = {
