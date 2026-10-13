@@ -129,7 +129,7 @@ export const INTERWAR_CARDS: readonly CardDef[] = [
       {
         label: 'Retool for the war effort',
         cost: -6000,
-        effects: [nation('workers', 4), nation('oldmoney', 3), nation('baron', -4)],
+        effects: [nation('workers', 4), nation('oldmoney', 3), nation('baron', -4), nation('reformers', -5), nation('church', -3)],
         apply: (ctx) => demand(ctx, 'arsenal', 'steel', null, 1.2, YEAR),
         note: 'Steel demand +20% for a year',
       },

@@ -12,8 +12,8 @@ const ANY: [number, number] = [1901, 2000];
 export const ELECTION_CARDS: readonly CardDef[] = [
   {
     id: 'mayor_workers',
-    title: 'Labour Takes {city}',
-    body: "The new {faction} mayor of {city} arrived at the swearing-in in work boots, promising 'a fair shake for the shop floor'. He Next stop: a tour of your works.",
+    title: '{faction} Take {city}',
+    body: "The new {faction} mayor of {city} arrived at the swearing-in in work boots, promising 'a fair shake for the shop floor'. Next stop: a tour of your works.",
     trigger: 'election',
     years: ANY,
     weight: 3,
@@ -234,7 +234,7 @@ export const DISASTER_CARDS: readonly CardDef[] = [
     choices: [
       { label: 'Pay for rescue and widows', cost: 25000, effects: [city('workers', 12), city('church', 8)] },
       { label: 'Send a wreath', cost: 0, effects: [city('church', 2), city('workers', -4)] },
-      { label: "Blame the miners' carelessness", cost: 0, effects: [city('workers', -12), city('church', -8), city('oldmoney', 3)] },
+      { label: "Cite the inspector's report", cost: 0, effects: [city('workers', -12), city('church', -8), city('oldmoney', 3)] },
     ],
     defaultChoice: 1,
   },
@@ -299,14 +299,22 @@ export const CRASH_CARDS: readonly CardDef[] = [
   {
     id: 'bailout',
     title: 'Bailout or Bust',
-    body: 'The government will lend to struggling firms on two conditions: they hire men off the dole, and they stop paying bonuses to anyone named Rupert.',
+    body: 'The government will lend to struggling firms on two conditions: they hire the jobless, and they stop paying bonuses to anyone named Rupert. The purists are already calling it a handout.',
     trigger: 'crash',
     years: ANY,
     weight: 1,
     cooldownYears: 0,
     needsCity: false,
     choices: [
-      { label: 'Take the bailout', cost: -15000, effects: [nation('workers', 6), nation('oldmoney', -6), nation('reformers', 3)] },
+      {
+        label: 'Take the bailout',
+        cost: -15000,
+        effects: [nation('workers', 6), nation('oldmoney', -6), nation('reformers', -6)],
+        apply: (ctx) => {
+          for (const c of ctx.state.cities) c.politics.scandalRisk += 0.05;
+        },
+        note: 'Scandal risk rises in every town',
+      },
       { label: 'Refuse the strings', cost: 0, effects: [nation('oldmoney', 5), nation('workers', -4)] },
     ],
     defaultChoice: 1,
@@ -314,7 +322,7 @@ export const CRASH_CARDS: readonly CardDef[] = [
   {
     id: 'fire_sale',
     title: 'Fire Sale',
-    body: "Rival firms are going under and their works are going for a song, the song being 'Brother, Can You Spare a Dime'. The Baron is already at the auction with his cheque book.",
+    body: "Rival firms are going under and their works are going for a song, and a sad one at that. The Baron is already at the auction with his cheque book.",
     trigger: 'crash',
     years: ANY,
     weight: 1,
