@@ -131,7 +131,7 @@ describe('ToolController', () => {
     tc.refreshGhost();
     expect(tc.ghost()).toMatchObject({
       valid: false,
-      label: 'A permit was refused by the Workers mayor of Town 0. Raise their opinion above 25 or build elsewhere.',
+      label: 'A permit was refused by the Workers mayor of Town 0. Raise their opinion to 25 or more, or build elsewhere.',
     });
     adjustOpinion(ctx.state, 'workers', city.id, 30, 'test');
     tc.refreshGhost();

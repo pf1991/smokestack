@@ -45,6 +45,8 @@ function flow(def: BuildingDef): Child[] {
 
 /** Buildings shown but not yet buildable (their system arrives in a later task, e.g. railways). */
 const COMING_SOON = new Set<string>();
+/** Tool-card tooltip line: the card shows the catalogue price; the build ghost shows the site's. */
+export const PRICE_NOTE = 'Town politics (permits, land prices, objections, tax breaks) can change the price; the build preview shows the price at each site.';
 
 interface Card {
   el: HTMLButtonElement;
@@ -90,7 +92,7 @@ export class Toolbar {
     for (const def of Object.values(BUILDINGS)) {
       const tab = tabOf(def);
       if (!tab) continue;
-      const cost = h('span', { class: 'tc-cost' }, formatMoney(def.cost));
+      const cost = h('span', { class: 'tc-cost' }, `from ${formatMoney(def.cost)}`);
       const maint = h('span', { class: 'tc-maint' }, `+${formatMoney(def.maintenance)}/mo`);
       const soon = COMING_SOON.has(def.id);
       const lock = h('div', { class: 'tc-lock' }, soon ? 'Coming soon' : `Invented in ${def.era}`);
@@ -98,7 +100,7 @@ export class Toolbar {
       const el = h('button', {
         class: 'tool-card',
         'data-building': def.id,
-        title: def.description,
+        title: `${def.description}\n${PRICE_NOTE}`,
         disabled: soon,
         onClick: () => !soon && this.select({ kind: 'build', typeId: def.id }),
       },

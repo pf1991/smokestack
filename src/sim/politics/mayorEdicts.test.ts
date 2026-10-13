@@ -132,7 +132,7 @@ describe('permits', () => {
     const r = canPlaceBuilding(ctx.state, 'player', 'sawmill', NEAR);
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.error).toBe('A permit was refused by the Workers mayor of Town 0. Raise their opinion above 25 or build elsewhere.');
+    expect(r.error).toBe('A permit was refused by the Workers mayor of Town 0. Raise their opinion to 25 or more, or build elsewhere.');
     expect(r.error).toBe(permitRefusal(ctx.state.cities[0], ctx.state.date.year));
     expect(placeBuilding(ctx, 'player', 'sawmill', NEAR).ok).toBe(false);
   });
@@ -263,6 +263,15 @@ describe('smog limit', () => {
     expect(mill.output.lumber ?? 0).toBe(0);
     expect(rural.output.lumber).toBe(5);
     expect(baron.output.lumber).toBe(5);
+  });
+
+  it('stacks with staffing: a half-staffed limited works runs at 0.375', () => {
+    const { ctx, mill, rural } = smogTown(0.41);
+    mill.staffing = 0.5;
+    rural.staffing = 0.5;
+    productionDay(ctx);
+    expect(mill.progress).toBeCloseTo(0.375, 12);
+    expect(rural.progress).toBeCloseTo(0.5, 12);
   });
 
   it('does nothing at or below 0.4', () => {

@@ -90,6 +90,9 @@ function effectsLine(id: PhilanthropyId, year: number): string {
     .join(', ');
 }
 
+/** Where a town's edicts and levers reach (siteCity zone vs workCity staffing, sim/politics/mayorEdicts.ts). */
+export const EDICT_REACH = "Permits and land prices apply within the town's zone (its urban area plus 4 tiles). Wages and tolls apply to works staffed from the town.";
+
 interface EdictLine {
   key: string;
   icon: string;
@@ -192,7 +195,10 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
     h('div', { class: 'insp-stat insp-election' }, h('span', { class: 'insp-label' }, 'Next election'), electionRow),
     endorseRow,
-    h('div', { class: 'insp-section insp-mayor-edicts' }, h('div', { class: 'insp-label' }, 'Edicts'), edictList),
+    h('div', { class: 'insp-section insp-mayor-edicts' },
+      h('div', { class: 'insp-label' }, 'Edicts'),
+      h('small', { class: 'insp-edict-reach' }, EDICT_REACH),
+      edictList),
     h('div', { class: 'insp-section insp-opinions' }, h('div', { class: 'insp-label' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
     h('div', { class: 'insp-section insp-philanthropy' }, h('div', { class: 'insp-label' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
     h(

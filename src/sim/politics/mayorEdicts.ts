@@ -154,7 +154,7 @@ export function siteCity(state: GameState, typeId: BuildingTypeId, pos: Vec2): C
 }
 
 export function permitRefusal(city: City, year: number): string {
-  return `A permit was refused by the ${factionName(city.politics.mayor.faction, year)} mayor of ${city.name}. Raise their opinion above ${PERMIT_REFUSE_BELOW} or build elsewhere.`;
+  return `A permit was refused by the ${factionName(city.politics.mayor.faction, year)} mayor of ${city.name}. Raise their opinion to ${PERMIT_REFUSE_BELOW} or more, or build elsewhere.`;
 }
 
 export interface PlacementQuote {

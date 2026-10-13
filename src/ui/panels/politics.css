@@ -33,3 +33,4 @@
 .insp-edicts li > span { display: flex; flex-direction: column; }
 .insp-edict-effect { color: var(--paper-shade); font-size: 12px; }
 .insp-edicts .insp-none { opacity: 0.6; }
+.insp-edict-reach { color: var(--paper-shade); font-size: 11px; font-style: italic; }

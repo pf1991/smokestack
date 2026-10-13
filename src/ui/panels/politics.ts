@@ -6,7 +6,8 @@ import type { GameController } from '../../game/controller';
 import { BUILDINGS } from '../../data/buildings';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { PLAYER_ID } from '../../sim/companies';
-import { EDICT_KEYS, EDICTS, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
+import { EDICT_KEYS, EDICTS, maintenanceFactor, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
+import { playerBuildingUpkeep } from '../../sim/politics/mayorEdicts';
 import { nationalOpinion, opinionTrend } from '../../sim/politics/factions';
 import type { CompanyEdicts, PoliticsLogEntry } from '../../sim/politics/types';
 import type { GameState, SimContext } from '../../sim/types';
@@ -39,10 +40,23 @@ function baseUpkeep(state: GameState): number {
   return total;
 }
 
-/** "Upkeep ×1.25 (+$1,200/mo)" for one edict option, against the neutral 1. */
-export function costText(opt: EdictOption, upkeep: number): string {
+/** The player's monthly building upkeep were edict `key` set to `value`, mayors' minimum wage included. */
+export function upkeepWith<K extends keyof CompanyEdicts>(state: GameState, key: K, value: CompanyEdicts[K]): number {
+  const edicts = { ...state.politics.edicts, [key]: value };
+  return playerBuildingUpkeep({ ...state, politics: { ...state.politics, edicts } });
+}
+
+/** What mayors' minimum wage adds to the player's building upkeep this month (0 when no town has one). */
+export function minimumWageSurcharge(state: GameState): number {
+  return playerBuildingUpkeep(state) - baseUpkeep(state) * maintenanceFactor(state.politics.edicts);
+}
+
+/**
+ * "Upkeep ×1.25 (+$1,200/mo)" for one edict option; `delta` is its monthly upkeep change against
+ * the neutral option (upkeepWith both), so minimum-wage towns are counted.
+ */
+export function costText(opt: EdictOption, delta: number): string {
   if (opt.cost === 1) return 'Upkeep unchanged';
-  const delta = upkeep * (opt.cost - 1);
   return `Upkeep ×${opt.cost} (${delta >= 0 ? '+' : '−'}${formatMoney(Math.abs(Math.round(delta)))}/mo)`;
 }
 
@@ -106,19 +120,22 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   const update = (): void => {
     const { state } = ctx;
     const year = state.date.year;
-    const upkeep = baseUpkeep(state);
+    const surcharge = minimumWageSurcharge(state);
     for (const c of controls) {
       const def = EDICTS[c.key] as EdictDef<string>;
       const current = state.politics.edicts[c.key];
+      const neutral = upkeepWith(state, c.key, def.values[1] as never);
+      const delta = (v: string) => upkeepWith(state, c.key, v as never) - neutral;
       for (const [v, btn] of c.buttons) {
         const on = String(v === current);
         if (btn.getAttribute('aria-pressed') !== on) btn.setAttribute('aria-pressed', on);
-        const tip = `${costText(def.options[v], upkeep)}. ${effectsText(def.options[v], year)}.`;
+        const tip = `${costText(def.options[v], delta(v))}. ${effectsText(def.options[v], year)}.`;
         if (btn.title !== tip) btn.title = tip;
       }
       const opt = def.options[current];
       if (!opt) continue;
-      setText(c.cost, costText(opt, upkeep));
+      const mw = c.key === 'wage' && surcharge >= 0.5 ? ` · minimum wage +${formatMoney(Math.round(surcharge))}/mo` : '';
+      setText(c.cost, costText(opt, delta(current)) + mw);
       const parts = FACTION_IDS.filter((f) => opt.effects[f]);
       const sig = `${current}|${year >= 1960}`;
       if (c.effects.dataset.sig !== sig) {

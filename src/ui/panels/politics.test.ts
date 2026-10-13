@@ -39,6 +39,20 @@ afterEach(() => {
 });
 
 describe('politics window', () => {
+  it('upkeep estimates count mayors\' minimum wage', () => {
+    const ctx = testCtx(testState({ width: 80, height: 60, money: 1e6, cities: [{ x: 20, y: 20, population: 6000 }] }));
+    must(placeBuilding(ctx, 'player', 'sawmill', { x: 29, y: 19 })); // $300/mo, staffed from Town 0
+    ctx.state.cities[0].politics.edicts = ['minimum_wage'];
+    PANELS.politics.open(game(ctx));
+    const wage = () => win().querySelectorAll<HTMLElement>('.pol-edict')[0];
+    // fair: no change from wages, but the town's minimum wage adds 10%
+    expect(wage().querySelector('.pol-cost')!.textContent).toBe('Upkeep unchanged · minimum wage +$30/mo');
+    // low counts as fair in a minimum-wage town: no saving there
+    expect(wage().querySelector<HTMLElement>('[data-value="low"]')!.title).toContain('Upkeep ×0.85 (+$0/mo)');
+    // generous: 300 × 1.25 × 1.1 − 300 × 1.1
+    expect(wage().querySelector<HTMLElement>('[data-value="generous"]')!.title).toContain('(+$83/mo)');
+  });
+
   it('renders three segmented controls; clicking one calls setEdict and updates the selection', () => {
     const ctx = testCtx(testState({ cities: [{ x: 10, y: 10, population: 6000 }] }));
     PANELS.politics.open(game(ctx));

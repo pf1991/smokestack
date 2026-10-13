@@ -182,6 +182,9 @@ describe('city panel edicts', () => {
     expect(items()[0].textContent).toContain('Truck tolls');
     expect(items()[0].textContent).toContain('$40/month');
     expect(items()[1].title).toContain('permit');
+    const reach = document.querySelector('.insp-edict-reach')!.textContent!;
+    expect(reach).toContain("within the town's zone");
+    expect(reach).toContain('staffed from the town');
     c.politics.edicts = [];
     adjustOpinion(state, 'church', c.id, -40, 'test');
     adjustOpinion(state, 'oldmoney', c.id, -20, 'test');
