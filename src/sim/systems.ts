@@ -7,6 +7,8 @@ import { growthMonth, maintenanceMonth, productionDay, retailDay } from './produ
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
 import { landmarksMonth } from './landmarks';
+import { politicsSystem } from './politics';
+import { companyLoanRate } from './politics/mayorEdicts';
 import { goalsMonth } from './scenarios';
 import { companyIds } from './companies';
 import type { SimContext } from './types';
@@ -32,7 +34,8 @@ const finance: SimSystem = {
     const { state, bus } = ctx;
     for (const id of companyIds(state)) {
       const c = state.companies[id];
-      const { bankrupt } = closeMonth(c, state.date);
+      // the player's rate follows Old Money; every other company pays LOAN_RATE
+      const { bankrupt } = closeMonth(c, state.date, companyLoanRate(state, id));
       // after closeMonth so the month's interest is included
       currentLedger(c, state.date).netWorthEnd = c.money - c.loan + assetValue(state, id);
       // fire once, on the month that crosses the threshold
@@ -78,4 +81,6 @@ export const SYSTEMS: SimSystem[] = [
   { id: 'goals', onMonth: goalsMonth },
   // after upkeep's growthMonth, so a town that just spread builds on its new land
   { id: 'landmarks', onMonth: landmarksMonth },
+  // Phase 2 politics (cards daily; workforce, edicts, opinion, housing, elections monthly); reads the month's pollution and sales
+  politicsSystem,
 ];

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/events';
 import { testState } from '../../sim/testkit';
 import { WorldRenderer } from './index';
-import { UrbanWatch } from './survey';
+import { FACTIONS } from '../../data/factions';
+import { CityLabelCache, UrbanWatch, drawCityLabels } from './survey';
 
 /** A canvas whose 2D context accepts every call, so the renderer can be built under jsdom. */
 function fakeCanvas(): HTMLCanvasElement {
@@ -49,5 +50,29 @@ describe('UrbanWatch', () => {
     dirty.mockClear();
     w.update(cities, dirty);
     expect(dirty).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('city label mayor dot', () => {
+  it('takes its colour from the current mayor faction', () => {
+    const state = testState({ cities: [{ x: 10, y: 10 }] });
+    const cache = new CityLabelCache();
+    const fills: unknown[] = [];
+    const props: Record<string | symbol, unknown> = {};
+    const g = new Proxy(props, {
+      get: (t, k) => {
+        if (k in t) return t[k];
+        if (k === 'measureText') return () => ({ width: 40 });
+        if (k === 'fill') return () => fills.push(t.fillStyle);
+        return () => undefined;
+      },
+      set: (t, k, v) => { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const cam = { x: 0, y: 0, zoom: 1, viewW: 800, viewH: 600 };
+    state.cities[0].politics.mayor.faction = 'church';
+    drawCityLabels(g, state, cam, 1, [], cache);
+    state.cities[0].politics.mayor.faction = 'baron';
+    drawCityLabels(g, state, cam, 1, [], cache);
+    expect(fills).toEqual([FACTIONS.church.color, FACTIONS.baron.color]);
   });
 });

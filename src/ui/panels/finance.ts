@@ -1,7 +1,8 @@
 import type { Result } from '../../core/result';
 import type { GameController } from '../../game/controller';
 import { GOODS } from '../../data/goods';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, LOAN_RATE, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
+import { loanRate } from '../../sim/politics/mayorEdicts';
 import { assetValue } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
 import { barChart, cssColor, lineChart } from '../charts';
@@ -25,7 +26,9 @@ const LABELS: Record<LedgerCategory, string> = {
 };
 // rows come from the sim's category lists, so the statement and monthProfit cannot drift apart
 const INCOME_CATS = INCOME_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
-const EXPENSE_CATS = EXPENSE_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
+// spending under 'events' is philanthropy and takeover deals, not windfalls: its own label on the expense side
+const EXPENSE_LABELS: Partial<Record<LedgerCategory, string>> = { events: 'Gifts & deals' };
+const EXPENSE_CATS = EXPENSE_CATEGORIES.map((cat) => ({ cat, label: EXPENSE_LABELS[cat] ?? LABELS[cat] }));
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const monthKey = (m: { year: number; month: number }) => m.year * 12 + m.month;
@@ -208,10 +211,12 @@ export const financePanel: PanelDef = {
       if (bars.length > 0) barChart(goodsCanvas, bars);
 
       // Loans.
-      const interest = Math.round((player.loan * LOAN_RATE) / 12);
+      // the player's rate follows national Old Money opinion (sim/politics/mayorEdicts.ts)
+      const rate = loanRate(state);
+      const interest = Math.round((player.loan * rate) / 12);
       loanInfo.replaceChildren(
         h('p', null, `Current loan: ${formatMoney(player.loan)}`),
-        h('p', null, `Monthly interest: ${formatMoney(interest)}`),
+        h('p', null, `Monthly interest: ${formatMoney(interest)} (${(rate * 100).toFixed(1)}% a year, set by Old Money)`),
       );
     }
 

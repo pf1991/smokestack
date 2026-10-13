@@ -6,6 +6,7 @@ import { buyTruck, createRoute } from '../../sim/vehicles';
 import { demolishBuilding, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import type { Building, SimContext } from '../../sim/types';
+import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
 
 function host(ctx: SimContext) {
@@ -47,6 +48,28 @@ describe('building panel', () => {
     sel.dispatchEvent(new Event('change'));
     expect(b.recipeId).toBe('r_cotton');
     expect(b.progress).toBe(0);
+  });
+
+  it('shows the staffing row', () => {
+    const ctx = testCtx(testState({ width: 100, height: 40, cities: [{ x: 10, y: 20, population: 1000, name: 'Ashford' }] }));
+    const full = place(ctx, 'sawmill', 30, 20);
+    const short = place(ctx, 'sawmill', 34, 20);
+    const remote = place(ctx, 'sawmill', 80, 20);
+    short.staffing = 0.85;
+    remote.staffing = 0.75;
+    PANELS.building.open(host(ctx) as never, full.id);
+    expect(document.querySelector('.insp-staff')!.textContent).toBe('Staff 100%');
+    PANELS.building.open(host(ctx) as never, short.id);
+    expect(text()).toContain('Staff 85% — short of hands in Ashford');
+    PANELS.building.open(host(ctx) as never, remote.id);
+    expect(text()).toContain('Staff 75% — remote works');
+  });
+
+  it('hides the staffing row for stores and depots', () => {
+    const ctx = testCtx(testState({ money: 1e6 }));
+    const w = place(ctx, 'warehouse', 5, 5);
+    PANELS.building.open(host(ctx) as never, w.id);
+    expect(document.querySelector<HTMLElement>('.insp-staff')!.hidden).toBe(true);
   });
 
   it('status reason text for no_input names missing good', () => {
@@ -142,6 +165,54 @@ describe('city panel', () => {
     expect(items.map((li) => li.textContent)).toEqual(['Church', 'Town Hall']);
     expect(items[0].querySelector('img[data-icon="church"]')).not.toBeNull();
     expect(items[1].querySelector('img[data-icon="town_hall"]')).not.toBeNull();
+  });
+});
+
+describe('city panel edicts', () => {
+  it('lists the edicts in force with icons and effect lines, and the faction levers', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    const c = state.cities[0];
+    c.politics.mayor.faction = 'baron';
+    c.politics.edicts = ['truck_tolls', 'permits_required'];
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    const items = () => [...document.querySelectorAll<HTMLElement>('.insp-edicts li')];
+    expect(items().map((li) => li.dataset.edict)).toEqual(['truck_tolls', 'permits_required']);
+    expect(items()[0].querySelector('img[data-icon="toll"]')).not.toBeNull();
+    expect(items()[1].querySelector('img[data-icon="permit"]')).not.toBeNull();
+    expect(items()[0].textContent).toContain('Truck tolls');
+    expect(items()[0].textContent).toContain('$40/month');
+    expect(items()[1].title).toContain('permit');
+    const reach = document.querySelector('.insp-edict-reach')!.textContent!;
+    expect(reach).toContain("within the town's zone");
+    expect(reach).toContain('staffed from the town');
+    c.politics.edicts = [];
+    adjustOpinion(state, 'church', c.id, -40, 'test');
+    adjustOpinion(state, 'oldmoney', c.id, -20, 'test');
+    vi.advanceTimersByTime(1000);
+    expect(items().map((li) => li.dataset.edict)).toEqual(['land', 'church']);
+    expect(items()[0].textContent).toContain('×1.10');
+    expect(items()[1].textContent).toContain('+25%');
+  });
+
+  it('says so when no edict is in force', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    expect(document.querySelector('.insp-edicts')!.textContent).toContain('None in force');
+  });
+});
+
+describe('city panel opinion', () => {
+  it('shows five faction bars in faction colours, named for the year', () => {
+    const state = testState({ year: 1960, cities: [{ x: 10, y: 10, population: 6000 }] });
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    const rows = [...document.querySelectorAll<HTMLElement>('.insp-opinion')];
+    expect(text()).toContain('Opinion of your company');
+    expect(rows.map((r) => r.dataset.faction)).toEqual(['workers', 'oldmoney', 'reformers', 'church', 'baron']);
+    expect(rows.map((r) => r.querySelector('.insp-label')!.textContent)).toEqual(['Workers', 'Old Money', 'Greens', 'Church', "Baron's Circle"]);
+    const fill = rows[4].querySelector<HTMLElement>('.insp-bar-fill')!;
+    expect(fill.style.width).toBe('35%');
+    expect(rows[4].querySelector('.insp-bar-label')!.textContent).toBe('35');
+    expect(fill.style.background).not.toBe('');
   });
 });
 

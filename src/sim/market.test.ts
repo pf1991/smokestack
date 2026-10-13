@@ -12,6 +12,8 @@ import {
   type StoreStock,
 } from './market';
 import type { City } from './types';
+import { defaultOpinion } from '../data/factions';
+import { newCityPolitics } from './politics/elections';
 
 function city(population: number): City {
   return {
@@ -25,6 +27,8 @@ function city(population: number): City {
     market: {},
     urbanRadius: 3,
     landmarks: [],
+    opinion: defaultOpinion(),
+    politics: newCityPolitics(0, 1900, 0),
   };
 }
 

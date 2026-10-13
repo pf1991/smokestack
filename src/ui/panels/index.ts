@@ -37,3 +37,7 @@ PANELS.goals = goalsPanel;
 import { fleetPanel } from './fleet';
 
 PANELS.fleet = fleetPanel;
+
+import { politicsPanel } from './politics';
+
+PANELS.politics = politicsPanel;

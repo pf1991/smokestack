@@ -124,6 +124,7 @@
 
 .hud-speed.active,
 .hud-smog.active,
+.hud-factions.active,
 .tb-tab.active {
   color: var(--walnut);
   background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
@@ -280,8 +281,9 @@
 
 .tc-nums {
   display: flex;
+  flex-wrap: wrap; /* "base $X" and "base +$Y/mo" stack when they do not fit side by side */
   justify-content: space-between;
-  gap: 6px;
+  gap: 0 6px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -308,4 +310,16 @@
   .hud-panels {
     margin-left: 0;
   }
+}
+
+.hud-faction-mode {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--paper);
+  background: #2f2016;
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+}
+.hud-faction-mode[hidden] {
+  display: none;
 }

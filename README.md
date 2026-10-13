@@ -25,6 +25,18 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Engraved survey map:** zoom out below about 1.5 and the world becomes an engraved survey map with labelled towns. Zoom back in for the diorama, with terrain walls, tilt-shift and sun shadows.
 - **City growth and landmarks:** cities visibly spread over the decades, and they gain landmarks (a town hall, a church, a stadium, a library and more) as they grow.
 
+## What's new in SMOKESTACK II (Phase 2)
+
+- **Factions and opinion:** every city has four factions (Workers, Old Money, Reformers, the Church) plus the Baron's camp, and each holds an opinion of your company from 0 to 100. Your wages, safety record, smog, sales and deeds move it, and a faction that turns on you makes your life harder.
+- **Workforce:** buildings need staff. Understaffed plants run slower, and wages, safety and the local labour market decide who turns up.
+- **Company edicts and the Politics window:** set company policy on wages, safety and unions, then watch the factions react in the Politics window.
+- **Philanthropy and company housing:** donate to win hearts, or build company housing to keep your workers close, grateful and in your debt.
+- **Mayors and elections:** each city elects a mayor every few years. Endorse a candidate, or quietly feed the slush fund and hope nobody asks where the money went.
+- **Mayor edicts:** the mayor in office can issue edicts (taxes, regulations, favours) that help or hurt your business.
+- **Event cards:** dilemmas arrive as cards with choices and consequences. Leave one unanswered and it resolves itself after 60 days.
+- **Faction overlay:** switch the map to the faction mood overlay to see, city by city, who loves you and who does not.
+- **The newspaper front page:** the Daily Smokestack is now the political front page, with election results, endorsements and scandals.
+
 ## Scenarios
 
 | Scenario | Goal |

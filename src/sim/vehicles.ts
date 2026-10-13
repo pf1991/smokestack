@@ -1,8 +1,9 @@
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { canAfford, earn, spend } from './finance';
-import { acceptsGood, loadSource, storageLeft } from './inventory';
+import { acceptsGood, handlesCargo, loadSource, noCargoError, storageLeft } from './inventory';
 import { findPath, pathMemo, pathStillPassable, roadPassable, type Passable } from './pathfinding';
+import { truckTollsMonth } from './politics/mayorEdicts';
 import { accessTiles, nextId } from './state';
 import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -63,6 +64,7 @@ function validateStops(state: GameState, owner: OwnerId, kind: Route['kind'], st
     const b = state.buildings[stop.buildingId];
     if (!b) return err('No such building');
     if (b.ownerId !== owner) return err('Not your building');
+    if (!handlesCargo(b)) return err(noCargoError(b));
     const bad = def.stopError?.(b);
     if (bad) return err(bad);
     if (def.access(state, b).length === 0) return err(def.noAccessError ?? 'Stop has no road access');
@@ -278,12 +280,14 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
   return ok();
 }
 
+/** Monthly: each vehicle's upkeep, then mayors' truck tolls on the player (both under 'vehicles'). */
 export function vehicleMaintenanceMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const veh of Object.values(state.vehicles)) {
     const def = VEHICLE_KINDS[veh.kind];
     if (def) spend(state.companies[veh.ownerId], 'vehicles', def.spec.maintenance, state.date);
   }
+  truckTollsMonth(ctx);
 }
 
 // ---------------------------------------------------------------------------

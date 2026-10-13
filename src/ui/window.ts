@@ -39,8 +39,26 @@ interface Entry {
 }
 
 const open = new Map<string, Entry>();
-let zTop = 100;
+/** Window z-indices start here; they stay below the card modal (4000) and the menu modals (5000). */
+const Z_BASE = 100;
+/** Past this, the open windows are renumbered compactly from Z_BASE (see nextZ). */
+export const Z_RENUMBER_AT = 900;
+let zTop = Z_BASE;
 let stampTop = 0;
+
+/**
+ * The z-index for a window being raised. Once the counter passes Z_RENUMBER_AT, every open window
+ * is renumbered from Z_BASE in its current stacking order first, so a long session never climbs
+ * over the modals.
+ */
+function nextZ(): string {
+  if (zTop >= Z_RENUMBER_AT) {
+    const els = [...open.values()].map((e) => e.win.el).sort((a, b) => Number(a.style.zIndex) - Number(b.style.zIndex));
+    zTop = Z_BASE - 1;
+    for (const el of els) el.style.zIndex = String(++zTop);
+  }
+  return String(++zTop);
+}
 
 /**
  * Pure placement. Window `index` 0 sits at the right edge, index 1 to its left. `top` is always
@@ -97,7 +115,7 @@ export function createWindow(opts: WindowOptions): GameWindow {
   if (existing) {
     existing.stamp = ++stampTop;
     if (existing.win.docked) existing.win.undock();
-    existing.win.el.style.zIndex = String(++zTop);
+    existing.win.el.style.zIndex = nextZ();
     return existing.win;
   }
 
@@ -111,9 +129,9 @@ export function createWindow(opts: WindowOptions): GameWindow {
   const titleBar = h('div', { class: 'window-title' }, h('span', null, opts.title), closeBtn);
   const el = h('div', {
     class: 'window',
-    style: { width: opts.width ? `${opts.width}px` : '', zIndex: String(++zTop) },
+    style: { width: opts.width ? `${opts.width}px` : '', zIndex: nextZ() },
     onPointerDown: () => {
-      el.style.zIndex = String(++zTop);
+      el.style.zIndex = nextZ();
       entry.stamp = ++stampTop;
     },
   }, titleBar, body);
@@ -176,7 +194,7 @@ export function createWindow(opts: WindowOptions): GameWindow {
       entry.tab = null;
       entry.stamp = ++stampTop;
       el.style.display = '';
-      el.style.zIndex = String(++zTop);
+      el.style.zIndex = nextZ();
       enforceLimit(entry);
       place();
     },

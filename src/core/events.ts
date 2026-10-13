@@ -1,3 +1,4 @@
+import type { FactionId } from '../data/factions';
 import type { LandmarkId } from '../data/landmarks';
 import type { Building, GameDate, GoodId, NewsItem, OwnerId, Vec2 } from '../sim/types';
 
@@ -18,6 +19,10 @@ export type GameEvent =
   | { type: 'achievement'; id: string }
   | { type: 'contract'; contractId: number; status: 'offered' | 'active' | 'done' | 'failed' }
   | { type: 'landmarkBuilt'; cityId: number; id: LandmarkId }
+  | { type: 'election'; cityId: number; winner: FactionId }
+  /** an event card was answered (by the player or auto-resolved) */
+  | { type: 'cardResolved'; cardId: string; uid: number }
+  | { type: 'scandal'; cityId: number }
   | { type: 'gameOver'; reason: string }
   | { type: 'victory'; reason: string };
 

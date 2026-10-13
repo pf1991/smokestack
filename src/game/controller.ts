@@ -21,6 +21,7 @@ import { clearStamps } from '../ui/juice';
 import { Input } from './input';
 import { ToolController } from './toolController';
 import { biggestCity } from './autoplay';
+import { attachCardModal } from '../ui/cardModal';
 
 /** Real milliseconds per game day at speed 1. */
 const MS_PER_DAY = 2000;
@@ -89,6 +90,10 @@ export class GameController {
   private lastHud = -Infinity;
   private resumeSpeed: Speed = 1;
   private ended = false;
+  /** true while the cold open plays (set by playColdOpen); event cards wait for it */
+  introActive = false;
+  /** detaches the event card modal of the loaded state */
+  private offCards: (() => void) | null = null;
   private audioOn = false;
   private readonly onResize = () => this.resize();
   private dprQuery: MediaQueryList | null = null;
@@ -183,6 +188,9 @@ export class GameController {
       bus.on('victory', (e) => this.end(`Victory! ${e.reason}`, 'good')),
     ];
     if (this.audioOn) this.busOffs.push(this.sfx.attach(bus));
+    // event cards: shown (and the game paused) whenever one is pending, including in a loaded save
+    this.offCards?.();
+    this.offCards = attachCardModal(this);
     this.ended = false;
     this.acc = 0;
     this.alpha = 0;
@@ -386,7 +394,10 @@ export class GameController {
       this.acc -= n * step;
     }
     let ran = 0;
-    for (; ran < n && state.speed !== 0; ran++) stepTick(this.ctx);
+    // a card opened by the sim stops this frame's catch-up, so the modal shows on the day it opened
+    const cards = state.politics.cards.pending;
+    const pending = cards.length;
+    for (; ran < n && state.speed !== 0 && cards.length <= pending; ran++) stepTick(this.ctx);
     if (state.speed === 0) this.acc = 0;
     this.alpha = state.speed === 0 ? 1 : Math.min(1, this.acc / step);
     return ran;
@@ -432,6 +443,8 @@ export class GameController {
 
   destroy(): void {
     for (const fn of this.disposers.splice(0)) fn();
+    this.offCards?.();
+    this.offCards = null;
     this.running = false;
     this.frameHooks.clear();
     cancelAnimationFrame(this.raf);

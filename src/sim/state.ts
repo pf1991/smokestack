@@ -1,12 +1,16 @@
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
-import { BUILDINGS, type BuildingDef } from '../data/buildings';
+import { BUILDINGS, HOUSING_RADIUS, type BuildingDef } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { COMPANY_NAMES } from '../data/names';
 import { getRecipe, RECIPES, recipeEra } from '../data/recipes';
 import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
 import { SAVE_VERSION } from './version';
+import { defaultPolitics } from './politics/types';
+import { monthIndex, newCityPolitics } from './politics/elections';
+import { housingFactory } from './politics/workforce';
+import { chooseMayorEdicts, placementQuote } from './politics/mayorEdicts';
 import { generateMap } from './mapgen';
 import { urbanRadius } from './market';
 import { findPath, invalidatePaths, roadBuildable, waterAvoidingCost } from './pathfinding';
@@ -286,6 +290,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     rivalRail: null,
     flags: {},
     layers: {},
+    politics: defaultPolitics(),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
@@ -294,6 +299,10 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     state.companies.player.money = scenario.money;
     if (scenario.startYear >= 1910) state.flags.oilRevealed = true;
   }
+  cities.forEach((c, i) => {
+    c.politics = newCityPolitics(i, state.date.year, monthIndex(state.date));
+    c.politics.edicts = chooseMayorEdicts(c);
+  });
   refreshUrbanTiles(state);
   return state;
 }
@@ -301,9 +310,14 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
 // ---------------------------------------------------------------------------
 // placement
 
+export const HOUSING_TOO_FAR = `Company housing must stand within ${HOUSING_RADIUS} tiles of one of your factories`;
+
 interface PlacementPlan {
   def: BuildingDef;
+  /** what is charged: the base cost, or for the player the town's levers plus any permit */
   cost: number;
+  /** the permit share of `cost` */
+  permit: number;
   recipeId: string | null;
   cityId: number | null;
 }
@@ -358,13 +372,24 @@ function planPlacement(
     recipe = def.recipes.find((r) => state.unlocked.includes(r)) ?? null;
   }
 
-  if (!canAfford(state.companies[owner], def.cost)) return err('Not enough money');
-  return ok({ def, cost: def.cost, recipeId: recipe, cityId });
+  if (typeId === 'company_housing' && !housingFactory(state, owner, typeId, pos)) return err(HOUSING_TOO_FAR);
+
+  // mayors' edicts and faction levers (player only; politics/mayorEdicts.ts)
+  const quote = placementQuote(state, owner, typeId, pos);
+  if (quote.refusal) return err(quote.refusal);
+  if (!canAfford(state.companies[owner], quote.cost)) return err('Not enough money');
+  return ok({ def, cost: quote.cost, permit: quote.permit, recipeId: recipe, cityId });
 }
 
-export function canPlaceBuilding(state: GameState, owner: OwnerId, typeId: BuildingTypeId, pos: Vec2): Result<{ cost: number }> {
+/** `cost` is exactly what placeBuilding would charge; `permit` is the part of it that is a permit fee. */
+export function canPlaceBuilding(
+  state: GameState,
+  owner: OwnerId,
+  typeId: BuildingTypeId,
+  pos: Vec2,
+): Result<{ cost: number; permit: number }> {
   const r = planPlacement(state, owner, typeId, pos);
-  return r.ok ? ok({ cost: r.value.cost }) : r;
+  return r.ok ? ok({ cost: r.value.cost, permit: r.value.permit }) : r;
 }
 
 export function placeBuilding(
@@ -391,6 +416,8 @@ export function placeBuilding(
     cityId: plan.value.cityId,
     haltedUntil: null,
     producedThisMonth: {},
+    // fully staffed until the next monthly workforce recompute
+    staffing: 1,
   };
   state.buildings[building.id] = building;
   invalidateSpatial(state);

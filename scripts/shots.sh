@@ -6,6 +6,7 @@
 # The URL uses speed=0 (deviation from the original brief's speed=1, approved): the game starts
 # paused so the HUD date is deterministic (1900-04-01 + skipYears*360 + 20 autoplay days) instead of
 # drifting with however much virtual time Chrome lets the sim run.
+# cards=0 answers the spring event card a skipYears start would otherwise show over the world.
 # hour=16 steps the paused clock from noon to 16:00 (full daylight, lightLevel 1) so the diorama's sun
 # shadows are long and visible: at noon they fall north, hidden behind the buildings.
 # --headless=new counts browser chrome in --window-size: the page viewport is CHROME_H_OFFSET px
@@ -43,7 +44,7 @@ shot() {
       --user-data-dir="$udd" --virtual-time-budget=10000 \
       --window-size="$w,$((h + CHROME_H_OFFSET))" \
       --screenshot="$f" \
-      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=$zoom&hour=16" >/dev/null 2>&1
+      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=$zoom&hour=16&cards=0" >/dev/null 2>&1
     rm -rf "$udd"
     if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
     echo "blank or missing shot $f (attempt $attempt)" >&2

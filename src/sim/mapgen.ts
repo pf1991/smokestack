@@ -1,4 +1,7 @@
 import type { City, GameMap, Terrain, Tile } from './types';
+import { defaultOpinion } from '../data/factions';
+import { START_DATE } from './clock';
+import { monthIndex, newCityPolitics } from './politics/elections';
 import { CITY_NAMES } from '../data/names';
 import { randInt, type RngHolder } from './rng';
 import { valueNoise2D } from './noise';
@@ -192,6 +195,8 @@ function placeCities(map: GameMap, rng: RngHolder): City[] | null {
       market: {},
       urbanRadius: urbanRadius(population),
       landmarks: [],
+      opinion: defaultOpinion(),
+      politics: newCityPolitics(id, START_DATE.year, monthIndex(START_DATE)),
     };
   });
 }

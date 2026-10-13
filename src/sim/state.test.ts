@@ -164,7 +164,7 @@ describe('placement', () => {
     s.companies.player.money = 100;
     expect(msg('bakery', { x: 15, y: 2 })).toBe('Not enough money');
     s.companies.player.money = 15000;
-    expect(canPlaceBuilding(s, 'player', 'bakery', { x: 15, y: 2 })).toEqual({ ok: true, value: { cost: 15000 } });
+    expect(canPlaceBuilding(s, 'player', 'bakery', { x: 15, y: 2 })).toEqual({ ok: true, value: { cost: 15000, permit: 0 } });
     expect(msg('store', { x: 30, y: 15 })).toBe('ok');
   });
 
@@ -205,6 +205,7 @@ describe('placement', () => {
       cityId: null,
       haltedUntil: null,
       producedThisMonth: {},
+      staffing: 1,
     });
     expect(s.buildings[b.id]).toBe(b);
     expect(footprint(b)).toHaveLength(9);

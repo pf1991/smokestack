@@ -1,4 +1,4 @@
-import { BUILDINGS } from '../../data/buildings';
+import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
 import { getGood } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { formatDate, isWinter } from '../../sim/clock';
@@ -7,6 +7,7 @@ import { STATION_TYPE, stationAccess } from '../../sim/rail';
 import { accessTiles, DEMOLITION_REFUND, demolishBuilding, footprint } from '../../sim/state';
 import type { GameController } from '../../game/controller';
 import { offeredGoods } from '../../sim/routeHelpers';
+import { housingFactory, workCity } from '../../sim/politics/workforce';
 import type { Building, GameState, Route } from '../../sim/types';
 import { type Child, h } from '../dom';
 import { iconEl } from '../icon';
@@ -25,6 +26,24 @@ const STATUS_LABEL: Record<Building['status'], string> = {
 };
 
 const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name}`];
+
+/** The inspector's staffing line: "Staff 100%", "Staff 85% — short of hands in Ashford", or "Staff 75% — remote works". */
+export function staffingText(state: GameState, b: Building): string {
+  // floored, so a building one hand short never reads "100%"
+  const pct = `Staff ${Math.floor(b.staffing * 100 + 1e-9)}%`;
+  if (b.staffing >= 1) return pct;
+  const city = workCity(state, b);
+  return city ? `${pct} — short of hands in ${city.name}` : `${pct} — remote works`;
+}
+
+/** Company housing's line: who it houses hands for, or a warning when its factory is gone (null for other buildings). */
+export function housingText(state: GameState, b: Building): { text: string; orphan: boolean } | null {
+  if (b.typeId !== 'company_housing') return null;
+  const f = housingFactory(state, b.ownerId, b.typeId, b.pos);
+  if (!f) return { text: `No factory within ${HOUSING_RADIUS} tiles — housing stands empty`, orphan: true };
+  const town = workCity(state, f);
+  return { text: `Houses ${HOUSING_POOL} hands for ${BUILDINGS[f.typeId].name} (${town ? town.name : 'no town nearby'})`, orphan: false };
+}
 
 /** Why an extractor produces nothing right now, or null when it is productive. */
 function extractorProblem(state: GameState, b: Building): string | null {
@@ -104,7 +123,11 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const owner = h('span', { class: 'insp-badge' });
   const statusBadge = h('span', { class: 'insp-badge' });
   const reason = h('div', { class: 'insp-reason' });
+  const staff = h('div', { class: 'insp-muted insp-staff' });
   const noRoad = h('div', { class: 'insp-warn' }, iconEl('warning', 14), ' No road access — trucks cannot reach this building');
+  const housingLine = h('span');
+  const housing = h('div', { class: 'insp-housing' }, housingLine);
+  housing.hidden = true;
   const noRail = h('div', { class: 'insp-warn' }, iconEl('warning', 14), ' No track alongside — lay rail next to the station for trains');
   noRail.hidden = true;
   const recipeSel = h('select', {
@@ -120,6 +143,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     },
   }) as HTMLSelectElement;
   const recipeBox = h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Recipe'), recipeSel);
+  const routesSection = h('div', { class: 'insp-section' });
   const inBox = h('div', { class: 'insp-list' });
   const outBox = h('div', { class: 'insp-list' });
   const inSection = h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Inputs'), inBox);
@@ -166,16 +190,19 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     { class: 'insp' },
     h('div', { class: 'insp-head' }, owner, statusBadge),
     reason,
+    staff,
+    housing,
     noRoad,
     noRail,
     recipeBox,
     inSection,
     outSection,
     produced,
-    h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Routes'), routeBox, send),
+    routesSection,
     demolish,
   );
 
+  routesSection.append(h('div', { class: 'insp-label' }, 'Routes'), routeBox, send);
   let recipeSig = '';
   let routeSig = '\0';
   const view: InspectorView = {
@@ -193,6 +220,9 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       setClass(statusBadge, `insp-badge status-${b.status}`);
       const routes = routesServing(state, id);
       setText(reason, statusReason(state, b, routes));
+      // staffing scales production only; stores and depots still draw on the pool but show no row
+      staff.hidden = def.category === 'retail' || def.category === 'logistics';
+      if (!staff.hidden) setText(staff, staffingText(state, b));
       noRoad.hidden = accessTiles(state, b).length > 0;
       if (b.typeId === STATION_TYPE) {
         const railOk = stationAccess(state, b).length > 0;
@@ -272,6 +302,20 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         confirming ? `Confirm demolish (+${formatMoney(def.cost * DEMOLITION_REFUND)} refund)` : 'Demolish',
       );
       setClass(demolish, `btn insp-demolish${confirming ? ' confirm' : ''}`);
+      // company housing takes no cargo: its line replaces the status, stock and route rows
+      const home = housingText(state, b);
+      housing.hidden = home === null;
+      if (home) {
+        setText(housingLine, home.text);
+        setClass(housing, home.orphan ? 'insp-housing insp-warn' : 'insp-housing insp-muted');
+        reason.hidden = true;
+        noRoad.hidden = true;
+        inSection.hidden = true;
+        outSection.hidden = true;
+        produced.hidden = true;
+        routesSection.hidden = true;
+        statusBadge.hidden = true;
+      }
       return true;
     },
   };

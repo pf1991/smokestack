@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { createGame } from '../sim/state';
-import { Toolbar } from './toolbar';
+import { PRICE_NOTE, Toolbar } from './toolbar';
 import type { ToolSpec } from './tools';
 
 function setup() {
@@ -24,6 +24,16 @@ describe('Toolbar', () => {
     expect(card.disabled).toBe(true);
     expect(card.textContent).toContain('Invented in 1925');
     expect(root.querySelectorAll('.tool-card:not(.locked)').length).toBeGreaterThan(0);
+  });
+
+  it('cards show a base price and upkeep and say town politics can change them', () => {
+    const { root } = setup();
+    tab(root, 'extract');
+    const card = root.querySelector('[data-building="lumber_camp"]') as HTMLElement;
+    expect(card.querySelector('.tc-cost')!.textContent).toBe('base $12,000');
+    expect(card.querySelector('.tc-maint')!.textContent).toMatch(/^base \+\$[\d,]+\/mo$/);
+    expect(card.title).toContain(PRICE_NOTE);
+    expect(PRICE_NOTE).toContain('Town politics');
   });
 
   it('selecting building emits build ToolSpec', () => {

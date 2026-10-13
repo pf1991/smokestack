@@ -3,7 +3,9 @@ import { GOODS, DEMAND_PER_1000 } from './goods';
 import { RECIPES, recipeEra } from './recipes';
 import { BUILDINGS } from './buildings';
 import { LANDMARK_IDS, LANDMARKS } from './landmarks';
+import { defaultOpinion, FACTION_IDS, FACTIONS, factionName } from './factions';
 import { ICON_IDS } from '../render/icons';
+import { CARDS } from './cards';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
 
 describe('content catalog', () => {
@@ -51,6 +53,21 @@ describe('content catalog', () => {
     expect(recipeEra('r_fuel')).toBe(1910);
   });
 
+  it('every building def employs workers (company housing only houses them)', () => {
+    for (const def of Object.values(BUILDINGS)) {
+      if (def.id === 'company_housing') {
+        expect(def.workers).toBe(0);
+        continue;
+      }
+      expect(Number.isFinite(def.workers) && def.workers > 0, `${def.id} workers ${def.workers}`).toBe(true);
+    }
+    const byCat = (cat: string) => Object.values(BUILDINGS).filter((d) => d.category === cat);
+    for (const d of byCat('extractor')) expect(d.workers, d.id).toBe(20);
+    for (const d of byCat('factory')) expect(d.workers, d.id).toBe(d.id === 'steel_mill' || d.id === 'car_plant' ? 120 : 60);
+    for (const d of byCat('retail')) expect(d.workers, d.id).toBe(12);
+    for (const d of byCat('logistics')) expect(d.workers, d.id).toBe(d.id === 'company_housing' ? 0 : 6);
+  });
+
   it('exact values', () => {
     expect(GOODS.cars.basePrice).toBe(630);
     expect(GOODS.radios.fadeYear).toBe(1965);
@@ -92,5 +109,89 @@ describe('content catalog', () => {
       expect(typeof LANDMARK_PAINTERS[id], id).toBe('function');
       expect(ICON_IDS, id).toContain(id);
     }
+  });
+  it('factions: five, keyed by id, weights summing to 1, distinct colours, Reformers become Greens in 1960', () => {
+    expect([...FACTION_IDS].sort()).toEqual(Object.keys(FACTIONS).sort());
+    expect(FACTION_IDS).toEqual(['workers', 'oldmoney', 'reformers', 'church', 'baron']);
+    expect(Object.fromEntries(FACTION_IDS.map((f) => [f, FACTIONS[f].weight]))).toEqual({ workers: 0.4, oldmoney: 0.18, reformers: 0.17, church: 0.2, baron: 0.05 });
+    expect(FACTION_IDS.reduce((s, f) => s + FACTIONS[f].weight, 0)).toBeCloseTo(1, 10);
+    for (const f of FACTION_IDS) {
+      const d = FACTIONS[f];
+      expect(d.id).toBe(f);
+      expect(d.color).toMatch(/^#[0-9a-f]{6}$/);
+      expect(d.name.length && d.likes.length && d.hates.length).toBeGreaterThan(0);
+    }
+    expect(new Set(FACTION_IDS.map((f) => FACTIONS[f].color)).size).toBe(5);
+    expect(FACTIONS.reformers.greenName).toBe('Greens');
+    expect(factionName('reformers', 1959)).toBe('Reformers');
+    expect(factionName('reformers', 1960)).toBe('Greens');
+    expect(factionName('workers', 1990)).toBe('Workers');
+    expect(defaultOpinion()).toEqual({ workers: 50, oldmoney: 50, reformers: 50, church: 50, baron: 35 });
+  });
+
+  it('event cards: unique ids, sane fields, always answerable, city effects only on city cards', () => {
+    expect(new Set(CARDS.map((c) => c.id)).size).toBe(CARDS.length);
+    for (const c of CARDS) {
+      expect(c.id, c.id).toMatch(/^[a-z0-9_]+$/);
+      expect(c.title.length, c.id).toBeGreaterThan(0);
+      expect(c.body.length, c.id).toBeGreaterThan(0);
+      expect(c.years[0], c.id).toBeLessThanOrEqual(c.years[1]);
+      expect(c.weight, c.id).toBeGreaterThan(0);
+      expect(c.cooldownYears, c.id).toBeGreaterThanOrEqual(0);
+      expect(c.choices.length, c.id).toBeGreaterThanOrEqual(2);
+      expect(c.choices[c.defaultChoice], `${c.id} defaultChoice`).toBeDefined();
+      // never trap the player: some choice costs nothing (or pays)
+      expect(c.choices.some((ch) => ch.cost <= 0), `${c.id} has no free choice`).toBe(true);
+      for (const ch of c.choices) {
+        expect(Number.isFinite(ch.cost), `${c.id}: ${ch.label}`).toBe(true);
+        for (const e of ch.effects) {
+          expect(FACTIONS[e.faction], `${c.id}: ${e.faction}`).toBeDefined();
+          if (e.scope === 'city') expect(c.needsCity, `${c.id} has a city effect but needsCity false`).toBe(true);
+        }
+        if (ch.apply) expect(ch.note, `${c.id}: ${ch.label} has apply but no note`).toBeTruthy();
+      }
+      if (!c.needsCity) expect(c.body + c.title, `${c.id} uses {city} without a city`).not.toContain('{city}');
+    }
+  });
+
+  it('event cards: Task 8 counts, era spread, bounds and faction coverage', () => {
+    const by = (t: string) => CARDS.filter((c) => c.trigger === t);
+    expect(CARDS.length).toBeGreaterThanOrEqual(60);
+    const spring = by('spring');
+    expect(spring.length).toBeGreaterThanOrEqual(40);
+    // era cards: at least 8 spring cards whose whole year range lies inside each quarter-century
+    for (const [from, to] of [[1900, 1924], [1925, 1949], [1950, 1974], [1975, 2000]]) {
+      const n = spring.filter((c) => c.years[0] >= from && c.years[1] <= to).length;
+      expect(n, `spring cards in ${from}-${to}`).toBeGreaterThanOrEqual(8);
+    }
+    expect(by('election').length).toBeGreaterThanOrEqual(6);
+    expect(by('scandal').length).toBeGreaterThanOrEqual(4);
+    expect(by('disaster').length).toBeGreaterThanOrEqual(4);
+    expect(by('crash').length).toBeGreaterThanOrEqual(4);
+    expect(by('strike').length).toBeGreaterThanOrEqual(2);
+    expect(by('invention').length).toBeGreaterThanOrEqual(2);
+    for (const c of CARDS) {
+      expect(c.choices.length, c.id).toBeLessThanOrEqual(3);
+      expect(c.years[0], c.id).toBeGreaterThanOrEqual(1901);
+      expect(c.years[1], c.id).toBeLessThanOrEqual(2000);
+      expect(Number.isInteger(c.defaultChoice) && c.defaultChoice >= 0 && c.defaultChoice < c.choices.length, `${c.id} defaultChoice`).toBe(true);
+      // ruling R-Q8: authored in 1900 dollars for a $300k company; the engine scales them
+      const maxCost = c.trigger === 'crash' || c.trigger === 'disaster' ? 60_000 : 15_000;
+      for (const ch of c.choices) {
+        expect(Math.abs(ch.cost), `${c.id}: ${ch.label} cost`).toBeLessThanOrEqual(maxCost);
+        expect(ch.label.length, `${c.id}: ${ch.label}`).toBeLessThan(40);
+        const net: Record<string, number> = {};
+        for (const e of ch.effects) {
+          expect(Math.abs(e.delta), `${c.id}: ${ch.label} ${e.faction}`).toBeLessThanOrEqual(15);
+          const k = `${e.faction}:${e.scope}`;
+          net[k] = (net[k] ?? 0) + e.delta;
+        }
+        for (const [k, v] of Object.entries(net)) expect(Math.abs(v), `${c.id}: ${ch.label} ${k}`).toBeLessThanOrEqual(15);
+      }
+    }
+    const used = new Set(CARDS.flatMap((c) => c.choices.flatMap((ch) => ch.effects.map((e) => e.faction))));
+    for (const f of FACTION_IDS) expect(used.has(f), `no card touches ${f}`).toBe(true);
+    const baronCards = CARDS.filter((c) => c.choices.some((ch) => ch.effects.some((e) => e.faction === 'baron')));
+    expect(baronCards.length).toBeGreaterThanOrEqual(6);
   });
 });

@@ -5,6 +5,7 @@ import type { Ghost, Selection } from '../render/world';
 import { buildRoad, placeBuilding, ROAD_COST } from '../sim/state';
 import { must, testCtx, testState } from '../sim/testkit';
 import type { SimContext } from '../sim/types';
+import { adjustOpinion } from '../sim/politics/factions';
 import type { ToolSpec } from '../ui/tools';
 import { ToolController, type ToolHost } from './toolController';
 
@@ -114,6 +115,30 @@ describe('ToolController', () => {
     const placed = Object.values(ctx.state.buildings);
     expect(placed).toHaveLength(1);
     expect(placed[0]).toMatchObject({ typeId: 'sawmill', pos: { x: 9, y: 9 }, ownerId: 'player' });
+  });
+
+  it('the build ghost shows a town permit, and a refusal in red with its reason', () => {
+    const ctx = testCtx(testState({ width: 80, height: 60, money: 1e6, cities: [{ x: 20, y: 20, population: 6000 }] }));
+    const city = ctx.state.cities[0];
+    city.politics.edicts = ['permits_required'];
+    const { tc } = setup(ctx);
+    tc.setTool({ kind: 'build', typeId: 'sawmill' });
+    // centred on (30,20): footprint (29,19), inside the town's urbanRadius + 4
+    tc.pointerMove({ x: 30, y: 20 });
+    expect(tc.ghost()).toMatchObject({ valid: true, label: 'Sawmill $20,000 +$2,000 permit' });
+    const before = ctx.state.companies.player.money;
+    adjustOpinion(ctx.state, 'workers', city.id, -30, 'test');
+    tc.refreshGhost();
+    expect(tc.ghost()).toMatchObject({
+      valid: false,
+      label: 'A permit was refused by the Workers mayor of Town 0. Raise their opinion to 25 or more, or build elsewhere.',
+    });
+    adjustOpinion(ctx.state, 'workers', city.id, 30, 'test');
+    tc.refreshGhost();
+    tc.pointerDown({ x: 30, y: 20 });
+    tc.pointerUp({ x: 30, y: 20 });
+    // charged exactly what the ghost showed
+    expect(before - ctx.state.companies.player.money).toBe(22000);
   });
 
   it('escape returns to inspect tool', () => {

@@ -1,9 +1,11 @@
 import type { EventBus } from '../core/events';
+import { GREENS_YEAR } from '../data/factions';
 import { eraName } from '../sim/eras';
 import { monthProfit } from '../sim/finance';
 export { eraName };
 import type { GameState, Speed } from '../sim/types';
 import { setOverlay } from '../render/overlays';
+import { factionOverlay, factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
 import { h } from './dom';
 import { iconEl } from './icon';
 import { formatMoney } from './format';
@@ -26,7 +28,7 @@ const SPEEDS: { speed: Speed; label: string; title: string }[] = [
   { speed: 8, label: '⏩', title: 'Fastest' },
 ];
 
-const PANELS: { id: string; label: string }[] = [
+const PANELS: { id: string; label: string; icon?: string }[] = [
   { id: 'routes', label: 'Routes' },
   { id: 'fleet', label: 'Fleet' },
   { id: 'finance', label: 'Finance' },
@@ -34,6 +36,7 @@ const PANELS: { id: string; label: string }[] = [
   { id: 'contracts', label: 'Contracts' },
   { id: 'rival', label: 'Rival' },
   { id: 'goals', label: 'Goals' },
+  { id: 'politics', label: 'Politics', icon: 'ballot' },
 ];
 
 const DELTA_MS = 1500;
@@ -52,6 +55,9 @@ export class Hud {
   private readonly counter: RollingCounter;
   private state: GameState | null = null;
   private seeded = false;
+  private readonly modeSel: HTMLSelectElement;
+  /** whether the faction-mode labels were built for the post-GREENS_YEAR names */
+  private modeGreen = false;
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
     this.company = h('div', { class: 'hud-company' }, '');
@@ -78,7 +84,7 @@ export class Hud {
         class: 'hud-panel-btn',
         'data-panel': p.id,
         onClick: () => handlers.onOpenPanel(p.id),
-      }, p.label)));
+      }, ...(p.icon ? [iconEl(p.icon, 16), ` ${p.label}`] : [p.label]))));
 
     const smog = h('button', {
       class: 'hud-panel-btn hud-smog',
@@ -92,6 +98,34 @@ export class Hud {
       },
     }, iconEl('smog', 16), ' Smog');
     panels.appendChild(smog);
+    const modeSel = h('select', {
+      class: 'hud-faction-mode',
+      title: 'What the faction map shows',
+      'aria-label': 'Faction map mode',
+      onChange: () => setFactionMode((modeSel as HTMLSelectElement).value as FactionMode),
+    }, ...factionModes(1900).map((m) => h('option', { value: m.value }, m.label)));
+    (modeSel as HTMLSelectElement).value = getFactionMode();
+    modeSel.hidden = true;
+    this.modeSel = modeSel as HTMLSelectElement;
+    const factions = h('button', {
+      class: 'hud-panel-btn hud-factions',
+      title: 'Toggle faction map',
+      'aria-pressed': 'false',
+      onClick: () => {
+        const on = factions.getAttribute('aria-pressed') !== 'true';
+        factions.setAttribute('aria-pressed', String(on));
+        factions.classList.toggle('active', on);
+        modeSel.hidden = !on;
+        setOverlay('factions', on);
+      },
+    }, iconEl('city', 16), ' Factions');
+    if (factionOverlay.enabled) {
+      // started on by the DEV overlay param
+      factions.setAttribute('aria-pressed', 'true');
+      factions.classList.add('active');
+      modeSel.hidden = false;
+    }
+    panels.append(factions, modeSel);
     const photo = h('button', {
       class: 'hud-panel-btn hud-photo',
       title: 'Photo mode (P)',
@@ -153,6 +187,14 @@ export class Hud {
     const d = state.date;
     setText(this.date, `${d.day} ${MONTHS[d.month - 1] ?? '???'} ${d.year}`);
     setText(this.era, eraName(d.year));
+    // the Reformers become the Greens in GREENS_YEAR: relabel the faction-map modes (both ways, for loads)
+    const green = d.year >= GREENS_YEAR;
+    if (green !== this.modeGreen) {
+      this.modeGreen = green;
+      const value = this.modeSel.value;
+      this.modeSel.replaceChildren(...factionModes(d.year).map((m) => h('option', { value: m.value }, m.label)));
+      this.modeSel.value = value;
+    }
     if (state.speed !== this.lastSpeed) {
       this.lastSpeed = state.speed;
       for (const [s, btn] of this.speedButtons) btn.classList.toggle('active', s === state.speed);

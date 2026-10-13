@@ -83,8 +83,9 @@ export function repayLoan(c: Company, amount: number): Result {
   return ok();
 }
 
-export function closeMonth(c: Company, date: GameDate): { interest: number; bankrupt: boolean } {
-  const interest = Math.round((c.loan * LOAN_RATE) / 12);
+/** Closes `c`'s month: charges a month's interest at `rate` (the player's comes from Old Money, politics/mayorEdicts.ts loanRate). */
+export function closeMonth(c: Company, date: GameDate, rate = LOAN_RATE): { interest: number; bankrupt: boolean } {
+  const interest = Math.round((c.loan * rate) / 12);
   if (interest > 0) spend(c, 'interest', interest, date);
   const m = currentLedger(c, date);
   m.cashEnd = c.money;
@@ -99,7 +100,7 @@ export function closeMonth(c: Company, date: GameDate): { interest: number; bank
 /** Income categories counted in a month's profit (the finance panel's statement uses the same lists). */
 export const INCOME_CATEGORIES: LedgerCategory[] = ['sales', 'contracts', 'events', 'demolition'];
 /** Expense categories counted in a month's profit. */
-export const EXPENSE_CATEGORIES: LedgerCategory[] = ['construction', 'maintenance', 'vehicles', 'interest'];
+export const EXPENSE_CATEGORIES: LedgerCategory[] = ['construction', 'maintenance', 'vehicles', 'interest', 'events'];
 
 /** Income minus expense for one ledger month. */
 export function monthProfit(m: Pick<LedgerMonth, 'income' | 'expense'>): number {

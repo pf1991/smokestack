@@ -7,6 +7,7 @@ import { runAutoplay } from './game/autoplay';
 import { runDays, stepTick } from './sim/simulation';
 import { createGame } from './sim/state';
 import type { Speed } from './sim/types';
+import { autoResolve, forceCard } from './sim/politics/cards';
 
 /**
  * Bootstrap: the game starts at the main menu. Debug URL parameters skip the menu and start a game
@@ -25,6 +26,9 @@ import type { Speed } from './sim/types';
  *  - `pause=1` (dev, with a debug start) open the pause menu
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
+ *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
+ *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
+ *  - `card=<id>` (dev) open event card `<id>` on load (data/cards/), whatever its era or trigger
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
  *  - `fps=1` (dev) after a 3 s warm-up, average the requestAnimationFrame rate over 5 s and put it
  *    in the document title as `FPS <avg> (<frames> frames, worst <ms> ms)` (read it via CDP)
@@ -38,7 +42,7 @@ const params = new URLSearchParams(location.search);
 const app = new App(canvas, ui);
 
 // inspect2 does nothing outside DEV, so only there does it start a debug game
-const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', ...(import.meta.env.DEV ? ['inspect2'] : [])];
+const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', ...(import.meta.env.DEV ? ['inspect2', 'card'] : [])];
 const debugStart = !params.has('menu') && DEBUG_KEYS.some((k) => params.has(k));
 
 if (debugStart) {
@@ -75,6 +79,12 @@ if (debugStart) {
   if (import.meta.env.DEV && params.has('skipYears') && Number.isFinite(skipYears) && skipYears > 0) {
     runDays(setup, Math.floor(skipYears) * 360);
   }
+  const cardParam = params.get('card');
+  // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen
+  if (import.meta.env.DEV && (params.get('cards') === '0' || cardParam)) {
+    for (const p of [...state.politics.cards.pending]) autoResolve(setup, p.uid);
+  }
+  if (import.meta.env.DEV && cardParam) forceCard(setup, cardParam);
 
   const hourParam = params.get('hour');
   if (hourParam !== null) {

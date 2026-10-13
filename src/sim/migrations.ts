@@ -1,7 +1,11 @@
 import { err, ok, type Result } from '../core/result';
 import { LANDMARK_LAYER } from './landmarkTiles';
+import { defaultOpinion } from '../data/factions';
+import { monthIndex, newCityPolitics } from './politics/elections';
+import { chooseMayorEdicts } from './politics/mayorEdicts';
+import { defaultPolitics } from './politics/types';
 import { layCityStreets, refreshUrbanTiles } from './state';
-import type { GameState } from './types';
+import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
 
 // versions live in the leaf module version.ts (state.ts needs SAVE_VERSION and must not import this module)
@@ -37,6 +41,37 @@ export const MIGRATIONS: Migration[] = [
       const cities = o.cities;
       if (!Array.isArray(cities)) throw new Error('bad cities');
       for (const c of cities as Record<string, unknown>[]) c.landmarks = [];
+    },
+  },
+  {
+    // v5: Phase 2 politics. Every town gets the default faction opinion and the company default
+    // politics; every building starts at `staffing: 1`. The drivers' bookkeeping starts unprimed, so
+    // existing buildings and finished contracts are snapshotted at the first month rather than
+    // counted as new. Frozen at merge; Phase 3 adds from: 5.
+    from: 4,
+    migrate(o) {
+      const cities = o.cities;
+      if (!Array.isArray(cities)) throw new Error('bad cities');
+      const date = o.date as { year?: unknown; month?: unknown } | undefined;
+      if (typeof date?.year !== 'number' || typeof date.month !== 'number') throw new Error('bad date');
+      const now = monthIndex({ year: date.year, month: date.month });
+      (cities as Record<string, unknown>[]).forEach((c, i) => {
+        c.opinion = defaultOpinion();
+        c.politics = newCityPolitics(i, date.year as number, now);
+        // the default mayor's edicts (chooseMayorEdicts reads only the mayor and the opinion set above)
+        (c.politics as { edicts: unknown }).edicts = chooseMayorEdicts(c as unknown as City);
+      });
+      o.politics = defaultPolitics(false);
+      // event cards: the first spring draw is the next 1 April this save reaches (never before 1901)
+      const day = (o.date as { day?: unknown }).day;
+      const pastSpring = date.month > 4 || (date.month === 4 && typeof day === 'number' && day > 1);
+      (o.politics as { nextCardYear: number }).nextCardYear = Math.max(1901, date.year + (pastSpring ? 1 : 0));
+      // workforce: every building starts fully staffed until the first monthly recompute
+      const buildings = o.buildings;
+      if (buildings !== undefined) {
+        if (typeof buildings !== 'object' || buildings === null) throw new Error('bad buildings');
+        for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) b.staffing = 1;
+      }
     },
   },
 ];

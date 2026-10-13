@@ -1,4 +1,4 @@
-import { BUILDINGS, type BuildingDef } from '../data/buildings';
+import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS, type BuildingDef } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
 import { isUnlocked } from '../sim/eras';
@@ -36,6 +36,7 @@ function goodsRow(inv: Inventory[]): HTMLElement[] {
 
 function flow(def: BuildingDef): Child[] {
   const recipes = def.recipes.map((r) => RECIPES[r]).filter(Boolean);
+  if (def.id === 'company_housing') return [`Houses ${HOUSING_POOL} hands; must stand within ${HOUSING_RADIUS} tiles of a factory`];
   if (recipes.length === 0) return [def.category === 'retail' ? 'Sells goods to the city' : 'Stores goods'];
   const ins = goodsRow(recipes.map((r) => r.inputs));
   const outs = goodsRow(recipes.map((r) => r.outputs));
@@ -44,6 +45,8 @@ function flow(def: BuildingDef): Child[] {
 
 /** Buildings shown but not yet buildable (their system arrives in a later task, e.g. railways). */
 const COMING_SOON = new Set<string>();
+/** Tool-card tooltip line: the card shows the catalogue price; the build ghost shows the site's. */
+export const PRICE_NOTE = 'Town politics (permits, land prices, objections, tax breaks) can change the price; the build preview shows the price at each site.';
 
 interface Card {
   el: HTMLButtonElement;
@@ -89,15 +92,16 @@ export class Toolbar {
     for (const def of Object.values(BUILDINGS)) {
       const tab = tabOf(def);
       if (!tab) continue;
-      const cost = h('span', { class: 'tc-cost' }, formatMoney(def.cost));
-      const maint = h('span', { class: 'tc-maint' }, `+${formatMoney(def.maintenance)}/mo`);
+      // base figures: town politics and company edicts move both (PRICE_NOTE, the build preview)
+      const cost = h('span', { class: 'tc-cost' }, `base ${formatMoney(def.cost)}`);
+      const maint = h('span', { class: 'tc-maint' }, `base +${formatMoney(def.maintenance)}/mo`);
       const soon = COMING_SOON.has(def.id);
       const lock = h('div', { class: 'tc-lock' }, soon ? 'Coming soon' : `Invented in ${def.era}`);
       lock.hidden = !soon;
       const el = h('button', {
         class: 'tool-card',
         'data-building': def.id,
-        title: def.description,
+        title: `${def.description}\n${PRICE_NOTE}`,
         disabled: soon,
         onClick: () => !soon && this.select({ kind: 'build', typeId: def.id }),
       },
