@@ -1,3 +1,4 @@
+import { defaultSociety } from '../data/laws';
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { BUILDINGS, HOUSING_RADIUS, type BuildingDef } from '../data/buildings';
@@ -299,6 +300,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     layers: {},
     politics: defaultPolitics(),
     weather: defaultWeather(START_DATE.month),
+    society: defaultSociety(),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {

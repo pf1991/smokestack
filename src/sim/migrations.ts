@@ -1,3 +1,4 @@
+import { defaultSociety } from '../data/laws';
 import { err, ok, type Result } from '../core/result';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { defaultOpinion } from '../data/factions';
@@ -90,6 +91,8 @@ export const MIGRATIONS: Migration[] = [
       for (const c of cities as Record<string, unknown>[]) {
         c.smog = newCitySmog(typeof c.pollution === 'number' && Number.isFinite(c.pollution) ? c.pollution : 0);
       }
+      // smoke laws (Task 5): none passed
+      o.society = defaultSociety();
       // strikes (Task 4): no building is on strike
       const buildings = o.buildings;
       if (buildings !== undefined) {

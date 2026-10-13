@@ -1,3 +1,4 @@
+import type { SocietyState } from '../data/laws';
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
 import type { LandmarkId } from '../data/landmarks';
@@ -171,7 +172,8 @@ export type LedgerCategory =
   | 'interest'
   | 'contracts'
   | 'events'
-  | 'demolition';
+  | 'demolition'
+  | 'fines';
 
 export interface LedgerMonth {
   year: number;
@@ -297,6 +299,8 @@ export interface GameState {
   politics: PoliticsState;
   /** Phase 3 weather (sim/weather.ts); added to old saves by the v6 migration */
   weather: Weather;
+  /** Phase 3 national smoke laws (sim/society/regulation.ts); added to old saves by the v6 migration */
+  society: SocietyState;
 }
 
 export interface SimContext {

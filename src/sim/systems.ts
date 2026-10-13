@@ -4,6 +4,7 @@ import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { pollutionSystem } from './pollution';
 import { escalationMonth } from './society/escalation';
+import { regulationMonth } from './society/regulation';
 import { strikesMonth } from './society/strikes';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
@@ -78,6 +79,7 @@ export const SYSTEMS: SimSystem[] = [
     onMonth(ctx) {
       pollutionSystem.onMonth(ctx);
       escalationMonth(ctx);
+      regulationMonth(ctx);
     },
   },
   {

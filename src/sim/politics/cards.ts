@@ -119,6 +119,17 @@ function openCard(ctx: SimContext, trigger: CardTrigger, cityId: number | null):
   state.politics.cards.pending.push(inst);
 }
 
+/**
+ * Opens card `cardId` for a sim event that names its card (a law passing), unless that card is
+ * already pending. Returns whether it opened. No rng, no cooldown or era checks.
+ */
+export function openCardById(ctx: SimContext, cardId: string, cityId: number | null): boolean {
+  const { state } = ctx;
+  if (!CARDS_BY_ID[cardId] || state.politics.cards.pending.some((p) => p.cardId === cardId)) return false;
+  state.politics.cards.pending.push({ uid: nextId(state), cardId, cityId, openedDay: dateToDays(state.date) });
+  return true;
+}
+
 /** 1 April, once a year from FIRST_CARD_YEAR (`nextCardYear` guards against a second draw). */
 export function drawSpringCard(ctx: SimContext): void {
   const { state } = ctx;

@@ -11,6 +11,9 @@ import { EDICT_KEYS, EDICTS, MAX_EDICT_DRIVE, maintenanceFactor, setEdict, type 
 import { playerBuildingUpkeep } from '../../sim/politics/mayorEdicts';
 import { nationalOpinion, opinionTrend } from '../../sim/politics/factions';
 import { nationalBlackLung } from '../../sim/society/escalation';
+import { LAWS, LAW_IDS } from '../../data/laws';
+import { monthIndex } from '../../sim/politics/elections';
+import { nonCompliant } from '../../sim/society/lawState';
 import type { CompanyEdicts, PoliticsLogEntry } from '../../sim/politics/types';
 import type { GameState, SimContext } from '../../sim/types';
 import { h } from '../dom';
@@ -166,6 +169,19 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
     }
     const dead = nationalBlackLung(state);
     setText(blackLung, dead > 0 ? `${formatNumber(dead)} dead of smog` : 'None yet');
+    const now = monthIndex(state.date);
+    for (const r of lawRows) {
+      const law = state.society.laws[r.id];
+      const def = LAWS[r.id];
+      let status = 'Pending';
+      if (law.passed !== null && law.enforcedFrom !== null) {
+        const f = law.enforcedFrom;
+        status = now >= f ? `Passed ${law.passed}` : `Passed ${law.passed}, enforced from ${MONTHS[f % 12]} ${Math.floor(f / 12)}`;
+      }
+      const n = law.passed !== null ? nonCompliant(state, r.id).length : 0;
+      setText(r.status, status);
+      setText(r.detail, `Needs scrubber tier ${def.tier}${law.passed !== null ? ` · ${n} of your works non-compliant` : ''}`);
+    }
     const entries = state.politics.log.slice(-LOG_SHOWN).reverse();
     const sig = `${state.politics.log.length}|${entries.map((e) => `${e.date.year}.${e.date.month}.${e.faction}.${e.delta}`).join(',')}`;
     if (log.dataset.sig !== sig) {
@@ -185,6 +201,7 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   };
   for (const k of EDICT_KEYS) controls.push(edictControl(ctx, k, update));
   const rows = FACTION_IDS.map(opinionRow);
+  const lawRows = LAW_IDS.map((id) => ({ id, status: h('span', { class: 'pol-law-status' }), detail: h('span', { class: 'pol-law-detail' }) }));
   const log = h('ul', { class: 'pol-log' });
   const blackLung = h('span', { class: 'pol-blacklung-count' });
   const el = h('div', { class: 'pol' },
@@ -193,6 +210,8 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
     h('div', { class: 'pol-section pol-national' }, h('div', { class: 'insp-label' }, 'National opinion'), ...rows.map((r) => r.el)),
     h('div', { class: 'pol-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
       h('div', { class: 'insp-label' }, 'Black Lung toll'), blackLung),
+    h('div', { class: 'pol-section pol-laws' }, h('div', { class: 'insp-label' }, 'Law of the land'),
+      ...lawRows.map((r) => h('div', { class: 'pol-law', 'data-law': r.id }, h('strong', null, LAWS[r.id].title), ' ', r.status, h('div', null, r.detail)))),
     h('div', { class: 'pol-section pol-news' }, h('div', { class: 'insp-label' }, 'Recent political news'), log));
   update();
   return { el, update };

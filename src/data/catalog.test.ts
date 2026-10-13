@@ -154,6 +154,14 @@ describe('content catalog', () => {
     }
   });
 
+  it('event cards: one law card per national smoke law', () => {
+    for (const id of ['smoke_abatement', 'clean_air', 'emission_caps']) {
+      const c = CARDS.find((x) => x.id === `law_${id}`);
+      expect(c?.trigger, id).toBe('law');
+      expect(c!.choices.some((ch) => ch.label === 'Lobby for delay')).toBe(true);
+    }
+  });
+
   it('event cards: Task 8 counts, era spread, bounds and faction coverage', () => {
     const by = (t: string) => CARDS.filter((c) => c.trigger === t);
     expect(CARDS.length).toBeGreaterThanOrEqual(60);

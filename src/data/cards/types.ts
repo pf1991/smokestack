@@ -37,7 +37,7 @@ export interface CardChoice {
   note?: string;
 }
 
-export type CardTrigger = 'spring' | 'election' | 'scandal' | 'strike' | 'disaster' | 'invention' | 'crash';
+export type CardTrigger = 'spring' | 'election' | 'scandal' | 'strike' | 'disaster' | 'invention' | 'crash' | 'law';
 
 /** All money in a card's choices is authored in 1900 dollars for a starting $300,000 company (see CardChoice.cost). */
 export interface CardDef {

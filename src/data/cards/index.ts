@@ -12,6 +12,7 @@ import { INTERWAR_CARDS } from './interwar';
 import { LATE_CARDS } from './late';
 import { POSTWAR_CARDS } from './postwar';
 import { SEED_CARDS } from './seed';
+import { LAW_CARDS } from './laws';
 import { TRIGGERED_CARDS } from './triggered';
 import type { CardDef } from './types';
 
@@ -25,6 +26,7 @@ export const CARDS: readonly CardDef[] = [
   ...LATE_CARDS,
   ...ANYTIME_CARDS,
   ...TRIGGERED_CARDS,
+  ...LAW_CARDS,
 ];
 
 export const CARDS_BY_ID: Readonly<Record<string, CardDef>> = Object.fromEntries(CARDS.map((c) => [c.id, c]));

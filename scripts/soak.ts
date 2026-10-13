@@ -17,6 +17,7 @@
  * at each tier (sampled at every month end), the highest smog level seen and the national Black Lung toll.
  * A third line reports labour unrest (Phase 3 Task 4): strikes started (the `strike` bus event), town-months
  * with workers' opinion below 30 (go-slow) and below 25 (strike risk), and the lowest workers' opinion seen.
+ * A fourth line reports the national smoke laws (Task 5): the year each passed and the total fines paid.
  */
 import { EventBus } from '../src/core/events';
 import { runAutoplay } from '../src/game/autoplay';
@@ -89,10 +90,12 @@ for (const seed of seeds) {
   const tierMonths = [0, 0, 0, 0, 0];
   let maxTier = 0;
   let maxLevel = 0;
+  const fineByMonth = new Map<number, number>();
   while (ctx.state.date.year < endYear && !over) {
     // a year as 12 months of 30 days, sampling every town's smog tier at each month end
     for (let m = 0; m < 12 && !over; m++) {
       runDays(ctx, 30);
+      for (const l of ctx.state.companies.player.ledger) fineByMonth.set(l.year * 12 + l.month, l.expense.fines ?? 0);
       for (const c of ctx.state.cities) {
         tierMonths[c.smog.tier]++;
         maxTier = Math.max(maxTier, c.smog.tier);
@@ -126,6 +129,11 @@ for (const seed of seeds) {
   );
   console.log(
     `  unrest ${seed}: strikes ${strikes} | town-months workers < 30: ${slowMonths}, < 25: ${strikeRiskMonths} | min workers ${minWorkers.toFixed(1)}`,
+  );
+  const laws = ctx.state.society.laws;
+  const totalFines = [...fineByMonth.values()].reduce((t, n) => t + n, 0);
+  console.log(
+    `  laws ${seed}: ${Object.entries(laws).map(([id, l]) => `${id} ${l.passed ?? 'pending'}`).join(', ')} | total fines ${money(totalFines)}`,
   );
   if (years >= 100) {
     const gate: string[] = [];
