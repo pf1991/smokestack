@@ -114,7 +114,7 @@ describe('window manager', () => {
   });
 
   it('renumbers open windows compactly from 100 when the z counter passes Z_RENUMBER_AT, keeping their order (M12)', () => {
-    expect(Z_RENUMBER_AT).toBe(3000);
+    expect(Z_RENUMBER_AT).toBe(900);
     const a = open('a');
     const b = open('b');
     const z = (w: { el: HTMLElement }) => Number(w.el.style.zIndex);

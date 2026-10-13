@@ -42,7 +42,7 @@ const open = new Map<string, Entry>();
 /** Window z-indices start here; they stay below the card modal (4000) and the menu modals (5000). */
 const Z_BASE = 100;
 /** Past this, the open windows are renumbered compactly from Z_BASE (see nextZ). */
-export const Z_RENUMBER_AT = 3000;
+export const Z_RENUMBER_AT = 900;
 let zTop = Z_BASE;
 let stampTop = 0;
 
