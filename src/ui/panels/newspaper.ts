@@ -1,4 +1,6 @@
 import type { GameController } from '../../game/controller';
+import { CARDS_BY_ID } from '../../data/cards';
+import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { formatDate } from '../../sim/clock';
 import { publishNews } from '../../sim/news';
 import type { GameDate, GameState, NewsItem, NewsKind } from '../../sim/types';
@@ -83,7 +85,58 @@ export function monthsWithNews(state: GameState): { year: number; month: number 
 
 export function leadStory(items: NewsItem[]): NewsItem | null {
   if (items.length === 0) return null;
+  const hot = items.filter((n) => n.kind === 'politics' || n.kind === 'historic');
+  if (hot.length > 0) return hot.reduce((a, b) => (b.id > a.id ? b : a));
   return [...items].sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind] || b.id - a.id)[0];
+}
+
+/** Masthead name and CSS class by era. The class carries a system font stack (newspaper.css); no web fonts. */
+export function mastheadFor(year: number): { title: string; className: string } {
+  if (year < 1925) return { title: 'The Daily Smokestack', className: 'mast-blackletter' };
+  if (year < 1950) return { title: 'The Smokestack Herald', className: 'mast-deco' };
+  if (year < 1975) return { title: 'The Smokestack Express', className: 'mast-slab' };
+  return { title: 'The Smokestack Post', className: 'mast-grotesk' };
+}
+
+const MONTHS_SHORT = MONTH_FULL.map((m) => m.slice(0, 3));
+
+function chip(f: FactionId, year: number): HTMLElement {
+  return h('span', { class: 'fchip', style: `background:${FACTIONS[f].color}` }, factionName(f, year));
+}
+
+function ballotBox(state: GameState): HTMLElement {
+  const cityName = (id: number) => state.cities.find((c) => c.id === id)?.name ?? 'Unknown';
+  const past = (state.politics.elections ?? []).slice(-3).reverse();
+  const next = [...state.cities].sort((a, b) => a.politics.nextElection - b.politics.nextElection).slice(0, 3);
+  return h('section', { class: 'ballot-box' },
+    h('h4', null, 'The Ballot Box'),
+    past.length === 0 && h('p', { class: 'ballot-none' }, 'No elections held yet.'),
+    past.map((e) => h('div', { class: 'ballot-past' },
+      h('div', { class: 'ballot-row' }, h('b', null, `${cityName(e.cityId)} ${e.year}`), chip(e.winner, e.year)),
+      h('div', { class: 'vote-bar' }, FACTION_IDS.map((f) =>
+        h('i', { style: `width:${(e.shares[f] * 100).toFixed(1)}%;background:${FACTIONS[f].color}`, title: `${factionName(f, e.year)} ${Math.round(e.shares[f] * 100)}%` }))))),
+    h('div', { class: 'ballot-sub' }, 'Coming up'),
+    next.map((c) => {
+      const mi = c.politics.nextElection;
+      return h('div', { class: 'ballot-next' }, h('b', null, c.name), `${MONTHS_SHORT[mi % 12]} ${Math.floor(mi / 12)}`);
+    }));
+}
+
+function smogsworthDesk(state: GameState): HTMLElement | null {
+  const n = [...state.news].reverse().find((x) => x.kind === 'rival');
+  if (!n) return null;
+  return h('section', { class: 'smogsworth-desk' }, h('h4', null, 'From the Smogsworth Desk'), h('h3', null, n.headline), h('p', null, n.body));
+}
+
+function decisions(state: GameState, year: number): HTMLElement | null {
+  const rows = state.politics.cards.history.filter((x) => x.year === year && CARDS_BY_ID[x.id]);
+  if (rows.length === 0) return null;
+  return h('section', { class: 'decisions' }, h('h4', null, 'Decisions of the Year'),
+    h('ul', null, rows.map((x) => {
+      const c = CARDS_BY_ID[x.id];
+      const ch = x.choice !== undefined ? c.choices[x.choice] : undefined;
+      return h('li', null, h('b', null, c.title), ch ? ` — ${ch.label}` : '');
+    })));
 }
 
 function storyEl(n: NewsItem): HTMLElement {
@@ -100,6 +153,9 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
   const rest = items.filter((n) => n !== lead).sort((a, b) => b.id - a.id);
   const left = rest.filter((_, i) => i % 2 === 0);
   const right = rest.filter((_, i) => i % 2 === 1);
+  const mast = mastheadFor(ym.year);
+  const desk = smogsworthDesk(state);
+  const dec = decisions(state, ym.year);
   const ads = pickAds(ym.year, ym.month);
   const idx = monthsWithNews(state);
   const pos = idx.findIndex((m) => m.year === ym.year && m.month === ym.month);
@@ -109,7 +165,7 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
       h('button', { title: 'Previous month', disabled: pos <= 0, onClick: nav.prev }, '‹'),
       h('span', null, `Vol. ${ym.year - 1899} · No. ${ym.month}`),
       h('button', { title: 'Next month', disabled: pos >= idx.length - 1, onClick: nav.next }, '›')),
-    h('h1', { class: 'masthead' }, 'THE DAILY SMOKESTACK'),
+    h('h1', { class: `masthead ${mast.className}` }, mast.title),
     h('div', { class: 'masthead-ears' },
       h('span', null, '“All the soot that\'s fit to print”'),
       h('span', null, 'Weather: smoky, with sooty intervals')),
@@ -120,6 +176,7 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
           h('h2', null, lead.headline),
           h('p', null, lead.body))
       : h('div', { class: 'paper-quiet' }, `A quiet month in ${MONTH_FULL[ym.month - 1]}. The presses idle, and the editor takes an early luncheon.`),
+    h('div', { class: 'politics-row' }, ballotBox(state), (desk || dec) && h('div', { class: 'politics-side' }, desk, dec)),
     rest.length > 0 && h('section', { class: 'paper-cols' },
       h('div', { class: 'col' }, left.map(storyEl)),
       h('div', { class: 'col' }, right.map(storyEl))),

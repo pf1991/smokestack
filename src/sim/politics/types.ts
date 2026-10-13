@@ -26,7 +26,8 @@ export interface CardInstance {
 
 export interface CardState {
   pending: CardInstance[];
-  history: { id: string; year: number }[];
+  /** `choice` is the index of the choice taken (absent in entries from older saves) */
+  history: { id: string; year: number; choice?: number }[];
 }
 
 export type MayorEdictId = 'permits_required' | 'smog_limit' | 'truck_tolls' | 'minimum_wage' | 'tax_break';
@@ -84,6 +85,16 @@ export interface PoliticsState {
   track: PoliticsTrack;
   /** one OpinionSample per ended year, oldest first (capped at HISTORY_CAP) */
   history: OpinionSample[];
+  /** past election results, oldest first (capped at ELECTION_LOG_CAP) */
+  elections: ElectionResult[];
+}
+
+export interface ElectionResult {
+  cityId: number;
+  year: number;
+  month: number;
+  winner: FactionId;
+  shares: Record<FactionId, number>;
 }
 
 /** Empty politics for a new game (primed: nothing exists yet) or a migrated save (primed false). */
@@ -95,6 +106,7 @@ export function defaultPolitics(primed = true): PoliticsState {
     log: [],
     track: { primed, buildings: [], near: {}, contractsSeen: [], sales: {}, orphans: [] },
     history: [],
+    elections: [],
   };
 }
 

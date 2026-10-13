@@ -22,6 +22,8 @@ import { workCity } from './workforce';
 import type { CityPolitics } from './types';
 
 export const ELECTION_TERM = 48;
+/** Oldest entries of `politics.elections` are dropped beyond this. */
+export const ELECTION_LOG_CAP = 50;
 export const ENDORSE_WINDOW = 12;
 /** Earliest a migrated or new city's first election may fall, in months from now. */
 export const MIN_LEAD = 6;
@@ -102,6 +104,9 @@ export function holdElection(ctx: SimContext, city: City): FactionId {
   p.slush = 0;
   p.edicts = chooseMayorEdicts(city);
   const year = state.date.year;
+  const log = (state.politics.elections ??= []);
+  log.push({ cityId: city.id, year, month: state.date.month, winner, shares });
+  if (log.length > ELECTION_LOG_CAP) log.splice(0, log.length - ELECTION_LOG_CAP);
   const body = FACTION_IDS.map((f) => `${factionName(f, year)} ${Math.round(shares[f] * 100)}%`).join(', ');
   publishNews(ctx, 'politics', `${factionName(winner, year).toUpperCase()} CANDIDATE ${p.mayor.name.toUpperCase()} WINS ${city.name.toUpperCase()}`, `Vote shares: ${body}.`);
   ctx.bus.emit({ type: 'election', cityId: city.id, winner });

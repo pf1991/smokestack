@@ -182,7 +182,7 @@ describe('resolveCard', () => {
     expect(ctx.state.cities[1].opinion.workers).toBe(w + 4);
     expect(ctx.state.cities[0].opinion.workers).toBe(50);
     expect(pending(ctx)).toEqual([]);
-    expect(ctx.state.politics.cards.history).toEqual([{ id: 'founders_parade', year: 1906 }]);
+    expect(ctx.state.politics.cards.history).toEqual([{ id: 'founders_parade', year: 1906, choice: 0 }]);
     const news = ctx.state.news[ctx.state.news.length - 1];
     expect(news.kind).toBe('politics');
     expect(news.body).toContain('Sponsor a float');
@@ -338,7 +338,7 @@ describe('history cap', () => {
     expect(resolveCard(ctx, 4, 1).ok).toBe(true);
     expect(h.length).toBe(HISTORY_CAP);
     expect(h[0].id).toBe('old1');
-    expect(h.at(-1)).toEqual({ id: 'letter_to_editor', year: 1905 });
+    expect(h.at(-1)).toEqual({ id: 'letter_to_editor', year: 1905, choice: 1 });
   });
 });
 
