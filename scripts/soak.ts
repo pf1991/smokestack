@@ -1,5 +1,8 @@
 /**
- * Century soak: `npm run soak -- --seeds 7,42,1234 --years 100`
+ * Century soak: `npm run soak -- --seeds 7,42,1234 --years 100 [--edicts harsh|kind]`
+ *
+ * `--edicts harsh` (low wages, minimal safety, crush the union) or `--edicts kind` (generous, high,
+ * recognise) sets the player's company edicts right after autoplay and holds them for the run.
  *
  * Per seed: createGame, the autoplay furniture chain for the player, then yearly `runDays(ctx, 360)`
  * until `--years` years have passed, 1 Jan 2001 or game over, checking every invariant each year.
@@ -17,6 +20,7 @@ import { CARDS_BY_ID } from '../src/data/cards';
 import { FACTION_IDS } from '../src/data/factions';
 import { checkInvariants } from '../src/sim/invariants';
 import { nationalOpinion } from '../src/sim/politics/factions';
+import type { CompanyEdicts } from '../src/sim/politics/types';
 import { netWorth } from '../src/sim/rival/takeover';
 import { runDays } from '../src/sim/simulation';
 import { createGame } from '../src/sim/state';
@@ -33,8 +37,13 @@ const seeds = (arg('seeds') ?? '7')
   .map((s) => Number(s.trim()))
   .filter((n) => Number.isInteger(n));
 const years = Number(arg('years') ?? '100');
-if (seeds.length === 0 || !Number.isInteger(years) || years < 1) {
-  console.error('usage: npm run soak -- --seeds 7,42,1234 --years 100');
+const EDICT_SETS: Record<string, CompanyEdicts> = {
+  harsh: { wage: 'low', safety: 'minimal', union: 'crush' },
+  kind: { wage: 'generous', safety: 'high', union: 'recognise' },
+};
+const edictsArg = arg('edicts');
+if (seeds.length === 0 || !Number.isInteger(years) || years < 1 || (edictsArg !== undefined && !EDICT_SETS[edictsArg])) {
+  console.error('usage: npm run soak -- --seeds 7,42,1234 --years 100 [--edicts harsh|kind]');
   process.exit(2);
 }
 
@@ -61,6 +70,7 @@ for (const seed of seeds) {
     failed = true;
     continue;
   }
+  if (edictsArg) ctx.state.politics.edicts = { ...EDICT_SETS[edictsArg] };
   const pinned: Record<string, number> = {};
   const pinFails = new Set<string>();
   let baronBuilt = false;

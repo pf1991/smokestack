@@ -79,10 +79,11 @@ if (debugStart) {
   if (import.meta.env.DEV && params.has('skipYears') && Number.isFinite(skipYears) && skipYears > 0) {
     runDays(setup, Math.floor(skipYears) * 360);
   }
-  if (import.meta.env.DEV && params.get('cards') === '0') {
+  const cardParam = params.get('card');
+  // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen
+  if (import.meta.env.DEV && (params.get('cards') === '0' || cardParam)) {
     for (const p of [...state.politics.cards.pending]) autoResolve(setup, p.uid);
   }
-  const cardParam = params.get('card');
   if (import.meta.env.DEV && cardParam) forceCard(setup, cardParam);
 
   const hourParam = params.get('hour');

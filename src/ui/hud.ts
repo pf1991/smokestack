@@ -1,4 +1,5 @@
 import type { EventBus } from '../core/events';
+import { GREENS_YEAR } from '../data/factions';
 import { eraName } from '../sim/eras';
 import { monthProfit } from '../sim/finance';
 export { eraName };
@@ -54,6 +55,9 @@ export class Hud {
   private readonly counter: RollingCounter;
   private state: GameState | null = null;
   private seeded = false;
+  private readonly modeSel: HTMLSelectElement;
+  /** whether the faction-mode labels were built for the post-GREENS_YEAR names */
+  private modeGreen = false;
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
     this.company = h('div', { class: 'hud-company' }, '');
@@ -102,6 +106,7 @@ export class Hud {
     }, ...factionModes(1900).map((m) => h('option', { value: m.value }, m.label)));
     (modeSel as HTMLSelectElement).value = getFactionMode();
     modeSel.hidden = true;
+    this.modeSel = modeSel as HTMLSelectElement;
     const factions = h('button', {
       class: 'hud-panel-btn hud-factions',
       title: 'Toggle faction map',
@@ -182,6 +187,14 @@ export class Hud {
     const d = state.date;
     setText(this.date, `${d.day} ${MONTHS[d.month - 1] ?? '???'} ${d.year}`);
     setText(this.era, eraName(d.year));
+    // the Reformers become the Greens in GREENS_YEAR: relabel the faction-map modes (both ways, for loads)
+    const green = d.year >= GREENS_YEAR;
+    if (green !== this.modeGreen) {
+      this.modeGreen = green;
+      const value = this.modeSel.value;
+      this.modeSel.replaceChildren(...factionModes(d.year).map((m) => h('option', { value: m.value }, m.label)));
+      this.modeSel.value = value;
+    }
     if (state.speed !== this.lastSpeed) {
       this.lastSpeed = state.speed;
       for (const [s, btn] of this.speedButtons) btn.classList.toggle('active', s === state.speed);

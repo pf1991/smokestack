@@ -147,6 +147,29 @@ describe('political front page', () => {
     expect(box.querySelector('.ballot-next')).toBeNull();
   });
 
+  it('the Smogsworth Desk on an old edition shows only rival items dated on or before that month (M8)', () => {
+    const state = createGame({ seed: 7 });
+    const ctx = { state, bus: new EventBus() };
+    const game = { state, ctx } as unknown as GameController;
+    state.date = { year: 1902, month: 6, day: 1, hour: 0 };
+    publishNews(ctx, 'rival', 'BARON OPENS A MILL', 'Old news.');
+    state.date = { year: 1903, month: 1, day: 1, hour: 0 };
+    publishNews(ctx, 'random', 'QUIET EDITION', 'x');
+    state.date = { year: 1906, month: 2, day: 1, hour: 0 };
+    publishNews(ctx, 'rival', 'BARON BUYS THE BANK', 'Later news.');
+    newspaperPanel.open(game);
+    const desk = () => document.querySelector('.paper .smogsworth-desk');
+    expect(desk()?.textContent).toContain('BARON BUYS THE BANK');
+    // back to January 1903: the 1906 item has not happened yet
+    document.querySelector<HTMLButtonElement>('.paper-nav button')!.click();
+    expect(document.querySelector('.paper .lead')?.textContent).toContain('QUIET EDITION');
+    expect(desk()?.textContent).toContain('BARON OPENS A MILL');
+    expect(desk()?.textContent).not.toContain('BARON BUYS THE BANK');
+    // back to June 1902: the mill story is that month's own
+    document.querySelector<HTMLButtonElement>('.paper-nav button')!.click();
+    expect(desk()?.textContent).toContain('BARON OPENS A MILL');
+  });
+
   it('lists the Smogsworth Desk and Decisions of the Year', () => {
     const { ctx, game } = setup();
     publishNews(ctx, 'rival', 'SMOGSWORTH SNEERS', 'Ha.');

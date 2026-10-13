@@ -151,15 +151,16 @@ describe('elections', () => {
     expect(newCityPolitics(0, 1900, firstElection(0, 1900) + 20).nextElection).toBe(firstElection(0, 1900) + 26);
   });
 
-  it('createGame cities have staggered politics and a century yields 100+ elections', () => {
+  // the full century (100+ elections) is the soak's gate; 25 years keep the unit suite fast
+  it('createGame cities have staggered politics and 25 years yield 25+ elections', () => {
     const ctx = { state: createGame({ seed: 7 }), bus: new EventBus() };
     let n = 0;
     ctx.bus.on('election', () => n++);
     expect(ctx.state.cities.length).toBeGreaterThanOrEqual(5);
-    runDays(ctx, 360 * 100);
-    expect(n).toBeGreaterThanOrEqual(100);
+    runDays(ctx, 360 * 25);
+    expect(n).toBeGreaterThanOrEqual(25);
     for (const c of ctx.state.cities) expect(c.politics.mayor.name).toBeTruthy();
-  }, 120000);
+  }, 60000);
 
   it('drawWinner falls back to a valid faction when the draw outruns the cumulative sum', () => {
     const ctx = town();

@@ -281,8 +281,9 @@
 
 .tc-nums {
   display: flex;
+  flex-wrap: wrap; /* "base $X" and "base +$Y/mo" stack when they do not fit side by side */
   justify-content: space-between;
-  gap: 6px;
+  gap: 0 6px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }

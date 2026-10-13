@@ -6,7 +6,7 @@ import type { GameController } from '../../game/controller';
 import { BUILDINGS } from '../../data/buildings';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { PLAYER_ID } from '../../sim/companies';
-import { EDICT_KEYS, EDICTS, maintenanceFactor, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
+import { EDICT_KEYS, EDICTS, MAX_EDICT_DRIVE, maintenanceFactor, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
 import { playerBuildingUpkeep } from '../../sim/politics/mayorEdicts';
 import { nationalOpinion, opinionTrend } from '../../sim/politics/factions';
 import type { CompanyEdicts, PoliticsLogEntry } from '../../sim/politics/types';
@@ -27,7 +27,7 @@ const STEADY = 0.5;
 
 const signed = (n: number): string => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(Math.round(n * 10) / 10)}`;
 
-/** "Workers +2/mo, Old Money −1/mo", or "No effect on opinion". */
+/** "Workers +0.2/mo, Old Money −0.1/mo", or "No effect on opinion". */
 export function effectsText(opt: EdictOption, year: number): string {
   const parts = FACTION_IDS.filter((f) => opt.effects[f]).map((f) => `${factionName(f, year)} ${signed(opt.effects[f]!)}/mo`);
   return parts.length ? parts.join(', ') : 'No effect on opinion';
@@ -183,7 +183,8 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   const rows = FACTION_IDS.map(opinionRow);
   const log = h('ul', { class: 'pol-log' });
   const el = h('div', { class: 'pol' },
-    h('div', { class: 'pol-section pol-edicts' }, h('div', { class: 'insp-label' }, 'Company edicts'), ...controls.map((c) => c.el)),
+    h('div', { class: 'pol-section pol-edicts' }, h('div', { class: 'insp-label' }, 'Company edicts'), ...controls.map((c) => c.el),
+      h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)),
     h('div', { class: 'pol-section pol-national' }, h('div', { class: 'insp-label' }, 'National opinion'), ...rows.map((r) => r.el)),
     h('div', { class: 'pol-section pol-news' }, h('div', { class: 'insp-label' }, 'Recent political news'), log));
   update();
@@ -214,13 +215,3 @@ export const politicsPanel: PanelDef = {
     });
   },
 };
-
-// Dev-only: `?panel=politics` opens the window once the game is running (for visual checks).
-if (import.meta.env?.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).get('panel') === 'politics') {
-  const openWhenReady = () => {
-    const game = (window as unknown as { game?: GameController }).game;
-    if (game) politicsPanel.open(game);
-    else setTimeout(openWhenReady, 50);
-  };
-  setTimeout(openWhenReady, 0);
-}

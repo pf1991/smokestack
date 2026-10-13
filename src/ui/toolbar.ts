@@ -92,8 +92,9 @@ export class Toolbar {
     for (const def of Object.values(BUILDINGS)) {
       const tab = tabOf(def);
       if (!tab) continue;
-      const cost = h('span', { class: 'tc-cost' }, `from ${formatMoney(def.cost)}`);
-      const maint = h('span', { class: 'tc-maint' }, `+${formatMoney(def.maintenance)}/mo`);
+      // base figures: town politics and company edicts move both (PRICE_NOTE, the build preview)
+      const cost = h('span', { class: 'tc-cost' }, `base ${formatMoney(def.cost)}`);
+      const maint = h('span', { class: 'tc-maint' }, `base +${formatMoney(def.maintenance)}/mo`);
       const soon = COMING_SOON.has(def.id);
       const lock = h('div', { class: 'tc-lock' }, soon ? 'Coming soon' : `Invented in ${def.era}`);
       lock.hidden = !soon;

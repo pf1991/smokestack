@@ -17,9 +17,9 @@ import { PLAYER_ID } from '../companies';
 import { LOAN_RATE, spend } from '../finance';
 import { buildingsNear } from '../spatial';
 import type { Building, BuildingTypeId, City, GameState, OwnerId, SimContext, Vec2 } from '../types';
-import { maintenanceFactor } from './edicts';
+import { EDICTS, maintenanceFactor } from './edicts';
 import { NEAR_MARGIN, nationalOpinion } from './factions';
-import type { CompanyEdicts, MayorEdictId } from './types';
+import type { MayorEdictId } from './types';
 import { workCity } from './workforce';
 
 export type { MayorEdictId };
@@ -33,7 +33,7 @@ export const SMOG_LIMIT_FACTOR = 0.75;
 export const SMOG_LIMIT_POLLUTION = 0.4;
 /** Monthly toll per player truck per toll town its route stops in. */
 export const TRUCK_TOLL = 40;
-/** Minimum wage: upkeep multiplier for player buildings hiring from that town. */
+/** Minimum wage: the floor on the wage edict's upkeep multiplier for player buildings hiring from that town. */
 export const MINIMUM_WAGE_FACTOR = 1.1;
 /** Tax break: discount on player factories' construction in that town. */
 export const TAX_BREAK = 0.25;
@@ -66,7 +66,7 @@ export const MAYOR_EDICTS: Record<MayorEdictId, MayorEdictInfo> = {
   minimum_wage: {
     name: 'Minimum wage',
     icon: 'wage',
-    effect: `Upkeep ×${MINIMUM_WAGE_FACTOR} for works hiring here; low wages count as fair`,
+    effect: `Wages for works hiring here cost at least ×${MINIMUM_WAGE_FACTOR} upkeep: low and fair wages pay ×${MINIMUM_WAGE_FACTOR}; generous wages already clear it, so nothing stacks`,
   },
   tax_break: { name: 'Tax break', icon: 'money', effect: `Factories in town cost ${TAX_BREAK * 100}% less to build` },
 };
@@ -196,14 +196,16 @@ export function smogLimited(state: GameState): Set<number> {
 }
 
 /**
- * The player's monthly building upkeep: each building's maintenance × the company edicts, and in a
- * minimum-wage town × MINIMUM_WAGE_FACTOR with 'low' wages counted as 'fair'.
+ * The player's monthly building upkeep: each building's maintenance × the company edicts. A
+ * minimum-wage town is a floor on the wage part: there the wage multiplier is at least
+ * MINIMUM_WAGE_FACTOR, so 'low' and 'fair' both pay ×1.1 and 'generous' (×1.25) pays its own rate,
+ * nothing stacked. Safety and union multiply as usual.
  */
 export function playerBuildingUpkeep(state: GameState): number {
   const edicts = state.politics.edicts;
   const normal = maintenanceFactor(edicts);
-  const fairEdicts: CompanyEdicts = { ...edicts, wage: edicts.wage === 'low' ? 'fair' : edicts.wage };
-  const minWage = maintenanceFactor(fairEdicts) * MINIMUM_WAGE_FACTOR;
+  // 'fair' wages cost ×1, so this is safety × union × max(wage, floor)
+  const minWage = maintenanceFactor({ ...edicts, wage: 'fair' }) * Math.max(EDICTS.wage.options[edicts.wage]?.cost ?? 1, MINIMUM_WAGE_FACTOR);
   const anyMinWage = state.cities.some((c) => hasEdict(c, 'minimum_wage'));
   let total = 0;
   for (const b of Object.values(state.buildings)) {

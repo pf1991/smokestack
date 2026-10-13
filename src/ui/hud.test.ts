@@ -4,6 +4,8 @@ import { EventBus } from '../core/events';
 import { currentLedger } from '../sim/finance';
 import { createGame } from '../sim/state';
 import { Hud, eraName } from './hud';
+import { factionName, GREENS_YEAR } from '../data/factions';
+import { factionModes } from '../render/factionOverlay';
 
 function setup() {
   const root = document.createElement('div');
@@ -15,6 +17,23 @@ function setup() {
 }
 
 describe('Hud', () => {
+  it('renames the faction-mode options when the year crosses 1960 (M6)', () => {
+    const { root, hud, state } = setup();
+    const labels = () => [...root.querySelectorAll<HTMLOptionElement>('.hud-faction-mode option')].map((o) => o.textContent);
+    const sel = root.querySelector<HTMLSelectElement>('.hud-faction-mode')!;
+    hud.update(state);
+    const before = labels();
+    expect(before).toContain(factionName('reformers', 1900));
+    sel.value = 'reformers';
+    state.date = { ...state.date, year: GREENS_YEAR };
+    hud.update(state);
+    expect(labels()).toEqual(factionModes(GREENS_YEAR).map((m) => m.label));
+    expect(labels()).toContain(factionName('reformers', GREENS_YEAR));
+    expect(labels()).not.toEqual(before);
+    // the selection survives the rebuild
+    expect(sel.value).toBe('reformers');
+  });
+
   it('money turns red when negative', () => {
     const { root, hud, state } = setup();
     hud.update(state);

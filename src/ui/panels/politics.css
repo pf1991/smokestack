@@ -13,6 +13,7 @@
 .pol-effects { font-size: 12px; color: var(--paper-shade); min-height: 1.2em; }
 .pol-effects .pos { color: #7fd17f; }
 .pol-effects .neg { color: #f08080; }
+.pol-note { font-size: 11px; color: var(--paper-shade); font-style: italic; margin-top: 4px; }
 .pol-opinion { display: grid; grid-template-columns: 110px 1fr 54px; gap: 8px; align-items: center; }
 .pol-opinion .insp-bar { width: 100%; }
 .pol-trend { text-align: right; white-space: nowrap; font-size: 12px; }

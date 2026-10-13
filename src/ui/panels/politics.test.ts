@@ -49,8 +49,8 @@ describe('politics window', () => {
     expect(wage().querySelector('.pol-cost')!.textContent).toBe('Upkeep unchanged · minimum wage +$30/mo');
     // low counts as fair in a minimum-wage town: no saving there
     expect(wage().querySelector<HTMLElement>('[data-value="low"]')!.title).toContain('Upkeep ×0.85 (+$0/mo)');
-    // generous: 300 × 1.25 × 1.1 − 300 × 1.1
-    expect(wage().querySelector<HTMLElement>('[data-value="generous"]')!.title).toContain('(+$83/mo)');
+    // generous clears the minimum-wage floor, so nothing stacks: 300 × 1.25 − 300 × 1.1
+    expect(wage().querySelector<HTMLElement>('[data-value="generous"]')!.title).toContain('(+$45/mo)');
   });
 
   it('renders three segmented controls; clicking one calls setEdict and updates the selection', () => {
@@ -72,7 +72,9 @@ describe('politics window', () => {
     // the control shows its cost and opinion effect
     const wage = win().querySelectorAll<HTMLElement>('.pol-edict')[0];
     expect(wage.querySelector('.pol-cost')!.textContent).toContain('×1.25');
-    expect(wage.querySelector('.pol-effects')!.textContent).toBe('Workers +2/mo, Old Money −1/mo');
+    expect(wage.querySelector('.pol-effects')!.textContent).toBe('Workers +0.2/mo, Old Money −0.1/mo');
+    expect(segs[0].querySelector<HTMLElement>('[data-value="low"]')!.title).toContain('Workers −0.2/mo, Old Money +0.1/mo');
+    expect(win().querySelector('.pol-edicts .pol-note')!.textContent).toBe('Together, edicts move a faction at most ±0.8 a month; opinion drifts back toward 50.');
     segs[2].querySelector<HTMLElement>('[data-value="crush"]')!.click();
     expect(calls).toEqual([['wage', 'generous'], ['union', 'crush']]);
   });

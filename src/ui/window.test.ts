@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { h } from './dom';
-import { closeAllWindows, COMPACT_WIDTH, createWindow, MAX_FLOATING, placeWindow } from './window';
+import { closeAllWindows, COMPACT_WIDTH, createWindow, MAX_FLOATING, placeWindow, Z_RENUMBER_AT } from './window';
 import { openInspector, type InspectorHost } from './panels/inspect';
 
 const open = (id: string) => createWindow({ id, title: `Win ${id}`, content: h('div', null, id), width: 300 });
@@ -111,6 +111,27 @@ describe('window manager', () => {
     const docked = ws.find((w) => w.docked)!;
     docked.close();
     expect(tabs()).toHaveLength(2);
+  });
+
+  it('renumbers open windows compactly from 100 when the z counter passes Z_RENUMBER_AT, keeping their order (M12)', () => {
+    expect(Z_RENUMBER_AT).toBe(3000);
+    const a = open('a');
+    const b = open('b');
+    const z = (w: { el: HTMLElement }) => Number(w.el.style.zIndex);
+    // raise a and b alternately until the counter has passed the threshold
+    for (let i = 0; i < Z_RENUMBER_AT; i++) open(i % 2 ? 'a' : 'b');
+    for (let i = 0; i < 10; i++) {
+      open('a');
+      expect(z(a)).toBeLessThanOrEqual(Z_RENUMBER_AT + 1);
+      expect(z(a)).toBeGreaterThan(z(b));
+      open('b');
+      expect(z(b)).toBeGreaterThan(z(a));
+    }
+    expect(z(b)).toBeLessThan(400); // renumbered, then ~120 raises more
+    expect(Math.min(z(a), z(b))).toBeGreaterThanOrEqual(100);
+    // a new window still opens on top
+    const c = open('c');
+    expect(z(c)).toBeGreaterThan(Math.max(z(a), z(b)));
   });
 
   it('closeAllWindows clears every tab', () => {

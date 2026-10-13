@@ -1,6 +1,6 @@
 /**
- * The politics system (Phase 2). Appended to SYSTEMS; later politics tasks extend its hooks.
- * Everything runs monthly or slower, never per tick.
+ * The politics system (Phase 2): event cards daily; workforce, company edicts, faction opinion,
+ * housing, elections and scandals monthly; the opinion history yearly. Never per tick.
  */
 import type { SimSystem } from '../systems';
 import { cardsDayHook } from './cards';

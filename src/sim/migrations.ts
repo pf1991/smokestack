@@ -47,7 +47,7 @@ export const MIGRATIONS: Migration[] = [
     // v5: Phase 2 politics. Every town gets the default faction opinion and the company default
     // politics; every building starts at `staffing: 1`. The drivers' bookkeeping starts unprimed, so
     // existing buildings and finished contracts are snapshotted at the first month rather than
-    // counted as new. Later Phase 2 tasks extend this.
+    // counted as new. Frozen at merge; Phase 3 adds from: 5.
     from: 4,
     migrate(o) {
       const cities = o.cities;
@@ -62,7 +62,6 @@ export const MIGRATIONS: Migration[] = [
         (c.politics as { edicts: unknown }).edicts = chooseMayorEdicts(c as unknown as City);
       });
       o.politics = defaultPolitics(false);
-      (o.politics as { elections: unknown[] }).elections = [];
       // event cards: the first spring draw is the next 1 April this save reaches (never before 1901)
       const day = (o.date as { day?: unknown }).day;
       const pastSpring = date.month > 4 || (date.month === 4 && typeof day === 'number' && day > 1);

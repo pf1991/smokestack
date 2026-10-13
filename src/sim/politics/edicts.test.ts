@@ -7,12 +7,16 @@ import { monthProfit } from '../finance';
 import { maintenanceMonth } from '../production';
 import { acceptsGood, handlesCargo } from '../inventory';
 import { acceptedGoods, appendStop, offeredGoods, suggestStops } from '../routeHelpers';
-import { canPlaceBuilding, demolishBuilding, HOUSING_TOO_FAR, placeBuilding } from '../state';
+import { canPlaceBuilding, createGame, demolishBuilding, HOUSING_TOO_FAR, placeBuilding } from '../state';
 import { createRoute } from '../vehicles';
 import { housingMonth } from './housing';
 import { must, testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
-import { buyPhilanthropy, edictsMonth, maintenanceFactor, philanthropyBlocker, setEdict } from './edicts';
+import { EventBus } from '../../core/events';
+import { FACTION_IDS } from '../../data/factions';
+import { runAutoplay } from '../../game/autoplay';
+import { runDays } from '../simulation';
+import { buyPhilanthropy, EDICT_KEYS, edictDrive, EDICTS, edictsMonth, MAX_EDICT_DRIVE, MAX_OPTION_DRIVE, maintenanceFactor, philanthropyBlocker, setEdict } from './edicts';
 import { factionsMonth, nationalOpinion, opinionHistoryYear, opinionTrend } from './factions';
 import { politicsSystem } from './index';
 import type { CompanyEdicts, SafetyLevel, UnionStance, WageLevel } from './types';
@@ -78,12 +82,12 @@ describe('company edicts', () => {
 
   it('edictsMonth applies each edict national effect', () => {
     const cases: [keyof CompanyEdicts, string, Partial<Record<'workers' | 'oldmoney' | 'reformers', number>>][] = [
-      ['wage', 'low', { workers: -2, oldmoney: 1 }],
-      ['wage', 'generous', { workers: 2, oldmoney: -1 }],
-      ['safety', 'minimal', { workers: -1, reformers: -1 }],
-      ['safety', 'high', { workers: 1 }],
-      ['union', 'crush', { workers: -2, oldmoney: 1 }],
-      ['union', 'recognise', { workers: 1.5, oldmoney: -1 }],
+      ['wage', 'low', { workers: -0.2, oldmoney: 0.1 }],
+      ['wage', 'generous', { workers: 0.2, oldmoney: -0.1 }],
+      ['safety', 'minimal', { workers: -0.1, reformers: -0.1 }],
+      ['safety', 'high', { workers: 0.1 }],
+      ['union', 'crush', { workers: -0.2, oldmoney: 0.1 }],
+      ['union', 'recognise', { workers: 0.15, oldmoney: -0.1 }],
     ];
     for (const [key, value, want] of cases) {
       const ctx = town();
@@ -110,8 +114,69 @@ describe('company edicts', () => {
     const fair = year('fair');
     const generous = year('generous');
     expect(fair).toBeCloseTo(50, 10);
-    expect(generous - fair).toBeGreaterThan(15);
+    expect(generous - fair).toBeGreaterThan(2);
   });
+
+  it('no single option drives a faction more than 0.4/month', () => {
+    for (const k of EDICT_KEYS) {
+      for (const v of EDICTS[k].values) {
+        for (const d of Object.values((EDICTS[k].options as Record<string, { effects: Record<string, number> }>)[v].effects)) {
+          expect(Math.abs(d), `${k} ${v}`).toBeLessThanOrEqual(MAX_OPTION_DRIVE);
+        }
+      }
+    }
+    expect(MAX_OPTION_DRIVE).toBe(0.4);
+    expect(MAX_EDICT_DRIVE).toBe(0.8);
+  });
+
+  it('edictsMonth sums the edicts per faction', () => {
+    const ctx = town();
+    ctx.state.politics.edicts = { wage: 'low', safety: 'minimal', union: 'crush' };
+    edictsMonth(ctx);
+    expect(ctx.state.cities[0].opinion.workers).toBeCloseTo(50 - 0.5, 12);
+    expect(ctx.state.cities[0].opinion.oldmoney).toBeCloseTo(50.2, 12);
+    expect(ctx.state.cities[0].opinion.reformers).toBeCloseTo(49.9, 12);
+  });
+
+  it('edictsMonth caps the summed drive per faction at 0.8/month', () => {
+    // three options at the per-option limit would sum to 1.2: the cap holds them to 0.8
+    const opts = EDICT_KEYS.map((k) => (EDICTS[k].options as Record<string, { effects: Record<string, number> }>)[EDICTS[k].values[0]]);
+    const saved = opts.map((o) => o.effects);
+    try {
+      for (const o of opts) o.effects = { workers: -MAX_OPTION_DRIVE, church: MAX_OPTION_DRIVE };
+      const ctx = town();
+      ctx.state.politics.edicts = { wage: 'low', safety: 'minimal', union: 'crush' };
+      expect(edictDrive(ctx.state.politics.edicts).workers).toBeCloseTo(-0.8, 12);
+      edictsMonth(ctx);
+      expect(ctx.state.cities[0].opinion.workers).toBeCloseTo(50 - 0.8, 12);
+      expect(ctx.state.cities[0].opinion.church).toBeCloseTo(50 + 0.8, 12);
+    } finally {
+      opts.forEach((o, i) => (o.effects = saved[i]));
+    }
+  });
+
+  // R-Q11: drift is 2% of the gap to 50, so a constant drive d settles at 50 + 50·d. With the cap,
+  // edicts alone settle within [10, 90]; other drivers must not push any town past [8, 92].
+  const SETS: Record<string, CompanyEdicts> = {
+    harsh: { wage: 'low', safety: 'minimal', union: 'crush' },
+    kind: { wage: 'generous', safety: 'high', union: 'recognise' },
+  };
+  for (const [name, edicts] of Object.entries(SETS)) {
+    it(`${name} edicts held for 30 years leave every faction in every town within [8, 92]`, () => {
+      const ctx = { state: createGame({ seed: 1234 }), bus: new EventBus() };
+      must(runAutoplay(ctx));
+      ctx.state.politics.edicts = { ...edicts };
+      for (let y = 0; y < 30; y++) {
+        runDays(ctx, 360);
+        for (const c of ctx.state.cities) {
+          for (const f of FACTION_IDS) {
+            const v = c.opinion[f];
+            expect(v >= 8 && v <= 92, `${ctx.state.date.year} ${c.name} ${f} ${v.toFixed(1)}`).toBe(true);
+          }
+        }
+      }
+    }, 120_000);
+  }
 });
 
 describe('opinion history', () => {

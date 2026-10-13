@@ -48,14 +48,16 @@ function cardFactions(card: CardDef): FactionId[] {
 }
 
 /**
- * The town a spring city card goes to: the one where the card's factions hold the most extreme
- * opinion (farthest from 50), ties to the lowest id. Null without towns.
+ * The town a spring city card goes to: among the towns where the card's condition passes, the one
+ * where the card's factions hold the most extreme opinion (farthest from 50), ties to the lowest id.
+ * Null when no town qualifies. `ignoreCondition` ranks every town (forceCard).
  */
-export function cardCity(state: GameState, card: CardDef): number | null {
+export function cardCity(state: GameState, card: CardDef, ignoreCondition = false): number | null {
   const factions = cardFactions(card);
   let best: number | null = null;
   let bestScore = -1;
   for (const c of [...state.cities].sort((a, b) => a.id - b.id)) {
+    if (!ignoreCondition && card.condition && !card.condition(state, c.id)) continue;
     const score = Math.max(...factions.map((f) => Math.abs(c.opinion[f] - 50)));
     if (score > bestScore) {
       best = c.id;
@@ -223,12 +225,12 @@ export function autoResolve(ctx: SimContext, uid: number, defs: CardTable = CARD
   return resolveCard(ctx, uid, choice, defs);
 }
 
-/** Opens card `cardId` now, whatever its trigger, era or cooldown (dev and tests); false if unknown or no town for a city card. */
+/** Opens card `cardId` now, whatever its trigger, era, cooldown or condition (dev and tests); false if unknown or no town for a city card. */
 export function forceCard(ctx: SimContext, cardId: string): boolean {
   const { state } = ctx;
   const card = CARDS_BY_ID[cardId];
   if (!card) return false;
-  const cityId = card.needsCity ? cardCity(state, card) : null;
+  const cityId = card.needsCity ? cardCity(state, card, true) : null;
   if (card.needsCity && cityId === null) return false;
   state.politics.cards.pending.push({ uid: nextId(state), cardId, cityId, openedDay: dateToDays(state.date) });
   return true;

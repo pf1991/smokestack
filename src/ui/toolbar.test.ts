@@ -26,11 +26,12 @@ describe('Toolbar', () => {
     expect(root.querySelectorAll('.tool-card:not(.locked)').length).toBeGreaterThan(0);
   });
 
-  it('cards show a "from" price and say town politics can change it', () => {
+  it('cards show a base price and upkeep and say town politics can change them', () => {
     const { root } = setup();
     tab(root, 'extract');
     const card = root.querySelector('[data-building="lumber_camp"]') as HTMLElement;
-    expect(card.querySelector('.tc-cost')!.textContent).toBe('from $12,000');
+    expect(card.querySelector('.tc-cost')!.textContent).toBe('base $12,000');
+    expect(card.querySelector('.tc-maint')!.textContent).toMatch(/^base \+\$[\d,]+\/mo$/);
     expect(card.title).toContain(PRICE_NOTE);
     expect(PRICE_NOTE).toContain('Town politics');
   });

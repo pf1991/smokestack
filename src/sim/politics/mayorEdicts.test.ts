@@ -16,6 +16,7 @@ import {
   constructionFactor,
   landPriceFactor,
   loanRate,
+  MAYOR_EDICTS,
   permitRefusal,
   TRUCK_TOLL,
   truckTollsMonth,
@@ -337,7 +338,7 @@ describe('truck tolls', () => {
 });
 
 describe('minimum wage', () => {
-  it('raises upkeep ×1.1 for player buildings working in that town; low wages count as fair there', () => {
+  it('is a wage floor of ×1.1 upkeep for player buildings working in that town: low and fair pay ×1.1, generous does not stack', () => {
     const ctx = town();
     const { state } = ctx;
     must(placeBuilding(ctx, 'player', 'sawmill', NEAR));
@@ -355,7 +356,16 @@ describe('minimum wage', () => {
     // low counts as fair in the minimum-wage town, still low elsewhere
     expect(upkeep()).toBe(Math.round(300 * 1.1 + 300 * 0.85));
     state.politics.edicts.wage = 'generous';
-    expect(upkeep()).toBe(Math.round(300 * 1.25 * 1.1 + 300 * 1.25));
+    // generous wages already clear the floor: no stacking
+    expect(upkeep()).toBe(Math.round(300 * 1.25 + 300 * 1.25));
+    // the floor covers wages only: safety and union still multiply
+    state.politics.edicts.wage = 'low';
+    state.politics.edicts.safety = 'high';
+    expect(upkeep()).toBe(Math.round(300 * 1.1 * 1.12 + 300 * 0.85 * 1.12));
+  });
+
+  it('the town window states the floor', () => {
+    expect(MAYOR_EDICTS.minimum_wage.effect).toBe('Wages for works hiring here cost at least ×1.1 upkeep: low and fair wages pay ×1.1; generous wages already clear it, so nothing stacks');
   });
 });
 

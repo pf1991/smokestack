@@ -125,6 +125,27 @@ describe('eligibility filters', () => {
     expect(cardCity(ctx.state, c)).toBe(1);
   });
 
+  it('ranks only the towns where the card condition passes (M2)', () => {
+    const ctx = town();
+    // only Ashford (id 0) qualifies, though Brill holds the more extreme opinion
+    const c = card({
+      needsCity: true,
+      condition: (_s, cityId) => cityId === 0,
+      choices: [{ label: 'a', cost: 0, effects: [{ faction: 'church', scope: 'city', delta: 1 }] }],
+    });
+    ctx.state.cities[1].opinion.church = 95;
+    ctx.state.cities[0].opinion.church = 55;
+    expect(cardCity(ctx.state, c)).toBe(0);
+    // so the card is eligible there, rather than dropped because the most extreme town fails
+    at(ctx, 1910, 4);
+    const e = eligibleCards(ctx.state, 'spring', null, [c]);
+    expect(e).toEqual([{ card: c, cityId: 0 }]);
+    // no town qualifies: no city
+    const never = { ...c, condition: () => false };
+    expect(cardCity(ctx.state, never)).toBeNull();
+    expect(eligibleCards(ctx.state, 'spring', null, [never])).toEqual([]);
+  });
+
   it('a city card has no city to go to without towns', () => {
     const ctx = testCtx(testState({ year: 1905 }));
     at(ctx, 1905, 4);

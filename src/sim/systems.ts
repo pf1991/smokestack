@@ -81,6 +81,6 @@ export const SYSTEMS: SimSystem[] = [
   { id: 'goals', onMonth: goalsMonth },
   // after upkeep's growthMonth, so a town that just spread builds on its new land
   { id: 'landmarks', onMonth: landmarksMonth },
-  // faction opinion and (later) the rest of Phase 2 politics; monthly, reads the month's pollution and sales
+  // Phase 2 politics (cards daily; workforce, edicts, opinion, housing, elections monthly); reads the month's pollution and sales
   politicsSystem,
 ];

@@ -123,8 +123,9 @@ function ballotBox(state: GameState, ym: { year: number; month: number }): HTMLE
     }));
 }
 
-function smogsworthDesk(state: GameState): HTMLElement | null {
-  const n = [...state.news].reverse().find((x) => x.kind === 'rival');
+/** The latest rival item dated on or before the edition's month: an old edition never shows later news. */
+function smogsworthDesk(state: GameState, ym: { year: number; month: number }): HTMLElement | null {
+  const n = [...state.news].reverse().find((x) => x.kind === 'rival' && (x.date.year < ym.year || (x.date.year === ym.year && x.date.month <= ym.month)));
   if (!n) return null;
   return h('section', { class: 'smogsworth-desk' }, h('h4', null, 'From the Smogsworth Desk'), h('h3', null, n.headline), h('p', null, n.body));
 }
@@ -155,7 +156,7 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
   const left = rest.filter((_, i) => i % 2 === 0);
   const right = rest.filter((_, i) => i % 2 === 1);
   const mast = mastheadFor(ym.year);
-  const desk = smogsworthDesk(state);
+  const desk = smogsworthDesk(state, ym);
   const dec = decisions(state, ym.year);
   const ads = pickAds(ym.year, ym.month);
   const idx = monthsWithNews(state);
