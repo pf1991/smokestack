@@ -99,11 +99,24 @@ describe('political front page', () => {
     expect(document.querySelector('.paper .lead h2')?.textContent).toBe('MAYOR WINS');
   });
 
+  it('lead goes to whichever of politics and historic is newer', () => {
+    const { ctx, game } = setup();
+    publishNews(ctx, 'politics', 'EARLIER POLITICS', 'y');
+    publishNews(ctx, 'historic', 'LATER HISTORY', 'x');
+    newspaperPanel.open(game);
+    expect(document.querySelector('.paper .lead h2')?.textContent).toBe('LATER HISTORY');
+    closeAllWindows();
+    publishNews(ctx, 'politics', 'LATEST POLITICS', 'y');
+    newspaperPanel.open(game);
+    expect(document.querySelector('.paper .lead h2')?.textContent).toBe('LATEST POLITICS');
+  });
+
   it('prints a Ballot Box with the last 3 elections and next 3 dates', () => {
     const state = createGame({ seed: 7 });
     const ctx = { state, bus: new EventBus() };
     const game = { state, ctx } as unknown as GameController;
     const c = state.cities[0];
+    state.date = { year: 1912, month: 5, day: 10, hour: 0 };
     for (let i = 0; i < 4; i++) ctx.state.politics.elections.push({ cityId: c.id, year: 1900 + i, month: 3, winner: 'workers', shares });
     newspaperPanel.open(game);
     const box = document.querySelector('.paper .ballot-box')!;
@@ -112,6 +125,26 @@ describe('political front page', () => {
     expect(box.querySelector('.ballot-past')?.textContent).toContain('1903');
     expect(box.querySelectorAll('.ballot-next').length).toBeGreaterThan(0);
     expect(box.querySelectorAll('.ballot-next').length).toBeLessThanOrEqual(3);
+  });
+
+  it('ballot box on an old edition hides later elections and the upcoming list', () => {
+    const state = createGame({ seed: 7 });
+    const ctx = { state, bus: new EventBus() };
+    const game = { state, ctx } as unknown as GameController;
+    const id = state.cities[0].id;
+    state.politics.elections.push({ cityId: id, year: 1901, month: 3, winner: 'workers', shares });
+    state.politics.elections.push({ cityId: id, year: 1905, month: 3, winner: 'church', shares });
+    state.date = { year: 1906, month: 2, day: 1, hour: 0 };
+    publishNews(ctx, 'random', 'EARLY', 'x');
+    state.date = { year: 1902, month: 6, day: 1, hour: 0 };
+    publishNews(ctx, 'random', 'OLDER', 'x');
+    state.date = { year: 1906, month: 2, day: 1, hour: 0 };
+    newspaperPanel.open(game);
+    document.querySelector<HTMLButtonElement>('.paper-nav button')!.click();
+    const box = document.querySelector('.paper .ballot-box')!;
+    expect(box.querySelectorAll('.ballot-past')).toHaveLength(1);
+    expect(box.textContent).toContain('1901');
+    expect(box.querySelector('.ballot-next')).toBeNull();
   });
 
   it('lists the Smogsworth Desk and Decisions of the Year', () => {

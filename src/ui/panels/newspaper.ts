@@ -101,13 +101,14 @@ export function mastheadFor(year: number): { title: string; className: string } 
 const MONTHS_SHORT = MONTH_FULL.map((m) => m.slice(0, 3));
 
 function chip(f: FactionId, year: number): HTMLElement {
-  return h('span', { class: 'fchip', style: `background:${FACTIONS[f].color}` }, factionName(f, year));
+  return h('span', { class: 'fchip', style: `--fc:${FACTIONS[f].color}` }, factionName(f, year));
 }
 
-function ballotBox(state: GameState): HTMLElement {
+function ballotBox(state: GameState, ym: { year: number; month: number }): HTMLElement {
+  const current = ym.year === state.date.year && ym.month === state.date.month;
   const cityName = (id: number) => state.cities.find((c) => c.id === id)?.name ?? 'Unknown';
-  const past = (state.politics.elections ?? []).slice(-3).reverse();
-  const next = [...state.cities].sort((a, b) => a.politics.nextElection - b.politics.nextElection).slice(0, 3);
+  const past = (state.politics.elections ?? []).filter((e) => e.year < ym.year || (e.year === ym.year && e.month <= ym.month)).slice(-3).reverse();
+  const next = !current ? [] : [...state.cities].sort((a, b) => a.politics.nextElection - b.politics.nextElection).slice(0, 3);
   return h('section', { class: 'ballot-box' },
     h('h4', null, 'The Ballot Box'),
     past.length === 0 && h('p', { class: 'ballot-none' }, 'No elections held yet.'),
@@ -115,7 +116,7 @@ function ballotBox(state: GameState): HTMLElement {
       h('div', { class: 'ballot-row' }, h('b', null, `${cityName(e.cityId)} ${e.year}`), chip(e.winner, e.year)),
       h('div', { class: 'vote-bar' }, FACTION_IDS.map((f) =>
         h('i', { style: `width:${(e.shares[f] * 100).toFixed(1)}%;background:${FACTIONS[f].color}`, title: `${factionName(f, e.year)} ${Math.round(e.shares[f] * 100)}%` }))))),
-    h('div', { class: 'ballot-sub' }, 'Coming up'),
+    current && h('div', { class: 'ballot-sub' }, 'Coming up'),
     next.map((c) => {
       const mi = c.politics.nextElection;
       return h('div', { class: 'ballot-next' }, h('b', null, c.name), `${MONTHS_SHORT[mi % 12]} ${Math.floor(mi / 12)}`);
@@ -176,7 +177,7 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
           h('h2', null, lead.headline),
           h('p', null, lead.body))
       : h('div', { class: 'paper-quiet' }, `A quiet month in ${MONTH_FULL[ym.month - 1]}. The presses idle, and the editor takes an early luncheon.`),
-    h('div', { class: 'politics-row' }, ballotBox(state), (desk || dec) && h('div', { class: 'politics-side' }, desk, dec)),
+    h('div', { class: 'politics-row' }, ballotBox(state, ym), (desk || dec) && h('div', { class: 'politics-side' }, desk, dec)),
     rest.length > 0 && h('section', { class: 'paper-cols' },
       h('div', { class: 'col' }, left.map(storyEl)),
       h('div', { class: 'col' }, right.map(storyEl))),
