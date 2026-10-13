@@ -49,7 +49,14 @@ export function transferOwnership(
   let buildings = 0;
   let routes = 0;
   let vehicles = 0;
-  for (const b of Object.values(state.buildings)) if (b.ownerId === from) (b.ownerId = to), buildings++;
+  for (const b of Object.values(state.buildings)) {
+    if (b.ownerId !== from) continue;
+    b.ownerId = to;
+    buildings++;
+    // the Baron's insolvency bookkeeping (rival/insolvency.ts) does not travel with the building
+    delete b.salesThisMonth;
+    delete b.earnings12;
+  }
   for (const r of Object.values(state.routes)) if (r.ownerId === from) (r.ownerId = to), routes++;
   for (const v of Object.values(state.vehicles)) if (v.ownerId === from) (v.ownerId = to), vehicles++;
   for (const t of state.map.tiles) {

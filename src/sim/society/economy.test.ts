@@ -16,8 +16,8 @@ import { assetValue, demolitionRefund, roadTileCost } from '../state';
 import { buildReferenceStrategy, must, testCtx, testState } from '../testkit';
 import type { GameState, LedgerMonth, SimContext } from '../types';
 import { sellRefund, vehicleMaintenanceMonth, vehiclePrice } from '../vehicles';
-import { DECADE_INFLATION, ECONOMY_HISTORY_MONTHS, economyMonth, inflationRate, priceIndex } from './economy';
-import { placeBuilding } from '../state';
+import { DECADE_INFLATION, ECONOMY_HISTORY_MONTHS, economyMonth, indexAtYear, inflationRate, priceIndex } from './economy';
+import { createGame, placeBuilding } from '../state';
 import '../rail';
 
 /** Runs economyMonth for `months` month ends starting in January of `year`, advancing the date. */
@@ -61,6 +61,13 @@ describe('inflation (DECADE_INFLATION, ruling R-S12)', () => {
     expect(p).toBeGreaterThanOrEqual(14);
     expect(p).toBeLessThanOrEqual(22);
     expect(p).toBeCloseTo(17.61, 1);
+  });
+
+  it('a game starting later begins at the index inflation had reached (Motor City, 1910: about 1.10)', () => {
+    expect(indexAtYear(1900)).toBe(1);
+    expect(indexAtYear(1910)).toBeCloseTo(indexAt(1910), 9);
+    expect(priceIndex(createGame({ seed: 7, scenarioId: 'motor_city' }))).toBeCloseTo(1.1046, 4);
+    expect(priceIndex(createGame({ seed: 7 }))).toBe(1);
   });
 
   it('keeps the last 120 month ends as history', () => {

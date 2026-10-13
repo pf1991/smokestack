@@ -31,7 +31,7 @@ export const SCENARIOS: Record<string, ScenarioDef> = {
   lumber_baron: {
     id: 'lumber_baron',
     name: 'Lumber Baron',
-    blurb: 'Turn $300,000 into a million in cash before 1920.',
+    blurb: 'Turn $300,000 into a million in cash (in 1900 dollars) before 1920.',
     startYear: 1900,
     money: 300_000,
     rival: true,

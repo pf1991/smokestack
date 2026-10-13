@@ -147,14 +147,15 @@ export function triggerCard(ctx: SimContext, trigger: CardDef['trigger'], cityId
 
 /**
  * Ruling R-Q8 (era term replaced by the price index in Task 8): card money grows with prices and with
- * the player. The larger of the price index (society/economy.ts) and the wealth scale (player net
- * worth / $300,000), clamped to 1..40.
+ * the player. The larger of the price index (society/economy.ts) and the wealth scale (the player's
+ * real net worth, nominal / price index, over $300,000), clamped to 1..40. Real, so the cap of 40
+ * still means a 40× richer company than the 1900 start, not merely a later year.
  */
 export function cardScale(state: GameState): number {
   const era = priceIndex(state);
   // net worth as rival/takeover.ts's netWorth (not imported: it would close an import cycle)
   const c = state.companies[PLAYER_ID];
-  const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / BASE_NET_WORTH;
+  const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / era / BASE_NET_WORTH;
   return Math.min(MAX_CARD_SCALE, Math.max(1, era, wealth));
 }
 

@@ -87,6 +87,20 @@ describe('the Baron’s insolvency guard (R-S13)', () => {
     expect(ctx.state.vehicles[999]).toBeUndefined();
   });
 
+  it('never cuts a logistics building directly; with no losing works or store, nothing is cut', () => {
+    const { ctx, store, mill, shop } = baron();
+    const depot = must(placeBuilding(ctx, 'rival', 'warehouse', { x: 2, y: 12 }));
+    depot.earnings12 = [-99_999];
+    store.earnings12 = [100];
+    mill.earnings12 = [-10];
+    shop.earnings12 = [50];
+    expect(worstBaronBuilding(ctx.state)?.id).toBe(mill.id);
+    ctx.state.companies.rival.money = -1;
+    mill.earnings12 = [10];
+    expect(insolvencyGuard(ctx)).toBeNull();
+    expect(ctx.state.buildings[depot.id]).toBeDefined();
+  });
+
   it('breaks ties by the lowest id, and spares the buildings of a project in progress', () => {
     const { ctx, store, mill, shop } = baron();
     for (const b of [store, mill, shop]) b.earnings12 = [-50];

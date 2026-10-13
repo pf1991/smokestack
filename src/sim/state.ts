@@ -1,5 +1,5 @@
 import { defaultSociety } from '../data/laws';
-import { defaultEconomy } from './society/economy';
+import { defaultEconomy, indexAtYear } from './society/economy';
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { BUILDINGS, HOUSING_RADIUS, type BuildingDef } from '../data/buildings';
@@ -317,6 +317,8 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   if (scenario) {
     state.date.year = scenario.startYear;
     state.unlocked = unlockedAt(scenario.startYear);
+    // a later start begins at the prices inflation would have reached by then (Motor City: about 1.10)
+    state.economy = defaultEconomy(indexAtYear(scenario.startYear));
     state.companies.player.money = scenario.money;
     if (scenario.startYear >= 1910) state.flags.oilRevealed = true;
   }

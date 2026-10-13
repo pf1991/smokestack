@@ -17,6 +17,7 @@ import {
   landPriceFactor,
   loanRate,
   MAYOR_EDICTS,
+  mayorEdictEffect,
   permitRefusal,
   TRUCK_TOLL,
   truckTollsMonth,
@@ -387,5 +388,13 @@ describe('Old Money credit', () => {
     c.loan = 120000;
     expect(closeMonth(c, state.date).interest).toBe(Math.round((120000 * LOAN_RATE) / 12));
     expect(closeMonth(c, state.date, 0.09).interest).toBe(900);
+  });
+});
+
+describe('edict text at today\'s prices (Task 8)', () => {
+  it('the toll shows the indexed amount; other edicts read as written', () => {
+    expect(mayorEdictEffect('truck_tolls', 1)).toBe(`$${TRUCK_TOLL}/month per truck stopping in town`);
+    expect(mayorEdictEffect('truck_tolls', 17.6)).toBe('$704/month per truck stopping in town');
+    expect(mayorEdictEffect('tax_break', 17.6)).toBe(MAYOR_EDICTS.tax_break.effect);
   });
 });

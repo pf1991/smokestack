@@ -19,3 +19,14 @@
 .fl-sell { background: var(--walnut-light); color: var(--paper); }
 .fl-empty { color: var(--paper-shade); font-style: italic; margin: 6px 0; }
 .fl-age { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* compact viewports (window capped at 420px): no cargo or trips, the actions wrap under the row */
+.fl-compact { min-width: 0; }
+.fl-compact .fl-row,
+.fl-compact .fl-head { grid-template-columns: 24px minmax(90px, 1fr) 62px 74px; }
+.fl-compact .fl-cargo,
+.fl-compact .fl-trips,
+.fl-compact .fl-head span:nth-child(4),
+.fl-compact .fl-head span:nth-child(5),
+.fl-compact .fl-head span:last-child { display: none; }
+.fl-compact .fl-actions { grid-column: 2 / -1; justify-content: flex-end; }

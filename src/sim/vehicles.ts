@@ -5,7 +5,7 @@ import { acceptsGood, handlesCargo, loadSource, noCargoError, storageLeft } from
 import { findPath, pathMemo, pathStillPassable, roadPassable, type Passable } from './pathfinding';
 import { truckTollsMonth } from './politics/mayorEdicts';
 import { accessTiles, nextId } from './state';
-import { assetEfficiency, assetUpkeep } from './society/aging';
+import { AGING_GRACE, agingEfficiency, assetUpkeep } from './society/aging';
 import { atPrices } from './society/economy';
 import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -474,8 +474,9 @@ const EPS = 1e-9;
 /** Advances `speed` tiles along the path, crossing several nodes if needed; arrival at the last node. */
 function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
   const { map } = ctx.state;
-  // an old vehicle is slower (society/aging.ts)
-  let remaining = def.spec.speed * assetEfficiency(ctx.state, veh);
+  // an old vehicle is slower (society/aging.ts); the hot path skips the call while it is young
+  const age = ctx.state.date.year - veh.builtYear;
+  let remaining = age > AGING_GRACE ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
   let replanned = false;
   for (;;) {
     if (veh.pathIndex >= veh.path.length) {

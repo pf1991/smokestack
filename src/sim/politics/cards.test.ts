@@ -351,6 +351,15 @@ describe('card money scaling (R-Q8)', () => {
     expect(cardScale(ctx.state)).toBe(40);
   });
 
+  it('the wealth term counts real net worth (nominal / price index)', () => {
+    const ctx = town(1900);
+    ctx.state.companies[PLAYER_ID].money = 3_000_000;
+    prices(ctx, 4);
+    expect(cardScale(ctx.state)).toBe(4); // $3M is $750k in 1900 dollars: wealth 2.5 < index 4
+    ctx.state.companies[PLAYER_ID].money = 60_000_000;
+    expect(cardScale(ctx.state)).toBe(40); // $15M real: wealth 50, capped at 40
+  });
+
   it('affordability uses the scaled cost', () => {
     const ctx = town(1950);
     prices(ctx, 3);

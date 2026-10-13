@@ -348,4 +348,12 @@ describe('building age (Task 8)', () => {
     ctx.state.date = { ...ctx.state.date, year: 1953 };
     expect(ageLine(ctx.state, b)).toBe('Built 1912 (age 41): 74% efficiency');
   });
+
+  it('a store makes nothing, so it shows its upkeep surcharge instead', () => {
+    const ctx = testCtx(testState({ money: 1e7, cities: [{ x: 30, y: 20 }] }));
+    const b = must(placeBuilding(ctx, 'player', 'store', { x: 30, y: 21 }));
+    b.builtYear = 1912;
+    ctx.state.date = { ...ctx.state.date, year: 1953 };
+    expect(ageLine(ctx.state, b)).toBe('Built 1912 (age 41): upkeep +52%');
+  });
 });

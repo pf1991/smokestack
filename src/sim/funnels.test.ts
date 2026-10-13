@@ -74,11 +74,11 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['migrations.ts', 'society/classes.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
-  it('the price index is written only by society/economy.ts (and the v6 migration that adds it)', () => {
+  it('the price index is written only by society/economy.ts (plus createGame, which seeds a late start, and the v6 migration)', () => {
     const re = /\.(?:economy|priceIndex)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
     for (const w of ['e.priceIndex *= 1.01;', 'state.economy = x', 'o.economy = defaultEconomy();', 's.economy.priceIndex = 2']) expect(re.test(w), w).toBe(true);
     for (const w of ['state.economy.priceIndex * cost', 'e.priceIndex === 1', 'const e = state.economy;']) expect(re.test(w), w).toBe(false);
-    expect(writers(re)).toEqual(['migrations.ts', 'society/economy.ts']);
+    expect(writers(re)).toEqual(['migrations.ts', 'society/economy.ts', 'state.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
   it('builtYear is reassigned only by society/aging.ts (renewal) and the v6 migration (state.ts and vehicles.ts set it at creation)', () => {

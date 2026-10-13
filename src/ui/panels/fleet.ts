@@ -7,7 +7,7 @@ import type { IconId } from '../../render/icons';
 import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
-import { createWindow } from '../window';
+import { COMPACT_WIDTH, createWindow } from '../window';
 import type { PanelDef } from './index';
 import './fleet.css';
 
@@ -106,6 +106,8 @@ class FleetPanel {
   private timer = 0;
 
   constructor(private readonly game: Host) {
+    // compact viewports cap windows at 420px: drop cargo and trips, actions on a second line (fleet.css)
+    if (window.innerWidth <= COMPACT_WIDTH) this.root.classList.add('fl-compact');
     for (const f of FILTERS) {
       this.filterBar.append(
         h('button', {

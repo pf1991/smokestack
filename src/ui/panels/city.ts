@@ -7,6 +7,7 @@ import {
   churchFactor,
   landPriceFactor,
   MAYOR_EDICTS,
+  mayorEdictEffect,
   reformersDemandPermits,
 } from '../../sim/politics/mayorEdicts';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
@@ -149,14 +150,14 @@ interface EdictLine {
 }
 
 /** The town's edicts in force, then the faction levers on construction (exported for tests). */
-export function cityEdictLines(city: City, year: number): EdictLine[] {
+export function cityEdictLines(city: City, year: number, index = 1): EdictLine[] {
   const out: EdictLine[] = activeEdicts(city).map((id) => {
     const info = MAYOR_EDICTS[id];
     const own = city.politics.edicts.includes(id);
     const forced = id === 'permits_required' && !own && reformersDemandPermits(city);
     const revolt = !own && !forced && forcedEdicts(city).includes(id);
     const by = revolt ? 'smog revolt' : forced ? `${factionName('reformers', year)} demand` : `${factionName(city.politics.mayor.faction, year)} mayor`;
-    return { key: id, icon: info.icon, name: info.name, effect: `${info.effect} (${by})` };
+    return { key: id, icon: info.icon, name: info.name, effect: `${mayorEdictEffect(id, index)} (${by})` };
   });
   const land = landPriceFactor(city);
   if (Math.abs(land - 1) >= 0.005) {
@@ -317,7 +318,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         const pct = (x: number) => `${Math.round(x * 100)}%`;
         setText(slushInfo, odds ? `Win odds ${pct(odds.now)} \u2192 ${pct(odds.after)} | Scandal risk: ${pct(pol.scandalRisk)}` : '');
       }
-      const lines = cityEdictLines(city, year);
+      const lines = cityEdictLines(city, year, priceIndex(state));
       const esig = lines.map((l) => `${l.key}:${l.effect}`).join('|');
       if (esig !== edictSig) {
         edictSig = esig;

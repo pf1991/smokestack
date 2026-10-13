@@ -13,6 +13,7 @@
  * nothing themselves, so their output stands in for their share of the chain's sales), minus its
  * upkeep and an equal share of the upkeep of every vehicle on a route that stops there.
  */
+import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import { BARON_ID } from '../companies';
 import { demolishBuilding } from '../state';
@@ -52,7 +53,8 @@ const total = (b: Building) => (b.earnings12 ?? []).reduce((t, n) => t + n, 0);
 
 /**
  * The Baron's worst-earning building (lowest trailing 12-month earnings, ties to the lowest id), or
- * null. Buildings his project or railway in progress is building are spared.
+ * null. Buildings his project or railway in progress is building are spared, and logistics
+ * buildings (stations, warehouses, housing) are never candidates.
  */
 export function worstBaronBuilding(state: GameState): Building | null {
   const spared = new Set(projectIds(state));
@@ -60,7 +62,9 @@ export function worstBaronBuilding(state: GameState): Building | null {
   if (rail) for (const id of [rail.sourceId, rail.destId, rail.stationA, rail.stationB]) if (id !== null) spared.add(id);
   let worst: Building | null = null;
   for (const b of Object.values(state.buildings)) {
-    if (b.ownerId !== BARON_ID || spared.has(b.id)) continue;
+    // stations and warehouses (logistics) only serve other buildings: never cut directly (they go
+    // with their chain); with no losing works or store left, nothing is cut
+    if (b.ownerId !== BARON_ID || spared.has(b.id) || BUILDINGS[b.typeId]?.category === 'logistics') continue;
     if (!worst || total(b) < total(worst) || (total(b) === total(worst) && b.id < worst.id)) worst = b;
   }
   return worst;

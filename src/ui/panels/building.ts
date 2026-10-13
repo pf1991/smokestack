@@ -128,9 +128,15 @@ export function complianceLines(state: GameState, b: Building): { text: string; 
   });
 }
 
-/** "Built 1912 (age 41): 74% efficiency" (exported for tests). */
+/**
+ * "Built 1912 (age 41): 74% efficiency" for works (age slows production); stores, stations and
+ * warehouses produce nothing, so theirs reads "Built 1912 (age 41): upkeep +52%" (exported for tests).
+ */
 export function ageLine(state: GameState, b: Building): string {
-  return `Built ${b.builtYear} (age ${assetAge(state, b)}): ${Math.round(assetEfficiency(state, b) * 100)}% efficiency`;
+  const head = `Built ${b.builtYear} (age ${assetAge(state, b)})`;
+  const cat = BUILDINGS[b.typeId]?.category;
+  if (cat !== 'extractor' && cat !== 'factory') return `${head}: upkeep +${Math.round((assetUpkeep(state, b) - 1) * 100)}%`;
+  return `${head}: ${Math.round(assetEfficiency(state, b) * 100)}% efficiency`;
 }
 
 /** Plain-language explanation of what the building is doing (exported for tests). */

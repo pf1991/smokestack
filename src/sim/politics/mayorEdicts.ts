@@ -69,7 +69,7 @@ export const MAYOR_EDICTS: Record<MayorEdictId, MayorEdictInfo> = {
     icon: 'smog',
     effect: `Dirty works near town run at ${SMOG_LIMIT_FACTOR * 100}% while smog is at or above ${SMOG_LIMIT_LEVEL * 100}%`,
   },
-  truck_tolls: { name: 'Truck tolls', icon: 'toll', effect: `$${TRUCK_TOLL}/month per truck stopping in town (1900 prices)` },
+  truck_tolls: { name: 'Truck tolls', icon: 'toll', effect: `$${TRUCK_TOLL}/month per truck stopping in town` },
   minimum_wage: {
     name: 'Minimum wage',
     icon: 'wage',
@@ -233,6 +233,12 @@ export function playerBuildingUpkeep(state: GameState): number {
     total += m * (city && hasEdict(city, 'minimum_wage') ? minWage : normal);
   }
   return total;
+}
+
+/** An edict's effect text at price index `index`: money in it is today's (the toll), the rest as written. */
+export function mayorEdictEffect(id: MayorEdictId, index = 1): string {
+  if (id === 'truck_tolls') return `$${Math.round(TRUCK_TOLL * index).toLocaleString('en-US')}/month per truck stopping in town`;
+  return MAYOR_EDICTS[id].effect;
 }
 
 /** Monthly: TRUCK_TOLL per player truck per toll town its route stops in (once per town), under 'vehicles'. */

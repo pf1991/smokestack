@@ -27,8 +27,19 @@ export const DECADE_INFLATION: Record<number, number> = {
 /** Months of index history kept (the finance panel's 10-year sparkline). */
 export const ECONOMY_HISTORY_MONTHS = 120;
 
-export function defaultEconomy(): EconomyState {
-  return { priceIndex: 1, history: [] };
+/** A fresh economy at `index` (1 for a game starting in 1900; see indexAtYear for later starts). */
+export function defaultEconomy(index = 1): EconomyState {
+  return { priceIndex: index, history: [] };
+}
+
+/**
+ * The index on 1 January of `year`, compounded from 1900 exactly as economyMonth would have
+ * (twelve monthly steps of (1 + rate)^(1/12) make a year's 1 + rate). About 1.10 in 1910.
+ */
+export function indexAtYear(year: number): number {
+  let p = 1;
+  for (let y = 1900; y < year; y++) p *= 1 + inflationRate(y);
+  return p;
 }
 
 /** The annual rate for `year`: its decade's, held at the table's ends outside 1900-1999. */
