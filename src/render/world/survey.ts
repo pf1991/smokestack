@@ -278,7 +278,10 @@ export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: num
     if (sx < -200 || sy < -50 || sx > cam.viewW + 200 || sy > cam.viewH + 50) continue;
     g.font = l.font;
     if (l.width < 0) l.width = g.measureText(l.text).width + 8 + DOT_SPACE;
-    const box = { x: sx - l.width / 2, y: sy - l.size * 0.7, w: l.width, h: l.size * 1.4 };
+    // smog protests (tier 3+) put a red fist just after the name; the box covers it too, so the
+    // fist never lands under the HUD or another label
+    const fist = (l.city.smog?.tier ?? 0) >= 3 ? Math.round(l.size * 1.5) : 0;
+    const box = { x: sx - l.width / 2, y: sy - Math.max(l.size * 0.7, fist / 2), w: l.width + (fist > 0 ? fist + 2 : 0), h: Math.max(l.size * 1.4, fist) };
     if (avoid.some((a) => overlaps(a, box)) || placed.some((p) => overlaps(p, box))) continue;
     placed.push(box);
     g.strokeStyle = 'rgba(239,228,200,0.9)';
@@ -296,11 +299,7 @@ export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: num
     g.strokeStyle = '#2e2418';
     g.lineWidth = 1;
     g.stroke();
-    // smog protests (tier 3+): a red fist just after the name
-    if ((l.city.smog?.tier ?? 0) >= 3) {
-      const s = Math.round(l.size * 1.5);
-      drawIcon(g as CanvasRenderingContext2D, 'protest', sx + l.width / 2 + 2, sy - s / 2, s);
-    }
+    if (fist > 0) drawIcon(g as CanvasRenderingContext2D, 'protest', sx + l.width / 2 + 2, sy - fist / 2, fist);
   }
   g.restore();
 }

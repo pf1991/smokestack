@@ -49,9 +49,9 @@ function atTier(city: City, tier: SmogTier): City {
 }
 
 describe('thresholds (ruling R-S2)', () => {
-  it('are 0.03 / 0.06 / 0.10 / 0.16 on the level', () => {
-    expect([SMOG_TIER_1, SMOG_TIER_2, SMOG_TIER_3, SMOG_TIER_4]).toEqual([0.03, 0.06, 0.1, 0.16]);
-    expect(SMOG_TIER_THRESHOLDS).toEqual([0, 0.03, 0.06, 0.1, 0.16]);
+  it('are 0.03 / 0.06 / 0.10 / 0.135 on the level', () => {
+    expect([SMOG_TIER_1, SMOG_TIER_2, SMOG_TIER_3, SMOG_TIER_4]).toEqual([0.03, 0.06, 0.1, 0.135]);
+    expect(SMOG_TIER_THRESHOLDS).toEqual([0, 0.03, 0.06, 0.1, 0.135]);
   });
 
   it('the level is a monthly EMA: level = 0.5 × level + 0.5 × pollution', () => {
@@ -212,6 +212,31 @@ describe('tier effects stack', () => {
     // shares renormalise: the raw reformer score is exactly ×1.5
     const odds = (s: number) => s / (1 - s);
     expect(odds(reformers4) / odds(reformers3)).toBeCloseTo(1.5, 9);
+  });
+});
+
+describe('smog editorial', () => {
+  it('runs once a year nationally, on the worst tier-1+ town', () => {
+    const ctx = testCtx(testState({ width: 80, height: 60, cities: [{ x: 20, y: 20, name: 'Ashby' }, { x: 60, y: 40, name: 'Soothill' }] }));
+    const [a, b] = ctx.state.cities;
+    atTier(a, 1);
+    atTier(b, 2);
+    escalationMonth(ctx);
+    escalationMonth(ctx);
+    const warns = () => ctx.state.news.filter((n) => n.kind === 'warning');
+    expect(warns()).toHaveLength(1);
+    expect(`${warns()[0].headline} ${warns()[0].body}`).toContain('Soothill');
+    ctx.state.date.year++;
+    atTier(a, 3);
+    escalationMonth(ctx);
+    expect(warns()).toHaveLength(2);
+    expect(`${warns()[1].headline} ${warns()[1].body}`).toContain('Ashby');
+  });
+
+  it('none while every town is clean', () => {
+    const ctx = testCtx(testState({ width: 80, height: 60, cities: [{ x: 20, y: 20 }, { x: 60, y: 40 }] }));
+    escalationMonth(ctx);
+    expect(ctx.state.news).toHaveLength(0);
   });
 });
 

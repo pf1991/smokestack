@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { runDays } from './simulation';
-import { cityPollution, emissionFactor, POLLUTION_CAP, pollutionDay, pollutionMonth, pollutionSystem, smogDay } from './pollution';
+import { activeSmogTiles, cityPollution, emissionFactor, POLLUTION_CAP, pollutionDay, pollutionMonth, pollutionSystem, smogDay } from './pollution';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { layer } from './layers';
 import { terrainChanged } from './terrainEpoch';
@@ -224,18 +224,39 @@ describe('pollution', () => {
     expect(ctx.state.cities[0].pollution).toBeCloseTo(cityPollution(ctx.state, 0), 9);
   });
 
-  it('is fast: 128x96 map, 60 buildings, under 2 ms per day', () => {
+  it('stays bounded: 128x96 map, 60 steel mills, the active smog set settles well below the map', () => {
     const ctx = testCtx(testState({ width: 128, height: 96, money: 1e9 }));
     for (let i = 0; i < 60; i++) {
       const b = must(placeBuilding(ctx, 'player', 'steel_mill', { x: 4 + (i % 10) * 12, y: 4 + Math.floor(i / 10) * 14 }, 'r_steel'));
       b.status = 'ok';
     }
     for (let i = 0; i < 200; i++) pollutionSystem.onDay(ctx);
-    const t0 = performance.now();
-    const N = 100;
-    for (let i = 0; i < N; i++) pollutionSystem.onDay(ctx);
-    const per = (performance.now() - t0) / N;
-    console.log('smog ms/day', per.toFixed(3));
-    expect(per).toBeLessThan(2);
+    // a day's work is the active set plus its 4-neighbour fringe: pin the set's size (structural, not
+    // wall-clock). It must not grow without bound over another 100 days either.
+    const settled = activeSmogTiles(ctx.state.map);
+    let peak = settled;
+    for (let i = 0; i < 100; i++) {
+      pollutionSystem.onDay(ctx);
+      peak = Math.max(peak, activeSmogTiles(ctx.state.map));
+    }
+    let nonZero = 0;
+    for (const t of ctx.state.map.tiles) if (t.pollution !== 0) nonZero++;
+    // exactly the smoggy tiles (no stale members), settled (not creeping), and short of the whole map
+    // (measured: about 84% of the 12,288 tiles with 60 mills spread across it)
+    expect(activeSmogTiles(ctx.state.map)).toBe(nonZero);
+    expect(peak).toBeLessThanOrEqual(Math.ceil(settled * 1.05));
+    expect(peak).toBeLessThan(0.9 * ctx.state.map.tiles.length);
+  });
+
+  it('a lone mill keeps a small active set: the daily work scales with the smog, not the map', () => {
+    const ctx = testCtx(testState({ width: 128, height: 96, money: 1e9 }));
+    must(placeBuilding(ctx, 'player', 'steel_mill', { x: 60, y: 45 }, 'r_steel')).status = 'ok';
+    let peak = 0;
+    for (let i = 0; i < 300; i++) {
+      pollutionSystem.onDay(ctx);
+      peak = Math.max(peak, activeSmogTiles(ctx.state.map));
+    }
+    // measured 561 tiles over 300 days of varied wind: 5% of the map
+    expect(peak).toBeLessThan(1000);
   });
 });

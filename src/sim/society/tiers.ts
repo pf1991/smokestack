@@ -7,19 +7,20 @@
  * smaller scale than the plan assumed. Autoplay towns average about 0.015–0.02 with summer peaks of
  * 0.13–0.16; ten steel mills beside a small town average 0.135 (peak 0.24); the monthly swing is
  * about 6×. Tiers therefore read `city.smog.level`, a 3-month EMA (α = 0.5 monthly) of the
- * pollution, against thresholds of 0.03 / 0.06 / 0.10 / 0.16 (the plan had 0.15 / 0.30 / 0.45 /
- * 0.60 on the raw figure). Black Lung is `round(population × level × 0.004)` a month (plan: 0.0004
+ * pollution, against thresholds of 0.03 / 0.06 / 0.10 / 0.135 (the plan had 0.15 / 0.30 / 0.45 /
+ * 0.60 on the raw figure; tier 4 was 0.16 until ruling R-S6 made the revolt tier reachable by a
+ * heavy-industry town, pinned in heavy.test.ts). Black Lung is `round(population × level × 0.004)` a month (plan: 0.0004
  * on a 10× larger scale), and the workforce health factor reads `level × 5` clamped to [0, 1] in
  * place of the plan's pollution, so the effect sizes match the plan's intent.
  */
 import type { City, CitySmog, SmogTier } from '../types';
 import type { MayorEdictId } from '../politics/types';
 
-/** Entry thresholds on `smog.level` (ruling R-S2). */
+/** Entry thresholds on `smog.level` (ruling R-S2; tier 4 per R-S6). */
 export const SMOG_TIER_1 = 0.03;
 export const SMOG_TIER_2 = 0.06;
 export const SMOG_TIER_3 = 0.1;
-export const SMOG_TIER_4 = 0.16;
+export const SMOG_TIER_4 = 0.135;
 /** Entry threshold of tiers 1..4 by tier (index 0 is tier 0: always 0). */
 export const SMOG_TIER_THRESHOLDS: readonly number[] = [0, SMOG_TIER_1, SMOG_TIER_2, SMOG_TIER_3, SMOG_TIER_4];
 /** Consecutive months above a threshold to enter its tier, or below EXIT_SHARE of it to leave. */

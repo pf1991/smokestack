@@ -76,3 +76,33 @@ describe('city label mayor dot', () => {
     expect(fills).toEqual([FACTIONS.church.color, FACTIONS.baron.color]);
   });
 });
+
+describe('city label protest fist', () => {
+  it('counts the fist in the label box, so HUD avoidance and collisions see it', () => {
+    const state = testState({ cities: [{ x: 10, y: 10 }] });
+    const cache = new CityLabelCache();
+    const texts: number[] = [];
+    const props: Record<string | symbol, unknown> = {};
+    const g = new Proxy(props, {
+      get: (t, k) => {
+        if (k in t) return t[k];
+        if (k === 'measureText') return () => ({ width: 40 });
+        if (k === 'fillText') return (_s: string, x: number) => texts.push(x);
+        return () => undefined;
+      },
+      set: (t, k, v) => { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const cam = { x: 0, y: 0, zoom: 1, viewW: 800, viewH: 600 };
+    drawCityLabels(g, state, cam, 1, [], cache);
+    expect(texts).toHaveLength(1);
+    // a HUD rect starting just past the plain label's box (text centre + 20 px of text + 4 px pad)
+    const tx = texts[0];
+    const y = (10 + 0.5) * 32;
+    const hud = [{ x: tx + 26, y: y - 50, w: 100, h: 100 }];
+    drawCityLabels(g, state, cam, 1, hud, cache);
+    expect(texts).toHaveLength(2);
+    state.cities[0].smog.tier = 3;
+    drawCityLabels(g, state, cam, 1, hud, cache);
+    expect(texts).toHaveLength(2);
+  });
+});

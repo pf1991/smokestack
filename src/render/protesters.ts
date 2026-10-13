@@ -11,7 +11,7 @@
  */
 import { protestSite } from '../sim/society/escalation';
 import { accessTiles } from '../sim/state';
-import type { City, GameState, Vec2 } from '../sim/types';
+import type { Building, City, GameState, Vec2 } from '../sim/types';
 import { TILE } from './constants';
 import { hash } from './chunk';
 
@@ -46,10 +46,8 @@ export function marcherCount(city: City): number {
   return MIN_MARCHERS + (hash(city.id, 0, 0x9a7e, 3) % (MAX_MARCHERS - MIN_MARCHERS + 1));
 }
 
-/** The road route marchers walk near `site`'s building: BFS over road tiles, longest shortest path ≤ PATH_TILES. */
-export function protestRoute(state: GameState, city: City): Route['path'] {
-  const site = protestSite(state, city);
-  if (!site) return [];
+/** The road route marchers walk near the protest site: BFS over road tiles, longest shortest path ≤ PATH_TILES. */
+export function protestRoute(state: GameState, site: Building): Route['path'] {
   const { map } = state;
   const { width, height, tiles } = map;
   const starts = accessTiles(state, site);
@@ -108,7 +106,7 @@ export class Protesters {
     const hit = this.routes.get(city.id);
     if (hit && hit.month === month && (hit.siteId < 0 || state.buildings[hit.siteId])) return hit.path;
     const site = protestSite(state, city);
-    const path = site ? protestRoute(state, city) : [];
+    const path = site ? protestRoute(state, site) : [];
     this.routes.set(city.id, { month, siteId: site?.id ?? -1, path });
     return path;
   }

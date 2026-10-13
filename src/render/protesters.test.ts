@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { placeBuilding } from '../sim/state';
 import { must, testCtx, testState } from '../sim/testkit';
 import type { GameState } from '../sim/types';
+import { protestSite } from '../sim/society/escalation';
 import { drawMarchers, marcherCount, MAX_MARCHERS, MIN_MARCHERS, PATH_TILES, Protesters, protestRoute } from './protesters';
 
 /** A context that records every method call and accepts any property write. */
@@ -41,7 +42,7 @@ describe('protesters', () => {
 
   it('the route walks road tiles from the site, at most PATH_TILES long', () => {
     const state = scene();
-    const path = protestRoute(state, state.cities[0]);
+    const path = protestRoute(state, protestSite(state, state.cities[0])!);
     expect(path.length).toBeGreaterThan(1);
     expect(path.length).toBeLessThanOrEqual(PATH_TILES);
     for (const p of path) expect(state.map.tiles[p.y * 100 + p.x].road).toBe(true);

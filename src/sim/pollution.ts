@@ -268,6 +268,14 @@ function dirtyTiles(map: GameMap): DirtySet {
   return d;
 }
 
+/**
+ * Size of the map's active smog set: the tiles with non-zero smog. smogDay touches only these and
+ * their 4 neighbours, so this bounds a day's work (tests pin it instead of wall-clock time).
+ */
+export function activeSmogTiles(map: GameMap): number {
+  return dirtyTiles(map).list.length;
+}
+
 /** Mean tile pollution over the city's urban tiles, 0..1. */
 export function cityPollution(state: GameState, cityId: number): number {
   let sum = 0;

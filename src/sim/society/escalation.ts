@@ -9,8 +9,8 @@
  *     the current tier's threshold (`smog.months` is that streak, positive up and negative down);
  *  3. the effects of the tier now in force, each tier including the ones below it:
  *     1. reformers −0.3 × tier and workers −0.2 × tier a month in the town (not logged, ruling
- *        R-S4), and a smog editorial at
- *        most once a game year (the pollution warning HEADLINES);
+ *        R-S4); one smog editorial a game year nationally, on the worst tier-1+ town (highest
+ *        tier, then level, then lowest id), from the pollution warning HEADLINES;
  *     2. Black Lung: round(population × level × 0.004) deaths added to `smog.blackLung`; the growth
  *        penalty and the workforce health factor are read from ./tiers.ts by growthMonth and
  *        workforceMonth;
@@ -70,21 +70,21 @@ export function blackLungDeaths(city: City): number {
   return city.smog.tier >= 2 ? Math.round(city.population * city.smog.level * BLACK_LUNG_RATE) : 0;
 }
 
+/** `state.flags` key holding the year of the last smog editorial (one a year nationally). */
+export const SMOG_EDITORIAL_FLAG = 'smogEditorial';
+
 /** Monthly escalation step for every town (see the module comment). */
 export function escalationMonth(ctx: SimContext): void {
   const { state } = ctx;
+  /** the worst town at tier 1+ this month: highest tier, then highest level, then lowest id */
+  let worst: City | null = null;
   for (const city of state.cities) {
     const before = stepSmogTier(city);
     const s = city.smog;
     if (s.tier >= 1) {
       adjustOpinion(state, 'reformers', city.id, SMOG_REFORMERS_DRIFT * s.tier, 'Smog', { log: false });
       adjustOpinion(state, 'workers', city.id, SMOG_WORKERS_DRIFT * s.tier, 'Smog', { log: false });
-      const key = `smogEditorial${city.id}`;
-      if (state.flags[key] !== state.date.year) {
-        state.flags[key] = state.date.year;
-        const [headline, body] = HEADLINES[(city.id + state.date.year) % HEADLINES.length](city.name);
-        publishNews(ctx, 'warning', headline, body);
-      }
+      if (!worst || s.tier > worst.smog.tier || (s.tier === worst.smog.tier && s.level > worst.smog.level)) worst = city;
     }
     if (s.tier >= 2) s.blackLung += blackLungDeaths(city);
     if (s.tier >= 3 && before < 3) {
@@ -96,6 +96,12 @@ export function escalationMonth(ctx: SimContext): void {
       );
     }
   }
+  // one smog editorial a year nationally, on the worst town
+  if (worst && state.flags[SMOG_EDITORIAL_FLAG] !== state.date.year) {
+    state.flags[SMOG_EDITORIAL_FLAG] = state.date.year;
+    const [headline, body] = HEADLINES[(worst.id + state.date.year) % HEADLINES.length](worst.name);
+    publishNews(ctx, 'warning', headline, body);
+  }
 }
 
 /** Total smog deaths across every town. */
@@ -106,7 +112,7 @@ export function nationalBlackLung(state: GameState): number {
 }
 
 /** Whether a player building is held to PROTEST_FACTOR: it pollutes and its zone town is at tier 3+. */
-function isProtested(state: GameState, b: { ownerId: string; typeId: string; pos: { x: number; y: number } }): boolean {
+function isProtested(state: GameState, b: Building): boolean {
   if (b.ownerId !== PLAYER_ID || !(BUILDINGS[b.typeId]?.pollution > 0)) return false;
   const city = siteCity(state, b.typeId, b.pos);
   return city !== null && city.smog.tier >= 3;
