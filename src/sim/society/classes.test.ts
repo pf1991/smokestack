@@ -187,6 +187,11 @@ describe('house art by class', () => {
 
   it('houseTier returns villa for an upper-heavy city', () => {
     expect(houseTier(20000, 1950, 0.6, mix(0.45, 0.3, 0.25), 0.05)).toBe('villa');
+    // R-S11: villas from an upper share above 0.06, on picks below upper × 2 (outside the core)
+    expect(houseTier(60000, 1995, 0.7, mix(0.47, 0.46, 0.07), 0.13)).toBe('villa');
+    expect(houseTier(60000, 1995, 0.7, mix(0.47, 0.46, 0.07), 0.15)).toBe('semi');
+    expect(houseTier(65000, 1995, 0.2, mix(0.47, 0.46, 0.07), 0.05)).toBe('tower');
+    expect(houseTier(20000, 1950, 0.6, mix(0.74, 0.2, 0.06), 0.05)).toBe('house');
     // not when the upper class is small
     expect(houseTier(20000, 1950, 0.6, mix(0.75, 0.2, 0.05), 0.05)).toBe('house');
   });
