@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGame } from '../sim/state';
 import type { Camera } from './constants';
-import { factionOverlay, opinionColor, setFactionMode } from './factionOverlay';
+import { factionOverlay, legendRenders, opinionColor, resetFactionCaches, setFactionMode, setLegendSurfaceFactory } from './factionOverlay';
 
 function mockCtx() {
   const calls: string[] = [];
@@ -47,7 +47,55 @@ describe('factionOverlay', () => {
     const m = mockCtx();
     setFactionMode('workers');
     factionOverlay.draw(m.g, state, cam);
-    expect(m.texts).toEqual(expect.arrayContaining(['0', '50', '100']));
+    expect(m.texts).toEqual(expect.arrayContaining(['35', '50', '65']));
+    setFactionMode('mayor');
+    factionOverlay.enabled = false;
+  });
+
+  it('caches fills per month and rebuilds on a new month, mode or game', () => {
+    const state = createGame({ seed: 7 });
+    factionOverlay.enabled = true;
+    resetFactionCaches();
+    setFactionMode('mayor');
+    const fillStyles = (st: typeof state): unknown[] => {
+      const styles: unknown[] = [];
+      const m = mockCtx();
+      const g = new Proxy(m.g, {
+        get: (t, k) => (k === 'fill' ? () => styles.push((t as unknown as Record<string, unknown>).fillStyle) : (t as unknown as Record<string | symbol, unknown>)[k]),
+        set: (t, k, v) => { (t as unknown as Record<string | symbol, unknown>)[k] = v; return true; },
+      });
+      factionOverlay.draw(g, st, cam);
+      return styles;
+    };
+    const first = fillStyles(state);
+    state.cities[0].politics.mayor.faction = state.cities[0].politics.mayor.faction === 'church' ? 'baron' : 'church';
+    expect(fillStyles(state)).toEqual(first); // same month: cached
+    state.date.month = (state.date.month % 12) + 1;
+    expect(fillStyles(state)).not.toEqual(first); // new month: rebuilt
+    const before = fillStyles(state);
+    const other = createGame({ seed: 7 });
+    other.date = { ...state.date };
+    const cur: string = state.cities[0].politics.mayor.faction;
+    other.cities[0].politics.mayor.faction = cur === 'workers' ? 'oldmoney' : 'workers';
+    expect(fillStyles(other)).not.toEqual(before); // new game, same month and mode
+    factionOverlay.enabled = false;
+  });
+
+  it('paints the legend once per stamp, not per frame', () => {
+    const state = createGame({ seed: 7 });
+    factionOverlay.enabled = true;
+    setLegendSurfaceFactory((w, h) => ({ canvas: { width: w, height: h } as unknown as HTMLCanvasElement, g: mockCtx().g }));
+    resetFactionCaches();
+    setFactionMode('mayor');
+    const { g } = mockCtx();
+    const n = legendRenders;
+    factionOverlay.draw(g, state, cam);
+    factionOverlay.draw(g, state, cam);
+    factionOverlay.draw(g, state, cam);
+    expect(legendRenders).toBe(n + 1);
+    setFactionMode('workers');
+    factionOverlay.draw(g, state, cam);
+    expect(legendRenders).toBe(n + 2);
     setFactionMode('mayor');
     factionOverlay.enabled = false;
   });

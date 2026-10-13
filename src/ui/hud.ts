@@ -4,7 +4,7 @@ import { monthProfit } from '../sim/finance';
 export { eraName };
 import type { GameState, Speed } from '../sim/types';
 import { setOverlay } from '../render/overlays';
-import { factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
+import { factionOverlay, factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
 import { h } from './dom';
 import { iconEl } from './icon';
 import { formatMoney } from './format';
@@ -114,6 +114,12 @@ export class Hud {
         setOverlay('factions', on);
       },
     }, iconEl('city', 16), ' Factions');
+    if (factionOverlay.enabled) {
+      // started on by the DEV overlay param
+      factions.setAttribute('aria-pressed', 'true');
+      factions.classList.add('active');
+      modeSel.hidden = false;
+    }
     panels.append(factions, modeSel);
     const photo = h('button', {
       class: 'hud-panel-btn hud-photo',
