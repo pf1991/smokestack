@@ -8,6 +8,11 @@ export interface Overlay {
   id: string;
   enabled: boolean;
   draw(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera): void;
+  /**
+   * Optional key drawn in screen space after every post effect (atmosphere, night, tilt-shift), on
+   * the unfiltered overlay canvas when there is one, so it stays crisp. Called only while enabled.
+   */
+  drawLegend?(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera): void;
 }
 
 /**

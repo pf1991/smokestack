@@ -23,6 +23,23 @@ export function hazeAlpha(pollution: number): number {
   return Math.min(0.45, k ** 0.7 * 0.6);
 }
 
+/** Above this share of the cap the haze thickens toward HEAVY_MAX; below it, it is hazeAlpha × noise. */
+const HEAVY_FROM = 0.3;
+const HEAVY_SPAN = 0.4;
+const HEAVY_MAX = 0.68;
+
+/**
+ * Baked haze opacity at pollution p with blob noise n in [0, 1]. Faint smog (under 30% of the cap)
+ * is hazeAlpha broken into clumps and gaps. A heavy district (≈40% of the cap and up) closes the
+ * gaps and thickens past hazeAlpha's 0.45 ceiling, so it reads as clearly hazy, never opaque.
+ */
+export function hazeDensity(p: number, n: number): number {
+  const t = (Math.max(0, p) / POLLUTION_CAP - HEAVY_FROM) / HEAVY_SPAN;
+  const heavy = t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+  const clumps = (0.5 + 1.1 * n) * (1 - heavy) + (0.85 + 0.5 * n) * heavy;
+  return Math.min(HEAVY_MAX, hazeAlpha(p) * clumps * (1 + 0.45 * heavy));
+}
+
 export type HazeSurface = { canvas: CanvasImageSource & { width: number; height: number }; g: CanvasRenderingContext2D };
 
 /** The haze is baked (blurred) at 1/QUARTER of world resolution... */
@@ -87,6 +104,9 @@ export class SmogHaze {
   private image: ImageData | null = null;
   private lastMap: object | null = null;
   private frame = 0;
+  /** chunks drawn this frame and their keys, reused every frame */
+  private readonly visible: HazeChunk[] = [];
+  private readonly keys: number[] = [];
 
   constructor(private readonly makeSurface: (w: number, h: number) => HazeSurface | null = defaultSurface) {}
 
@@ -110,8 +130,10 @@ export class SmogHaze {
     const cx1 = Math.floor(Math.min(map.width - 1, r.x1 + reach) / CHUNK);
     const cy1 = Math.floor(Math.min(map.height - 1, r.y1 + reach) / CHUNK);
     let budget = SmogHaze.REBUILDS_PER_FRAME;
-    const visible: HazeChunk[] = [];
-    const keys: number[] = [];
+    const visible = this.visible;
+    const keys = this.keys;
+    visible.length = 0;
+    keys.length = 0;
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         const key = cy * cols + cx;
@@ -253,8 +275,7 @@ export class SmogHaze {
         }
         // billows a few tiles across with finer curls inside: dense clumps and thin gaps
         const n = 0.6 * valueNoise(u, v, 3.5, seed, 71) + 0.4 * valueNoise(u, v, 1.5, seed, 73);
-        const a = hazeAlpha(p) * (0.5 + 1.1 * n);
-        const byte = Math.min(255, Math.round(a * 255));
+        const byte = Math.min(255, Math.round(hazeDensity(p, n) * 255));
         if (byte < MIN_BYTE) {
           data[o + 3] = 0;
           continue;
@@ -262,9 +283,9 @@ export class SmogHaze {
         any = true;
         // brown-grey: thin haze a pale ash, thick smog an ochre brown
         const k = Math.min(1, p / POLLUTION_CAP);
-        data[o] = 170 - 26 * k;
-        data[o + 1] = 162 - 42 * k;
-        data[o + 2] = 148 - 70 * k;
+        data[o] = 170 - 40 * k;
+        data[o + 1] = 162 - 58 * k;
+        data[o + 2] = 148 - 84 * k;
         data[o + 3] = byte;
       }
     }

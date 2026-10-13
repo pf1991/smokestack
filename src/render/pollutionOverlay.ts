@@ -3,7 +3,7 @@ import { TILE, visibleTileRange } from './camera';
 import type { Camera } from './constants';
 import type { GameState } from '../sim/types';
 import { POLLUTION_CAP } from '../sim/pollution';
-import { factionLegendHeight, measureChromeTop } from './factionOverlay';
+import { ChromeTop, factionLegendHeight } from './factionOverlay';
 
 const MAX_ALPHA = 0.7;
 
@@ -48,14 +48,13 @@ export function smogLegendRenders(): number {
 
 let legendSurface: LegendSurface | null = null;
 let legendDpr = 0;
-let chromeStamp = '';
-let chromeTopY = 0;
+const chrome = new ChromeTop();
 
 /** Test hook: forget the cached legend and chrome measurement. */
 export function resetSmogLegend(): void {
   legendSurface = null;
   legendDpr = 0;
-  chromeStamp = '';
+  chrome.reset();
 }
 
 function paintLegend(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -91,12 +90,7 @@ function paintLegend(ctx: CanvasRenderingContext2D, w: number, h: number): void 
 
 /** Blits the legend from its offscreen copy (painted once per device pixel ratio). */
 function drawLegend(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera): void {
-  const cs = `${cam.viewW}x${cam.viewH}|${state.date.year * 12 + state.date.month}`;
-  if (cs !== chromeStamp) {
-    const t = measureChromeTop(cam.viewH);
-    chromeTopY = t ?? cam.viewH;
-    if (t !== null) chromeStamp = cs;
-  }
+  const chromeTopY = chrome.get(cam.viewW, cam.viewH, state.date.year * 12 + state.date.month);
   const dpr = typeof window === 'undefined' ? 1 : Math.max(1, Math.min(3, window.devicePixelRatio || 1));
   if (dpr !== legendDpr) {
     legendDpr = dpr;
@@ -128,7 +122,6 @@ export const pollutionOverlay: Overlay = {
   draw(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera): void {
     const { map } = state;
     const r = visibleTileRange(cam, map);
-    ctx.save();
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
     for (let y = r.y0; y <= r.y1; y++) {
@@ -139,10 +132,8 @@ export const pollutionOverlay: Overlay = {
         ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       }
     }
-    ctx.restore();
-    // after the tiles, so the heat map never paints over it
-    drawLegend(ctx, state, cam);
   },
+  drawLegend,
 };
 
 // dev-only hook: `?smog=1` starts with the overlay on

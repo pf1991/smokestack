@@ -3,7 +3,8 @@
  *
  * Layer order: terrain → roads → houses → sun shadows → vehicles → buildings (y-sorted) → particles →
  * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
- * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts).
+ * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts) → overlay
+ * legends (screen space, unfiltered overlay canvas when attached).
  * Vehicles go under buildings: they never drive on a footprint, so the only overlap is a raised roof
  * or chimney in front of a road behind it, which must hide the vehicle.
  * Sun shadows (render/shadows.ts) are one path per frame, filled once: every house, landmark and
@@ -406,6 +407,17 @@ export class WorldRenderer {
       this.drawUi(o, state, cam, alpha, nowMs);
     }
     if (survey) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud, this.labels);
+    // overlay legends last, after every post effect (no night grade, no tilt-shift) and unfiltered
+    // when there is an overlay canvas; photo mode hides them with the rest of the UI
+    if (!this.uiHidden) {
+      const lc = this.overlay?.ctx ?? ctx;
+      for (const o of OVERLAYS) {
+        if (!o.enabled || !o.drawLegend) continue;
+        lc.save();
+        o.drawLegend(lc, state, cam);
+        lc.restore();
+      }
+    }
   }
 
   /**

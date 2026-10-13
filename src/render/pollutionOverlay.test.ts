@@ -32,7 +32,11 @@ describe('pollutionOverlay legend', () => {
     try {
       const before = smogLegendRenders();
       const frames = [mockCtx(), mockCtx(), mockCtx()];
-      for (const f of frames) pollutionOverlay.draw(f.g, state, cam);
+      for (const f of frames) {
+        pollutionOverlay.draw(f.g, state, cam);
+        expect(f.calls).not.toContain('drawImage'); // the heat map itself never draws the legend
+        pollutionOverlay.drawLegend!(f.g, state, cam);
+      }
       expect(smogLegendRenders() - before).toBe(1);
       expect(legend.texts).toEqual(expect.arrayContaining(['Clean', 'Hazy', 'Choking']));
       for (const f of frames) {

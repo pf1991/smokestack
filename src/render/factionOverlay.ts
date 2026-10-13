@@ -48,9 +48,37 @@ export function factionModes(year: number): { value: FactionMode; label: string 
 export function resetFactionCaches(): void {
   fills.clear();
   fillsStamp = '';
-  legendStamp = '';
-  chromeStamp = '';
+  legendMode = null;
+  chrome.reset();
   lastMap = null;
+}
+
+/**
+ * Caches the bottom-chrome top edge per (viewport, month), comparing numbers so no key string is
+ * built per frame. A null measurement (chrome not in the page yet) is retried next frame.
+ */
+export class ChromeTop {
+  private w = -1;
+  private h = -1;
+  private month = -1;
+  private y = 0;
+
+  get(viewW: number, viewH: number, month: number): number {
+    if (viewW !== this.w || viewH !== this.h || month !== this.month) {
+      const t = measureChromeTop(viewH);
+      this.y = t ?? viewH;
+      if (t !== null) {
+        this.w = viewW;
+        this.h = viewH;
+        this.month = month;
+      }
+    }
+    return this.y;
+  }
+
+  reset(): void {
+    this.w = this.h = this.month = -1;
+  }
 }
 
 /** Opinion deviations from 50 are stretched this much so a typical 35..65 spread fills the ramp. */
@@ -141,27 +169,22 @@ export function factionLegendHeight(): number {
   return mode === 'mayor' ? FACTION_IDS.length * ROW_H + 26 : ROW_H + 32;
 }
 
-let legendStamp = '';
+let legendMode: FactionMode | null = null;
+let legendYear = -1;
 let legendSurface: LegendSurface | null = null;
 let legendH = 0;
 let legendDpr = 1;
-let chromeStamp = '';
-let chromeTopY = 0;
+const chrome = new ChromeTop();
 let lastMap: object | null = null;
 
 /** Draws the legend from its offscreen copy, repainting it only when mode, year or viewport change. */
-function drawLegend(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera, month: number): void {
+function drawLegend(ctx: CanvasRenderingContext2D, state: GameState, cam: Camera): void {
   const year = state.date.year;
-  const cs = `${cam.viewW}x${cam.viewH}|${month}`;
-  if (cs !== chromeStamp) {
-    const t = measureChromeTop(cam.viewH);
-    chromeTopY = t ?? cam.viewH;
-    if (t !== null) chromeStamp = cs;
-  }
+  const chromeTopY = chrome.get(cam.viewW, cam.viewH, monthIndex(state));
   const dpr = typeof window === 'undefined' ? 1 : Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-  const stamp = `${mode}|${year}|${dpr}`;
-  if (stamp !== legendStamp) {
-    legendStamp = stamp;
+  if (mode !== legendMode || year !== legendYear || dpr !== legendDpr || !legendH) {
+    legendMode = mode;
+    legendYear = year;
     legendH = mode === 'mayor' ? FACTION_IDS.length * ROW_H + 26 : ROW_H + 32;
     legendDpr = dpr;
     legendSurface = makeSurface(Math.ceil(LEGEND_W * dpr), Math.ceil(legendH * dpr));
@@ -197,7 +220,6 @@ export const factionOverlay: Overlay = {
       fillsStamp = stamp;
       lastMap = state.map;
     }
-    drawLegend(ctx, state, cam, month);
     ctx.globalAlpha = mode === 'mayor' ? MAYOR_ALPHA : OPINION_ALPHA;
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
@@ -213,6 +235,7 @@ export const factionOverlay: Overlay = {
       ctx.fill();
     }
   },
+  drawLegend,
 };
 
 // dev-only hook: `?overlay=factions` or `?overlay=factions:<factionId>` starts with the overlay on

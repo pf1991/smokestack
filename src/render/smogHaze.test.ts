@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createGame } from '../sim/state';
 import { POLLUTION_CAP } from '../sim/pollution';
 import type { Camera } from './constants';
-import { SmogHaze, hazeAlpha, type HazeSurface } from './smogHaze';
+import { SmogHaze, hazeAlpha, hazeDensity, type HazeSurface } from './smogHaze';
 
 /** A context that records method calls; createImageData hands back a real pixel buffer. */
 function mockCtx(calls: string[] = []): CanvasRenderingContext2D {
@@ -34,6 +34,33 @@ describe('hazeAlpha', () => {
       const a = hazeAlpha(p);
       expect(a).toBeGreaterThanOrEqual(prev);
       prev = a;
+    }
+  });
+});
+
+describe('hazeDensity', () => {
+  it('leaves faint smog at hazeAlpha times the blob noise', () => {
+    for (const n of [0, 0.5, 1]) {
+      const p = 0.15 * POLLUTION_CAP;
+      expect(hazeDensity(p, n)).toBeCloseTo(hazeAlpha(p) * (0.5 + 1.1 * n), 10);
+    }
+    expect(hazeDensity(0, 0.7)).toBe(0);
+  });
+
+  it('makes a heavy district clearly hazy, even in the gaps, but never opaque', () => {
+    expect(hazeDensity(0.6 * POLLUTION_CAP, 0.5)).toBeGreaterThan(0.55);
+    expect(hazeDensity(0.6 * POLLUTION_CAP, 0)).toBeGreaterThan(0.4);
+    for (let p = 0; p <= POLLUTION_CAP; p += 1) expect(hazeDensity(p, 1)).toBeLessThanOrEqual(0.68);
+  });
+
+  it('rises with pollution at any noise value', () => {
+    for (const n of [0, 0.3, 0.7, 1]) {
+      let prev = -1;
+      for (let p = 0; p <= POLLUTION_CAP; p += 0.5) {
+        const a = hazeDensity(p, n);
+        expect(a).toBeGreaterThanOrEqual(prev - 1e-12);
+        prev = a;
+      }
     }
   });
 });
