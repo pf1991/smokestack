@@ -6,7 +6,8 @@ import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
 import { runAutoplay } from './game/autoplay';
 import { runDays, stepTick } from './sim/simulation';
 import { createGame } from './sim/state';
-import type { Speed } from './sim/types';
+import type { SmogTier, Speed } from './sim/types';
+import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
 import { autoResolve, forceCard } from './sim/politics/cards';
 
 /**
@@ -99,6 +100,14 @@ if (debugStart) {
   if (import.meta.env.DEV && params.get('rain') === '1') {
     state.weather.rain = true;
     state.weather.rainDays = Math.max(1, state.weather.rainDays);
+  }
+
+  // `smogtier=<cityId>:<tier>` forces a town's smog tier (level just over its threshold), for screenshots
+  const smogTier = params.get('smogtier')?.split(':').map(Number);
+  if (import.meta.env.DEV && smogTier?.length === 2 && smogTier.every(Number.isInteger)) {
+    const city = state.cities.find((c) => c.id === smogTier[0]);
+    const tier = Math.min(4, Math.max(0, smogTier[1])) as SmogTier;
+    if (city) city.smog = { ...city.smog, tier, months: 0, level: Math.max(city.smog.level, SMOG_TIER_THRESHOLDS[tier] + 0.01) };
   }
 
   const speedParam = Number(params.get('speed'));

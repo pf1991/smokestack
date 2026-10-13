@@ -3,6 +3,8 @@ import { recordSale } from './scenarios';
 import { onSale } from './contracts';
 import { notePoliticsSale } from './politics/factions';
 import { playerBuildingUpkeep, SMOG_LIMIT_FACTOR, smogLimited } from './politics/mayorEdicts';
+import { growthPenalty, PROTEST_FACTOR } from './society/tiers';
+import { protestedBuildings } from './society/escalation';
 import { companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
@@ -54,6 +56,8 @@ export function productionDay(ctx: SimContext): void {
   const { state } = ctx;
   // mayors' smog limits hold some of the player's dirty works back (politics/mayorEdicts.ts)
   const limited = smogLimited(state);
+  // smog protests (tier 3+) slow the player's polluters in the town's zone (society/escalation.ts)
+  const protested = protestedBuildings(state);
   for (const b of Object.values(state.buildings)) {
     const def = BUILDINGS[b.typeId];
     if (b.haltedUntil) {
@@ -69,7 +73,7 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     const outs = Object.keys(recipe.outputs);
-    const rate = limited.has(b.id) ? b.staffing * SMOG_LIMIT_FACTOR : b.staffing;
+    const rate = b.staffing * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;
@@ -170,7 +174,7 @@ export function growthMonth(ctx: SimContext): void {
       .map((g) => satisfaction(city, g));
     const avg = sats.length > 0 ? sats.reduce((a, b) => a + b, 0) / sats.length : 0.4;
     city.prevPopulation = city.population;
-    city.population = monthlyGrowth(city.population, avg, city.pollution);
+    city.population = monthlyGrowth(city.population, avg, city.pollution, growthPenalty(city));
     city.happiness = avg;
     const r = urbanRadius(city.population);
     if (r !== city.urbanRadius) radiusChanged = true;

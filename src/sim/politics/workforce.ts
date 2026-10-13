@@ -8,6 +8,7 @@
 import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
 import { buildingsNear, citiesNear } from '../spatial';
 import type { Building, BuildingTypeId, City, GameState, OwnerId, Vec2 } from '../types';
+import { healthFactor } from '../society/tiers';
 
 /** How far (tiles, Euclidean from the footprint centre) a building hires from a town. */
 export const WORK_RADIUS = 30;
@@ -41,9 +42,12 @@ export function workCity(state: GameState, b: Building): City | null {
   return best;
 }
 
-/** The hands a town can offer: LABOUR_SHARE of its people, scaled 0.7..1.3 by the Workers' opinion. */
+/**
+ * The hands a town can offer: LABOUR_SHARE of its people, scaled 0.7..1.3 by the Workers' opinion,
+ * times the smog health factor (tier 2+: 1 − 0.5 × clamp(level × 5), society/tiers.ts).
+ */
 export function laborPool(city: City): number {
-  return city.population * LABOUR_SHARE * (0.7 + (0.6 * city.opinion.workers) / 100);
+  return city.population * LABOUR_SHARE * (0.7 + (0.6 * city.opinion.workers) / 100) * healthFactor(city);
 }
 
 /** Chebyshev distance in tiles between two footprints (adjacent = 1, overlapping = 0). */

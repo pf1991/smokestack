@@ -103,6 +103,20 @@ describe('politics window', () => {
   });
 });
 
+describe('politics window Black Lung', () => {
+  it('shows the national Black Lung toll', () => {
+    const ctx = testCtx(testState({ cities: [{ x: 10, y: 10 }, { x: 40, y: 10 }] }));
+    PANELS.politics.open(game(ctx));
+    const toll = () => win().querySelector('.pol-blacklung')!.textContent;
+    expect(toll()).toContain('Black Lung toll');
+    expect(toll()).toContain('None yet');
+    ctx.state.cities[0].smog.blackLung = 1200;
+    ctx.state.cities[1].smog.blackLung = 34;
+    ctx.bus.emit({ type: 'dayStart', date: ctx.state.date });
+    expect(toll()).toContain('1,234 dead of smog');
+  });
+});
+
 describe('city panel philanthropy', () => {
   it('offers the three gifts, disabled with a reason when unaffordable or already built', () => {
     const ctx = testCtx(testState({ money: 50000, cities: [{ x: 10, y: 10, population: 6000 }] }));

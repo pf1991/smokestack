@@ -90,6 +90,24 @@ export interface City {
   opinion: Record<FactionId, number>;
   /** mayor, council and election schedule (sim/politics/elections.ts) */
   politics: CityPolitics;
+  /** Phase 3 smog escalation (sim/society/escalation.ts); added to old saves by the v6 migration */
+  smog: CitySmog;
+}
+
+export type SmogTier = 0 | 1 | 2 | 3 | 4;
+
+/** A town's smog escalation state, written only by sim/society/escalation.ts (and initialisers). */
+export interface CitySmog {
+  tier: SmogTier;
+  /**
+   * Consecutive-month streak: positive counts months with `level` above the next tier's threshold,
+   * negative counts months below 80% of the current tier's threshold; 0 in between.
+   */
+  months: number;
+  /** cumulative smog deaths in this town */
+  blackLung: number;
+  /** 3-month EMA of `city.pollution` (level = 0.5 × level + 0.5 × pollution, monthly); tiers read this */
+  level: number;
 }
 
 export interface RouteStop {
@@ -162,7 +180,7 @@ export interface Company {
   active: boolean;
 }
 
-export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics';
+export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics' | 'protest';
 
 export interface NewsItem {
   id: number;

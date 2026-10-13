@@ -19,6 +19,7 @@ import { buildingsNear } from '../spatial';
 import type { Building, BuildingTypeId, City, GameState, OwnerId, SimContext, Vec2 } from '../types';
 import { EDICTS, maintenanceFactor } from './edicts';
 import { NEAR_MARGIN, nationalOpinion } from './factions';
+import { forcedEdicts, SMOG_TIER_3 } from '../society/tiers';
 import type { MayorEdictId } from './types';
 import { workCity } from './workforce';
 
@@ -28,9 +29,13 @@ export type { MayorEdictId };
 export const PERMIT_FEE = 0.1;
 /** Below this opinion of the mayor's faction, permits are refused outright. */
 export const PERMIT_REFUSE_BELOW = 25;
-/** Smog limit: production factor of dirty works in the zone while the town's pollution exceeds the threshold. */
+/**
+ * Smog limit: production factor of dirty works in the zone while the town's smog level
+ * (`city.smog.level`, the 3-month average) is at or above SMOG_LIMIT_LEVEL, the tier-3 threshold
+ * (ruling R-S5; Phase 2 used raw pollution > 0.4, which the Phase 3 smog scale never reaches).
+ */
 export const SMOG_LIMIT_FACTOR = 0.75;
-export const SMOG_LIMIT_POLLUTION = 0.4;
+export const SMOG_LIMIT_LEVEL = SMOG_TIER_3;
 /** Monthly toll per player truck per toll town its route stops in. */
 export const TRUCK_TOLL = 40;
 /** Minimum wage: the floor on the wage edict's upkeep multiplier for player buildings hiring from that town. */
@@ -60,7 +65,7 @@ export const MAYOR_EDICTS: Record<MayorEdictId, MayorEdictInfo> = {
   smog_limit: {
     name: 'Smog limit',
     icon: 'smog',
-    effect: `Dirty works near town run at ${SMOG_LIMIT_FACTOR * 100}% while smog is above ${SMOG_LIMIT_POLLUTION * 100}%`,
+    effect: `Dirty works near town run at ${SMOG_LIMIT_FACTOR * 100}% while smog is at or above ${SMOG_LIMIT_LEVEL * 100}%`,
   },
   truck_tolls: { name: 'Truck tolls', icon: 'toll', effect: `$${TRUCK_TOLL}/month per truck stopping in town` },
   minimum_wage: {
@@ -96,10 +101,16 @@ export function reformersDemandPermits(city: City): boolean {
   return city.population > REFORMER_PERMIT_POP && city.opinion.reformers < REFORMER_PERMIT_BELOW;
 }
 
-/** The town's edicts in force: the mayor's, plus permits the Reformers demand. */
+/**
+ * The town's edicts in force: the mayor's (`politics.edicts`, as chooseMayorEdicts issued them),
+ * plus permits the Reformers demand, plus the edicts a smog revolt (tier 4, society/tiers.ts)
+ * forces. The forced ones are derived, never stored, so they lapse when the tier drops unless the
+ * mayor's own edicts hold them. Every reader of a town's edicts goes through here.
+ */
 export function activeEdicts(city: City): MayorEdictId[] {
   const out = [...(city.politics.edicts ?? [])];
   if (reformersDemandPermits(city) && !out.includes('permits_required')) out.push('permits_required');
+  for (const id of forcedEdicts(city)) if (!out.includes(id)) out.push(id);
   return out;
 }
 
@@ -183,11 +194,11 @@ export function placementQuote(state: GameState, owner: OwnerId, typeId: Buildin
   return { cost: cost + permit, permit, refusal: null };
 }
 
-/** Ids of player works held to SMOG_LIMIT_FACTOR today: dirty, and near a smog-limit town over the threshold. */
+/** Ids of player works held to SMOG_LIMIT_FACTOR today: dirty, and near a smog-limit town at or above SMOG_LIMIT_LEVEL. */
 export function smogLimited(state: GameState): Set<number> {
   const out = new Set<number>();
   for (const city of state.cities) {
-    if (!(city.pollution > SMOG_LIMIT_POLLUTION) || !hasEdict(city, 'smog_limit')) continue;
+    if (!((city.smog?.level ?? 0) >= SMOG_LIMIT_LEVEL) || !hasEdict(city, 'smog_limit')) continue;
     for (const b of buildingsNear(state, city.center, city.urbanRadius + NEAR_MARGIN, PLAYER_ID)) {
       if (BUILDINGS[b.typeId].pollution > 0) out.add(b.id);
     }

@@ -468,6 +468,16 @@ const UI_PAINTERS: Record<string, Painter> = {
     bar(g, [1.6, 8, 10, 8], C.brassLight, 2);
     poly(g, [8.5, 3.5, 15, 8, 8.5, 12.5], C.brassLight);
   },
+  // raised red fist (smog protests: survey city labels at tier 3+)
+  protest: (g) => {
+    rect(g, 6, 9.5, 4.4, 5.5, C.red);
+    rrect(g, 4, 3, 8.4, 7.2, 1.6, C.red);
+    // knuckle creases and the thumb across them
+    line(g, [6.1, 3.4, 6.1, 6.2], C.ink, 0.8);
+    line(g, [8.2, 3.4, 8.2, 6.2], C.ink, 0.8);
+    line(g, [10.3, 3.4, 10.3, 6.2], C.ink, 0.8);
+    rrect(g, 3.2, 6.4, 6.6, 2.6, 1.2, C.red);
+  },
   rain: (g) => {
     for (const x of [4.6, 8.2, 11.8]) bar(g, [x, 11, x - 1.2, 14.6], C.glass, 1.4);
     blob(g, [[4.8, 7, 3], [8.4, 4.8, 3.7], [11.6, 7.2, 2.9]], C.paperShade);

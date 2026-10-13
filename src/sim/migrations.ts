@@ -5,6 +5,7 @@ import { monthIndex, newCityPolitics } from './politics/elections';
 import { chooseMayorEdicts } from './politics/mayorEdicts';
 import { defaultPolitics } from './politics/types';
 import { defaultWeather } from './weather';
+import { newCitySmog } from './society/tiers';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -77,12 +78,18 @@ export const MIGRATIONS: Migration[] = [
   },
   {
     // v6: Phase 3 smog and society. Weather starts calm and dry, blowing the month's prevailing wind.
-    // Later Phase 3 tasks extend this entry until the phase merges.
+    // Every town starts clean of escalation (tier 0, no Black Lung) with its smog level at its
+    // current pollution. Later Phase 3 tasks extend this entry until the phase merges.
     from: 5,
     migrate(o) {
       const date = o.date as { month?: unknown } | undefined;
       if (typeof date?.month !== 'number') throw new Error('bad date');
       o.weather = defaultWeather(date.month);
+      const cities = o.cities;
+      if (!Array.isArray(cities)) throw new Error('bad cities');
+      for (const c of cities as Record<string, unknown>[]) {
+        c.smog = newCitySmog(typeof c.pollution === 'number' && Number.isFinite(c.pollution) ? c.pollution : 0);
+      }
     },
   },
 ];

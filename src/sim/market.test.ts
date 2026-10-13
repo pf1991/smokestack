@@ -14,6 +14,7 @@ import {
 import type { City } from './types';
 import { defaultOpinion } from '../data/factions';
 import { newCityPolitics } from './politics/elections';
+import { newCitySmog } from './society/tiers';
 
 function city(population: number): City {
   return {
@@ -29,6 +30,7 @@ function city(population: number): City {
     landmarks: [],
     opinion: defaultOpinion(),
     politics: newCityPolitics(0, 1900, 0),
+    smog: newCitySmog(),
   };
 }
 

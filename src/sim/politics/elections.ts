@@ -19,6 +19,7 @@ import { triggerCard } from './cards';
 import { adjustOpinion } from './factions';
 import { chooseMayorEdicts } from './mayorEdicts';
 import { workCity } from './workforce';
+import { REVOLT_REFORMER_VOTE, smogTier } from '../society/tiers';
 import type { CityPolitics } from './types';
 
 export const ELECTION_TERM = 48;
@@ -71,6 +72,8 @@ export function voteShares(city: City): Record<FactionId, number> {
       s *= ENDORSE_SHARE_BONUS;
       s *= 1 + 0.25 * Math.min(MAX_SLUSH, Math.max(0, p.slush));
     }
+    // a smog revolt (tier 4) swings the town to the reformers
+    if (f === 'reformers' && smogTier(city) >= 4) s *= REVOLT_REFORMER_VOTE;
     scores[f] = s;
     total += s;
   }

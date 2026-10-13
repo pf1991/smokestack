@@ -237,3 +237,30 @@ describe('vehicle panel', () => {
     expect(document.querySelector('.window')).toBeNull();
   });
 });
+
+describe('city panel smog tier', () => {
+  it('shows the tier name, level, trend and what lowers it; tier-4 edicts say who forced them', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    const c = state.cities[0];
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    const row = () => document.querySelector<HTMLElement>('.insp-smog')!;
+    expect(row().dataset.tier).toBe('0');
+    expect(row().querySelector('.insp-smog-tier')!.textContent).toBe('Clean');
+    expect(row().textContent).toContain('Scrubbers, parks or fewer smokestacks lower it');
+    c.smog = { tier: 3, months: 0, blackLung: 0, level: 0.12 };
+    c.pollution = 0.2;
+    vi.advanceTimersByTime(1000);
+    expect(row().querySelector('.insp-smog-tier')!.textContent).toBe('Protesting');
+    expect(row().querySelector('.insp-smog-level')!.textContent).toBe('12.0%');
+    expect(row().querySelector('.insp-trend')!.textContent).toBe('▲');
+    expect(row().querySelector('.insp-smog-hint')!.textContent).toContain('80%');
+    c.smog.tier = 4;
+    c.pollution = 0.05;
+    vi.advanceTimersByTime(1000);
+    expect(row().querySelector('.insp-smog-tier')!.textContent).toBe('Revolt');
+    expect(row().querySelector('.insp-trend')!.textContent).toBe('▼');
+    const items = [...document.querySelectorAll<HTMLElement>('.insp-edicts li')];
+    const limit = items.find((li) => li.dataset.edict === 'smog_limit')!;
+    expect(limit.textContent).toContain('smog revolt');
+  });
+});

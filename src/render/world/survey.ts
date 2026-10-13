@@ -9,6 +9,7 @@ import type { LandmarkId } from '../../data/landmarks';
 import type { Building, City, GameState } from '../../sim/types';
 import { TILE, type Camera } from '../camera';
 import { LANDMARK_PX } from '../landmarks';
+import { drawIcon } from '../icons';
 import { ownerColor } from '../sprites';
 import { INK, PAPER, cityLabelFont, cityLabelSize } from '../survey';
 import type { Dir, TileRange } from './shared';
@@ -295,6 +296,11 @@ export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: num
     g.strokeStyle = '#2e2418';
     g.lineWidth = 1;
     g.stroke();
+    // smog protests (tier 3+): a red fist just after the name
+    if ((l.city.smog?.tier ?? 0) >= 3) {
+      const s = Math.round(l.size * 1.5);
+      drawIcon(g as CanvasRenderingContext2D, 'protest', sx + l.width / 2 + 2, sy - s / 2, s);
+    }
   }
   g.restore();
 }

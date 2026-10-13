@@ -3,6 +3,7 @@ import { checkUnlocks, eraBanner, fadeWarnings } from './eras';
 import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { pollutionSystem } from './pollution';
+import { escalationMonth } from './society/escalation';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
@@ -68,8 +69,16 @@ export const SYSTEMS: SimSystem[] = [
   contractsSystem,
   { id: 'events', onDay: eventsDay, onMonth: eventsMonth },
   // after upkeep: onDay refreshes city.pollution on the month's last day (before growthMonth reads it),
-  // onMonth then owns the final happiness value
-  pollutionSystem,
+  // onMonth then owns the final happiness value. Smog escalation (society/escalation.ts) steps right
+  // after it: after growthMonth (which reads last month's tier) and before politics, so this month's
+  // tier reaches workforceMonth and any election held this month (tier-4 reformers ×1.5)
+  {
+    ...pollutionSystem,
+    onMonth(ctx) {
+      pollutionSystem.onMonth(ctx);
+      escalationMonth(ctx);
+    },
+  },
   {
     id: 'eras',
     onDay(ctx) {

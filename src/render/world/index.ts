@@ -1,7 +1,8 @@
 /**
  * World renderer: composes everything the player sees on the map canvas.
  *
- * Layer order: terrain → roads → houses → sun shadows → vehicles → buildings (y-sorted) → particles →
+ * Layer order: terrain → roads → houses → sun shadows → vehicles → smog protesters (render/protesters.ts)
+ * → buildings (y-sorted) → particles →
  * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
  * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts) → overlay
  * legends (screen space, unfiltered overlay canvas when attached).
@@ -34,6 +35,7 @@ import { OVERLAYS } from '../overlays';
 import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { SmogHaze } from '../smogHaze';
+import { Protesters } from '../protesters';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { TiltShiftBudget, applyTiltShift, insetsFromRects, type ViewInsets } from '../tiltShift';
@@ -152,6 +154,8 @@ export class WorldRenderer {
   private readonly tiltBudget = new TiltShiftBudget();
   /** per-chunk smog haze, rebuilt once per game day for chunks in view */
   private readonly haze = new SmogHaze();
+  /** smog protesters (towns at tier 3+), route cached per town per month */
+  private readonly protesters = new Protesters();
   /** keep the tilt-shift on even when frames are slow (DEV `tiltshift=1`, for screenshots) */
   forceTiltShift = false;
   private readonly labels = new CityLabelCache();
@@ -336,6 +340,7 @@ export class WorldRenderer {
     if (diorama) {
       this.drawShadows(ctx, state, r, light, blend);
       drawVehicles(ctx, this, state, r, alpha, dt, lit);
+      this.protesters.draw(ctx, state, r, nowMs);
       this.drawBuildings(ctx, visBuildings);
     }
     // smoke (and sparks, puffs) are hidden on the map side of the blend

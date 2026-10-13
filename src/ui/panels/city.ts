@@ -15,6 +15,7 @@ import { endorse, ENDORSE_WINDOW, monthIndex, paySlush, slushBlocker, slushCost,
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
 import { demandModifier } from '../../sim/production';
+import { forcedEdicts, SMOG_HINT, SMOG_TIER_NAMES, SMOG_TIER_THRESHOLDS } from '../../sim/society/tiers';
 import type { City, GameState } from '../../sim/types';
 import { h } from '../dom';
 import { iconEl } from '../icon';
@@ -90,6 +91,35 @@ function effectsLine(id: PhilanthropyId, year: number): string {
     .join(', ');
 }
 
+export interface SmogTierLine {
+  tier: number;
+  name: string;
+  /** the smog level (3-month average) as shown, e.g. "4.2%" */
+  level: string;
+  trend: 'up' | 'down' | '';
+  /** what the tier does, then what lowers it */
+  hint: string;
+}
+
+const TIER_EFFECTS = [
+  'Clear skies.',
+  'Reformers and workers sour each month; the papers grumble.',
+  'Black Lung deaths, slower growth and fewer hands for the works.',
+  'Marchers slow your smokestacks near town to 80%.',
+  'The town imposes a smog limit and permits; reformers surge at the polls.',
+];
+
+/** The city panel's smog tier row (exported for tests). Trend: this month's smog against the 3-month level. */
+export function smogTierLine(city: City): SmogTierLine {
+  const s = city.smog;
+  const tier = s?.tier ?? 0;
+  const level = s?.level ?? city.pollution;
+  const gap = city.pollution - level;
+  const trend = gap > 0.001 ? 'up' : gap < -0.001 ? 'down' : '';
+  const next = tier < 4 ? ` Next tier above ${formatPercent(SMOG_TIER_THRESHOLDS[tier + 1])}.` : '';
+  return { tier, name: SMOG_TIER_NAMES[tier], level: `${(level * 100).toFixed(1)}%`, trend, hint: `${TIER_EFFECTS[tier]}${next} ${SMOG_HINT}.` };
+}
+
 /** Where a town's edicts and levers reach (siteCity zone vs workCity staffing, sim/politics/mayorEdicts.ts). */
 export const EDICT_REACH = "Permits and land prices apply within the town's zone (its urban area plus 4 tiles). Wages and tolls apply to works staffed from the town.";
 
@@ -104,8 +134,10 @@ interface EdictLine {
 export function cityEdictLines(city: City, year: number): EdictLine[] {
   const out: EdictLine[] = activeEdicts(city).map((id) => {
     const info = MAYOR_EDICTS[id];
-    const forced = id === 'permits_required' && !city.politics.edicts.includes(id) && reformersDemandPermits(city);
-    const by = forced ? `${factionName('reformers', year)} demand` : `${factionName(city.politics.mayor.faction, year)} mayor`;
+    const own = city.politics.edicts.includes(id);
+    const forced = id === 'permits_required' && !own && reformersDemandPermits(city);
+    const revolt = !own && !forced && forcedEdicts(city).includes(id);
+    const by = revolt ? 'smog revolt' : forced ? `${factionName('reformers', year)} demand` : `${factionName(city.politics.mayor.faction, year)} mayor`;
     return { key: id, icon: info.icon, name: info.name, effect: `${info.effect} (${by})` };
   });
   const land = landPriceFactor(city);
@@ -126,6 +158,13 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const trend = h('span', { class: 'insp-trend' });
   const happy = bar('#e0b43a');
   const smog = bar('#6b6b70');
+  const smogTierName = h('b', { class: 'insp-smog-tier' });
+  const smogTierLevel = h('span', { class: 'insp-smog-level' });
+  const smogTierTrend = h('span', { class: 'insp-trend' });
+  const smogTierHint = h('small', { class: 'insp-smog-hint' });
+  const smogTierRow = h('div', { class: 'insp-stat insp-smog' },
+    h('span', { class: 'insp-label' }, 'Smog tier'),
+    h('span', null, smogTierName, ' ', smogTierLevel, ' ', smogTierTrend, h('br'), smogTierHint));
   const landmarks = h('ul', { class: 'insp-landmarks' });
   let landmarkSig = '\0';
   const edictList = h('ul', { class: 'insp-edicts' });
@@ -190,6 +229,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Population'), h('span', null, pop, ' ', trend)),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
+    smogTierRow,
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
     h('div', { class: 'insp-stat insp-mayor' }, h('span', { class: 'insp-label' }, 'Mayor'), h('span', null, mayorName, ' ', mayorChip)),
     h('div', { class: 'insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
@@ -267,6 +307,15 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       trend.className = `insp-trend ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`.trim();
       happy.set(city.happiness, formatPercent(city.happiness));
       smog.set(city.pollution, formatPercent(city.pollution));
+      const st = smogTierLine(city);
+      setText(smogTierName, st.name);
+      smogTierRow.dataset.tier = String(st.tier);
+      setText(smogTierLevel, st.level);
+      setText(smogTierTrend, st.trend === 'up' ? '▲' : st.trend === 'down' ? '▼' : '–');
+      // rising smog is bad news: the 'down' (red) class for up, 'up' (green) for falling
+      const tcls = `insp-trend ${st.trend === 'up' ? 'down' : st.trend === 'down' ? 'up' : ''}`.trim();
+      if (smogTierTrend.className !== tcls) smogTierTrend.className = tcls;
+      setText(smogTierHint, st.hint);
       for (const o of opinion) {
         const v = city.opinion?.[o.f] ?? 50;
         setText(o.label, factionName(o.f, state.date.year));

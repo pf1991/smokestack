@@ -124,9 +124,10 @@ export const POP_CAP = 80_000;
 /** Largest urban radius, so big late-game cities don't swallow the map. */
 export const MAX_URBAN_RADIUS = 16;
 
-export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number): number {
+/** `penalty` is taken off the monthly rate (the smog tier-2 health penalty, society/tiers.ts). */
+export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number, penalty = 0): number {
   const room = Math.max(0, 1 - population / POP_CAP);
-  const next = population * (1 + 0.015 * avgSatisfaction * room - 0.01 * pollution);
+  const next = population * (1 + 0.015 * avgSatisfaction * room - 0.01 * pollution - penalty);
   return Math.min(POP_CAP, Math.max(500, Math.round(next)));
 }
 

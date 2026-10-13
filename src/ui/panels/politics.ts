@@ -1,6 +1,7 @@
 /**
  * The politics window (Phase 2 Task 3): company edicts as segmented controls, national opinion of
- * each faction with a trend against the last yearly sample, and the latest political log entries.
+ * each faction with a trend against the last yearly sample, the national Black Lung toll (Phase 3
+ * smog escalation) and the latest political log entries.
  */
 import type { GameController } from '../../game/controller';
 import { BUILDINGS } from '../../data/buildings';
@@ -9,10 +10,11 @@ import { PLAYER_ID } from '../../sim/companies';
 import { EDICT_KEYS, EDICTS, MAX_EDICT_DRIVE, maintenanceFactor, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
 import { playerBuildingUpkeep } from '../../sim/politics/mayorEdicts';
 import { nationalOpinion, opinionTrend } from '../../sim/politics/factions';
+import { nationalBlackLung } from '../../sim/society/escalation';
 import type { CompanyEdicts, PoliticsLogEntry } from '../../sim/politics/types';
 import type { GameState, SimContext } from '../../sim/types';
 import { h } from '../dom';
-import { formatMoney } from '../format';
+import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import { bar, type Bar, setText } from './inspect';
 import type { PanelDef } from './index';
@@ -162,6 +164,8 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
       const tip = t === null ? 'Not enough history yet' : `Change since ${t.since}`;
       if (r.trend.title !== tip) r.trend.title = tip;
     }
+    const dead = nationalBlackLung(state);
+    setText(blackLung, dead > 0 ? `${formatNumber(dead)} dead of smog` : 'None yet');
     const entries = state.politics.log.slice(-LOG_SHOWN).reverse();
     const sig = `${state.politics.log.length}|${entries.map((e) => `${e.date.year}.${e.date.month}.${e.faction}.${e.delta}`).join(',')}`;
     if (log.dataset.sig !== sig) {
@@ -182,10 +186,13 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   for (const k of EDICT_KEYS) controls.push(edictControl(ctx, k, update));
   const rows = FACTION_IDS.map(opinionRow);
   const log = h('ul', { class: 'pol-log' });
+  const blackLung = h('span', { class: 'pol-blacklung-count' });
   const el = h('div', { class: 'pol' },
     h('div', { class: 'pol-section pol-edicts' }, h('div', { class: 'insp-label' }, 'Company edicts'), ...controls.map((c) => c.el),
       h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)),
     h('div', { class: 'pol-section pol-national' }, h('div', { class: 'insp-label' }, 'National opinion'), ...rows.map((r) => r.el)),
+    h('div', { class: 'pol-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
+      h('div', { class: 'insp-label' }, 'Black Lung toll'), blackLung),
     h('div', { class: 'pol-section pol-news' }, h('div', { class: 'insp-label' }, 'Recent political news'), log));
   update();
   return { el, update };

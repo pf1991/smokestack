@@ -1,3 +1,4 @@
+import { newCitySmog } from './society/tiers';
 import type { City, GameMap, Terrain, Tile } from './types';
 import { defaultOpinion } from '../data/factions';
 import { START_DATE } from './clock';
@@ -196,6 +197,7 @@ function placeCities(map: GameMap, rng: RngHolder): City[] | null {
       urbanRadius: urbanRadius(population),
       landmarks: [],
       opinion: defaultOpinion(),
+      smog: newCitySmog(),
       politics: newCityPolitics(id, START_DATE.year, monthIndex(START_DATE)),
     };
   });

@@ -1,3 +1,4 @@
+import { newCitySmog } from './society/tiers';
 import { EventBus } from '../core/events';
 import type { Result } from '../core/result';
 import { START_DATE } from './clock';
@@ -73,6 +74,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
       urbanRadius: urbanRadius(population),
       landmarks: [],
       opinion: defaultOpinion(),
+      smog: newCitySmog(),
       politics: newCityPolitics(id, year, monthIndex({ year, month: 4 })),
     };
   });

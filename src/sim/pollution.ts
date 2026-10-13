@@ -299,7 +299,8 @@ export function refreshCityPollution(state: GameState): void {
   for (const c of state.cities) c.pollution = n[c.id] === 0 ? 0 : Math.min(1, sum[c.id] / n[c.id] / POLLUTION_CAP);
 }
 
-const HEADLINES: ((city: string) => [string, string])[] = [
+/** Smog headlines (the pollution warning here, and the tier-1 smog editorial in society/escalation.ts). */
+export const HEADLINES: ((city: string) => [string, string])[] = [
   (c) => [`Citizens of ${c} cough in protest`, `Smoke hangs over ${c} and the townsfolk are not amused.`],
   (c) => [`${c} chokes under a pall of smoke`, `Washing hung out in ${c} comes back dirtier than it went out.`],
   (c) => [`Soot rains on ${c}`, `Doctors in ${c} report a rise in coughs and complaints.`],

@@ -23,6 +23,10 @@ export function checkInvariants(state: GameState): string[] {
       const op = city.opinion?.[f];
       if (typeof op !== 'number' || !Number.isFinite(op) || op < 0 || op > 100) out.push(`city ${city.id} (${city.name}): ${f} opinion ${op} outside [0, 100]`);
     }
+    const s = city.smog;
+    if (!s || ![0, 1, 2, 3, 4].includes(s.tier) || !Number.isInteger(s.months) || !Number.isInteger(s.blackLung) || s.blackLung < 0 || !Number.isFinite(s.level) || s.level < 0 || s.level > 1) {
+      out.push(`city ${city.id} (${city.name}): bad smog ${JSON.stringify(s)}`);
+    }
   }
 
   for (const v of Object.values(state.vehicles)) {

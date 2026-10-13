@@ -13,6 +13,8 @@
  * Exits 1 if any invariant fails (or autoplay cannot set up its chain), and on the Phase 2 gate assertions when the
  * run covers a full century (years >= 100): player not bankrupt, >= 99 cards resolved, >= 100 elections, no faction
  * pinned at <= 2 or >= 98 for 10+ consecutive years in any city (sampled yearly), and the Baron owns a building.
+ * A second line per seed reports smog escalation (Phase 3): the highest tier any town reached, town-months spent
+ * at each tier (sampled at every month end), the highest smog level seen and the national Black Lung toll.
  */
 import { EventBus } from '../src/core/events';
 import { runAutoplay } from '../src/game/autoplay';
@@ -24,6 +26,7 @@ import type { CompanyEdicts } from '../src/sim/politics/types';
 import { netWorth } from '../src/sim/rival/takeover';
 import { runDays } from '../src/sim/simulation';
 import { createGame } from '../src/sim/state';
+import { nationalBlackLung } from '../src/sim/society/escalation';
 
 const END_YEAR = 2001;
 
@@ -76,8 +79,19 @@ for (const seed of seeds) {
   let baronBuilt = false;
   const endYear = Math.min(END_YEAR, ctx.state.date.year + years);
   let problems: string[] = [];
+  const tierMonths = [0, 0, 0, 0, 0];
+  let maxTier = 0;
+  let maxLevel = 0;
   while (ctx.state.date.year < endYear && !over) {
-    runDays(ctx, 360);
+    // a year as 12 months of 30 days, sampling every town's smog tier at each month end
+    for (let m = 0; m < 12 && !over; m++) {
+      runDays(ctx, 30);
+      for (const c of ctx.state.cities) {
+        tierMonths[c.smog.tier]++;
+        maxTier = Math.max(maxTier, c.smog.tier);
+        maxLevel = Math.max(maxLevel, c.smog.level);
+      }
+    }
     problems = checkInvariants(ctx.state);
     for (const c of ctx.state.cities) {
       for (const f of FACTION_IDS) {
@@ -96,6 +110,9 @@ for (const seed of seeds) {
   const opinion = FACTION_IDS.map((f) => `${f} ${nationalOpinion(state, f).toFixed(1)}`).join(' ');
   console.log(
     `${seed} | ${state.date.year} | ${money(netWorth(state, 'player'))} | ${money(netWorth(state, 'rival'))} | ${ms} | ${opinion} | elections ${elections} | cards ${cardTotal} (${Object.entries(cards).map(([t, n]) => `${t} ${n}`).join(', ')})${note}`,
+  );
+  console.log(
+    `  smog ${seed}: max tier ${maxTier} | town-months at tier 0..4: ${tierMonths.join(' / ')} | max level ${maxLevel.toFixed(3)} | Black Lung ${nationalBlackLung(state)}`,
   );
   if (years >= 100) {
     const gate: string[] = [];
