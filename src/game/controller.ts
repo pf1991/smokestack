@@ -12,7 +12,7 @@ import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
 import { attachAchievements } from './achievements';
-import { attachMilestoneStamps, attachStuckToasts } from './feedback';
+import { attachMilestoneStamps, attachStrikeToasts, attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
 import { enterPhotoMode } from './photoMode';
@@ -178,6 +178,7 @@ export class GameController {
       this.renderer.attachEffects(bus),
       Toasts.attach(this.uiRoot, bus),
       attachStuckToasts(this.ctx),
+      attachStrikeToasts(this.ctx, (id) => this.openPanel('building', id)),
       attachMilestoneStamps(this.ctx),
       this.hud.attach(bus),
       attachAutosave(this.ctx),

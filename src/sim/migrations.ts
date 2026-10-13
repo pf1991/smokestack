@@ -90,6 +90,12 @@ export const MIGRATIONS: Migration[] = [
       for (const c of cities as Record<string, unknown>[]) {
         c.smog = newCitySmog(typeof c.pollution === 'number' && Number.isFinite(c.pollution) ? c.pollution : 0);
       }
+      // strikes (Task 4): no building is on strike
+      const buildings = o.buildings;
+      if (buildings !== undefined) {
+        if (typeof buildings !== 'object' || buildings === null) throw new Error('bad buildings');
+        for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) b.strike = null;
+      }
     },
   },
 ];

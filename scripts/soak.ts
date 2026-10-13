@@ -15,6 +15,8 @@
  * pinned at <= 2 or >= 98 for 10+ consecutive years in any city (sampled yearly), and the Baron owns a building.
  * A second line per seed reports smog escalation (Phase 3): the highest tier any town reached, town-months spent
  * at each tier (sampled at every month end), the highest smog level seen and the national Black Lung toll.
+ * A third line reports labour unrest (Phase 3 Task 4): strikes started (the `strike` bus event), town-months
+ * with workers' opinion below 30 (go-slow) and below 25 (strike risk), and the lowest workers' opinion seen.
  */
 import { EventBus } from '../src/core/events';
 import { runAutoplay } from '../src/game/autoplay';
@@ -67,6 +69,11 @@ for (const seed of seeds) {
     cardTotal++;
   });
   ctx.bus.on('gameOver', (e) => (over = e.reason));
+  let strikes = 0;
+  ctx.bus.on('strike', () => strikes++);
+  let slowMonths = 0;
+  let strikeRiskMonths = 0;
+  let minWorkers = 100;
   const r = runAutoplay(ctx);
   if (!r.ok) {
     console.log(`${seed} | autoplay failed: ${r.error}`);
@@ -90,6 +97,9 @@ for (const seed of seeds) {
         tierMonths[c.smog.tier]++;
         maxTier = Math.max(maxTier, c.smog.tier);
         maxLevel = Math.max(maxLevel, c.smog.level);
+        if (c.opinion.workers < 30) slowMonths++;
+        if (c.opinion.workers < 25) strikeRiskMonths++;
+        minWorkers = Math.min(minWorkers, c.opinion.workers);
       }
     }
     problems = checkInvariants(ctx.state);
@@ -113,6 +123,9 @@ for (const seed of seeds) {
   );
   console.log(
     `  smog ${seed}: max tier ${maxTier} | town-months at tier 0..4: ${tierMonths.join(' / ')} | max level ${maxLevel.toFixed(3)} | Black Lung ${nationalBlackLung(state)}`,
+  );
+  console.log(
+    `  unrest ${seed}: strikes ${strikes} | town-months workers < 30: ${slowMonths}, < 25: ${strikeRiskMonths} | min workers ${minWorkers.toFixed(1)}`,
   );
   if (years >= 100) {
     const gate: string[] = [];

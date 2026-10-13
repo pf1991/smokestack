@@ -3,7 +3,7 @@ import type { GameEvent } from '../core/events';
 import { buildRoad, demolishBuilding, placeBuilding } from '../sim/state';
 import { must, testCtx } from '../sim/testkit';
 import { buyTruck, createRoute } from '../sim/vehicles';
-import { attachStuckToasts, reportLostStops, routesUsing, STUCK_TOAST_GAP_MS } from './feedback';
+import { attachStrikeToasts, attachStuckToasts, reportLostStops, routesUsing, STUCK_TOAST_GAP_MS } from './feedback';
 
 function chain() {
   const ctx = testCtx();
@@ -67,5 +67,19 @@ describe('feedback toasts', () => {
       'Timber Run has too few stops — its trucks are idle',
       'Long Haul lost a stop',
     ]);
+  });
+});
+
+describe('strike toasts', () => {
+  it('toasts when a works strikes, with an Inspect action', () => {
+    const { ctx, a, toasts } = chain();
+    const opened: number[] = [];
+    let action: (() => void) | undefined;
+    ctx.bus.on('toast', (e: Extract<GameEvent, { type: 'toast' }>) => (action = e.action?.run));
+    attachStrikeToasts(ctx, (id) => opened.push(id));
+    ctx.bus.emit({ type: 'strike', buildingId: a.id, cityId: 99 });
+    expect(toasts).toEqual(['Strike! Your Sawmill has downed tools']);
+    action!();
+    expect(opened).toEqual([a.id]);
   });
 });

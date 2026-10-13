@@ -8,8 +8,16 @@
  * a breadth-first walk over road tiles from the site's access road, up to PATH_TILES long. Drawing
  * is one batch per town: every marcher's coat, head, stick and placard go into shared paths, so a
  * town costs the same handful of fill/stroke calls whatever its marcher count.
+ *
+ * Strike pickets (Phase 3 Task 4) reuse the same marchers: 3–5 per striking works (fixed per
+ * building), pacing at the works' southernmost access tile (and the next road tile along, when there
+ * is one). Diorama only, per frame, drawn just after the buildings: a picket on a road behind its
+ * works would otherwise vanish under the works' roof.
  */
+import { BUILDINGS } from '../data/buildings';
+import { dateToDays } from '../sim/clock';
 import { protestSite } from '../sim/society/escalation';
+import { strikeActive } from '../sim/society/strikeState';
 import { accessTiles } from '../sim/state';
 import type { Building, City, GameState, Vec2 } from '../sim/types';
 import { TILE } from './constants';
@@ -212,4 +220,41 @@ export function drawMarchers(g: Ctx, path: Vec2[], count: number, seed: number, 
   g.fillStyle = SLOGAN;
   g.fill();
   g.restore();
+}
+
+export const MIN_PICKETS = 3;
+export const MAX_PICKETS = 5;
+
+/** Pickets at a striking works: MIN_PICKETS..MAX_PICKETS, fixed per building. */
+export function picketCount(b: Building): number {
+  return MIN_PICKETS + (hash(b.id, 0, 0x51c7, 5) % (MAX_PICKETS - MIN_PICKETS + 1));
+}
+
+/**
+ * Where a striking works' pickets stand: its southernmost access road tile and the next road tile beside it
+ * (a two-tile beat), or that tile alone; without road access, the tile just below the works.
+ */
+export function picketPath(state: GameState, b: Building): Vec2[] {
+  const { width, height, tiles } = state.map;
+  const access = accessTiles(state, b);
+  if (access.length === 0) {
+    const { w, h } = BUILDINGS[b.typeId].size;
+    return [{ x: Math.min(width - 1, b.pos.x + (w >> 1)), y: Math.min(height - 1, b.pos.y + h) }];
+  }
+  // the southernmost access tile (then the westernmost): the gate the viewer sees
+  const a = access.reduce((best, t) => (t.y > best.y || (t.y === best.y && t.x < best.x) ? t : best));
+  for (const [nx, ny] of [[a.x + 1, a.y], [a.x - 1, a.y], [a.x, a.y + 1], [a.x, a.y - 1]]) {
+    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+    if (tiles[ny * width + nx].road) return [a, { x: nx, y: ny }];
+  }
+  return [a];
+}
+
+/** World-space draw of the pickets at every striking works among `buildings` (the visible ones). */
+export function drawPickets(g: Ctx, state: GameState, buildings: readonly Building[], nowMs: number): void {
+  const today = dateToDays(state.date);
+  for (const b of buildings) {
+    if (!b.strike || !strikeActive(b.strike, today)) continue;
+    drawMarchers(g, picketPath(state, b), picketCount(b), b.id, nowMs);
+  }
 }

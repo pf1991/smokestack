@@ -4,6 +4,7 @@ import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { pollutionSystem } from './pollution';
 import { escalationMonth } from './society/escalation';
+import { strikesMonth } from './society/strikes';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
@@ -92,4 +93,6 @@ export const SYSTEMS: SimSystem[] = [
   { id: 'landmarks', onMonth: landmarksMonth },
   // Phase 2 politics (cards daily; workforce, edicts, opinion, housing, elections monthly); reads the month's pollution and sales
   politicsSystem,
+  // Phase 3 strikes: after politics, so this month's workers' opinion decides who walks out
+  { id: 'strikes', onMonth: strikesMonth },
 ];

@@ -1,7 +1,8 @@
 import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
 import { getGood } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
-import { formatDate, isWinter } from '../../sim/clock';
+import { addDays, dateToDays, formatDate, isWinter } from '../../sim/clock';
+import { isWorks, SLOWDOWN_FACTOR, SLOWDOWN_OPINION, strikeActive, strikeEnd } from '../../sim/society/strikeState';
 import { loadSource } from '../../sim/inventory';
 import { STATION_TYPE, stationAccess } from '../../sim/rail';
 import { accessTiles, DEMOLITION_REFUND, demolishBuilding, footprint } from '../../sim/state';
@@ -31,8 +32,11 @@ const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name
 export function staffingText(state: GameState, b: Building): string {
   // floored, so a building one hand short never reads "100%"
   const pct = `Staff ${Math.floor(b.staffing * 100 + 1e-9)}%`;
-  if (b.staffing >= 1) return pct;
   const city = workCity(state, b);
+  // a go-slow (society/strikeState.ts): the player's works hired from a town below 30 workers' opinion
+  const slow = isWorks(b) && city && city.opinion.workers < SLOWDOWN_OPINION ? ` — go-slow in ${city.name} (×${SLOWDOWN_FACTOR})` : '';
+  if (b.staffing >= 1) return pct + slow;
+  if (slow) return pct + slow;
   return city ? `${pct} — short of hands in ${city.name}` : `${pct} — remote works`;
 }
 
@@ -63,9 +67,18 @@ function extractorProblem(state: GameState, b: Building): string | null {
   return null;
 }
 
+/** "On strike until <date> — <reason>" while `b` is on strike, else null. */
+export function strikeText(state: GameState, b: Building): string | null {
+  const today = dateToDays(state.date);
+  if (!b.strike || !strikeActive(b.strike, today)) return null;
+  return `On strike until ${formatDate(addDays(state.date, strikeEnd(b.strike) - today))} — ${b.strike.reason}`;
+}
+
 /** Plain-language explanation of what the building is doing (exported for tests). */
 export function statusReason(state: GameState, b: Building, routes: Route[]): string {
   const def = BUILDINGS[b.typeId];
+  const strike = strikeText(state, b);
+  if (strike) return strike;
   if (b.status === 'halted') return `Halted until ${b.haltedUntil ? formatDate(b.haltedUntil) : 'further notice'}`;
   const problem = extractorProblem(state, b);
   if (problem) return problem;
@@ -216,7 +229,8 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const mine = b.ownerId === 'player';
       setText(owner, mine ? state.companies.player.name : state.companies.rival.name);
       setClass(owner, `insp-badge ${mine ? 'owner-player' : 'owner-rival'}`);
-      setText(statusBadge, STATUS_LABEL[b.status]);
+      const striking = strikeActive(b.strike, dateToDays(state.date));
+      setText(statusBadge, striking ? 'On strike' : STATUS_LABEL[b.status]);
       setClass(statusBadge, `insp-badge status-${b.status}`);
       const routes = routesServing(state, id);
       setText(reason, statusReason(state, b, routes));

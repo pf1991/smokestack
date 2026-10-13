@@ -2,7 +2,7 @@
  * World renderer: composes everything the player sees on the map canvas.
  *
  * Layer order: terrain → roads → houses → sun shadows → vehicles → smog protesters (render/protesters.ts)
- * → buildings (y-sorted) → particles →
+ * → buildings (y-sorted) → strike pickets (render/protesters.ts) → particles →
  * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
  * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts) → overlay
  * legends (screen space, unfiltered overlay canvas when attached).
@@ -35,7 +35,7 @@ import { OVERLAYS } from '../overlays';
 import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
 import { SmogHaze } from '../smogHaze';
-import { Protesters } from '../protesters';
+import { drawPickets, Protesters } from '../protesters';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { TiltShiftBudget, applyTiltShift, insetsFromRects, type ViewInsets } from '../tiltShift';
@@ -342,6 +342,8 @@ export class WorldRenderer {
       drawVehicles(ctx, this, state, r, alpha, dt, lit);
       this.protesters.draw(ctx, state, r, nowMs);
       this.drawBuildings(ctx, visBuildings);
+      // strike pickets at the gates of striking works, over the buildings (render/protesters.ts)
+      drawPickets(ctx, state, visBuildings, nowMs);
     }
     // smoke (and sparks, puffs) are hidden on the map side of the blend
     const smoke = blend >= 0.5;

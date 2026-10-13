@@ -62,6 +62,22 @@ export interface Building {
   producedThisMonth: Inventory;
   /** 0..1 share of `workers` the building could hire, recomputed monthly (sim/politics/workforce.ts) */
   staffing: number;
+  /** a strike at this works (sim/society/strikes.ts); null or absent when there is none */
+  strike?: BuildingStrike | null;
+}
+
+/** A strike at a building (sim/society/strikes.ts). Days are `dateToDays` numbers. */
+export interface BuildingStrike {
+  /** the day the strike ends (it is on while today < until, and never past since + 120) */
+  until: number;
+  /** why the men came out, shown in the inspector */
+  reason: string;
+  /** the day it began */
+  since: number;
+  /** the town the works hires from: the strike card's town */
+  cityId: number;
+  /** true while its strike card is unanswered (the card's `apply` acts on it: `strikeTarget`) */
+  open: boolean;
 }
 
 export interface MarketEntry {

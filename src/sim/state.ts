@@ -426,6 +426,7 @@ export function placeBuilding(
     producedThisMonth: {},
     // fully staffed until the next monthly workforce recompute
     staffing: 1,
+    strike: null,
   };
   state.buildings[building.id] = building;
   invalidateSpatial(state);

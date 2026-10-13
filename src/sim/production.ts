@@ -5,6 +5,7 @@ import { notePoliticsSale } from './politics/factions';
 import { playerBuildingUpkeep, SMOG_LIMIT_FACTOR, smogLimited } from './politics/mayorEdicts';
 import { growthPenalty, PROTEST_FACTOR } from './society/tiers';
 import { protestedBuildings } from './society/escalation';
+import { SLOWDOWN_FACTOR, slowedBuildings, strikeActive } from './society/strikeState';
 import { companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
@@ -58,8 +59,19 @@ export function productionDay(ctx: SimContext): void {
   const limited = smogLimited(state);
   // smog protests (tier 3+) slow the player's polluters in the town's zone (society/escalation.ts)
   const protested = protestedBuildings(state);
+  // a go-slow (workers' opinion below 30) in the town a works hires from (society/strikeState.ts)
+  const slowed = slowedBuildings(state);
+  const today = dateToDays(state.date);
   for (const b of Object.values(state.buildings)) {
     const def = BUILDINGS[b.typeId];
+    // a striking works produces nothing; the strike is cleared on the day it ends (society/strikes.ts)
+    if (b.strike) {
+      if (strikeActive(b.strike, today)) {
+        b.status = 'halted';
+        continue;
+      }
+      b.strike = null;
+    }
     if (b.haltedUntil) {
       if (compareDates(b.haltedUntil, state.date) > 0) {
         b.status = 'halted';
@@ -73,7 +85,7 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     const outs = Object.keys(recipe.outputs);
-    const rate = b.staffing * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1);
+    const rate = b.staffing * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;

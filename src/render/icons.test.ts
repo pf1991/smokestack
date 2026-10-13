@@ -7,7 +7,7 @@ import { drawIcon, ICON_IDS, iconDataUrl } from './icons';
 
 const UI_GLYPHS = [
   'close', 'lock', 'truck', 'train', 'money', 'warning', 'star', 'route',
-  'factory', 'city', 'news', 'smog', 'play', 'pause', 'fast', 'permit', 'toll', 'wage', 'protest',
+  'factory', 'city', 'news', 'smog', 'play', 'pause', 'fast', 'permit', 'toll', 'wage', 'protest', 'strike',
 ];
 
 /** A context that records every method call and accepts any property write. */

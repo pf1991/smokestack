@@ -9,6 +9,8 @@ import { createGame } from './sim/state';
 import type { SmogTier, Speed } from './sim/types';
 import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
 import { autoResolve, forceCard } from './sim/politics/cards';
+import { workCity } from './sim/politics/workforce';
+import { startStrike } from './sim/society/strikes';
 
 /**
  * Bootstrap: the game starts at the main menu. Debug URL parameters skip the menu and start a game
@@ -29,6 +31,7 @@ import { autoResolve, forceCard } from './sim/politics/cards';
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
  *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
  *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
+ *  - `strike=<buildingId>` (dev) start a strike at that building and centre the view on it
  *  - `card=<id>` (dev) open event card `<id>` on load (data/cards/), whatever its era or trigger
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
  *  - `fps=1` (dev) after a 3 s warm-up, average the requestAnimationFrame rate over 5 s and put it
@@ -79,6 +82,18 @@ if (debugStart) {
   const skipYears = Number(params.get('skipYears'));
   if (import.meta.env.DEV && params.has('skipYears') && Number.isFinite(skipYears) && skipYears > 0) {
     runDays(setup, Math.floor(skipYears) * 360);
+  }
+  // `strike=<buildingId>` starts a strike at that building today (its card opens; `cards=0` answers it
+  // "Wait it out", so the strike stays on) and centres the view on it, for screenshots
+  const strikeParam = Number(params.get('strike'));
+  if (import.meta.env.DEV && params.has('strike') && Number.isInteger(strikeParam)) {
+    const b = state.buildings[strikeParam];
+    const city = b ? (workCity(state, b) ?? state.cities[0]) : undefined;
+    if (b && city) {
+      startStrike(setup, b, city);
+      const size = BUILDINGS[b.typeId].size;
+      focus = { x: Math.round(b.pos.x + size.w / 2), y: Math.round(b.pos.y + size.h / 2) };
+    }
   }
   const cardParam = params.get('card');
   // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen

@@ -3,6 +3,7 @@ import { companyIds } from './companies';
 import { POP_CAP } from './market';
 import { POLLUTION_CAP } from './pollution';
 import { footprint } from './state';
+import { STRIKE_MAX_DAYS } from './society/strikeState';
 import type { GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
@@ -42,6 +43,12 @@ export function checkInvariants(state: GameState): string[] {
   for (const b of Object.values(state.buildings)) {
     const s = b.staffing;
     if (typeof s !== 'number' || !Number.isFinite(s) || s < 0 || s > 1) out.push(`building ${b.id}: staffing ${s} outside [0, 1]`);
+    const k = b.strike;
+    if (k) {
+      const ok = Number.isInteger(k.until) && Number.isInteger(k.since) && k.until > k.since && k.until - k.since <= STRIKE_MAX_DAYS
+        && typeof k.reason === 'string' && k.reason.length > 0 && typeof k.open === 'boolean' && state.cities.some((c) => c.id === k.cityId);
+      if (!ok) out.push(`building ${b.id}: bad strike ${JSON.stringify(k)}`);
+    }
     for (const t of footprint(b)) {
       if (t.x < 0 || t.y < 0 || t.x >= map.width || t.y >= map.height) {
         out.push(`building ${b.id}: footprint tile (${t.x},${t.y}) out of bounds`);

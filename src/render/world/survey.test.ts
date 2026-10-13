@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/events';
-import { testState } from '../../sim/testkit';
+import { must, testCtx, testState } from '../../sim/testkit';
+import { placeBuilding } from '../../sim/state';
+import { dateToDays } from '../../sim/clock';
 import { WorldRenderer } from './index';
 import { FACTIONS } from '../../data/factions';
-import { CityLabelCache, UrbanWatch, drawCityLabels } from './survey';
+import { CityLabelCache, UrbanWatch, drawCityLabels, drawSurveySymbols } from './survey';
 
 /** A canvas whose 2D context accepts every call, so the renderer can be built under jsdom. */
 function fakeCanvas(): HTMLCanvasElement {
@@ -104,5 +106,26 @@ describe('city label protest fist', () => {
     state.cities[0].smog.tier = 3;
     drawCityLabels(g, state, cam, 1, hud, cache);
     expect(texts).toHaveLength(2);
+  });
+});
+
+describe('survey strike placard', () => {
+  it('draws the strike glyph over a striking works only', () => {
+    const ctx = testCtx(testState({ money: 1e6, cities: [{ x: 10, y: 10 }] }));
+    const b = must(placeBuilding(ctx, 'player', 'sawmill', { x: 20, y: 5 }));
+    const rects: number[] = [];
+    const props: Record<string | symbol, unknown> = {};
+    const g = new Proxy(props, {
+      get: (t, k) => (k in t ? t[k] : k === 'rect' ? () => rects.push(1) : () => undefined),
+      set: (t, k, v) => { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const r = { x0: 0, y0: 0, x1: 99, y1: 99 };
+    drawSurveySymbols(g, ctx.state, [b], r, new Map(), 0, 1);
+    expect(rects).toHaveLength(0);
+    const today = dateToDays(ctx.state.date);
+    b.strike = { until: today + 30, reason: 'Pay and hours', since: today, cityId: 0, open: false };
+    drawSurveySymbols(g, ctx.state, [b], r, new Map(), 0, 1);
+    // the placard: the board and its red stripe
+    expect(rects).toHaveLength(2);
   });
 });

@@ -23,6 +23,8 @@ export type GameEvent =
   /** an event card was answered (by the player or auto-resolved) */
   | { type: 'cardResolved'; cardId: string; uid: number }
   | { type: 'scandal'; cityId: number }
+  /** a strike began at the player's works `buildingId` (sim/society/strikes.ts) */
+  | { type: 'strike'; buildingId: number; cityId: number }
   | { type: 'gameOver'; reason: string }
   | { type: 'victory'; reason: string };
 

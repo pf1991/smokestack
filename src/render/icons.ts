@@ -478,6 +478,12 @@ const UI_PAINTERS: Record<string, Painter> = {
     line(g, [10.3, 3.4, 10.3, 6.2], C.ink, 0.8);
     rrect(g, 3.2, 6.4, 6.6, 2.6, 1.2, C.red);
   },
+  // picket placard on its stick (strikes: survey building symbols, sim/society/strikes.ts)
+  strike: (g) => {
+    bar(g, [8, 8.5, 8, 15], C.walnut, 1.8);
+    rect(g, 2, 1.5, 12, 7.5, C.paper);
+    rect(g, 3.6, 4.1, 8.8, 2.3, C.red, false);
+  },
   rain: (g) => {
     for (const x of [4.6, 8.2, 11.8]) bar(g, [x, 11, x - 1.2, 14.6], C.glass, 1.4);
     blob(g, [[4.8, 7, 3], [8.4, 4.8, 3.7], [11.6, 7.2, 2.9]], C.paperShade);

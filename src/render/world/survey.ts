@@ -1,6 +1,7 @@
 /**
  * Survey-regime overlays for the world renderer: the per-frame ink symbols drawn over the cached
- * survey chunks (owner-coloured building squares, vehicle dots, landmark map symbols), the
+ * survey chunks (owner-coloured building squares, a placard on striking works, vehicle dots,
+ * landmark map symbols), the
  * paper-friendly night grade, and the italic city names on the overlay canvas.
  */
 import { BUILDINGS } from '../../data/buildings';
@@ -10,6 +11,8 @@ import type { Building, City, GameState } from '../../sim/types';
 import { TILE, type Camera } from '../camera';
 import { LANDMARK_PX } from '../landmarks';
 import { drawIcon } from '../icons';
+import { dateToDays } from '../../sim/clock';
+import { strikeActive } from '../../sim/society/strikeState';
 import { ownerColor } from '../sprites';
 import { INK, PAPER, cityLabelFont, cityLabelSize } from '../survey';
 import type { Dir, TileRange } from './shared';
@@ -129,6 +132,7 @@ export function drawSurveySymbols(
   zoom: number,
 ): void {
   const px = 1 / zoom; // one screen px in world units
+  const today = dateToDays(state.date);
   g.save();
   const a0 = g.globalAlpha;
   g.lineJoin = 'miter';
@@ -148,6 +152,11 @@ export function drawSurveySymbols(
     g.strokeStyle = INK;
     g.lineWidth = 1.2 * px;
     g.strokeRect(x, y, w, h);
+    // a striking works carries a picket placard over its square (sim/society/strikes.ts)
+    if (b.strike && strikeActive(b.strike, today)) {
+      const size = Math.min(14 * px, Math.max(w, h) * 1.2);
+      drawIcon(g, 'strike', x + w / 2 - size / 2, y + h / 2 - size / 2, size);
+    }
   }
   // landmarks: a paper disc behind each symbol so it reads over the town tint
   const s = 13 * px;

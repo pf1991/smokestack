@@ -1,16 +1,18 @@
 /**
  * Small building blocks for card definitions: effect shorthands, conditions and the sim effects a
- * choice's `apply` may have (a demand modifier, a short halt, a news item). Opinion never moves here:
+ * choice's `apply` may have (a demand modifier, a short halt, a news item, scandal risk, a strike's
+ * resolution). Opinion never moves here:
  * it goes in a choice's `effects`, through adjustOpinion. Everything is deterministic (no rng needed).
  */
 import { BUILDINGS } from '../buildings';
 import type { FactionId } from '../factions';
 import type { LandmarkId } from '../landmarks';
-import { addDays, compareDates } from '../../sim/clock';
+import { addDays, compareDates, dateToDays } from '../../sim/clock';
 import { PLAYER_ID } from '../../sim/companies';
 import { pushModifier } from '../../sim/events';
 import { NEAR_MARGIN } from '../../sim/politics/factions';
 import { buildingsNear } from '../../sim/spatial';
+import { breakStrike, concedeStrike, waitOutStrike } from '../../sim/society/strikeState';
 import type { Building, GameState, GoodId, SimContext } from '../../sim/types';
 import { cityOf, type CardEffect } from './types';
 
@@ -51,3 +53,27 @@ export function haltNearestWorks(ctx: SimContext, cityId: number | null, days: n
 export function demand(ctx: SimContext, tag: string, good: GoodId | '*', cityId: number | null, factor: number, days: number): void {
   pushModifier(ctx, `card_${tag}`, good, cityId, factor, days);
 }
+
+/** Raises town `cityId`'s scandal risk by `risk` (nothing without a town). */
+export function scandalRisk(ctx: SimContext, cityId: number | null, risk: number): void {
+  const c = cityOf(ctx.state, cityId);
+  if (c) c.politics.scandalRisk += risk;
+}
+
+/** Days a broken strike lasts after the strikebreakers arrive. */
+export const BREAK_STRIKE_DAYS = 7;
+/** Scandal risk a broken strike adds in its town. */
+export const BREAK_STRIKE_RISK = 0.1;
+
+/**
+ * The strike cards' three resolutions (sim/society/strikes.ts), acting on the town's oldest strike
+ * with its card open (`strikeTarget`). Opinion goes in the choices' `effects`, not here.
+ */
+export const strikeResolution = {
+  concede: (ctx: SimContext, cityId: number | null) => concedeStrike(ctx.state, cityId),
+  wait: (ctx: SimContext, cityId: number | null) => waitOutStrike(ctx.state, cityId),
+  break: (ctx: SimContext, cityId: number | null) => {
+    breakStrike(ctx.state, cityId, dateToDays(ctx.state.date), BREAK_STRIKE_DAYS);
+    scandalRisk(ctx, cityId, BREAK_STRIKE_RISK);
+  },
+};

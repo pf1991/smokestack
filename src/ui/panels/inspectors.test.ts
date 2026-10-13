@@ -8,6 +8,8 @@ import { must, testCtx, testState } from '../../sim/testkit';
 import type { Building, SimContext } from '../../sim/types';
 import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
+import { startStrike } from '../../sim/society/strikes';
+import { addDays, formatDate } from '../../sim/clock';
 
 function host(ctx: SimContext) {
   const selections: unknown[] = [];
@@ -63,6 +65,20 @@ describe('building panel', () => {
     expect(text()).toContain('Staff 85% — short of hands in Ashford');
     PANELS.building.open(host(ctx) as never, remote.id);
     expect(text()).toContain('Staff 75% — remote works');
+  });
+
+  it('shows a strike as "On strike until <date> — <reason>" and a go-slow on the staffing row', () => {
+    const ctx = testCtx(testState({ width: 100, height: 40, money: 1e6, cities: [{ x: 10, y: 20, population: 6000, name: 'Ashford' }] }));
+    const b = place(ctx, 'sawmill', 30, 20);
+    ctx.state.cities[0].opinion.workers = 20;
+    startStrike(ctx, b, ctx.state.cities[0]);
+    const s = b.strike!;
+    s.until = s.since + 45;
+    s.reason = 'Pay and hours';
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(document.querySelector('.insp-reason')!.textContent).toBe(`On strike until ${formatDate(addDays(ctx.state.date, 45))} — Pay and hours`);
+    expect(text()).toContain('On strike');
+    expect(document.querySelector('.insp-staff')!.textContent).toBe('Staff 100% — go-slow in Ashford (×0.9)');
   });
 
   it('hides the staffing row for stores and depots', () => {

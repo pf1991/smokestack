@@ -1,10 +1,10 @@
 /**
  * Cards opened by sim events rather than the spring draw. Election and scandal cards fire now
- * (sim/politics/elections.ts). Strike, disaster, crash and invention cards stay dormant until a
- * later phase calls `triggerCard` with their trigger: city cards need the town passed in, so a
- * strike or disaster with no town (cityId null) skips them.
+ * (sim/politics/elections.ts), strike cards since Phase 3 (sim/society/strikes.ts). Disaster, crash and
+ * invention cards stay dormant until a later phase calls `triggerCard` with their trigger: city cards
+ * need the town passed in, so a disaster with no town (cityId null) skips them.
  */
-import { city, DAYS_PER_MONTH, demand, haltNearestWorks, mayorIs, nation } from './helpers';
+import { city, DAYS_PER_MONTH, demand, haltNearestWorks, mayorIs, nation, strikeResolution } from './helpers';
 import { cityOf, type CardDef } from './types';
 
 const ANY: [number, number] = [1901, 2000];
@@ -337,7 +337,11 @@ export const CRASH_CARDS: readonly CardDef[] = [
   },
 ];
 
-/** Dormant until Phase 3 triggers 'strike' with the struck works' town. */
+/**
+ * Opened by sim/society/strikes.ts when a works strikes, with the struck works' town. Each card
+ * resolves the town's oldest open strike (`strikeResolution`, cards/helpers.ts): Concede ends it now,
+ * Wait it out (free, the default) lets it run, Break it ends it in 7 days and raises scandal risk.
+ */
 export const STRIKE_CARDS: readonly CardDef[] = [
   {
     id: 'walkout',
@@ -349,17 +353,23 @@ export const STRIKE_CARDS: readonly CardDef[] = [
     cooldownYears: 0,
     needsCity: true,
     choices: [
-      { label: 'Meet their demands', cost: 10000, effects: [city('workers', 12), city('oldmoney', -8)] },
-      { label: 'Bring in strikebreakers', cost: 5000, effects: [city('workers', -15), city('oldmoney', 8), city('church', -5)] },
       {
-        label: 'Wait them out',
-        cost: 0,
-        effects: [city('workers', -6)],
-        apply: (ctx, cityId) => haltNearestWorks(ctx, cityId, 30),
-        note: 'Your nearest works here halts for a month',
+        label: 'Concede: meet their demands',
+        cost: 10000,
+        effects: [city('workers', 8)],
+        apply: strikeResolution.concede,
+        note: 'The strike ends now',
+      },
+      { label: 'Wait it out', cost: 0, effects: [], apply: strikeResolution.wait, note: 'The strike runs its course' },
+      {
+        label: 'Break it: bring in strikebreakers',
+        cost: 5000,
+        effects: [city('workers', -12), city('oldmoney', 4)],
+        apply: strikeResolution.break,
+        note: 'The strike ends in 7 days; scandal risk +10%',
       },
     ],
-    defaultChoice: 2,
+    defaultChoice: 1,
   },
   {
     id: 'sympathy_strike',
@@ -371,15 +381,21 @@ export const STRIKE_CARDS: readonly CardDef[] = [
     cooldownYears: 0,
     needsCity: true,
     choices: [
-      { label: 'Offer arbitration', cost: 3000, effects: [city('workers', 6), city('church', 4), city('oldmoney', -3)] },
       {
-        label: 'Lock them out',
-        cost: 0,
-        effects: [city('workers', -10), city('oldmoney', 6)],
-        apply: (ctx, cityId) => haltNearestWorks(ctx, cityId, 14),
-        note: 'Your nearest works here halts for 14 days',
+        label: 'Concede: pay a solidarity bonus',
+        cost: 6000,
+        effects: [city('workers', 8)],
+        apply: strikeResolution.concede,
+        note: 'The strike ends now',
       },
-      { label: 'Pay a solidarity bonus', cost: 6000, effects: [city('workers', 10), city('oldmoney', -6)] },
+      { label: 'Wait it out', cost: 0, effects: [], apply: strikeResolution.wait, note: 'The strike runs its course' },
+      {
+        label: 'Break it: lock them out',
+        cost: 3000,
+        effects: [city('workers', -12), city('oldmoney', 4)],
+        apply: strikeResolution.break,
+        note: 'The strike ends in 7 days; scandal risk +10%',
+      },
     ],
     defaultChoice: 1,
   },
