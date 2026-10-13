@@ -33,15 +33,15 @@ function lawCard(id: LawId, title: string, body: string): CardDef {
     cooldownYears: 0,
     needsCity: false,
     choices: [
-      { label: 'Comply', cost: 0, effects: [nation('reformers', 2)], note: `Fines start now for works below scrubber tier ${LAWS[id].tier}` },
+      { label: 'Comply', cost: 0, effects: [nation('reformers', 2)], note: `Fines start when the law passes, for works below scrubber tier ${LAWS[id].tier}` },
       {
         label: 'Lobby for delay',
         cost: 9000,
         effects: [nation('reformers', -5), nation('oldmoney', 3)],
         apply: lobby(id),
-        note: 'Fines start 24 months later (once). The papers may smell a scandal',
+        note: 'Delays the fines by 24 months (once per law). The papers may smell a scandal',
       },
-      { label: 'Praise it publicly', cost: 500, effects: [nation('reformers', 6)], note: 'Fines start now' },
+      { label: 'Praise it publicly', cost: 500, effects: [nation('reformers', 6)], note: 'Fines start when the law passes' },
     ],
     defaultChoice: 0,
   };

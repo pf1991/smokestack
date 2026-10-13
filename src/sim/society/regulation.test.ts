@@ -112,6 +112,27 @@ describe('fines', () => {
   });
 });
 
+describe('R-S7 and late starts', () => {
+  it('fines a building once, for the strictest enforced law', () => {
+    const ctx = world(1990);
+    steel(ctx);
+    const now = monthIndex(ctx.state.date);
+    for (const id of ['smoke_abatement', 'clean_air'] as const) ctx.state.society.laws[id] = { passed: 1989, enforcedFrom: now - 1, lobbied: false };
+    setSales(ctx, 1e6);
+    expect(monthlyFines(ctx.state)).toBe(6 * 400);
+  });
+
+  it('passes laws whose year is past silently, in force at once', () => {
+    const ctx = world(2000);
+    regulationMonth(ctx);
+    for (const id of LAW_IDS) {
+      expect(ctx.state.society.laws[id]).toEqual({ passed: LAWS[id].latest, enforcedFrom: monthIndex(ctx.state.date), lobbied: false });
+    }
+    expect(ctx.state.politics.cards.pending).toHaveLength(0);
+    expect(ctx.state.news.some((n) => n.kind === 'historic')).toBe(false);
+  });
+});
+
 describe('lobbying', () => {
   it('delays enforcement by 24 months, once', () => {
     const ctx = world(1925);

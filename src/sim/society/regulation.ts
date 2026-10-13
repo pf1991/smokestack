@@ -56,8 +56,15 @@ function lastMonthSales(state: GameState): number {
 export function monthlyFines(state: GameState): number {
   let total = 0;
   const index = priceIndex(state);
-  for (const id of enforcedLaws(state, monthIndex(state.date))) {
-    for (const b of nonCompliant(state, id)) total += BUILDINGS[b.typeId].pollution * FINE_RATE * index;
+  // R-S7: one fine per non-compliant building, for the strictest enforced law it fails
+  const enforced = enforcedLaws(state, monthIndex(state.date)).sort((a, b) => LAWS[b].tier - LAWS[a].tier);
+  const fined = new Set<number>();
+  for (const id of enforced) {
+    for (const b of nonCompliant(state, id)) {
+      if (fined.has(b.id)) continue;
+      fined.add(b.id);
+      total += BUILDINGS[b.typeId].pollution * FINE_RATE * index;
+    }
   }
   return Math.min(total, FINE_CAP_SHARE * lastMonthSales(state));
 }
@@ -70,6 +77,12 @@ export function regulationMonth(ctx: SimContext): void {
     const def = LAWS[id];
     const law = state.society.laws[id];
     if (law.passed !== null) continue;
+    if (year > def.latest) {
+      // a game or save that starts after the law's year: already in force, no card, no news
+      law.passed = def.latest;
+      law.enforcedFrom = monthIndex(state.date);
+      continue;
+    }
     const inWindow = year >= def.earliest && year <= def.latest;
     state.society.streak[id] = inWindow && level > def.trigger ? state.society.streak[id] + 1 : 0;
     if (state.society.streak[id] >= LAW_STREAK || year >= def.latest) passLaw(ctx, id);
