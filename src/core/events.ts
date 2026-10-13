@@ -20,6 +20,7 @@ export type GameEvent =
   | { type: 'contract'; contractId: number; status: 'offered' | 'active' | 'done' | 'failed' }
   | { type: 'landmarkBuilt'; cityId: number; id: LandmarkId }
   | { type: 'election'; cityId: number; winner: FactionId }
+  | { type: 'scandal'; cityId: number }
   | { type: 'gameOver'; reason: string }
   | { type: 'victory'; reason: string };
 

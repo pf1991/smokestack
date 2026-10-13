@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { unpackState } from '../../game/saves';
 import { FACTION_IDS, FACTIONS, type FactionId } from '../../data/factions';
 import { err } from '../../core/result';
+import { PLAYER_ID } from '../companies';
 import { migrateSave } from '../migrations';
 import { stateHash } from '../hash';
 import { checkInvariants } from '../invariants';
@@ -9,7 +10,7 @@ import { runDays } from '../simulation';
 import { createGame } from '../state';
 import { testCtx, testState } from '../testkit';
 import { EventBus, type GameEvent } from '../../core/events';
-import { drawWinner, electionsMonth, endorse, firstElection, holdElection, monthIndex, newCityPolitics, voteShares } from './elections';
+import { drawWinner, electionsMonth, endorse, firstElection, holdElection, monthIndex, newCityPolitics, paySlush, scandalMonth, slushCost, voteShares } from './elections';
 
 const fixtures = import.meta.glob('../__fixtures__/phase1.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const phase1 = Object.values(fixtures)[0];
@@ -223,5 +224,69 @@ describe('elections', () => {
     it('refuses an unknown city', () => {
       expect(endorse(at(6), 99, 'church').ok).toBe(false);
     });
+  });
+});
+
+describe('slush and scandals', () => {
+  it('slushCost: $5,000 in 1900, $9,000 in 1920', () => {
+    expect(slushCost(1900)).toBe(5000);
+    expect(slushCost(1920)).toBe(9000);
+  });
+
+  it('paySlush is refused without an endorsement and on the 4th use; paying raises the share', () => {
+    const ctx = town();
+    const c = ctx.state.cities[0];
+    ctx.state.companies[PLAYER_ID].money = 1_000_000;
+    expect(paySlush(ctx, c.id).ok).toBe(false);
+    c.politics.endorsed = 'church';
+    let prev = voteShares(c).church;
+    for (let i = 1; i <= 3; i++) {
+      const money = ctx.state.companies[PLAYER_ID].money;
+      expect(paySlush(ctx, c.id).ok).toBe(true);
+      expect(ctx.state.companies[PLAYER_ID].money).toBe(money - slushCost(ctx.state.date.year));
+      expect(c.politics.slush).toBe(i);
+      expect(c.politics.scandalRisk).toBeCloseTo(0.15 * i, 12);
+      const now = voteShares(c).church;
+      expect(now).toBeGreaterThan(prev);
+      prev = now;
+    }
+    expect(paySlush(ctx, c.id).ok).toBe(false);
+    expect(c.politics.slush).toBe(3);
+  });
+
+  it('paySlush is refused when unaffordable', () => {
+    const ctx = town();
+    ctx.state.cities[0].politics.endorsed = 'church';
+    ctx.state.companies[PLAYER_ID].money = 0;
+    expect(paySlush(ctx, 0).ok).toBe(false);
+    expect(ctx.state.cities[0].politics.slush).toBe(0);
+  });
+
+  it('risk decays by 0.01 a month when no scandal strikes', () => {
+    const ctx = town();
+    ctx.state.cities[0].politics.scandalRisk = 0.005;
+    scandalMonth(ctx);
+    expect(ctx.state.cities[0].politics.scandalRisk).toBe(0);
+  });
+
+  it('a forced risk of 1 triggers a scandal within a year: fine, opinion, reset, event', () => {
+    const ctx = town(3);
+    const events: GameEvent[] = [];
+    ctx.bus.on('scandal', (e) => events.push(e));
+    const c = ctx.state.cities[0];
+    const p = ctx.state.companies[PLAYER_ID];
+    p.money = 0;
+    const before = { ...c.opinion };
+    c.politics.scandalRisk = 1;
+    for (let i = 0; i < 12 && !events.length; i++) {
+      c.politics.scandalRisk = 1;
+      scandalMonth(ctx);
+    }
+    expect(events).toEqual([{ type: 'scandal', cityId: c.id }]);
+    expect(p.money).toBe(-2 * slushCost(ctx.state.date.year));
+    expect(c.opinion.reformers).toBeLessThan(before.reformers);
+    expect(c.opinion.church).toBeLessThan(before.church);
+    expect(c.politics.scandalRisk).toBe(0);
+    expect(ctx.state.news.at(-1)!.headline).toBe('BRIBERY SCANDAL ROCKS TOWN 0 CITY HALL');
   });
 });

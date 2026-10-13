@@ -9,8 +9,10 @@ import { err, ok, type Result } from '../../core/result';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { POLITICIANS } from '../../data/politicians';
 import { MONTHS_PER_YEAR } from '../clock';
+import { PLAYER_ID } from '../companies';
+import { canAfford, spend } from '../finance';
 import { publishNews } from '../news';
-import { pick, random } from '../rng';
+import { chance, pick, random } from '../rng';
 import type { City, GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CityPolitics } from './types';
@@ -122,4 +124,61 @@ export function endorse(ctx: SimContext, cityId: number, faction: FactionId): Re
   p.endorsed = faction;
   for (const f of FACTION_IDS) adjustOpinion(state, f, cityId, f === faction ? 5 : -3, 'Election endorsement');
   return ok();
+}
+
+export const SLUSH_RISK = 0.15;
+export const SCANDAL_CHANCE_PER_RISK = 0.1;
+export const SCANDAL_RISK_DECAY = 0.01;
+
+export function slushCost(year: number): number {
+  return Math.round((5000 * (1 + (year - 1900) / 25)) / 500) * 500;
+}
+
+/** Why slush cannot be paid in this city right now, or null. */
+export function slushBlocker(state: GameState, cityId: number): string | null {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city) return 'Unknown city';
+  const p = city.politics;
+  if (p.endorsed === null) return 'Endorse a faction first';
+  if (p.slush >= MAX_SLUSH) return `Slush already paid ${MAX_SLUSH} times this cycle`;
+  if (!canAfford(state.companies[PLAYER_ID], slushCost(state.date.year))) return 'Not enough money';
+  return null;
+}
+
+/** The endorsed faction's vote share now and after one more slush payment (a copy; state untouched). */
+export function slushOdds(city: City): { now: number; after: number } | null {
+  const f = city.politics.endorsed;
+  if (f === null) return null;
+  const copy = { ...city, politics: { ...city.politics, slush: Math.min(MAX_SLUSH, city.politics.slush + 1) } } as City;
+  return { now: voteShares(city)[f], after: voteShares(copy)[f] };
+}
+
+export function paySlush(ctx: SimContext, cityId: number): Result {
+  const { state } = ctx;
+  const why = slushBlocker(state, cityId);
+  if (why) return err(why);
+  const city = state.cities.find((c) => c.id === cityId)!;
+  spend(state.companies[PLAYER_ID], 'events', slushCost(state.date.year), state.date);
+  city.politics.slush += 1;
+  city.politics.scandalRisk += SLUSH_RISK;
+  return ok();
+}
+
+export function scandalMonth(ctx: SimContext): void {
+  const { state } = ctx;
+  for (const city of state.cities) {
+    const p = city.politics;
+    if (p.scandalRisk > 0 && chance(state, p.scandalRisk * SCANDAL_CHANCE_PER_RISK)) {
+      publishNews(ctx, 'politics', `BRIBERY SCANDAL ROCKS ${city.name.toUpperCase()} CITY HALL`, `Payments to the ${city.name} campaign have come to light.`);
+      adjustOpinion(state, 'reformers', city.id, -10, 'Bribery scandal');
+      adjustOpinion(state, 'church', city.id, -6, 'Bribery scandal');
+      adjustOpinion(state, 'reformers', 'national', -3, 'Bribery scandal');
+      // a consequence, not a purchase: charged even into debt
+      spend(state.companies[PLAYER_ID], 'events', 2 * slushCost(state.date.year), state.date);
+      p.scandalRisk = 0;
+      ctx.bus.emit({ type: 'scandal', cityId: city.id });
+    } else {
+      p.scandalRisk = Math.max(0, p.scandalRisk - SCANDAL_RISK_DECAY);
+    }
+  }
 }

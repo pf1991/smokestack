@@ -4,7 +4,7 @@
  */
 import type { SimSystem } from '../systems';
 import { edictsMonth } from './edicts';
-import { electionsMonth } from './elections';
+import { electionsMonth, scandalMonth } from './elections';
 import { factionsMonth, opinionHistoryYear } from './factions';
 import { housingMonth } from './housing';
 import { workforceMonth } from './workforce';
@@ -17,6 +17,7 @@ export const politicsSystem: SimSystem = {
     factionsMonth(ctx);
     housingMonth(ctx);
     electionsMonth(ctx);
+    scandalMonth(ctx);
   },
   onYear: opinionHistoryYear,
 };

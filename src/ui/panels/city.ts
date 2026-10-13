@@ -3,7 +3,7 @@ import { LANDMARKS, PHILANTHROPY_IDS, type PhilanthropyId } from '../../data/lan
 import { buyPhilanthropy, philanthropyBlocker } from '../../sim/politics/edicts';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
-import { endorse, ENDORSE_WINDOW, monthIndex } from '../../sim/politics/elections';
+import { endorse, ENDORSE_WINDOW, monthIndex, paySlush, slushBlocker, slushCost, slushOdds } from '../../sim/politics/elections';
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
 import { demandModifier } from '../../sim/production';
@@ -129,7 +129,18 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       view.update();
     },
   }, 'Endorse') as HTMLButtonElement;
-  const endorseRow = h('div', { class: 'insp-stat insp-endorse' }, h('span', { class: 'insp-label' }, 'Endorse'), h('span', null, endorseSel, ' ', endorseBtn));
+  const slushBtn = h('button', {
+    class: 'insp-slush-btn',
+    onClick: () => {
+      const r = paySlush(host.ctx, cityId);
+      host.ctx.bus.emit(r.ok
+        ? { type: 'toast', message: 'Slush paid. Keep it quiet.', tone: 'good' }
+        : { type: 'toast', message: r.error, tone: 'bad' });
+      view.update();
+    },
+  }, 'Slush') as HTMLButtonElement;
+  const slushInfo = h('span', { class: 'insp-slush-info' });
+  const endorseRow = h('div', { class: 'insp-stat insp-endorse' }, h('span', { class: 'insp-label' }, 'Endorse'), h('span', null, endorseSel, ' ', endorseBtn, ' ', slushBtn, ' ', slushInfo));
   const tbody = h('tbody');
   const rows = new KeyedList<GoodRow>(tbody, makeRow);
   const el = h(
@@ -181,6 +192,15 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         if (endorseSel.disabled !== done) endorseSel.disabled = endorseBtn.disabled = done;
         if (done && endorseSel.value !== pol.endorsed) endorseSel.value = pol.endorsed!;
         setText(endorseBtn, done ? 'Endorsed' : 'Endorse');
+        const odds = slushOdds(city);
+        const why = slushBlocker(state, city.id);
+        const cost = formatMoney(slushCost(year));
+        setText(slushBtn, `Slush ${cost}`);
+        if (slushBtn.disabled !== (why !== null)) slushBtn.disabled = why !== null;
+        const tip = why ?? `Pay ${cost} to tilt the vote. Raises scandal risk.`;
+        if (slushBtn.title !== tip) slushBtn.title = tip;
+        const pct = (x: number) => `${Math.round(x * 100)}%`;
+        setText(slushInfo, odds ? `Win odds ${pct(odds.now)} \u2192 ${pct(odds.after)} | Scandal risk: ${pct(pol.scandalRisk)}` : '');
       }
       setText(pop, formatNumber(city.population));
       const diff = city.population - city.prevPopulation;
