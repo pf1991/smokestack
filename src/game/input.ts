@@ -1,4 +1,4 @@
-import { clampCamera, screenToTile, screenToWorld, zoomAt } from '../render/camera';
+import { clampCamera, screenToTile, screenToWorld, setZoomTarget, stepZoom } from '../render/camera';
 import type { Camera } from '../render/constants';
 import type { GameMap, Speed, Vec2 } from '../sim/types';
 import type { ToolSpec } from '../ui/tools';
@@ -52,6 +52,8 @@ const PANEL_KEYS: Record<string, string> = { r: 'routes', f: 'finance', n: 'news
 /** screen pixels per millisecond for keyboard panning */
 const KEY_PAN_SPEED = 0.9;
 const WHEEL_STEP = 1.15;
+/** Manhattan screen px a left press must travel in Inspect before it becomes a pan. */
+export const DRAG_THRESHOLD_PX = 6;
 
 /** True when keyboard focus is in a text field, where game shortcuts must not fire. */
 export function isTyping(target: EventTarget | null): boolean {
@@ -69,6 +71,8 @@ export function isTyping(target: EventTarget | null): boolean {
 export class Input {
   private held = new Set<string>();
   private pan: { x: number; y: number; id: number; moved: boolean } | null = null;
+  /** an Inspect left press that has not yet moved far enough to be a pan */
+  private pending: { x: number; y: number; id: number; world: Vec2; tile: Vec2 } | null = null;
   private toolPointer: number | null = null;
   private readonly offs: (() => void)[] = [];
 
@@ -123,10 +127,35 @@ export class Input {
     }
   }
 
+  private inspecting(): boolean {
+    return this.host.activeToolKind === 'inspect' && !this.host.photoActive;
+  }
+
+  private setCursor(c: string): void {
+    this.canvas.style.cursor = c;
+  }
+
+  private startPan(x: number, y: number, id: number, moved = false): void {
+    this.pan = { x, y, id, moved };
+    this.setCursor('grabbing');
+  }
+
   private down(e: PointerEvent): void {
+    if (e.button === 0 && this.inspecting()) {
+      const p = this.local(e);
+      this.pending = {
+        x: e.clientX,
+        y: e.clientY,
+        id: e.pointerId,
+        world: screenToWorld(this.host.camera, p.x, p.y),
+        tile: this.tileOf(e),
+      };
+      this.capture(e.pointerId);
+      return;
+    }
     if (e.button === 1 || e.button === 2 || (e.button === 0 && this.host.photoActive)) {
       e.preventDefault();
-      this.pan = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+      this.startPan(e.clientX, e.clientY, e.pointerId);
       this.capture(e.pointerId);
       return;
     }
@@ -138,6 +167,12 @@ export class Input {
   }
 
   private move(e: PointerEvent): void {
+    if (this.pending && e.pointerId === this.pending.id) {
+      const pd = this.pending;
+      if (Math.abs(e.clientX - pd.x) + Math.abs(e.clientY - pd.y) < DRAG_THRESHOLD_PX) return;
+      this.pending = null;
+      this.startPan(pd.x, pd.y, pd.id, true);
+    }
     if (this.pan && e.pointerId === this.pan.id) {
       const cam = this.host.camera;
       if (Math.abs(e.clientX - this.pan.x) + Math.abs(e.clientY - this.pan.y) > 0) this.pan.moved = true;
@@ -149,15 +184,25 @@ export class Input {
       clampCamera(cam, this.host.map);
       return;
     }
+    this.setCursor(this.inspecting() || this.host.photoActive ? 'grab' : '');
     if (this.host.photoActive) return;
     const p = this.local(e);
     this.host.tools.pointerMove(this.tileOf(e), screenToWorld(this.host.camera, p.x, p.y));
   }
 
   private up(e: PointerEvent): void {
+    if (this.pending && e.pointerId === this.pending.id) {
+      const pd = this.pending;
+      this.pending = null;
+      if (e.type === 'pointercancel') return;
+      this.host.tools.pointerDown(pd.tile, pd.world);
+      this.host.tools.pointerUp(pd.tile);
+      return;
+    }
     if (this.pan && e.pointerId === this.pan.id) {
       const click = !this.pan.moved && e.button === 2;
       this.pan = null;
+      this.setCursor(this.inspecting() || this.host.photoActive ? 'grab' : '');
       if (click && this.host.activeToolKind === 'pickStop') this.host.tools.cancel();
       return;
     }
@@ -170,8 +215,8 @@ export class Input {
     e.preventDefault();
     if (e.deltaY === 0) return;
     const p = this.local(e);
-    zoomAt(this.host.camera, p.x, p.y, e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP);
-    clampCamera(this.host.camera, this.host.map);
+    const factor = e.ctrlKey ? Math.exp(-e.deltaY * 0.01) : e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP;
+    setZoomTarget(this.host.camera, p.x, p.y, factor);
   }
 
   private keyDown(e: KeyboardEvent): void {
@@ -209,6 +254,10 @@ export class Input {
 
   /** Applies held pan keys; call once per frame with the real elapsed milliseconds. */
   update(dtMs: number): void {
+    if (this.host.camera.zoomTarget !== undefined) {
+      stepZoom(this.host.camera, dtMs);
+      clampCamera(this.host.camera, this.host.map);
+    }
     if (this.held.size === 0) return;
     let dx = 0;
     let dy = 0;
