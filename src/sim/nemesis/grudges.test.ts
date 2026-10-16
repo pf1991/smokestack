@@ -7,7 +7,8 @@ import { runDays } from '../simulation';
 import { createGame, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Contract } from '../types';
-import { addGrudge, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, salesGrudges } from './grudges';
+import { netWorth } from '../rival/takeover';
+import { addGrudge, RIVALRY_SHARE, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, salesGrudges } from './grudges';
 
 function twoTowns() {
   return testCtx(testState({ width: 60, height: 30, money: 1e7, cities: [{ x: 10, y: 10, population: 6000 }, { x: 45, y: 15, population: 2000 }] }));
@@ -86,10 +87,52 @@ describe('grudge invariants', () => {
 describe('grudgesYear', () => {
   it(`decays every weight by ${GRUDGE_DECAY} and forgets those under 0.5`, () => {
     const ctx = twoTowns();
+    ctx.state.companies.rival.money = 1e12; // no rivalry grudge (see 'rivalry')
     addGrudge(ctx.state, 'undercut', 0, 5); // 10
     addGrudge(ctx.state, 'undercut', 0, 0.3); // 0.6 -> 0.48, dropped
     grudgesYear(ctx);
     expect(ctx.state.nemesis.grudges).toEqual([{ kind: 'undercut', weight: 8, year: 1900, cityId: 0 }]);
+  });
+});
+
+describe('rivalry', () => {
+  const worth = (ctx: ReturnType<typeof twoTowns>, player: number, baron: number) => {
+    ctx.state.companies.player.money = player;
+    ctx.state.companies.rival.money = baron;
+    expect(netWorth(ctx.state, 'player')).toBe(player);
+    expect(netWorth(ctx.state, 'rival')).toBe(baron);
+  };
+  const rivalries = (ctx: ReturnType<typeof twoTowns>) => ctx.state.nemesis.grudges.filter((g) => g.kind === 'rivalry').map((g) => g.weight);
+  it(`December: a player worth at least ${RIVALRY_SHARE} of the Baron adds a rivalry grudge, after the decay`, () => {
+    const ctx = twoTowns();
+    worth(ctx, 500_000, 1_000_000);
+    addGrudge(ctx.state, 'undercut', 0); // 2 -> 1.6
+    grudgesYear(ctx);
+    expect(ctx.state.nemesis.grudges).toEqual([
+      { kind: 'undercut', weight: 1.6, year: 1900, cityId: 0 },
+      { kind: 'rivalry', weight: GRUDGE_WEIGHTS.rivalry, year: 1900, cityId: null },
+    ]);
+  });
+  it('doubles once the player is worth more than the Baron', () => {
+    const ctx = twoTowns();
+    worth(ctx, 1_000_001, 1_000_000);
+    grudgesYear(ctx);
+    expect(rivalries(ctx)).toEqual([2 * GRUDGE_WEIGHTS.rivalry]);
+    const eq = twoTowns();
+    worth(eq, 1_000_000, 1_000_000);
+    grudgesYear(eq);
+    expect(rivalries(eq)).toEqual([GRUDGE_WEIGHTS.rivalry]);
+  });
+  it('none below half his worth, and none while he is out', () => {
+    const ctx = twoTowns();
+    worth(ctx, 499_999, 1_000_000);
+    grudgesYear(ctx);
+    expect(rivalries(ctx)).toEqual([]);
+    const out = twoTowns();
+    worth(out, 2_000_000, 1_000_000);
+    out.state.companies.rival.active = false;
+    grudgesYear(out);
+    expect(rivalries(out)).toEqual([]);
   });
 });
 

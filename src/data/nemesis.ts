@@ -42,4 +42,6 @@ export const GRUDGE_WEIGHTS: Record<GrudgeKind, number> = {
   city: 5,
   sabotage_exposed: 6,
   takeover_bid: 8,
+  /** each December the player's net worth is at least half the Baron's (Phase 4 fix round: a source needing no shared town) */
+  rivalry: 3,
 };

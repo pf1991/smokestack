@@ -13,7 +13,8 @@
 import { GRUDGE_WEIGHTS } from '../../data/nemesis';
 import { GOODS } from '../../data/goods';
 import { advanceHour } from '../clock';
-import { BARON_ID } from '../companies';
+import { BARON_ID, PLAYER_ID } from '../companies';
+import { netWorth } from '../rival/takeover';
 import { buildingsInCity } from '../state';
 import type { GameState, SimContext } from '../types';
 import { retaliateMonth } from './retaliation';
@@ -63,15 +64,32 @@ export function spendHeaviestGrudge(state: GameState): void {
   if (g) g.weight /= 2;
 }
 
+/** a player worth at least this share of the Baron's net worth earns a December rivalry grudge */
+export const RIVALRY_SHARE = 0.5;
+
 /**
- * Yearly: every grudge fades by GRUDGE_DECAY; those under GRUDGE_FORGET are forgotten. The year's
- * retaliation count starts again.
+ * December's rivalry grudge, needing no shared town: the player's net worth is at least RIVALRY_SHARE
+ * of the Baron's (scale 2 once it is above his). Only while he is active (addGrudge ignores him otherwise).
+ */
+export function rivalryGrudge(state: GameState): void {
+  if (!baronActive(state)) return;
+  const mine = netWorth(state, PLAYER_ID);
+  const his = netWorth(state, BARON_ID);
+  if (!(mine >= RIVALRY_SHARE * his)) return;
+  addGrudge(state, 'rivalry', null, mine > his ? 2 : 1);
+}
+
+/**
+ * Yearly (December, the nemesis year hook): every grudge fades by GRUDGE_DECAY and those under
+ * GRUDGE_FORGET are forgotten; then the rivalry grudge is added after the decay, so it enters at full
+ * weight. The year's retaliation count starts again.
  */
 export function grudgesYear(ctx: SimContext): void {
   const n = ctx.state.nemesis;
   n.actionsThisYear = 0;
   for (const g of n.grudges) g.weight *= GRUDGE_DECAY;
   n.grudges = n.grudges.filter((g) => g.weight >= GRUDGE_FORGET);
+  rivalryGrudge(ctx.state);
 }
 
 /**

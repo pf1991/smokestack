@@ -18,6 +18,7 @@ import {
   priceWars,
   PRICE_WAR_DAYS,
   PRICE_WAR_FACTOR,
+  POACH_COOLDOWN_MONTHS,
   RETALIATE_AT,
   RETALIATION_COST,
   retaliate,
@@ -61,6 +62,8 @@ function strikes(ctx: SimContext): { kind: RetaliationKind; at: number }[] {
 describe('retaliateMonth gates', () => {
   it(`never acts below RETALIATE_AT (${RETALIATE_AT})`, () => {
     const ctx = setup();
+    // a Baron far richer than the player collects no December rivalry grudge
+    ctx.state.companies.rival.money = 1e12;
     const seen = strikes(ctx);
     addGrudge(ctx.state, 'city', 0); // 5
     expect(grudgeTotal(ctx.state)).toBeLessThan(RETALIATE_AT);
@@ -228,6 +231,16 @@ describe('fund_opponent', () => {
     expect(ctx.state.nemesis.effects).toEqual([]);
   });
 
+  it("never backs the Baron's own circle, even when it likes the player least", () => {
+    const ctx = setup();
+    const city = ctx.state.cities[1];
+    city.politics.nextElection = monthIndex(ctx.state.date) + 5;
+    const lowest = FACTION_IDS.reduce((a, b) => (city.opinion[b] < city.opinion[a] ? b : a));
+    expect(lowest).toBe('baron');
+    expect(retaliate(ctx, 'fund_opponent')).toBe(true);
+    expect(city.politics.baronBacks).toBe('workers');
+  });
+
   it('a lapsed backing is cleared even without an election', () => {
     const ctx = setup();
     const city = ctx.state.cities[1];
@@ -242,15 +255,31 @@ describe('fund_opponent', () => {
 });
 
 describe('poach and smear', () => {
-  it('poach: the workers of a town the player hires from lose 6', () => {
+  it('poach: the workers of a town the player hires from lose 5', () => {
     const ctx = setup();
     expect(eligibleKinds(ctx)).not.toContain('poach');
     factory(ctx);
     expect(eligibleKinds(ctx)).toContain('poach');
     const w = ctx.state.cities[0].opinion.workers;
     expect(retaliate(ctx, 'poach')).toBe(true);
-    expect(ctx.state.cities[0].opinion.workers).toBe(w - 6);
-    expect(ctx.state.politics.log.at(-1)).toMatchObject({ faction: 'workers', scope: 0, delta: -6, reason: 'Smogsworth poaches your men' });
+    expect(ctx.state.cities[0].opinion.workers).toBe(w - 5);
+    expect(ctx.state.politics.log.at(-1)).toMatchObject({ faction: 'workers', scope: 0, delta: -5, reason: 'Smogsworth poaches your men' });
+  });
+
+  it(`poach: not again in the same town within ${POACH_COOLDOWN_MONTHS} months`, () => {
+    const ctx = setup();
+    factory(ctx);
+    expect(retaliate(ctx, 'poach')).toBe(true);
+    expect(ctx.state.nemesis.track.poached).toEqual({ 0: monthIndex(ctx.state.date) });
+    for (let i = 0; i < POACH_COOLDOWN_MONTHS - 1; i++) {
+      month(ctx);
+      expect(eligibleKinds(ctx)).not.toContain('poach');
+    }
+    const money = ctx.state.companies.rival.money;
+    expect(retaliate(ctx, 'poach')).toBe(false);
+    expect(ctx.state.companies.rival.money).toBe(money);
+    month(ctx);
+    expect(eligibleKinds(ctx)).toContain('poach');
   });
 
   it('smear: the faction that likes the player best loses 4 nationally', () => {
@@ -332,7 +361,10 @@ describe('every kind', () => {
   it('hostile_bid is never chosen yet (Task 8)', () => {
     const ctx = setup();
     expect(eligibleKinds(ctx)).not.toContain('hostile_bid');
+    feud(ctx, 40);
+    const before = JSON.stringify(ctx.state);
     expect(retaliate(ctx, 'hostile_bid')).toBe(false);
+    expect(JSON.stringify(ctx.state)).toBe(before);
   });
 
   it('an inactive Baron does nothing', () => {

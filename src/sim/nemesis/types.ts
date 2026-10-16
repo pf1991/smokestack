@@ -9,7 +9,7 @@ import { pick, type RngHolder } from '../rng';
 export const BARON_TRAIT_IDS = ['greedy', 'vindictive', 'showman', 'cunning'] as const;
 export type BaronTrait = (typeof BARON_TRAIT_IDS)[number];
 
-export type GrudgeKind = 'undercut' | 'contract' | 'shares' | 'city' | 'sabotage_exposed' | 'takeover_bid';
+export type GrudgeKind = 'undercut' | 'contract' | 'shares' | 'city' | 'sabotage_exposed' | 'takeover_bid' | 'rivalry';
 
 export interface Grudge {
   kind: GrudgeKind;
@@ -40,6 +40,8 @@ export interface NemesisTrack {
   cityYear: Record<string, number>;
   /** `<cityId>:<goodId>` pairs both the player and the Baron sold last month (price war targets), in city then catalog order */
   contested: string[];
+  /** per city id: the month index (year * 12 + month - 1) of the Baron's last poach there */
+  poached: Record<string, number>;
 }
 
 export interface NemesisState {
@@ -81,6 +83,6 @@ export function newNemesis(rng: RngHolder, contractsSeen: number[] = []): Nemesi
     effects: [],
     sabotageBanUntil: 0,
     succession: { done: false, year: null },
-    track: { contractsSeen: contractsSeen.slice(-CONTRACTS_SEEN_CAP), cityYear: {}, contested: [] },
+    track: { contractsSeen: contractsSeen.slice(-CONTRACTS_SEEN_CAP), cityYear: {}, contested: [], poached: {} },
   };
 }

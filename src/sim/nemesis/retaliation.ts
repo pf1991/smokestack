@@ -42,7 +42,9 @@ export const MAX_CHANCE = 0.6;
 
 export const PRICE_WAR_DAYS = 90;
 export const PRICE_WAR_FACTOR = 0.85;
-export const POACH_DELTA = -6;
+export const POACH_DELTA = -5;
+/** months before the Baron poaches in the same town again */
+export const POACH_COOLDOWN_MONTHS = 24;
 export const SMEAR_DELTA = -4;
 export const SABOTAGE_MIN_DAYS = 10;
 export const SABOTAGE_MAX_DAYS = 20;
@@ -95,7 +97,13 @@ function warTargets(state: GameState): { cityId: number; goodId: GoodId }[] {
   return out;
 }
 
-const poachTargets = (state: GameState): City[] => state.cities.filter((c) => playerHiresFrom(state, c.id));
+/** towns the player hires from where the Baron has not poached in the last POACH_COOLDOWN_MONTHS */
+function poachTargets(state: GameState): City[] {
+  const now = monthIndex(state.date);
+  // `?? {}`: a save written earlier in Phase 4 (already v7) has no poach record yet
+  const last = state.nemesis.track.poached ?? {};
+  return state.cities.filter((c) => (last[c.id] === undefined || now - last[c.id] >= POACH_COOLDOWN_MONTHS) && playerHiresFrom(state, c.id));
+}
 
 /** towns voting within the next 12 months that the Baron is not already funding in */
 function fundTargets(state: GameState): City[] {
@@ -118,7 +126,7 @@ function hasTarget(state: GameState, kind: RetaliationKind): boolean {
     case 'price_war':
       return warTargets(state).length > 0;
     case 'poach':
-      return state.cities.some((c) => playerHiresFrom(state, c.id));
+      return poachTargets(state).length > 0;
     case 'fund_opponent':
       return fundTargets(state).length > 0;
     case 'smear':
@@ -164,6 +172,8 @@ function cause(state: GameState, kind: GrudgeKind | null, cityId: number | null)
       return 'the exposure of his saboteurs';
     case 'takeover_bid':
       return 'your bid for his company';
+    case 'rivalry':
+      return 'your fortune rising to rival his own';
     default:
       return 'old slights';
   }
@@ -176,7 +186,7 @@ interface Strike {
   exposed?: boolean;
 }
 
-function apply(ctx: SimContext, kind: RetaliationKind): Strike | null {
+function apply(ctx: SimContext, kind: Exclude<RetaliationKind, 'hostile_bid'>): Strike {
   const { state } = ctx;
   const year = state.date.year;
   const today = dateToDays(state.date);
@@ -197,6 +207,7 @@ function apply(ctx: SimContext, kind: RetaliationKind): Strike | null {
     }
     case 'poach': {
       const city = pick(state, poachTargets(state));
+      (state.nemesis.track.poached ??= {})[city.id] = monthIndex(state.date);
       adjustOpinion(state, 'workers', city.id, POACH_DELTA, 'Smogsworth poaches your men');
       return {
         cityId: city.id,
@@ -206,8 +217,10 @@ function apply(ctx: SimContext, kind: RetaliationKind): Strike | null {
     }
     case 'fund_opponent': {
       const city = pick(state, fundTargets(state));
-      let faction: FactionId = FACTION_IDS[0];
-      for (const f of FACTION_IDS) if (city.opinion[f] < city.opinion[faction]) faction = f;
+      // never his own circle: he funds the player's least friendly other faction
+      const candidates = FACTION_IDS.filter((f) => f !== 'baron');
+      let faction: FactionId = candidates[0];
+      for (const f of candidates) if (city.opinion[f] < city.opinion[faction]) faction = f;
       city.politics.baronBacks = faction;
       const e = city.politics.nextElection;
       const untilDay = dateToDays({ year: Math.floor(e / MONTHS_PER_YEAR), month: (e % MONTHS_PER_YEAR) + 1, day: DAYS_PER_MONTH, hour: 0 });
@@ -241,8 +254,6 @@ function apply(ctx: SimContext, kind: RetaliationKind): Strike | null {
         exposed: chance(state, SABOTAGE_EXPOSE_CHANCE),
       };
     }
-    case 'hostile_bid':
-      return null;
   }
 }
 
@@ -268,13 +279,13 @@ function exposeSabotage(ctx: SimContext): void {
  */
 export function retaliate(ctx: SimContext, kind: RetaliationKind): boolean {
   const { state } = ctx;
-  if (!eligibleKinds(ctx).includes(kind)) return false;
+  // nothing is charged or spent unless the move can be applied
+  if (kind === 'hostile_bid' || !eligibleKinds(ctx).includes(kind)) return false;
   spend(state.companies[BARON_ID], 'events', costNow(state, kind), state.date);
   const g = heaviestGrudge(state);
   const why = cause(state, g?.kind ?? null, g?.cityId ?? null);
   spendHeaviestGrudge(state);
   const s = apply(ctx, kind);
-  if (!s) return false;
   publishNews(ctx, 'rival', s.headline, `${s.body} Smogsworth has not forgotten ${why}.`);
   if (s.exposed) exposeSabotage(ctx);
   const n = state.nemesis;
