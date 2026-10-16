@@ -68,6 +68,16 @@ export function supplyRatio(entry: MarketEntry | undefined): number {
   return entry.sold30 / entry.demand30;
 }
 
+/**
+ * A price war on one good in one town (nemesis/retaliation.ts): each round of the split, stores of
+ * `favoured` take 2 units where any other store takes 1, and every unit sells at `priceFactor` × price.
+ */
+export interface PriceWar {
+  favoured: OwnerId;
+  priceFactor: number;
+}
+
+/** `wars` holds the town's price wars by good (null, the common case, for none). */
 export function computeDailySales(
   city: City,
   stores: StoreStock[],
@@ -75,6 +85,7 @@ export function computeDailySales(
   demandMod: (goodId: GoodId) => number,
   dayOffset = 0,
   index = 1,
+  wars: Readonly<Partial<Record<GoodId, PriceWar>>> | null = null,
 ): Sale[] {
   const out: Sale[] = [];
   const goodIds = DEMAND_GOODS;
@@ -110,15 +121,17 @@ export function computeDailySales(
       const start = (((dayOffset + gi) % active.length) + active.length) % active.length;
       active = [...active.slice(start), ...active.slice(0, start)];
     }
+    const war = wars?.[goodId];
     while (units > 0 && active.length > 0) {
       for (const i of active) {
         if (units <= 0) break;
-        got[i]++;
-        units--;
+        const take = war && stores[i].ownerId === war.favoured ? Math.min(2, units, avail[i] - got[i]) : 1;
+        got[i] += take;
+        units -= take;
       }
       active = active.filter((i) => got[i] < avail[i]);
     }
-    const price = salePrice(goodId, supplyRatio(entry), index);
+    const price = salePrice(goodId, supplyRatio(entry), war ? index * war.priceFactor : index);
     let soldTotal = 0;
     stores.forEach((s, i) => {
       if (got[i] > 0) {

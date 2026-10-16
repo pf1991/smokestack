@@ -38,6 +38,8 @@ export interface NemesisTrack {
   contractsSeen: number[];
   /** per city id: the year of the last `city` grudge there (at most one per town per year) */
   cityYear: Record<string, number>;
+  /** `<cityId>:<goodId>` pairs both the player and the Baron sold last month (price war targets), in city then catalog order */
+  contested: string[];
 }
 
 export interface NemesisState {
@@ -50,6 +52,8 @@ export interface NemesisState {
   actionsThisYear: number;
   /** live timed effects (Task 2) */
   effects: RetaliationEffect[];
+  /** no sabotage before this dateToDays() day (set when one is exposed; 0 = none) */
+  sabotageBanUntil: number;
   succession: { done: boolean; year: number | null };
   track: NemesisTrack;
 }
@@ -75,7 +79,8 @@ export function newNemesis(rng: RngHolder, contractsSeen: number[] = []): Nemesi
     lastAction: null,
     actionsThisYear: 0,
     effects: [],
+    sabotageBanUntil: 0,
     succession: { done: false, year: null },
-    track: { contractsSeen: contractsSeen.slice(-CONTRACTS_SEEN_CAP), cityYear: {} },
+    track: { contractsSeen: contractsSeen.slice(-CONTRACTS_SEEN_CAP), cityYear: {}, contested: [] },
   };
 }

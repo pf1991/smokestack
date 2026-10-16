@@ -119,4 +119,6 @@ export interface CityPolitics {
   slush: number;
   scandalRisk: number;
   edicts: MayorEdictId[];
+  /** the faction the Baron funds in the coming election (nemesis/retaliation.ts fund_opponent); cleared by it */
+  baronBacks?: FactionId | null;
 }

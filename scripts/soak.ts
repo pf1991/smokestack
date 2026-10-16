@@ -26,6 +26,8 @@
  * upper and middle shares any town reached.
  * Phase 3 gate (years >= 100, ruling R-S12): smog tier >= 2 somewhere, a law passed, priceIndex 2000 in [14, 22], no NaN
  * in the smog field (Tile.pollution scanned yearly), player solvent.
+ * A seventh line reports the Baron's retaliation (Phase 4 Task 2): moves made (the `baronStrike` bus event) in
+ * all and by kind, his traits, and his grudge ledger at the end (count and total weight).
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
@@ -41,6 +43,7 @@ import { runDays } from '../src/sim/simulation';
 import { createGame } from '../src/sim/state';
 import { nationalBlackLung } from '../src/sim/society/escalation';
 import { assetAge, renewBuilding } from '../src/sim/society/aging';
+import { grudgeTotal } from '../src/sim/nemesis/grudges';
 
 const END_YEAR = 2001;
 
@@ -85,6 +88,12 @@ for (const seed of seeds) {
   ctx.bus.on('gameOver', (e) => (over = e.reason));
   let strikes = 0;
   ctx.bus.on('strike', () => strikes++);
+  const retaliations: Record<string, number> = {};
+  let retaliationTotal = 0;
+  ctx.bus.on('baronStrike', (e) => {
+    retaliations[e.kind] = (retaliations[e.kind] ?? 0) + 1;
+    retaliationTotal++;
+  });
   let slowMonths = 0;
   let strikeRiskMonths = 0;
   let minWorkers = 100;
@@ -182,6 +191,9 @@ for (const seed of seeds) {
   };
   console.log(
     `  economy ${seed}: priceIndex 2000 ${Number.isFinite(index2000) ? index2000.toFixed(2) : 'n/a'}, final ${idx.toFixed(2)} | real net worth (1900 $) player ${money(netWorth(state, 'player') / idx)}, baron ${money(netWorth(state, 'rival') / idx)} | avg building age player ${ages('player')}, baron ${ages('rival')}${renew ? ` | renewals ${renewals}` : ''}`,
+  );
+  console.log(
+    `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)})`,
   );
   if (years >= 100) {
     const gate: string[] = [];

@@ -7,6 +7,7 @@ import { growthPenalty, PROTEST_FACTOR } from './society/tiers';
 import { protestedBuildings } from './society/escalation';
 import { SLOWDOWN_FACTOR, slowedBuildings, strikeActive } from './society/strikeState';
 import { strikeOver } from './society/strikes';
+import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
@@ -124,7 +125,8 @@ export function retailDay(ctx: SimContext): void {
     const stores = storesByCity.get(city.id) ?? [];
     const stocks: StoreStock[] = stores.map((b) => ({ buildingId: b.id, ownerId: b.ownerId, stock: loadSource(b) }));
     const mod = (g: GoodId) => demandModifier(state, city.id, g);
-    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state));
+    // the Baron's price wars in this town (nemesis/retaliation.ts); null, allocation-free, when none
+    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state), priceWars(state, city.id));
     const soldByGood: Record<GoodId, number> = {};
     const soldStores = new Set<number>();
     for (const s of sales) {

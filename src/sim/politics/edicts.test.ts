@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_ACTIONS_PER_YEAR } from '../nemesis/retaliation';
 import { BUILDINGS } from '../../data/buildings';
 import { LANDMARKS } from '../../data/landmarks';
 import { LANDMARK_LAYER, landmarksMonth } from '../landmarks';
@@ -169,8 +170,10 @@ describe('company edicts', () => {
       ctx.state.politics.edicts = { ...edicts };
       for (let y = 0; y < 30; y++) {
         // this test is about edicts, not smog: keep every town's smog escalation clean (Phase 3
-        // tiers, ruling R-S4) by zeroing the smog level at every month end
+        // tiers, ruling R-S4) by zeroing the smog level at every month end, and keep the Baron's
+        // retaliation (Phase 4, nemesis/retaliation.ts: poaching, smears) out by spending his year's moves
         for (let m = 0; m < 12; m++) {
+          ctx.state.nemesis.actionsThisYear = MAX_ACTIONS_PER_YEAR;
           runDays(ctx, 30);
           for (const c of ctx.state.cities) c.smog = newCitySmog();
         }

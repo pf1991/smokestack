@@ -17,7 +17,7 @@ import { BARON_ID } from '../companies';
 import { buildingsInCity } from '../state';
 import type { GameState, SimContext } from '../types';
 import { retaliateMonth } from './retaliation';
-import { CONTRACTS_SEEN_CAP, type GrudgeKind } from './types';
+import { CONTRACTS_SEEN_CAP, type Grudge, type GrudgeKind } from './types';
 
 export const GRUDGE_CAP = 40;
 export const GRUDGE_DECAY = 0.8;
@@ -50,9 +50,26 @@ export function grudgeTotal(state: GameState): number {
   return sum;
 }
 
-/** Yearly: every grudge fades by GRUDGE_DECAY; those under GRUDGE_FORGET are forgotten. */
+/** The heaviest grudge (the oldest among equals), or null for an empty ledger. Read-only. */
+export function heaviestGrudge(state: GameState): Grudge | null {
+  let best: Grudge | null = null;
+  for (const g of state.nemesis.grudges) if (!best || g.weight > best.weight) best = g;
+  return best;
+}
+
+/** A retaliation spends the heaviest grudge: its weight halves (nemesis/retaliation.ts). */
+export function spendHeaviestGrudge(state: GameState): void {
+  const g = heaviestGrudge(state);
+  if (g) g.weight /= 2;
+}
+
+/**
+ * Yearly: every grudge fades by GRUDGE_DECAY; those under GRUDGE_FORGET are forgotten. The year's
+ * retaliation count starts again.
+ */
 export function grudgesYear(ctx: SimContext): void {
   const n = ctx.state.nemesis;
+  n.actionsThisYear = 0;
   for (const g of n.grudges) g.weight *= GRUDGE_DECAY;
   n.grudges = n.grudges.filter((g) => g.weight >= GRUDGE_FORGET);
 }
@@ -98,9 +115,28 @@ function contractGrudges(state: GameState): void {
   track.contractsSeen = finished.slice(-CONTRACTS_SEEN_CAP);
 }
 
-/** Daily hook: on the month's last day (after its retail), the sales grudges. */
+/**
+ * The month's contested `<cityId>:<goodId>` pairs (both the player and the Baron sold the good in the
+ * town), the price war's targets (nemesis/retaliation.ts). Empty while the Baron is out of the game.
+ */
+export function noteContested(state: GameState): void {
+  const out: string[] = [];
+  if (baronActive(state)) {
+    const goods = Object.keys(GOODS);
+    for (const city of state.cities) {
+      const s = state.politics.track.sales[city.id];
+      if (!s || !(s.baron > 0) || !(s.player > 0)) continue;
+      for (const g of goods) if (state.flags[`seller:${city.id}:${g}`] === 'both') out.push(`${city.id}:${g}`);
+    }
+  }
+  state.nemesis.track.contested = out;
+}
+
+/** Daily hook: on the month's last day (after its retail), the sales grudges and the contested goods. */
 export function nemesisDay(ctx: SimContext): void {
-  if (advanceHour(ctx.state.date).newMonth) salesGrudges(ctx.state);
+  if (!advanceHour(ctx.state.date).newMonth) return;
+  salesGrudges(ctx.state);
+  noteContested(ctx.state);
 }
 
 /** Monthly: the contract grudges, then the Baron's retaliation (Task 2). */
