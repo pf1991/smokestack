@@ -1,3 +1,4 @@
+import type { NemesisState } from './nemesis/types';
 import type { SocietyState } from '../data/laws';
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
@@ -330,6 +331,8 @@ export interface GameState {
   society: SocietyState;
   /** Phase 3 inflation (sim/society/economy.ts); added to old saves by the v6 migration at index 1 */
   economy: EconomyState;
+  /** Phase 4 the Baron as a person: traits, grudges, retaliation (sim/nemesis); added by the v7 migration */
+  nemesis: NemesisState;
 }
 
 /** The price level (sim/society/economy.ts). */

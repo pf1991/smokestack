@@ -1,0 +1,166 @@
+import { describe, expect, it } from 'vitest';
+import { GRUDGE_WEIGHTS } from '../../data/nemesis';
+import { checkInvariants } from '../invariants';
+import { notePoliticsSale } from '../politics/factions';
+import { recordSale } from '../scenarios';
+import { runDays } from '../simulation';
+import { createGame, placeBuilding } from '../state';
+import { must, testCtx, testState } from '../testkit';
+import type { Contract } from '../types';
+import { addGrudge, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, salesGrudges } from './grudges';
+
+function twoTowns() {
+  return testCtx(testState({ width: 60, height: 30, money: 1e7, cities: [{ x: 10, y: 10, population: 6000 }, { x: 45, y: 15, population: 2000 }] }));
+}
+
+/** Both companies sold coal in town 0 this month, at equal revenue (an undercut, not a rout). */
+function contestCoal(ctx: ReturnType<typeof twoTowns>): void {
+  recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'coal', qty: 5 });
+  recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'coal', qty: 5 });
+  notePoliticsSale(ctx.state, 'player', 0, 100);
+  notePoliticsSale(ctx.state, 'rival', 0, 100);
+}
+
+const contract = (id: number, cityId: number, status: Contract['status']): Contract => ({
+  id, cityId, goodId: 'coal', qty: 10, delivered: 10, deadline: { year: 1901, month: 1, day: 1, hour: 0 }, reward: 1000, status,
+});
+
+describe('nemesis state', () => {
+  it('a new game rolls 2 distinct traits for Baron Cornelius, with no grudges', () => {
+    const s = createGame({ seed: 7 });
+    expect(s.nemesis.traits).toHaveLength(2);
+    expect(new Set(s.nemesis.traits).size).toBe(2);
+    expect(s.nemesis.head).toEqual({ name: 'Baron Cornelius Smogsworth', born: 1852, generation: 1 });
+    expect(s.nemesis.grudges).toEqual([]);
+    expect(grudgeTotal(s)).toBe(0);
+    expect(checkInvariants(s)).toEqual([]);
+  });
+  it('the traits follow the seed', () => {
+    const rolls = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((seed) => createGame({ seed }).nemesis.traits.join(',')));
+    expect(rolls.size).toBeGreaterThan(1);
+    expect(createGame({ seed: 3 }).nemesis.traits).toEqual(createGame({ seed: 3 }).nemesis.traits);
+  });
+});
+
+describe('addGrudge', () => {
+  it('records the kind weight × scale, the year and the city', () => {
+    const ctx = twoTowns();
+    addGrudge(ctx.state, 'contract', 1);
+    addGrudge(ctx.state, 'shares', null, 0.5);
+    expect(ctx.state.nemesis.grudges).toEqual([
+      { kind: 'contract', weight: GRUDGE_WEIGHTS.contract, year: 1900, cityId: 1 },
+      { kind: 'shares', weight: GRUDGE_WEIGHTS.shares * 0.5, year: 1900, cityId: null },
+    ]);
+    expect(grudgeTotal(ctx.state)).toBe(3 + 2);
+  });
+  it(`caps the ledger at ${GRUDGE_CAP} by dropping the lightest grudge`, () => {
+    const ctx = twoTowns();
+    for (let i = 0; i < GRUDGE_CAP; i++) addGrudge(ctx.state, 'city', 0);
+    addGrudge(ctx.state, 'undercut', 0);
+    expect(ctx.state.nemesis.grudges).toHaveLength(GRUDGE_CAP);
+    expect(ctx.state.nemesis.grudges.some((g) => g.kind === 'undercut')).toBe(false);
+    addGrudge(ctx.state, 'takeover_bid', null);
+    expect(ctx.state.nemesis.grudges).toHaveLength(GRUDGE_CAP);
+    expect(ctx.state.nemesis.grudges.filter((g) => g.kind === 'takeover_bid')).toHaveLength(1);
+    expect(grudgeTotal(ctx.state)).toBe((GRUDGE_CAP - 1) * 5 + 8);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+  it('an inactive Baron collects no grudges', () => {
+    const ctx = twoTowns();
+    ctx.state.companies.rival.active = false;
+    addGrudge(ctx.state, 'city', 0);
+    expect(ctx.state.nemesis.grudges).toEqual([]);
+  });
+});
+
+describe('grudge invariants', () => {
+  it('flag a weight that is not finite and > 0, and a ledger over the cap', () => {
+    const ctx = twoTowns();
+    ctx.state.nemesis.grudges.push({ kind: 'city', weight: NaN, year: 1900, cityId: 0 }, { kind: 'city', weight: 0, year: 1900, cityId: 0 });
+    for (let i = 0; i < GRUDGE_CAP; i++) ctx.state.nemesis.grudges.push({ kind: 'undercut', weight: 2, year: 1900, cityId: 0 });
+    const msgs = checkInvariants(ctx.state);
+    expect(msgs.filter((m) => m.startsWith('nemesis:'))).toHaveLength(3);
+  });
+});
+
+describe('grudgesYear', () => {
+  it(`decays every weight by ${GRUDGE_DECAY} and forgets those under 0.5`, () => {
+    const ctx = twoTowns();
+    addGrudge(ctx.state, 'undercut', 0, 5); // 10
+    addGrudge(ctx.state, 'undercut', 0, 0.3); // 0.6 -> 0.48, dropped
+    grudgesYear(ctx);
+    expect(ctx.state.nemesis.grudges).toEqual([{ kind: 'undercut', weight: 8, year: 1900, cityId: 0 }]);
+  });
+});
+
+describe('grudge causes', () => {
+  it('undercut: both sold a good in a town, once per town per month', () => {
+    const ctx = twoTowns();
+    contestCoal(ctx);
+    recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'lumber', qty: 5 });
+    recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'lumber', qty: 5 });
+    salesGrudges(ctx.state);
+    expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId])).toEqual([['undercut', 0]]);
+  });
+  it('city: the player outsells the Baron more than 2 to 1 in a town, once per town per year', () => {
+    const ctx = twoTowns();
+    notePoliticsSale(ctx.state, 'player', 1, 300);
+    notePoliticsSale(ctx.state, 'rival', 1, 100);
+    // a town the Baron does not sell in is no grudge, nor is a lead of exactly 2 to 1
+    notePoliticsSale(ctx.state, 'player', 0, 200);
+    salesGrudges(ctx.state);
+    expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId])).toEqual([['city', 1]]);
+    ctx.state.politics.track.sales = {};
+    notePoliticsSale(ctx.state, 'player', 1, 300);
+    notePoliticsSale(ctx.state, 'rival', 1, 100);
+    salesGrudges(ctx.state);
+    expect(ctx.state.nemesis.grudges).toHaveLength(1);
+    ctx.state.date.year = 1901;
+    salesGrudges(ctx.state);
+    expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId, g.year])).toEqual([['city', 1, 1900], ['city', 1, 1901]]);
+  });
+  it('city: a 2-to-1 lead exactly is not enough', () => {
+    const ctx = twoTowns();
+    notePoliticsSale(ctx.state, 'player', 0, 200);
+    notePoliticsSale(ctx.state, 'rival', 0, 100);
+    salesGrudges(ctx.state);
+    expect(ctx.state.nemesis.grudges).toEqual([]);
+  });
+  it('contract: a contract finished in a town where the Baron keeps a store, counted once', () => {
+    const ctx = twoTowns();
+    const store = must(placeBuilding(ctx, 'rival', 'store', { x: 12, y: 12 }));
+    expect(store.cityId).toBe(0);
+    ctx.state.contracts.push(contract(1, 0, 'done'), contract(2, 1, 'done'), contract(3, 0, 'failed'), contract(4, 0, 'active'));
+    nemesisMonth(ctx);
+    expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId])).toEqual([['contract', 0]]);
+    nemesisMonth(ctx);
+    expect(ctx.state.nemesis.grudges).toHaveLength(1);
+    ctx.state.contracts[3].status = 'done';
+    nemesisMonth(ctx);
+    expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId])).toEqual([['contract', 0], ['contract', 0]]);
+  });
+  it('an inactive Baron collects no grudges from any cause', () => {
+    const ctx = twoTowns();
+    ctx.state.companies.rival.active = false;
+    must(placeBuilding(ctx, 'rival', 'store', { x: 12, y: 12 }));
+    ctx.state.contracts.push(contract(1, 0, 'done'));
+    contestCoal(ctx);
+    notePoliticsSale(ctx.state, 'player', 1, 300);
+    notePoliticsSale(ctx.state, 'rival', 1, 100);
+    salesGrudges(ctx.state);
+    nemesisMonth(ctx);
+    expect(ctx.state.nemesis.grudges).toEqual([]);
+  });
+  it('in the running sim, a contested month adds one undercut grudge and a quiet month none', () => {
+    const ctx = twoTowns();
+    ctx.state.date = { year: 1900, month: 4, day: 30, hour: 0 };
+    contestCoal(ctx);
+    runDays(ctx, 1);
+    expect(ctx.state.date.month).toBe(5);
+    expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId])).toEqual([['undercut', 0]]);
+    // the month's seller flags and sales tallies are gone, so the next month adds nothing
+    runDays(ctx, 31);
+    expect(ctx.state.nemesis.grudges).toHaveLength(1);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+});

@@ -5,6 +5,7 @@ import { POLLUTION_CAP } from './pollution';
 import { footprint } from './state';
 import { STRIKE_MAX_DAYS } from './society/strikeState';
 import { classesValid } from './society/classes';
+import { GRUDGE_CAP } from './nemesis/grudges';
 import type { GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
@@ -89,6 +90,15 @@ export function checkInvariants(state: GameState): string[] {
   if (typeof w?.rain !== 'boolean') out.push(`weather: rain ${w?.rain} is not a boolean`);
   const rd = w?.rainDays;
   if (typeof rd !== 'number' || !Number.isFinite(rd) || rd < 0) out.push(`weather: rainDays ${rd} is not a finite number >= 0`);
+
+  const grudges = state.nemesis?.grudges;
+  if (!Array.isArray(grudges)) out.push('nemesis: grudges missing');
+  else {
+    if (grudges.length > GRUDGE_CAP) out.push(`nemesis: ${grudges.length} grudges, more than ${GRUDGE_CAP}`);
+    for (const g of grudges) {
+      if (typeof g.weight !== 'number' || !Number.isFinite(g.weight) || g.weight <= 0) out.push(`nemesis: ${g.kind} grudge weight ${g.weight} is not a finite number > 0`);
+    }
+  }
 
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {

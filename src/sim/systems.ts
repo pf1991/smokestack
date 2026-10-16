@@ -16,6 +16,7 @@ import { landmarksMonth } from './landmarks';
 import { politicsSystem } from './politics';
 import { companyLoanRate } from './politics/mayorEdicts';
 import { goalsMonth } from './scenarios';
+import { grudgesYear, nemesisDay, nemesisMonth } from './nemesis/grudges';
 import { companyIds } from './companies';
 import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
@@ -108,4 +109,7 @@ export const SYSTEMS: SimSystem[] = [
   // Phase 3 inflation: last, so every price charged this month used the month's index; finance (always
   // run last) then values the month-end net worth at the new index that next month's prices use
   { id: 'economy', onMonth: economyMonth },
+  // Phase 4 the Baron's grudge ledger. onDay reads the month's sales on its last day (goalsMonth and
+  // factionsMonth clear them during onMonth); onMonth adds contract grudges, then retaliates
+  { id: 'nemesis', onDay: nemesisDay, onMonth: nemesisMonth, onYear: grudgesYear },
 ];

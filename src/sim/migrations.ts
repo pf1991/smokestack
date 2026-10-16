@@ -10,6 +10,7 @@ import { newCitySmog } from './society/tiers';
 import { newCityClasses } from './society/classes';
 import { defaultEconomy } from './society/economy';
 import { layCityStreets, refreshUrbanTiles } from './state';
+import { newNemesis } from './nemesis/types';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
 
@@ -116,6 +117,23 @@ export const MIGRATIONS: Migration[] = [
       // inflation (Task 8): the index starts at 1 at load, whatever the year (past inflation is
       // unknown), so a late-year old save keeps its 1900 prices and inflates from here
       o.economy = defaultEconomy();
+    },
+  },
+  {
+    // v7: Phase 4 nemesis and dynasty. The founding Baron rolls his 2 traits from the save's rng and
+    // holds no grudges yet; contracts the save already finished count as seen, so they never become
+    // grudges. Later Phase 4 tasks extend this entry until the phase merges.
+    from: 6,
+    migrate(o) {
+      const rng = { rngState: typeof o.rngState === 'number' && Number.isFinite(o.rngState) ? o.rngState | 0 : 0 };
+      const seen: number[] = [];
+      if (Array.isArray(o.contracts)) {
+        for (const c of o.contracts as Record<string, unknown>[]) {
+          if ((c.status === 'done' || c.status === 'failed') && typeof c.id === 'number') seen.push(c.id);
+        }
+      }
+      o.nemesis = newNemesis(rng, seen);
+      o.rngState = rng.rngState;
     },
   },
 ];

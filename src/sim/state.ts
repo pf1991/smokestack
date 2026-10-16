@@ -22,6 +22,7 @@ import { LANDMARK_BLOCKED, LANDMARK_LAYER } from './landmarkTiles';
 import { layerAt } from './layers';
 import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
+import { newNemesis } from './nemesis/types';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
 import { TREE_COST } from './society/upgrades';
@@ -285,6 +286,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   const playerName = opts.companyName ?? pick(rng, COMPANY_NAMES);
   const rival = createCompany('rival', RIVAL_NAME);
   rival.active = opts.rival ?? true;
+  const nemesis = newNemesis(rng);
   const state: GameState = {
     version: SAVE_VERSION,
     seed: opts.seed,
@@ -312,6 +314,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     weather: defaultWeather(START_DATE.month),
     society: defaultSociety(),
     economy: defaultEconomy(),
+    nemesis,
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
