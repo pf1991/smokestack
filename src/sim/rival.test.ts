@@ -444,7 +444,7 @@ describe('rival railways', () => {
     const at = { x: blocker % s.map.width, y: Math.floor(blocker / s.map.width) };
     s.vehicles[id] = {
       id, kind: 'train', ownerId: 'player', routeId: null, pos: { ...at }, prevPos: { ...at }, path: [], pathIndex: 0,
-      stopIndex: 0, cargo: {}, capacity: 120, state: 'idle', waitTicks: 0, stuckNotified: false,
+      stopIndex: 0, cargo: {}, capacity: 120, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900,
     };
     s.companies.rival.money = 45000; // above the loan trigger, too little for the train
     for (let i = 0; i < MAX_STALL_MONTHS; i++) rivalMonth(ctx);

@@ -1,18 +1,23 @@
 /**
  * The politics window (Phase 2 Task 3): company edicts as segmented controls, national opinion of
- * each faction with a trend against the last yearly sample, and the latest political log entries.
+ * each faction with a trend against the last yearly sample, the national Black Lung toll (Phase 3
+ * smog escalation) and the latest political log entries.
  */
 import type { GameController } from '../../game/controller';
-import { BUILDINGS } from '../../data/buildings';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { PLAYER_ID } from '../../sim/companies';
 import { EDICT_KEYS, EDICTS, MAX_EDICT_DRIVE, maintenanceFactor, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
 import { playerBuildingUpkeep } from '../../sim/politics/mayorEdicts';
+import { buildingMaintenance } from '../../sim/society/upgrades';
 import { nationalOpinion, opinionTrend } from '../../sim/politics/factions';
+import { nationalBlackLung } from '../../sim/society/escalation';
+import { LAWS, LAW_IDS } from '../../data/laws';
+import { monthIndex } from '../../sim/politics/elections';
+import { nonCompliant } from '../../sim/society/lawState';
 import type { CompanyEdicts, PoliticsLogEntry } from '../../sim/politics/types';
 import type { GameState, SimContext } from '../../sim/types';
 import { h } from '../dom';
-import { formatMoney } from '../format';
+import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import { bar, type Bar, setText } from './inspect';
 import type { PanelDef } from './index';
@@ -36,7 +41,7 @@ export function effectsText(opt: EdictOption, year: number): string {
 /** The player's building upkeep before edicts, per month. */
 function baseUpkeep(state: GameState): number {
   let total = 0;
-  for (const b of Object.values(state.buildings)) if (b.ownerId === PLAYER_ID) total += BUILDINGS[b.typeId].maintenance;
+  for (const b of Object.values(state.buildings)) if (b.ownerId === PLAYER_ID) total += buildingMaintenance(state, b);
   return total;
 }
 
@@ -162,6 +167,21 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
       const tip = t === null ? 'Not enough history yet' : `Change since ${t.since}`;
       if (r.trend.title !== tip) r.trend.title = tip;
     }
+    const dead = nationalBlackLung(state);
+    setText(blackLung, dead > 0 ? `${formatNumber(dead)} dead of smog` : 'None yet');
+    const now = monthIndex(state.date);
+    for (const r of lawRows) {
+      const law = state.society.laws[r.id];
+      const def = LAWS[r.id];
+      let status = 'Pending';
+      if (law.passed !== null && law.enforcedFrom !== null) {
+        const f = law.enforcedFrom;
+        status = now >= f ? `Passed ${law.passed}` : `Passed ${law.passed}, enforced from ${MONTHS[f % 12]} ${Math.floor(f / 12)}`;
+      }
+      const n = law.passed !== null ? nonCompliant(state, r.id).length : 0;
+      setText(r.status, status);
+      setText(r.detail, `Needs scrubber tier ${def.tier}${law.passed !== null ? ` · ${n} of your works non-compliant` : ''}`);
+    }
     const entries = state.politics.log.slice(-LOG_SHOWN).reverse();
     const sig = `${state.politics.log.length}|${entries.map((e) => `${e.date.year}.${e.date.month}.${e.faction}.${e.delta}`).join(',')}`;
     if (log.dataset.sig !== sig) {
@@ -181,11 +201,17 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   };
   for (const k of EDICT_KEYS) controls.push(edictControl(ctx, k, update));
   const rows = FACTION_IDS.map(opinionRow);
+  const lawRows = LAW_IDS.map((id) => ({ id, status: h('span', { class: 'pol-law-status' }), detail: h('span', { class: 'pol-law-detail' }) }));
   const log = h('ul', { class: 'pol-log' });
+  const blackLung = h('span', { class: 'pol-blacklung-count' });
   const el = h('div', { class: 'pol' },
     h('div', { class: 'pol-section pol-edicts' }, h('div', { class: 'insp-label' }, 'Company edicts'), ...controls.map((c) => c.el),
       h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)),
     h('div', { class: 'pol-section pol-national' }, h('div', { class: 'insp-label' }, 'National opinion'), ...rows.map((r) => r.el)),
+    h('div', { class: 'pol-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
+      h('div', { class: 'insp-label' }, 'Black Lung toll'), blackLung),
+    h('div', { class: 'pol-section pol-laws' }, h('div', { class: 'insp-label' }, 'Law of the land'),
+      ...lawRows.map((r) => h('div', { class: 'pol-law', 'data-law': r.id }, h('strong', null, LAWS[r.id].title), ' ', r.status, h('div', null, r.detail)))),
     h('div', { class: 'pol-section pol-news' }, h('div', { class: 'insp-label' }, 'Recent political news'), log));
   update();
   return { el, update };

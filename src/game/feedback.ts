@@ -1,6 +1,7 @@
 /** Turns otherwise silent sim outcomes into toasts the player can act on. */
 import type { GameState, Route, SimContext } from '../sim/types';
 import { ACHIEVEMENTS } from './achievements';
+import { BUILDINGS } from '../data/buildings';
 import { formatMoney } from '../ui/format';
 import { crossedMilestone, showStamp } from '../ui/juice';
 
@@ -26,6 +27,25 @@ export function attachStuckToasts(ctx: SimContext, now: () => number = () => per
       type: 'toast',
       message: `Truck #${e.vehicleId} on ${name} is stuck — check its roads`,
       tone: 'bad',
+    });
+  });
+}
+
+/**
+ * A 'bad' toast when one of the player's works goes on strike (sim/society/strikes.ts); with
+ * `inspect`, the toast offers to open the works' inspector. Returns an unsubscribe.
+ */
+export function attachStrikeToasts(ctx: SimContext, inspect?: (buildingId: number) => void): () => void {
+  return ctx.bus.on('strike', (e) => {
+    const b = ctx.state.buildings[e.buildingId];
+    const city = ctx.state.cities.find((c) => c.id === e.cityId);
+    if (!b) return;
+    const name = BUILDINGS[b.typeId]?.name ?? 'works';
+    ctx.bus.emit({
+      type: 'toast',
+      message: `Strike! Your ${name}${city ? ` at ${city.name}` : ''} has downed tools`,
+      tone: 'bad',
+      ...(inspect ? { action: { label: 'Inspect', run: () => inspect(e.buildingId) } } : {}),
     });
   });
 }

@@ -458,6 +458,51 @@ const UI_PAINTERS: Record<string, Painter> = {
     rect(g, 4.5, 9.5, 7.5, 3.9, C.smoke, false);
     line(g, [5.5, 9.8, 8, 8.2], C.paperShade, 1);
   },
+  // a conifer on a trunk: the tree-planting tool
+  tree: (g) => {
+    rect(g, 7, 11.5, 2, 3.5, C.walnut);
+    poly(g, [8, 1.5, 13, 8, 3, 8], C.green);
+    poly(g, [8, 4.5, 14, 12, 2, 12], C.green);
+    line(g, [8, 6, 10.5, 9.5], C.paperShade, 0.8);
+  },
+  // a chimney capped by a filter box, a thin wisp above: smoke scrubbers
+  scrubber: (g) => {
+    rect(g, 6, 8, 4, 7, C.red);
+    rect(g, 4, 5, 8, 3.5, C.steel);
+    line(g, [5, 6.7, 11, 6.7], C.slate, 0.8);
+    blob(g, [[8.5, 2.8, 1.6]], C.paperShade);
+  },
+  // weather vane arrow, pointing east (the HUD rotates it to the wind)
+  wind: (g) => {
+    // fletching: two pairs of feathers swept back from the shaft
+    for (const x of [1.4, 4.4]) {
+      bar(g, [x, 4.2, x + 2.6, 8], C.brass, 1.4);
+      bar(g, [x, 11.8, x + 2.6, 8], C.brass, 1.4);
+    }
+    bar(g, [1.6, 8, 10, 8], C.brassLight, 2);
+    poly(g, [8.5, 3.5, 15, 8, 8.5, 12.5], C.brassLight);
+  },
+  // raised red fist (smog protests: survey city labels at tier 3+)
+  protest: (g) => {
+    rect(g, 6, 9.5, 4.4, 5.5, C.red);
+    rrect(g, 4, 3, 8.4, 7.2, 1.6, C.red);
+    // knuckle creases and the thumb across them
+    line(g, [6.1, 3.4, 6.1, 6.2], C.ink, 0.8);
+    line(g, [8.2, 3.4, 8.2, 6.2], C.ink, 0.8);
+    line(g, [10.3, 3.4, 10.3, 6.2], C.ink, 0.8);
+    rrect(g, 3.2, 6.4, 6.6, 2.6, 1.2, C.red);
+  },
+  // picket placard on its stick (strikes: survey building symbols, sim/society/strikes.ts)
+  strike: (g) => {
+    bar(g, [8, 8.5, 8, 15], C.walnut, 1.8);
+    rect(g, 2, 1.5, 12, 7.5, C.paper);
+    rect(g, 3.6, 4.1, 8.8, 2.3, C.red, false);
+  },
+  rain: (g) => {
+    for (const x of [4.6, 8.2, 11.8]) bar(g, [x, 11, x - 1.2, 14.6], C.glass, 1.4);
+    blob(g, [[4.8, 7, 3], [8.4, 4.8, 3.7], [11.6, 7.2, 2.9]], C.paperShade);
+    rect(g, 4.6, 6.6, 7.4, 3.4, C.paperShade, false);
+  },
   play: (g) => poly(g, [4.5, 2.5, 13, 8, 4.5, 13.5], C.brassLight),
   pause: (g) => {
     rect(g, 3.5, 2.5, 3.2, 11, C.brassLight);

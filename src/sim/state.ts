@@ -1,3 +1,5 @@
+import { defaultSociety } from '../data/laws';
+import { defaultEconomy, indexAtYear } from './society/economy';
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { BUILDINGS, HOUSING_RADIUS, type BuildingDef } from '../data/buildings';
@@ -8,6 +10,8 @@ import { START_DATE } from './clock';
 import { canAfford, createCompany, earn, spend } from './finance';
 import { SAVE_VERSION } from './version';
 import { defaultPolitics } from './politics/types';
+import { defaultWeather } from './weather';
+import { terrainChanged } from './terrainEpoch';
 import { monthIndex, newCityPolitics } from './politics/elections';
 import { housingFactory } from './politics/workforce';
 import { chooseMayorEdicts, placementQuote } from './politics/mayorEdicts';
@@ -19,11 +23,20 @@ import { layerAt } from './layers';
 import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
 import { SCENARIOS } from './scenarios';
+import { atPrices, priceIndex } from './society/economy';
+import { TREE_COST } from './society/upgrades';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
 
 export const ROAD_COST = 500;
 export const BRIDGE_COST = 3000;
 export const DEMOLITION_REFUND = 0.25;
+/** Monthly upkeep per owned road tile (1900 dollars). */
+export const ROAD_UPKEEP = 5;
+
+/** Price of one tile of road (or bridge over water) at today's prices, rounded. */
+export function roadTileCost(state: GameState, water: boolean): number {
+  return Math.round(atPrices(state, water ? BRIDGE_COST : ROAD_COST));
+}
 /** Purchase prices used for asset valuation (Task 14/27 own the TRUCK/TRAIN specs). */
 const VEHICLE_COST = { truck: 8000, train: 60000 } as const;
 const RIVAL_NAME = 'Smogsworth Consolidated';
@@ -155,6 +168,7 @@ export function layCityStreets(map: GameMap, city: City, landmarks?: readonly nu
   const r = urbanRadius(city.population);
   const { x: cx, y: cy } = city.center;
   const added: Vec2[] = [];
+  let cleared = false;
   for (let y = cy - r; y <= cy + r; y++) {
     for (let x = cx - r; x <= cx + r; x++) {
       const t = tileOf(map, x, y);
@@ -165,7 +179,10 @@ export function layCityStreets(map: GameMap, city: City, landmarks?: readonly nu
       // where discs overlap the nearer city owns the land (refreshUrbanTiles): one grid, not two
       if (t.cityId !== null && t.cityId !== city.id) continue;
       // settled land: towns clear their forest and hills so stores (grass/sand) fit
-      if (t.terrain === 'forest' || t.terrain === 'hills') t.terrain = 'grass';
+      if (t.terrain === 'forest' || t.terrain === 'hills') {
+        t.terrain = 'grass';
+        cleared = true;
+      }
       if ((x - cx) % 3 !== 0 && (y - cy) % 3 !== 0) continue;
       if (t.road) continue;
       t.road = true;
@@ -173,6 +190,7 @@ export function layCityStreets(map: GameMap, city: City, landmarks?: readonly nu
     }
   }
   if (added.length > 0) invalidatePaths(map);
+  if (cleared) terrainChanged(map);
   return added;
 }
 
@@ -291,11 +309,16 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     flags: {},
     layers: {},
     politics: defaultPolitics(),
+    weather: defaultWeather(START_DATE.month),
+    society: defaultSociety(),
+    economy: defaultEconomy(),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
     state.date.year = scenario.startYear;
     state.unlocked = unlockedAt(scenario.startYear);
+    // a later start begins at the prices inflation would have reached by then (Motor City: about 1.10)
+    state.economy = defaultEconomy(indexAtYear(scenario.startYear));
     state.companies.player.money = scenario.money;
     if (scenario.startYear >= 1910) state.flags.oilRevealed = true;
   }
@@ -418,6 +441,8 @@ export function placeBuilding(
     producedThisMonth: {},
     // fully staffed until the next monthly workforce recompute
     staffing: 1,
+    strike: null,
+    builtYear: state.date.year,
   };
   state.buildings[building.id] = building;
   invalidateSpatial(state);
@@ -479,13 +504,24 @@ export function findPlacement(
  * vehicle loading at a surviving stop, which moves on after its dwell. Vehicles on a route left with
  * fewer than 2 stops go `idle`. With `owner`, refuses other companies' buildings.
  */
+/** What demolishing `b` refunds: DEMOLITION_REFUND of its catalogue cost at today's prices. */
+export function demolitionRefund(state: GameState, b: Building): number {
+  return Math.round(atPrices(state, BUILDINGS[b.typeId].cost) * DEMOLITION_REFUND);
+}
+
 export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): Result {
   const { state } = ctx;
   const building = state.buildings[id];
   if (!building) return err('No such building');
   if (owner !== undefined && building.ownerId !== owner) return err('Not your building');
-  const def = BUILDINGS[building.typeId];
-  earn(state.companies[building.ownerId], 'demolition', def.cost * DEMOLITION_REFUND, state.date);
+  earn(state.companies[building.ownerId], 'demolition', demolitionRefund(state, building), state.date);
+  // a strike ends with its works: withdraw the strike card still waiting on it (as strikes.ts strikeOver)
+  const strikeUid = building.strike?.cardUid;
+  if (strikeUid !== null && strikeUid !== undefined) {
+    const pending = state.politics.cards.pending;
+    const at = pending.findIndex((c) => c.uid === strikeUid);
+    if (at >= 0) pending.splice(at, 1);
+  }
   for (const p of footprint(building)) {
     const t = state.map.tiles[p.y * state.map.width + p.x];
     if (t.buildingId === id) t.buildingId = null;
@@ -536,6 +572,8 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
   const seen = new Set<number>();
   const todo: Vec2[] = [];
   let cost = 0;
+  const road = roadTileCost(state, false);
+  const bridge = roadTileCost(state, true);
   for (const p of tiles) {
     const t = tileOf(map, p.x, p.y);
     if (!t || !Number.isInteger(p.x) || !Number.isInteger(p.y)) return err('Cannot build road there');
@@ -545,7 +583,7 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
     if (t.terrain === 'mountain' || t.buildingId !== null) return err('Cannot build road there');
     seen.add(i);
     todo.push({ x: p.x, y: p.y });
-    cost += t.terrain === 'water' ? BRIDGE_COST : ROAD_COST;
+    cost += t.terrain === 'water' ? bridge : road;
   }
   const company = state.companies[owner];
   if (!canAfford(company, cost)) return err('Not enough money');
@@ -605,12 +643,70 @@ export function removeRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resu
 }
 
 // ---------------------------------------------------------------------------
+// tree planting
+
+/** Why trees cannot be planted on tile (x, y), or null when they can (open grass only). */
+export function plantRefusal(state: GameState, x: number, y: number): string | null {
+  const t = tileOf(state.map, x, y);
+  if (!t || !Number.isInteger(x) || !Number.isInteger(y)) return 'Out of bounds';
+  if (layerAt(state, LANDMARK_LAYER, x, y) > 0) return LANDMARK_BLOCKED;
+  if (t.buildingId !== null) return 'Not under a building';
+  if (t.road || t.rail) return 'Not on roads or rail';
+  if (t.cityId !== null) return 'Town land is not for planting';
+  if (t.deposit !== null) return 'Not on a mineral deposit';
+  if (t.terrain === 'water') return 'Trees do not grow on water';
+  if (t.terrain !== 'grass') return 'Trees need open grass';
+  return null;
+}
+
+/** Price of planting `tiles` (forest already standing is skipped, free), or the first tile's refusal. */
+export function plantQuote(state: GameState, owner: OwnerId, tiles: Vec2[]): { tiles: Vec2[]; cost: number; error: string | null } {
+  const { map } = state;
+  const seen = new Set<number>();
+  const todo: Vec2[] = [];
+  const each = Math.round(TREE_COST * priceIndex(state));
+  for (const p of tiles) {
+    const t = tileOf(map, p.x, p.y);
+    if (t && t.terrain === 'forest' && t.cityId === null && t.buildingId === null) continue;
+    const refusal = plantRefusal(state, p.x, p.y);
+    if (refusal) return { tiles: todo, cost: todo.length * each, error: refusal };
+    const i = p.y * map.width + p.x;
+    if (seen.has(i)) continue;
+    seen.add(i);
+    todo.push({ x: p.x, y: p.y });
+  }
+  const cost = todo.length * each;
+  const company = state.companies[owner];
+  if (!company || !canAfford(company, cost)) return { tiles: todo, cost, error: 'Not enough money' };
+  return { tiles: todo, cost, error: null };
+}
+
+/**
+ * Plants forest on open grass tiles (TREE_COST × price index each, booked as 'construction').
+ * Atomic like buildRoad: any refused tile (town land, road, rail, building, deposit, landmark,
+ * water, other terrain) refuses the lot. Forest already standing is skipped for free. Reports the
+ * change through terrainChanged (smog decay classes) and a 'terrainChanged' event (the renderer).
+ */
+export function plantForest(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Result<{ planted: number; cost: number }> {
+  const { state } = ctx;
+  const q = plantQuote(state, owner, tiles);
+  if (q.error) return err(q.error);
+  if (q.tiles.length === 0) return ok({ planted: 0, cost: 0 });
+  const { map } = state;
+  for (const p of q.tiles) map.tiles[p.y * map.width + p.x].terrain = 'forest';
+  terrainChanged(map);
+  spend(state.companies[owner], 'construction', q.cost, state.date);
+  ctx.bus.emit({ type: 'terrainChanged', tiles: q.tiles });
+  return ok({ planted: q.tiles.length, cost: q.cost });
+}
+
+// ---------------------------------------------------------------------------
 // valuation
 
-/** Σ building cost × 0.5 + Σ vehicle purchase price × 0.5, rounded. */
+/** (Σ building cost × 0.5 + Σ vehicle purchase price × 0.5) at today's prices, rounded. */
 export function assetValue(state: GameState, owner: OwnerId): number {
   let v = 0;
   for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += BUILDINGS[b.typeId].cost * 0.5;
   for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += VEHICLE_COST[veh.kind] * 0.5;
-  return Math.round(v);
+  return Math.round(atPrices(state, v));
 }

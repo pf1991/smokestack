@@ -7,6 +7,8 @@ export type GameEvent =
   | { type: 'buildingRemoved'; buildingId: number }
   | { type: 'roadChanged'; tiles: Vec2[] }
   | { type: 'railChanged'; tiles: Vec2[] }
+  /** tiles whose terrain changed (trees planted: sim/state.ts plantForest) */
+  | { type: 'terrainChanged'; tiles: Vec2[] }
   | { type: 'ownershipChanged'; from: OwnerId; to: OwnerId }
   | { type: 'sale'; cityId: number; goodId: GoodId; qty: number; revenue: number; ownerId: OwnerId; buildingId: number }
   | { type: 'dayStart'; date: GameDate }
@@ -23,6 +25,8 @@ export type GameEvent =
   /** an event card was answered (by the player or auto-resolved) */
   | { type: 'cardResolved'; cardId: string; uid: number }
   | { type: 'scandal'; cityId: number }
+  /** a strike began at the player's works `buildingId` (sim/society/strikes.ts) */
+  | { type: 'strike'; buildingId: number; cityId: number }
   | { type: 'gameOver'; reason: string }
   | { type: 'victory'; reason: string };
 

@@ -1,7 +1,8 @@
 import type { Result } from '../../core/result';
 import type { GameController } from '../../game/controller';
 import { GOODS } from '../../data/goods';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, LOAN_STEP, monthProfit, repayLoan, takeLoan } from '../../sim/finance';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, loanStep, maxLoan, monthProfit, repayLoan, repayStep, takeLoan } from '../../sim/finance';
+import { inflationRate, priceIndex } from '../../sim/society/economy';
 import { loanRate } from '../../sim/politics/mayorEdicts';
 import { assetValue } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
@@ -23,6 +24,7 @@ const LABELS: Record<LedgerCategory, string> = {
   maintenance: 'Maintenance',
   vehicles: 'Vehicles',
   interest: 'Interest',
+  fines: 'Smoke fines',
 };
 // rows come from the sim's category lists, so the statement and monthProfit cannot drift apart
 const INCOME_CATS = INCOME_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
@@ -100,8 +102,13 @@ export const financePanel: PanelDef = {
       if (!res.ok) game.ctx.bus.emit({ type: 'toast', message: res.error, tone: 'bad' });
       update();
     };
-    const borrow = () => act((c) => takeLoan(c, LOAN_STEP));
-    const repay = () => act((c) => repayLoan(c, LOAN_STEP));
+    // loans are scaled by the price index when taken; the balance owed stays nominal
+    const borrow = () => act((c) => takeLoan(c, loanStep(priceIndex(game.state)), priceIndex(game.state)));
+    const repay = () => act((c) => repayLoan(c, repayStep(c, priceIndex(game.state)) || loanStep(priceIndex(game.state)), priceIndex(game.state)));
+    const borrowBtn = h('button', { type: 'button', class: 'btn', onClick: borrow });
+    const repayBtn = h('button', { type: 'button', class: 'btn', onClick: repay });
+    const indexInfo = h('div', { class: 'finance-index-info' });
+    const indexCanvas = h('canvas', { class: 'finance-chart finance-index-chart' }) as HTMLCanvasElement;
 
     const body = h(
       'div',
@@ -114,6 +121,9 @@ export const financePanel: PanelDef = {
       h('h3', null, 'Sales this year'),
       goodsEmpty,
       goodsCanvas,
+      h('h3', null, 'Prices'),
+      indexInfo,
+      indexCanvas,
       h('h3', null, 'Loans'),
       h(
         'div',
@@ -122,8 +132,8 @@ export const financePanel: PanelDef = {
         h(
           'div',
           { class: 'finance-loan-buttons' },
-          h('button', { type: 'button', class: 'btn', onClick: borrow }, `Borrow ${formatMoney(LOAN_STEP)}`),
-          h('button', { type: 'button', class: 'btn', onClick: repay }, `Repay ${formatMoney(LOAN_STEP)}`),
+          borrowBtn,
+          repayBtn,
         ),
       ),
     );
@@ -214,10 +224,31 @@ export const financePanel: PanelDef = {
       // the player's rate follows national Old Money opinion (sim/politics/mayorEdicts.ts)
       const rate = loanRate(state);
       const interest = Math.round((player.loan * rate) / 12);
+      const index = priceIndex(state);
       loanInfo.replaceChildren(
-        h('p', null, `Current loan: ${formatMoney(player.loan)}`),
+        h('p', null, `Current loan: ${formatMoney(player.loan)} (limit ${formatMoney(maxLoan(index))} at today's prices)`),
         h('p', null, `Monthly interest: ${formatMoney(interest)} (${(rate * 100).toFixed(1)}% a year, set by Old Money)`),
       );
+      borrowBtn.textContent = `Borrow ${formatMoney(loanStep(index))}`;
+      repayBtn.textContent = `Repay ${formatMoney(repayStep(player, index) || loanStep(index))}`;
+
+      // Price index (society/economy.ts): today's level and the last ten years of month ends.
+      const rateNow = inflationRate(state.date.year);
+      indexInfo.replaceChildren(
+        h('p', null, `Price index: ×${index.toFixed(2)} of 1900 prices (${rateNow >= 0 ? '+' : ''}${(rateNow * 100).toFixed(1)}% a year this decade)`),
+      );
+      const hist = state.economy.history;
+      indexCanvas.hidden = hist.length < 2;
+      if (hist.length >= 2) {
+        // history[i] is the index at the end of the month `hist.length - i` months before this one
+        const now = monthKey(state.date);
+        const histLabels = hist.map((_, i) => {
+          const k = now - (hist.length - i);
+          const year = Math.floor((k - 1) / 12);
+          return monthLabel({ year, month: k - year * 12 });
+        });
+        lineChart(indexCanvas, [{ label: 'Price index', color: cssColor('--brass', '#c9a227'), values: hist }], histLabels, (v) => `×${v.toFixed(v < 10 ? 2 : 1)}`);
+      }
     }
 
     update();

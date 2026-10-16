@@ -1,6 +1,7 @@
 /**
  * Survey-regime overlays for the world renderer: the per-frame ink symbols drawn over the cached
- * survey chunks (owner-coloured building squares, vehicle dots, landmark map symbols), the
+ * survey chunks (owner-coloured building squares, a placard on striking works, vehicle dots,
+ * landmark map symbols), the
  * paper-friendly night grade, and the italic city names on the overlay canvas.
  */
 import { BUILDINGS } from '../../data/buildings';
@@ -9,6 +10,9 @@ import type { LandmarkId } from '../../data/landmarks';
 import type { Building, City, GameState } from '../../sim/types';
 import { TILE, type Camera } from '../camera';
 import { LANDMARK_PX } from '../landmarks';
+import { drawIcon } from '../icons';
+import { dateToDays } from '../../sim/clock';
+import { strikeActive } from '../../sim/society/strikeState';
 import { ownerColor } from '../sprites';
 import { INK, PAPER, cityLabelFont, cityLabelSize } from '../survey';
 import type { Dir, TileRange } from './shared';
@@ -128,6 +132,7 @@ export function drawSurveySymbols(
   zoom: number,
 ): void {
   const px = 1 / zoom; // one screen px in world units
+  const today = dateToDays(state.date);
   g.save();
   const a0 = g.globalAlpha;
   g.lineJoin = 'miter';
@@ -147,6 +152,11 @@ export function drawSurveySymbols(
     g.strokeStyle = INK;
     g.lineWidth = 1.2 * px;
     g.strokeRect(x, y, w, h);
+    // a striking works carries a picket placard over its square (sim/society/strikes.ts)
+    if (b.strike && strikeActive(b.strike, today)) {
+      const size = Math.min(14 * px, Math.max(w, h) * 1.2);
+      drawIcon(g, 'strike', x + w / 2 - size / 2, y + h / 2 - size / 2, size);
+    }
   }
   // landmarks: a paper disc behind each symbol so it reads over the town tint
   const s = 13 * px;
@@ -277,7 +287,10 @@ export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: num
     if (sx < -200 || sy < -50 || sx > cam.viewW + 200 || sy > cam.viewH + 50) continue;
     g.font = l.font;
     if (l.width < 0) l.width = g.measureText(l.text).width + 8 + DOT_SPACE;
-    const box = { x: sx - l.width / 2, y: sy - l.size * 0.7, w: l.width, h: l.size * 1.4 };
+    // smog protests (tier 3+) put a red fist just after the name; the box covers it too, so the
+    // fist never lands under the HUD or another label
+    const fist = (l.city.smog?.tier ?? 0) >= 3 ? Math.round(l.size * 1.5) : 0;
+    const box = { x: sx - l.width / 2, y: sy - Math.max(l.size * 0.7, fist / 2), w: l.width + (fist > 0 ? fist + 2 : 0), h: Math.max(l.size * 1.4, fist) };
     if (avoid.some((a) => overlaps(a, box)) || placed.some((p) => overlaps(p, box))) continue;
     placed.push(box);
     g.strokeStyle = 'rgba(239,228,200,0.9)';
@@ -295,6 +308,7 @@ export function drawCityLabels(g: Ctx, state: GameState, cam: Camera, alpha: num
     g.strokeStyle = '#2e2418';
     g.lineWidth = 1;
     g.stroke();
+    if (fist > 0) drawIcon(g as CanvasRenderingContext2D, 'protest', sx + l.width / 2 + 2, sy - fist / 2, fist);
   }
   g.restore();
 }

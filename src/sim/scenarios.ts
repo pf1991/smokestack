@@ -1,5 +1,6 @@
 import { GOODS } from '../data/goods';
 import type { GameState, GoodId, SimContext } from './types';
+import { realMoney } from './society/economy';
 
 export type Goal =
   | { kind: 'money'; amount: number; byYear: number }
@@ -30,7 +31,7 @@ export const SCENARIOS: Record<string, ScenarioDef> = {
   lumber_baron: {
     id: 'lumber_baron',
     name: 'Lumber Baron',
-    blurb: 'Turn $300,000 into a million in cash before 1920.',
+    blurb: 'Turn $300,000 into a million in cash (in 1900 dollars) before 1920.',
     startYear: 1900,
     money: 300_000,
     rival: true,
@@ -78,7 +79,8 @@ function flagNum(state: GameState, key: string): number {
 function goalDone(state: GameState, g: Goal): boolean {
   switch (g.kind) {
     case 'money':
-      return state.companies.player.money >= g.amount;
+      // ruling R-S14: money goals are in 1900 dollars (cash / price index)
+      return realMoney(state, state.companies.player.money) >= g.amount;
     case 'sell':
       return flagNum(state, `sold:${g.goodId}`) >= g.qty;
     case 'takeover':
@@ -100,7 +102,7 @@ export function evaluateGoals(state: GameState, asOfYear: number = state.date.ye
 export function goalProgress(state: GameState, g: Goal): { label: string; value: number; target: number } {
   switch (g.kind) {
     case 'money':
-      return { label: `Hold $${g.amount.toLocaleString('en-US')} in cash`, value: state.companies.player.money, target: g.amount };
+      return { label: `Hold $${g.amount.toLocaleString('en-US')} in cash (in 1900 dollars)`, value: realMoney(state, state.companies.player.money), target: g.amount };
     case 'sell':
       return { label: `Sell ${g.qty.toLocaleString('en-US')} ${g.goodId}`, value: flagNum(state, `sold:${g.goodId}`), target: g.qty };
     case 'takeover':

@@ -1,8 +1,11 @@
 /**
  * World renderer: composes everything the player sees on the map canvas.
  *
- * Layer order: terrain → roads → houses → sun shadows → vehicles → buildings (y-sorted) → particles →
- * selection / route polyline → ghost → overlays → atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts).
+ * Layer order: terrain → roads → houses → sun shadows → vehicles → smog protesters (render/protesters.ts)
+ * → buildings (y-sorted, strike pickets interleaved by depth: render/protesters.ts) → particles →
+ * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
+ * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts) → overlay
+ * legends (screen space, unfiltered overlay canvas when attached).
  * Vehicles go under buildings: they never drive on a footprint, so the only overlap is a raised roof
  * or chimney in front of a road behind it, which must hide the vehicle.
  * Sun shadows (render/shadows.ts) are one path per frame, filled once: every house, landmark and
@@ -31,13 +34,16 @@ import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
 import { regimeBlend } from '../regime';
 import { ParticleSystem } from '../particles';
+import { SmogHaze } from '../smogHaze';
+import { drawPicketGroup, picketGroups, type PicketGroup, Protesters } from '../protesters';
 import { BUILD_MS, drawConstruction, constructionStage } from '../construction';
 import { drawLandmark, LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_PX } from '../landmarks';
 import { TiltShiftBudget, applyTiltShift, insetsFromRects, type ViewInsets } from '../tiltShift';
 import { MAX_CASTER_Z, MAX_SHADOW_LENGTH, SHADOW_COLOR, type SunVector, easeSun, shadowAlpha, targetSun, traceShadow } from '../shadows';
-import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier } from '../sprites';
+import { BUILDING_HEIGHT, HEADROOM, HOUSE_TIERS, buildingCasters, drawHouse, getBuildingSprite, houseCaster, houseStyle, houseTier, upgradeHeadroom } from '../sprites';
 import { CHUNK, TerrainRenderer, hash, isWinter } from '../terrain';
 import { chimneysOf, paintGardenTree } from './glows';
+import { scrubberEmission } from '../../sim/society/upgrades';
 import { drawNightLights } from './night';
 import { paintRailTile } from './rails';
 import { hasLamp, paintBridgeTile, paintRoadTile, roadEra, roadMask } from './roads';
@@ -147,6 +153,10 @@ export class WorldRenderer {
   private insets: ViewInsets = { top: 0, bottom: 0 };
   private insetsH = -1;
   private readonly tiltBudget = new TiltShiftBudget();
+  /** per-chunk smog haze, rebuilt once per game day for chunks in view */
+  private readonly haze = new SmogHaze();
+  /** smog protesters (towns at tier 3+), route cached per town per month */
+  private readonly protesters = new Protesters();
   /** keep the tilt-shift on even when frames are slow (DEV `tiltshift=1`, for screenshots) */
   forceTiltShift = false;
   private readonly labels = new CityLabelCache();
@@ -237,6 +247,11 @@ export class WorldRenderer {
         this.invalidate(e.tiles);
         // a spreading city also clears forest/hills between its new streets (see layCityStreets):
         // redraw terrain (both the diorama and survey surfaces) over the streets' bounding box + 1
+        this.terrain.invalidateAround(e.tiles);
+      }),
+      bus.on('terrainChanged', (e) => {
+        // planted forest: redraw the terrain surfaces (trees) and the road/house chunks over it
+        this.invalidate(e.tiles);
         this.terrain.invalidateAround(e.tiles);
       }),
       bus.on('railChanged', (e) => {
@@ -331,7 +346,9 @@ export class WorldRenderer {
     if (diorama) {
       this.drawShadows(ctx, state, r, light, blend);
       drawVehicles(ctx, this, state, r, alpha, dt, lit);
-      this.drawBuildings(ctx, visBuildings);
+      this.protesters.draw(ctx, state, r, nowMs);
+      // strike pickets at the gates of striking works, depth-sorted with the buildings (render/protesters.ts)
+      this.drawBuildings(ctx, visBuildings, picketGroups(state, visBuildings), nowMs);
     }
     // smoke (and sparks, puffs) are hidden on the map side of the blend
     const smoke = blend >= 0.5;
@@ -340,6 +357,8 @@ export class WorldRenderer {
 
     this.particles.update(dt);
     if (smoke) this.particles.draw(ctx, cam);
+    // smog veils the diorama (faded by the blend); the atmosphere grade below darkens it at night
+    if (diorama) this.haze.draw(ctx, state, cam, blend, nowMs);
 
     if (survey) {
       this.terrain.drawSurvey(ctx, cam, 1 - blend);
@@ -400,6 +419,17 @@ export class WorldRenderer {
       this.drawUi(o, state, cam, alpha, nowMs);
     }
     if (survey) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud, this.labels);
+    // overlay legends last, after every post effect (no night grade, no tilt-shift) and unfiltered
+    // when there is an overlay canvas; photo mode hides them with the rest of the UI
+    if (!this.uiHidden) {
+      const lc = this.overlay?.ctx ?? ctx;
+      for (const o of OVERLAYS) {
+        if (!o.enabled || !o.drawLegend) continue;
+        lc.save();
+        o.drawLegend(lc, state, cam);
+        lc.restore();
+      }
+    }
   }
 
   /**
@@ -554,8 +584,10 @@ export class WorldRenderer {
     if (h01(x, y, seed, 31) >= p) return null;
     const variant = hash(x, y, seed, 37) % HOUSE_VARIANTS;
     const litHouse = h01(x, y, seed, 41) < 0.72 ? 1 : 0;
-    // tier inputs (population, year) change only at month end, which invalidates every chunk
-    return [variant, litHouse, HOUSE_TIERS.indexOf(houseTier(city.population, this.state.date.year, d))];
+    // tier inputs (population, year, class mix) change only at month end, which invalidates every
+    // chunk; the per-tile pick spreads the class houses so districts mix
+    const tier = houseTier(city.population, this.state.date.year, d, city.classes, h01(x, y, seed, 43));
+    return [variant, litHouse, HOUSE_TIERS.indexOf(tier)];
   }
 
   /** The chunk's meta, recomputed if it was invalidated. */
@@ -756,7 +788,7 @@ export class WorldRenderer {
       // a building still rising casts a shadow that grows with its reveal
       const zk = this.revealOf(b.id);
       if (zk <= 0) continue;
-      for (const c of buildingCasters(b.typeId)) traceShadow(ctx, c, b.pos.x * TILE, b.pos.y * TILE, vx, vy, false, zk);
+      for (const c of buildingCasters(b.typeId, b.upgrades)) traceShadow(ctx, c, b.pos.x * TILE, b.pos.y * TILE, vx, vy, false, zk);
     }
     ctx.save();
     ctx.globalAlpha = k;
@@ -765,12 +797,20 @@ export class WorldRenderer {
     ctx.restore();
   }
 
-  private drawBuildings(ctx: CanvasRenderingContext2D, list: Building[]): void {
+  /**
+   * Buildings in y-sorted order (bottom row, then x), with the strike pickets interleaved: a picket
+   * group is drawn before the first building whose bottom row lies below the pickets' tiles.
+   */
+  private drawBuildings(ctx: CanvasRenderingContext2D, list: Building[], pickets: PicketGroup[] = [], nowMs = 0): void {
+    let pi = 0;
     for (const b of list) {
+      const bottom = b.pos.y + BUILDINGS[b.typeId].size.h;
+      while (pi < pickets.length && pickets[pi].depth < bottom) drawPicketGroup(ctx, pickets[pi++], nowMs);
       const variant = b.typeId === 'farm' && b.recipeId ? b.recipeId.replace(/^r_/, '') : '';
-      const sprite = getBuildingSprite(b.typeId, b.ownerId, variant);
+      const sprite = getBuildingSprite(b.typeId, b.ownerId, variant, b.upgrades);
       const x = b.pos.x * TILE;
-      const y = b.pos.y * TILE - HEADROOM;
+      // an upgraded sprite (tall chimney, scrubber) carries extra rows on top
+      const y = b.pos.y * TILE - HEADROOM - upgradeHeadroom(b.upgrades);
       const cs = this.constructing.get(b.id);
       if (cs) {
         const stage = constructionStage(performance.now() - cs.start);
@@ -784,7 +824,7 @@ export class WorldRenderer {
             }
           }
           // the scaffold rises to the raised roof, not to the top of the chimney headroom
-          const scaffoldH = sprite.height - HEADROOM + (BUILDING_HEIGHT[b.typeId] ?? 0) + 4;
+          const scaffoldH = sprite.height - upgradeHeadroom(b.upgrades) - HEADROOM + (BUILDING_HEIGHT[b.typeId] ?? 0) + 4;
           drawConstruction(ctx, sprite, x, y, sprite.width, sprite.height, stage, scaffoldH);
           continue;
         }
@@ -797,6 +837,7 @@ export class WorldRenderer {
         ctx.fillRect(b.pos.x * TILE, b.pos.y * TILE, def.size.w * TILE - 4, def.size.h * TILE - 4);
       }
     }
+    while (pi < pickets.length) drawPicketGroup(ctx, pickets[pi++], nowMs);
   }
 
   /** 0..1 how much of a live-placed building has been revealed (1 when not animating). */
@@ -819,12 +860,13 @@ export class WorldRenderer {
     const vy1 = cam.y + cam.viewH / cam.zoom + margin * 2;
     for (const id in state.buildings) {
       const b = state.buildings[id];
-      const density = b.status === 'ok' ? 1 : b.status === 'no_input' ? 0.15 : 0;
+      // a scrubbed stack smokes as much lighter as its emission factor (sim/society/upgrades.ts)
+      const density = (b.status === 'ok' ? 1 : b.status === 'no_input' ? 0.15 : 0) * scrubberEmission(b);
       if (density === 0 || this.isScaffolding(b.id)) continue;
       const bx = b.pos.x * TILE;
       const by = b.pos.y * TILE - HEADROOM;
       if (bx < vx0 || bx > vx1 || by < vy0 || by > vy1) continue;
-      for (const o of chimneysOf(b.typeId)) this.particles.emitSmoke(bx + o.x, by + o.y, density, dt);
+      for (const o of chimneysOf(b.typeId, b.upgrades)) this.particles.emitSmoke(bx + o.x, by + o.y, density, dt);
     }
   }
 }

@@ -3,7 +3,7 @@ import { GREENS_YEAR } from '../data/factions';
 import { eraName } from '../sim/eras';
 import { monthProfit } from '../sim/finance';
 export { eraName };
-import type { GameState, Speed } from '../sim/types';
+import type { GameState, Speed, Weather } from '../sim/types';
 import { setOverlay } from '../render/overlays';
 import { factionOverlay, factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
 import { h } from './dom';
@@ -41,6 +41,23 @@ const PANELS: { id: string; label: string; icon?: string }[] = [
 
 const DELTA_MS = 1500;
 
+/** Compass names, clockwise from east in screen space (+y is south). */
+const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
+
+/** Vane tooltip: where the wind blows from and how hard, plus "Rain" on rain days. */
+export function windLabel(w: Weather): string {
+  const mag = Math.hypot(w.windX, w.windY);
+  let text: string;
+  if (mag < 0.15) text = 'Wind: calm';
+  else {
+    // named for where it comes from: the opposite of the way it blows
+    const from = Math.round(Math.atan2(-w.windY, -w.windX) / (Math.PI / 4));
+    const strength = mag < 0.7 ? 'light' : mag < 1.15 ? 'brisk' : 'strong';
+    text = `Wind: ${COMPASS[((from % 8) + 8) % 8]}, ${strength}`;
+  }
+  return w.rain ? `${text}. Rain` : text;
+}
+
 function setText(el: HTMLElement, text: string): void {
   if (el.textContent !== text) el.textContent = text;
 }
@@ -50,6 +67,11 @@ export class Hud {
   private readonly money: HTMLElement;
   private readonly date: HTMLElement;
   private readonly era: HTMLElement;
+  private readonly vane: HTMLElement;
+  private readonly vaneArrow: HTMLElement;
+  private readonly vaneRain: HTMLElement;
+  /** the vane shows the weather of a new game or load once, then follows dayStart */
+  private vaneStale = true;
   private readonly speedButtons = new Map<Speed, HTMLElement>();
   private lastSpeed: Speed | null = null;
   private readonly counter: RollingCounter;
@@ -65,6 +87,10 @@ export class Hud {
     this.counter = new RollingCounter(this.money, formatMoney);
     this.date = h('div', { class: 'hud-date' }, '');
     this.era = h('div', { class: 'hud-era' }, '');
+    this.vaneArrow = iconEl('wind', 20);
+    this.vaneRain = iconEl('rain', 18);
+    this.vaneRain.hidden = true;
+    this.vane = h('div', { class: 'hud-wind', role: 'img', 'aria-label': 'Wind' }, this.vaneArrow, this.vaneRain);
 
     const speeds = h('div', { class: 'hud-speeds' });
     for (const s of SPEEDS) {
@@ -137,7 +163,7 @@ export class Hud {
     const bar = h('div', { class: 'hud-bar' },
       h('div', { class: 'hud-brand' }, this.company, this.era),
       h('div', { class: 'hud-cash' }, h('span', { class: 'hud-label' }, 'Treasury'), this.money),
-      h('div', { class: 'hud-clock' }, h('span', { class: 'hud-label' }, 'Date'), this.date),
+      h('div', { class: 'hud-clock' }, h('span', { class: 'hud-label' }, 'Date'), h('div', { class: 'hud-date-row' }, this.date, this.vane)),
       speeds,
       panels);
 
@@ -146,12 +172,31 @@ export class Hud {
 
   /** Pops the player's month result when a month closes. Returns an unsubscribe. */
   attach(bus: EventBus): () => void {
-    return bus.on('monthEnd', (e) => {
+    const offMonth = bus.on('monthEnd', (e) => {
       const player = this.state?.companies.player;
       if (!player) return;
       const m = player.ledger.find((l) => l.year === e.date.year && l.month === e.date.month);
       this.popDelta(m ? monthProfit(m) : 0);
     });
+    // weather changes once a day: the vane never updates per frame
+    const offDay = bus.on('dayStart', () => {
+      if (this.state) this.updateVane(this.state.weather);
+    });
+    return () => {
+      offMonth();
+      offDay();
+    };
+  }
+
+  private updateVane(w: Weather | undefined): void {
+    if (!w) return;
+    const label = windLabel(w);
+    this.vane.title = label;
+    this.vane.setAttribute('aria-label', label);
+    const deg = Math.round((Math.atan2(w.windY, w.windX) * 180) / Math.PI);
+    this.vaneArrow.style.transform = `rotate(${deg}deg)`;
+    this.vaneArrow.style.opacity = Math.hypot(w.windX, w.windY) < 0.15 ? '0.45' : '';
+    this.vaneRain.hidden = !w.rain;
   }
 
   private popDelta(net: number): void {
@@ -166,6 +211,7 @@ export class Hud {
   reset(): void {
     this.state = null;
     this.seeded = false;
+    this.vaneStale = true;
   }
 
   /** Advances the treasury roll; call every frame. */
@@ -187,6 +233,10 @@ export class Hud {
     const d = state.date;
     setText(this.date, `${d.day} ${MONTHS[d.month - 1] ?? '???'} ${d.year}`);
     setText(this.era, eraName(d.year));
+    if (this.vaneStale) {
+      this.vaneStale = false;
+      this.updateVane(state.weather);
+    }
     // the Reformers become the Greens in GREENS_YEAR: relabel the faction-map modes (both ways, for loads)
     const green = d.year >= GREENS_YEAR;
     if (green !== this.modeGreen) {

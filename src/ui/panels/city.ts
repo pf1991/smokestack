@@ -1,12 +1,13 @@
 import { BUILDINGS } from '../../data/buildings';
 import { LANDMARKS, PHILANTHROPY_IDS, type PhilanthropyId } from '../../data/landmarks';
-import { buyPhilanthropy, philanthropyBlocker } from '../../sim/politics/edicts';
+import { buyPhilanthropy, philanthropyBlocker, philanthropyCost } from '../../sim/politics/edicts';
 import {
   activeEdicts,
   CHURCH_OBJECTION,
   churchFactor,
   landPriceFactor,
   MAYOR_EDICTS,
+  mayorEdictEffect,
   reformersDemandPermits,
 } from '../../sim/politics/mayorEdicts';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
@@ -15,6 +16,8 @@ import { endorse, ENDORSE_WINDOW, monthIndex, paySlush, slushBlocker, slushCost,
 import { loadSource } from '../../sim/inventory';
 import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/market';
 import { demandModifier } from '../../sim/production';
+import { priceIndex } from '../../sim/society/economy';
+import { forcedEdicts, SMOG_HINT, SMOG_TIER_NAMES, SMOG_TIER_THRESHOLDS } from '../../sim/society/tiers';
 import type { City, GameState } from '../../sim/types';
 import { h } from '../dom';
 import { iconEl } from '../icon';
@@ -46,7 +49,7 @@ export function cityDemand(state: GameState, city: City): GoodDemand[] {
     const demand = monthlyDemand(city, goodId, state.date.year, demandModifier(state, city.id, goodId));
     if (demand <= 0) continue;
     const sat = satisfaction(city, goodId);
-    const price = salePrice(goodId, supplyRatio(city.market[goodId]));
+    const price = salePrice(goodId, supplyRatio(city.market[goodId]), priceIndex(state));
     out.push({ goodId, demand, satisfaction: sat, price, unmetValue: demand * (1 - sat) * price });
   }
   return out.sort((a, b) => b.unmetValue - a.unmetValue || a.goodId.localeCompare(b.goodId));
@@ -90,6 +93,52 @@ function effectsLine(id: PhilanthropyId, year: number): string {
     .join(', ');
 }
 
+export interface SmogTierLine {
+  tier: number;
+  name: string;
+  /** the smog level (3-month average) as shown, e.g. "4.2%" */
+  level: string;
+  trend: 'up' | 'down' | '';
+  /** what the tier does, then what lowers it */
+  hint: string;
+}
+
+const TIER_EFFECTS = [
+  'Clear skies.',
+  'Reformers and workers sour each month; the papers grumble.',
+  'Black Lung deaths, slower growth and fewer hands for the works.',
+  'Marchers slow your smokestacks near town to 80%.',
+  'The town imposes a smog limit and permits; reformers surge at the polls.',
+];
+
+/** The city panel's smog tier row (exported for tests). Trend: this month's smog against the 3-month level. */
+export function smogTierLine(city: City): SmogTierLine {
+  const s = city.smog;
+  const tier = s?.tier ?? 0;
+  const level = s?.level ?? city.pollution;
+  const gap = city.pollution - level;
+  const trend = gap > 0.001 ? 'up' : gap < -0.001 ? 'down' : '';
+  const next = tier < 4 ? ` Next tier above ${formatPercent(SMOG_TIER_THRESHOLDS[tier + 1])}.` : '';
+  return { tier, name: SMOG_TIER_NAMES[tier], level: `${(level * 100).toFixed(1)}%`, trend, hint: `${TIER_EFFECTS[tier]}${next} ${SMOG_HINT}.` };
+}
+
+export interface ClassSegment {
+  key: 'working' | 'middle' | 'upper';
+  label: string;
+  share: number;
+  color: string;
+}
+
+const CLASS_LABELS: readonly ClassSegment['key'][] = ['working', 'middle', 'upper'];
+const CLASS_NAMES: Record<ClassSegment['key'], string> = { working: 'Working', middle: 'Middle', upper: 'Upper' };
+const CLASS_COLORS: Record<ClassSegment['key'], string> = { working: '#8a5a3c', middle: '#c9a24a', upper: '#6d4f8f' };
+
+/** The city panel's class bar: Working / Middle / Upper shares (exported for tests). */
+export function classSegments(city: City): ClassSegment[] {
+  const c = city.classes ?? { working: 1, middle: 0, upper: 0 };
+  return CLASS_LABELS.map((key) => ({ key, label: CLASS_NAMES[key], share: c[key], color: CLASS_COLORS[key] }));
+}
+
 /** Where a town's edicts and levers reach (siteCity zone vs workCity staffing, sim/politics/mayorEdicts.ts). */
 export const EDICT_REACH = "Permits and land prices apply within the town's zone (its urban area plus 4 tiles). Wages and tolls apply to works staffed from the town.";
 
@@ -101,12 +150,14 @@ interface EdictLine {
 }
 
 /** The town's edicts in force, then the faction levers on construction (exported for tests). */
-export function cityEdictLines(city: City, year: number): EdictLine[] {
+export function cityEdictLines(city: City, year: number, index = 1): EdictLine[] {
   const out: EdictLine[] = activeEdicts(city).map((id) => {
     const info = MAYOR_EDICTS[id];
-    const forced = id === 'permits_required' && !city.politics.edicts.includes(id) && reformersDemandPermits(city);
-    const by = forced ? `${factionName('reformers', year)} demand` : `${factionName(city.politics.mayor.faction, year)} mayor`;
-    return { key: id, icon: info.icon, name: info.name, effect: `${info.effect} (${by})` };
+    const own = city.politics.edicts.includes(id);
+    const forced = id === 'permits_required' && !own && reformersDemandPermits(city);
+    const revolt = !own && !forced && forcedEdicts(city).includes(id);
+    const by = revolt ? 'smog revolt' : forced ? `${factionName('reformers', year)} demand` : `${factionName(city.politics.mayor.faction, year)} mayor`;
+    return { key: id, icon: info.icon, name: info.name, effect: `${mayorEdictEffect(id, index)} (${by})` };
   });
   const land = landPriceFactor(city);
   if (Math.abs(land - 1) >= 0.005) {
@@ -126,6 +177,21 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const trend = h('span', { class: 'insp-trend' });
   const happy = bar('#e0b43a');
   const smog = bar('#6b6b70');
+  const smogTierName = h('b', { class: 'insp-smog-tier' });
+  const smogTierLevel = h('span', { class: 'insp-smog-level' });
+  const smogTierTrend = h('span', { class: 'insp-trend' });
+  const smogTierHint = h('small', { class: 'insp-smog-hint' });
+  const smogTierRow = h('div', { class: 'insp-stat insp-smog' },
+    h('span', { class: 'insp-label' }, 'Smog tier'),
+    h('span', null, smogTierName, ' ', smogTierLevel, ' ', smogTierTrend, h('br'), smogTierHint));
+  const classParts = CLASS_LABELS.map((key) => {
+    const text = h('span', { class: 'insp-class-text' });
+    const el = h('div', { class: 'insp-class-seg', 'data-class': key, style: { background: CLASS_COLORS[key], width: '0%' } }, text);
+    return { key, el, text };
+  });
+  const classRow = h('div', { class: 'insp-stat insp-classes' },
+    h('span', { class: 'insp-label' }, 'Classes'),
+    h('div', { class: 'insp-class-bar', role: 'img' }, ...classParts.map((p) => p.el)));
   const landmarks = h('ul', { class: 'insp-landmarks' });
   let landmarkSig = '\0';
   const edictList = h('ul', { class: 'insp-edicts' });
@@ -138,6 +204,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   });
   const gifts = PHILANTHROPY_IDS.map((id: PhilanthropyId) => {
     const def = LANDMARKS[id];
+    // the price follows inflation: refreshed in update()
+    const label = h('span', null, ` Endow a ${def.name.toLowerCase()} — ${formatMoney(philanthropyCost(host.ctx.state, id))}`);
     const btn = h('button', {
       class: 'insp-endow',
       'data-endow': id,
@@ -148,8 +216,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
           : { type: 'toast', message: r.error, tone: 'bad' });
         view.update();
       },
-    }, iconEl(id, 16), ` Endow a ${def.name.toLowerCase()} — ${formatMoney(def.philanthropy!.cost)}`);
-    return { id, btn };
+    }, iconEl(id, 16), label);
+    return { id, btn, label };
   });
   const mayorName = h('span', { class: 'insp-mayor-name' });
   const mayorChip = h('span', { class: 'insp-chip' });
@@ -190,6 +258,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Population'), h('span', null, pop, ' ', trend)),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
+    smogTierRow,
+    classRow,
     h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
     h('div', { class: 'insp-stat insp-mayor' }, h('span', { class: 'insp-label' }, 'Mayor'), h('span', null, mayorName, ' ', mayorChip)),
     h('div', { class: 'insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
@@ -220,6 +290,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         if ((g.btn as HTMLButtonElement).disabled !== disabled) (g.btn as HTMLButtonElement).disabled = disabled;
         const tip = why ?? `Opinion in ${city.name}: ${effectsLine(g.id, state.date.year)}`;
         if (g.btn.title !== tip) g.btn.title = tip;
+        setText(g.label, ` Endow a ${LANDMARKS[g.id].name.toLowerCase()} — ${formatMoney(philanthropyCost(state, g.id))}`);
       }
       const pol = city.politics;
       const year = state.date.year;
@@ -239,7 +310,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         setText(endorseBtn, done ? 'Endorsed' : 'Endorse');
         const odds = slushOdds(city);
         const why = slushBlocker(state, city.id);
-        const cost = formatMoney(slushCost(year));
+        const cost = formatMoney(slushCost(state));
         setText(slushBtn, `Slush ${cost}`);
         if (slushBtn.disabled !== (why !== null)) slushBtn.disabled = why !== null;
         const tip = why ?? `Pay ${cost} to tilt the vote. Raises scandal risk.`;
@@ -247,7 +318,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         const pct = (x: number) => `${Math.round(x * 100)}%`;
         setText(slushInfo, odds ? `Win odds ${pct(odds.now)} \u2192 ${pct(odds.after)} | Scandal risk: ${pct(pol.scandalRisk)}` : '');
       }
-      const lines = cityEdictLines(city, year);
+      const lines = cityEdictLines(city, year, priceIndex(state));
       const esig = lines.map((l) => `${l.key}:${l.effect}`).join('|');
       if (esig !== edictSig) {
         edictSig = esig;
@@ -267,6 +338,30 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       trend.className = `insp-trend ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`.trim();
       happy.set(city.happiness, formatPercent(city.happiness));
       smog.set(city.pollution, formatPercent(city.pollution));
+      const st = smogTierLine(city);
+      setText(smogTierName, st.name);
+      smogTierRow.dataset.tier = String(st.tier);
+      setText(smogTierLevel, st.level);
+      setText(smogTierTrend, st.trend === 'up' ? '▲' : st.trend === 'down' ? '▼' : '–');
+      // rising smog is bad news: the 'down' (red) class for up, 'up' (green) for falling
+      const tcls = `insp-trend ${st.trend === 'up' ? 'down' : st.trend === 'down' ? 'up' : ''}`.trim();
+      if (smogTierTrend.className !== tcls) smogTierTrend.className = tcls;
+      setText(smogTierHint, st.hint);
+      const segs = classSegments(city);
+      const tips: string[] = [];
+      for (let i = 0; i < segs.length; i++) {
+        const sg = segs[i];
+        const part = classParts[i];
+        const w = `${Number((sg.share * 100).toFixed(1))}%`;
+        if (part.el.style.width !== w) part.el.style.width = w;
+        const pct = `${Math.round(sg.share * 100)}%`;
+        // the label shows when the segment has room for it; the tooltip always names all three
+        setText(part.text, sg.share >= 0.12 ? `${sg.label} ${pct}` : '');
+        tips.push(`${sg.label} ${pct}`);
+      }
+      const tip = tips.join(' / ');
+      const barEl = classRow.lastElementChild as HTMLElement;
+      if (barEl.title !== tip) { barEl.title = tip; barEl.setAttribute('aria-label', `Classes: ${tip}`); }
       for (const o of opinion) {
         const v = city.opinion?.[o.f] ?? 50;
         setText(o.label, factionName(o.f, state.date.year));

@@ -5,9 +5,13 @@ import { App } from './game/app';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
 import { runAutoplay } from './game/autoplay';
 import { runDays, stepTick } from './sim/simulation';
-import { createGame } from './sim/state';
-import type { Speed } from './sim/types';
+import { canPlaceBuilding, createGame, placeBuilding } from './sim/state';
+import { buyUpgrade } from './sim/society/upgrades';
+import type { SmogTier, Speed } from './sim/types';
+import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
 import { autoResolve, forceCard } from './sim/politics/cards';
+import { workCity } from './sim/politics/workforce';
+import { startStrike } from './sim/society/strikes';
 
 /**
  * Bootstrap: the game starts at the main menu. Debug URL parameters skip the menu and start a game
@@ -28,6 +32,9 @@ import { autoResolve, forceCard } from './sim/politics/cards';
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
  *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
  *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
+ *  - `classes=<cityId>:<working>,<middle>,<upper>` (dev) set a town's class mix (normalised), e.g. to
+ *    show villas and semis in a screenshot
+ *  - `strike=<buildingId>` (dev) start a strike at that building and centre the view on it
  *  - `card=<id>` (dev) open event card `<id>` on load (data/cards/), whatever its era or trigger
  *  - `zoom=<0.5..3>` (dev) camera zoom, applied after the autoplay framing
  *  - `fps=1` (dev) after a 3 s warm-up, average the requestAnimationFrame rate over 5 s and put it
@@ -79,6 +86,50 @@ if (debugStart) {
   if (import.meta.env.DEV && params.has('skipYears') && Number.isFinite(skipYears) && skipYears > 0) {
     runDays(setup, Math.floor(skipYears) * 360);
   }
+  // `strike=<buildingId>` starts a strike at that building today (its card opens; `cards=0` answers it
+  // "Wait it out", so the strike stays on) and centres the view on it, for screenshots
+  const strikeParam = Number(params.get('strike'));
+  if (import.meta.env.DEV && params.has('strike') && Number.isInteger(strikeParam)) {
+    const b = state.buildings[strikeParam];
+    const city = b ? (workCity(state, b) ?? state.cities[0]) : undefined;
+    if (b && city) {
+      startStrike(setup, b, city);
+      const size = BUILDINGS[b.typeId].size;
+      focus = { x: Math.round(b.pos.x + size.w / 2), y: Math.round(b.pos.y + size.h / 2) };
+    }
+  }
+  // `upgrades=1` builds two steel mills side by side near the first town, the east one with a
+  // tier 2 scrubber and a tall chimney (needs a year ≥ 1948: add skipYears=50), and centres on them
+  let upgradedId: number | null = null;
+  if (import.meta.env.DEV && params.get('upgrades') === '1' && state.cities[0]) {
+    const player = state.companies.player;
+    player.money += 1e6;
+    const c = state.cities[0].center;
+    const near = { x: c.x + state.cities[0].urbanRadius + 6, y: c.y };
+    // the first spot (spiral out from `near`) with room for both mills a tile apart
+    const w = BUILDINGS.steel_mill.size.w;
+    let a: { x: number; y: number } | null = null;
+    for (let r = 0; r < 40 && !a; r++) {
+      for (let dy = -r; dy <= r && !a; dy++) {
+        for (let dx = -r; dx <= r && !a; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const p = { x: near.x + dx, y: near.y + dy };
+          if (canPlaceBuilding(state, 'player', 'steel_mill', p).ok && canPlaceBuilding(state, 'player', 'steel_mill', { x: p.x + w + 1, y: p.y }).ok) a = p;
+        }
+      }
+    }
+    const pa = a ? placeBuilding(setup, 'player', 'steel_mill', a) : null;
+    const pb = a ? placeBuilding(setup, 'player', 'steel_mill', { x: a.x + w + 1, y: a.y }) : null;
+    if (pa?.ok && pb?.ok) {
+      buyUpgrade(setup, pb.value.id, 'scrubber');
+      buyUpgrade(setup, pb.value.id, 'scrubber');
+      buyUpgrade(setup, pb.value.id, 'tallChimney');
+      pa.value.status = 'ok';
+      pb.value.status = 'ok';
+      upgradedId = pb.value.id;
+      focus = { x: pb.value.pos.x, y: pa.value.pos.y + 1 };
+    }
+  }
   const cardParam = params.get('card');
   // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen
   if (import.meta.env.DEV && (params.get('cards') === '0' || cardParam)) {
@@ -95,6 +146,29 @@ if (debugStart) {
     }
   }
 
+  // `rain=1` makes today a rain day (until the next day's weather roll), for screenshots
+  if (import.meta.env.DEV && params.get('rain') === '1') {
+    state.weather.rain = true;
+    state.weather.rainDays = Math.max(1, state.weather.rainDays);
+  }
+
+  // `smogtier=<cityId>:<tier>` forces a town's smog tier (level just over its threshold), for screenshots
+  const smogTier = params.get('smogtier')?.split(':').map(Number);
+  if (import.meta.env.DEV && smogTier?.length === 2 && smogTier.every(Number.isInteger)) {
+    const city = state.cities.find((c) => c.id === smogTier[0]);
+    const tier = Math.min(4, Math.max(0, smogTier[1])) as SmogTier;
+    if (city) city.smog = { ...city.smog, tier, months: 0, level: Math.max(city.smog.level, SMOG_TIER_THRESHOLDS[tier] + 0.01) };
+  }
+
+  // `classes=<cityId>:<w>,<m>,<u>` sets a town's class mix (normalised), for screenshots of the class houses
+  const classParam = params.get('classes')?.split(':');
+  if (import.meta.env.DEV && classParam?.length === 2) {
+    const city = state.cities.find((c) => c.id === Number(classParam[0]));
+    const [w, m, u] = classParam[1].split(',').map(Number);
+    const sum = w + m + u;
+    if (city && [w, m, u].every((x) => Number.isFinite(x) && x > 0)) city.classes = { working: w / sum, middle: m / sum, upper: u / sum };
+  }
+
   const speedParam = Number(params.get('speed'));
   if (params.has('speed') && [0, 1, 2, 4, 8].includes(speedParam)) state.speed = speedParam as Speed;
 
@@ -108,12 +182,16 @@ if (debugStart) {
       g.camera.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomParam));
       if (focus) g.centerOn(focus);
     }
+    // `at=x,y` centres the view on a tile (screenshots of a given district)
+    const at = params.get('at')?.split(',').map(Number);
+    if (import.meta.env.DEV && at?.length === 2 && at.every(Number.isFinite)) g.centerOn({ x: at[0], y: at[1] });
     if (import.meta.env.DEV && params.get('tiltshift') === '1') g.renderer.forceTiltShift = true;
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
     if (import.meta.env.DEV && params.get('openroute') === '1') {
       const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');
       if (r) g.openPanel('routes', r.id);
     }
+    if (import.meta.env.DEV && upgradedId !== null && params.get('inspectup') === '1') g.openPanel('building', upgradedId);
     if (import.meta.env.DEV && params.get('inspect2') === '1') {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
     }

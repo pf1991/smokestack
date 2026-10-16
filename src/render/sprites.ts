@@ -17,7 +17,7 @@
  * Nothing here touches `document` at import time; canvases are created lazily.
  */
 import { BUILDINGS, type BuildingDef } from '../data/buildings';
-import type { BuildingTypeId, OwnerId, Vec2 } from '../sim/types';
+import type { BuildingTypeId, BuildingUpgrades, OwnerId, Vec2 } from '../sim/types';
 import { TILE } from './constants';
 import { drawIcon } from './icons';
 import type { ShadowCaster } from './shadows';
@@ -160,6 +160,60 @@ export function chimneyOffsets(typeId: string): Vec2[] {
   if (!def) return [];
   const dy = LIFT_ROOM - chimneyLift(def);
   return flatChimneys(typeId).map((c) => ({ x: c.x, y: c.y + dy }));
+}
+
+// ---------------------------------------------------------------- smoke abatement (sim/society/upgrades.ts)
+
+/** Px a tall chimney adds to each stack. */
+export const TALL_STACK = 12;
+/** Px a scrubber's filter box rises above the stack top it sits on. */
+const SCRUB_RISE = 2;
+const SCRUB_H = 6;
+
+/** Sprite cache key part for a building's visible upgrades: '' when none, else e.g. 's2t' (scrubber 2, tall). */
+export function upgradeKey(u: BuildingUpgrades | null | undefined): string {
+  if (!u || (u.scrubber === 0 && !u.tallChimney)) return '';
+  return `s${u.scrubber}${u.tallChimney ? 't' : ''}`;
+}
+
+/** Rows an upgraded sprite adds above the plain sprite's top (it is drawn that much higher). */
+export function upgradeHeadroom(u: BuildingUpgrades | null | undefined): number {
+  if (!u) return 0;
+  return (u.tallChimney ? TALL_STACK : 0) + (u.scrubber > 0 ? SCRUB_RISE : 0);
+}
+
+/**
+ * Chimney tops of an upgraded building, in the plain sprite's coordinates (y may go negative above
+ * it): raised by a tall chimney and by a scrubber's filter box. Smoke emits here.
+ */
+export function upgradedChimneyOffsets(typeId: string, u: BuildingUpgrades | null | undefined): Vec2[] {
+  const rise = upgradeHeadroom(u);
+  return chimneyOffsets(typeId).map((c) => ({ x: c.x, y: c.y - rise }));
+}
+
+/** Paints the upgrades onto an upgraded sprite whose plain sprite was drawn `extra` rows down. */
+function paintUpgrades(g: Ctx, def: BuildingDef, u: BuildingUpgrades, extra: number): void {
+  const w = def.id === 'textile_mill' ? 3 : 6;
+  for (const c of chimneyOffsets(def.id)) {
+    let top = c.y + extra;
+    if (u.tallChimney) {
+      // the stack grows up from its old cap, banded in the works' colour like the original
+      stack(g, c.x, top - TALL_STACK, top + 3, def.color, w);
+      top -= TALL_STACK;
+    }
+    if (u.scrubber > 0) {
+      // a grey filter box clamped over the stack top, one rivet line per tier
+      const bw = w + 4;
+      const x = c.x - bw / 2;
+      const y = top - SCRUB_RISE;
+      rect(g, x + 1, y + 1, bw, SCRUB_H, 'rgba(0,0,0,0.25)');
+      rect(g, x, y, bw, SCRUB_H, '#8d949b');
+      rect(g, x, y, bw, 1, '#c3c9ce');
+      rect(g, x + bw - 1, y, 1, SCRUB_H, '#5d646b');
+      rect(g, x, y + SCRUB_H - 1, bw, 1, '#4c5258');
+      for (let t = 0; t < u.scrubber; t++) rect(g, x + 1, y + 2 + t, bw - 2, 0.6, '#5d646b');
+    }
+  }
 }
 
 type WinRect = { x: number; y: number; w: number; h: number };
@@ -866,9 +920,13 @@ const casterCache = new Map<string, ShadowCaster[]>();
  * Sun-shadow casters of a building type in footprint-local px (footprint top-left at 0, 0): its
  * raised body plus chimneys, towers and masts, matching the sprite.
  */
-export function buildingCasters(typeId: string): ShadowCaster[] {
-  const hit = casterCache.get(typeId);
+export function buildingCasters(typeId: string, upgrades?: BuildingUpgrades | null): ShadowCaster[] {
+  const ukey = upgradeKey(upgrades);
+  const key = ukey ? `${typeId}|${ukey}` : typeId;
+  const hit = casterCache.get(key);
   if (hit) return hit;
+  // an upgraded stack is taller: its chimney casters rise with it
+  const rise = upgradeHeadroom(upgrades);
   const def = BUILDINGS[typeId];
   let out: ShadowCaster[] = [];
   if (def && !isBox(def)) out = extractorCasters(def);
@@ -883,14 +941,14 @@ export function buildingCasters(typeId: string): ShadowCaster[] {
     // things standing on the roof: their foot is on the roof at flat y = foot, so on the ground at foot - HR0 - lift + z
     const ground = (foot: number): number => foot - HR0 - lift + z;
     const cw = typeId === 'textile_mill' ? 3 : 6;
-    for (const c of flatChimneys(typeId)) out.push({ x: c.x - cw / 2, y: ground(HR0 + 6) - 2, w: cw, d: 4, z: z + HR0 + 6 - c.y });
+    for (const c of flatChimneys(typeId)) out.push({ x: c.x - cw / 2, y: ground(HR0 + 6) - 2, w: cw, d: 4, z: z + HR0 + 6 - c.y + rise });
     if (typeId === 'steel_mill') { const fx = Math.round(W * 0.68); out.push({ x: fx - 10, y: ground(48) - 6, w: 18, d: 6, z: z + 40 }); }
     // the radio mast is drawn lying along the roof; its shadow is a modest mast's, not a 100 px one
     if (typeId === 'electronics_plant') { const mx = Math.round(W * 0.7); out.push({ x: mx - 1, y: ground(HR0 + 30) - 2, w: 3, d: 2, z: z + 34, taper: true }); }
     if (typeId === 'glassworks') { const kx = Math.round(W * 0.68); out.push({ x: kx - 12, y: ground(HR0 + 36) - 8, w: 24, d: 8, z: z + 30, taper: true }); }
     if (typeId === 'train_station') out.push({ x: 8, y: ground(HR0 + 10) - 6, w: 10, d: 6, z: z + 20 });
   }
-  casterCache.set(typeId, out);
+  casterCache.set(key, out);
   return out;
 }
 
@@ -898,12 +956,32 @@ const cache = new Map<string, HTMLCanvasElement>();
 
 /**
  * Cached building sprite, W = size.w*TILE, H = size.h*TILE + HEADROOM (footprint starts at y = HEADROOM).
- * `variant` only matters for farms: 'grain' | 'cotton' | 'fruit'.
+ * `variant` only matters for farms: 'grain' | 'cotton' | 'fruit'. With visible `upgrades` (scrubber,
+ * tall chimney) it is a per-building variant cached by (type, owner, upgrades), upgradeHeadroom rows
+ * taller at the top: draw it that much higher than the plain sprite.
  */
-export function getBuildingSprite(typeId: string, ownerId: OwnerId, variant = ''): HTMLCanvasElement {
+export function getBuildingSprite(typeId: string, ownerId: OwnerId, variant = '', upgrades?: BuildingUpgrades | null): HTMLCanvasElement {
   const def = BUILDINGS[typeId];
   if (!def) throw new Error(`Unknown building: ${typeId}`);
   const v = def.id === 'farm' ? variant || 'grain' : '';
+  const ukey = upgradeKey(upgrades);
+  if (ukey && upgrades) {
+    const ukeyFull = `${spriteKey(typeId, ownerId, v)}|${ukey}`;
+    let u = cache.get(ukeyFull);
+    if (u) return u;
+    const plain = getBuildingSprite(typeId, ownerId, v);
+    const extra = upgradeHeadroom(upgrades);
+    u = document.createElement('canvas');
+    u.width = plain.width;
+    u.height = plain.height + extra;
+    const ug = u.getContext('2d');
+    if (ug) {
+      ug.drawImage(plain, 0, extra);
+      paintUpgrades(ug, def, upgrades, extra);
+    }
+    cache.set(ukeyFull, u);
+    return u;
+  }
   const key = spriteKey(typeId, ownerId, v);
   let c = cache.get(key);
   if (c) return c;
@@ -938,27 +1016,120 @@ const ROOFS = ['#a8442f', '#6b4a3a', '#4f5d6b', '#7a6a2e'];
 const WARM = '#ffd27a';
 const DARK_WIN = '#34465a';
 
-/** Density of a city house: big cities build denser cores as the decades pass. */
-export type HouseTier = 'house' | 'terrace' | 'block' | 'tower';
+/**
+ * Density of a city house: big cities build denser cores as the decades pass. 'semi' (a pair of
+ * semi-detached houses) and 'villa' (a detached house in its garden) follow the town's class mix
+ * (Phase 3 Task 7); appended so packed chunk tier indices stay stable.
+ */
+export type HouseTier = 'house' | 'terrace' | 'block' | 'tower' | 'semi' | 'villa';
 /** Index order of HouseTier in packed chunk data. */
-export const HOUSE_TIERS: readonly HouseTier[] = ['house', 'terrace', 'block', 'tower'];
+export const HOUSE_TIERS: readonly HouseTier[] = ['house', 'terrace', 'block', 'tower', 'semi', 'villa'];
 /** Wall height (px) of each house tier: the ¾ facade and its sun shadow. Towers rise 28 px. */
-export const HOUSE_TIER_HEIGHT: Record<HouseTier, number> = { house: 6, terrace: 8, block: 16, tower: 28 };
+export const HOUSE_TIER_HEIGHT: Record<HouseTier, number> = { house: 6, terrace: 8, block: 16, tower: 28, semi: 7, villa: 9 };
 /** Px a house may rise above its tile (the tower's roof deck reaches into the tile above). */
 export const HOUSE_HEADROOM = HOUSE_TIER_HEIGHT.tower - 6 + 2;
 /** Fraction of the urban radius that counts as the city core. */
 export const CORE_FRAC = 0.35;
+/** Villas appear once a town's upper class exceeds this share (ruling R-S11; plan 0.15, R-S9 0.10); semis once its middle class exceeds SEMI_MIDDLE. */
+export const VILLA_UPPER = 0.06;
+export const SEMI_MIDDLE = 0.35;
+/** Share of eligible tiles given to villas per unit of upper share, and the cap on the semis' share. */
+export const VILLA_PER_UPPER = 2;
+export const SEMI_MAX = 0.6;
+
+/** A town's class mix as houseTier reads it (sim City.classes). */
+export interface HouseClasses {
+  working: number;
+  middle: number;
+  upper: number;
+}
 
 /**
  * Tier of a house `distFrac` (distance / urban radius) from the centre of a city of `population`
- * in `year`. Outside the core it is always 'house'.
+ * in `year`. Big cores keep their blocks and towers. Elsewhere the class mix decides per tile, by
+ * `pick` (a per-tile hash in [0, 1)), so districts mix: once the upper share exceeds VILLA_UPPER
+ * the first upper × VILLA_PER_UPPER of picks are villas (outside the core only), once the middle
+ * share exceeds SEMI_MIDDLE the next min(middle, SEMI_MAX) are semis; the rest keep the base tier
+ * (terraces in a mid-sized core for the working class, plain houses elsewhere).
  */
-export function houseTier(population: number, year: number, distFrac: number): HouseTier {
-  if (distFrac >= CORE_FRAC) return 'house';
-  if (population > 60_000 && year >= 1955) return 'tower';
-  if (population > 40_000 && year >= 1930) return 'block';
-  if (population > 15_000) return 'terrace';
-  return 'house';
+export function houseTier(population: number, year: number, distFrac: number, classes?: HouseClasses, pick = 1): HouseTier {
+  const core = distFrac < CORE_FRAC;
+  if (core && population > 60_000 && year >= 1955) return 'tower';
+  if (core && population > 40_000 && year >= 1930) return 'block';
+  const base: HouseTier = core && population > 15_000 ? 'terrace' : 'house';
+  if (!classes) return base;
+  const villa = classes.upper > VILLA_UPPER ? classes.upper * VILLA_PER_UPPER : 0;
+  if (pick < villa) return core ? base : 'villa';
+  const semi = classes.middle > SEMI_MIDDLE ? Math.min(classes.middle, SEMI_MAX) : 0;
+  if (pick < villa + semi) return 'semi';
+  return base;
+}
+
+/** Wall colour of the class houses in the era's style. */
+function suburbWall(style: HouseStyle, v: number): string {
+  if (style === 'cottage') return v % 2 ? '#e6dcc2' : '#efe4cc';
+  if (style === 'brick') return v % 2 ? '#a9553e' : '#b5654a';
+  if (style === 'deco') return v % 2 ? '#e8dcc0' : '#d9e0d6';
+  return v % 2 ? '#d5d8d4' : '#c7ccd2';
+}
+
+/** A shrub or garden tree: a dark disc with a lit cap. */
+function shrub(g: Ctx, x: number, y: number, r: number): void {
+  circle(g, x + 1, y + 1, r, 'rgba(0,0,0,0.18)');
+  circle(g, x, y, r, '#3f6b34');
+  circle(g, x - r * 0.3, y - r * 0.3, r * 0.55, '#5c8a45');
+}
+
+/** A pair of semi-detached houses under one hipped roof, each with a front garden. */
+function drawSemi(g: Ctx, style: HouseStyle, v: number, win: string): void {
+  const x = 4, y = 7, w = 24, h = 15;
+  rect(g, 2, y + h, 28, 7, '#6f9a52'); // front gardens
+  rect(g, 15, y + h, 2, 7, '#c9bfa6'); // shared path
+  rect(g, 2, y + h + 6, 28, 1, '#4f7a3a'); // hedge line
+  softShadow(g, x, y, w, h);
+  const wall = suburbWall(style, v);
+  const roof = ROOFS[v % ROOFS.length];
+  rect(g, x, y + h - 7, w, 7, wall);
+  rect(g, x, y, w, h - 7, roof);
+  poly(g, [[x, y], [x + 3, y], [x, y + h - 7]], shade(roof, -0.2)); // hipped ends
+  poly(g, [[x + w, y], [x + w - 3, y], [x + w, y + h - 7]], shade(roof, -0.2));
+  rect(g, x, y, w, 2, shade(roof, 0.25));
+  rect(g, x + w / 2, y, 1, h, 'rgba(0,0,0,0.3)'); // party wall
+  for (let i = 0; i < 2; i++) {
+    const hx = x + i * 12;
+    rect(g, hx + (i ? 6 : 2), y + h - 5, 4, 3, win);
+    rect(g, hx + (i ? 2 : 8), y + h - 6, 3, 6, '#5b3a1e');
+    rect(g, hx + (i ? 9 : 1), y - 2, 3, 4, '#7a4a3a');
+  }
+  shrub(g, 6, y + h + 3, 2.5);
+  shrub(g, 26, y + h + 3, 2.5);
+}
+
+/** A detached villa, wider and taller, set back in a lawn with a tree and a gravel drive. */
+function drawVilla(g: Ctx, style: HouseStyle, v: number, win: string): void {
+  rect(g, 1, 1, 30, 30, '#79a85a'); // lawn
+  rect(g, 1, 30, 30, 1, '#4f7a3a'); // hedge
+  const left = v % 2 === 0;
+  const x = left ? 3 : 9, y = 5, w = 20, h = 17;
+  rect(g, x + w / 2 - 2, y + h, 4, 9, '#d6ccb2'); // drive
+  softShadow(g, x, y, w, h);
+  const wall = suburbWall(style, v + 1);
+  const roof = style === 'modern' ? '#5d6670' : ROOFS[(v + 1) % ROOFS.length];
+  rect(g, x, y + h - 8, w, 8, wall);
+  rect(g, x, y, w, h - 8, roof);
+  rect(g, x, y, w, 2, shade(roof, 0.25));
+  rect(g, x + w / 2, y, 1, h - 8, shade(roof, -0.3));
+  // a gabled wing toward the garden
+  const wx = left ? x + w - 8 : x;
+  rect(g, wx, y + 2, 8, h - 10, shade(roof, 0.1));
+  rect(g, wx, y + h - 8, 8, 8, shade(wall, -0.06));
+  rect(g, x + 2, y + h - 6, 4, 3, win);
+  rect(g, x + w - 6, y + h - 6, 4, 3, win);
+  rect(g, wx + 2, y + h - 6, 4, 3, win);
+  rect(g, x + w / 2 - 1, y + h - 6, 3, 6, '#5b3a1e');
+  rect(g, x + (left ? 3 : w - 6), y - 3, 3, 5, '#7a4a3a');
+  shrub(g, left ? 27 : 5, 9, 4);
+  shrub(g, left ? 26 : 6, 24, 3);
 }
 
 /** Two houses joined under one roof line, filling the tile width. */
@@ -1051,6 +1222,8 @@ const HOUSE_CASTERS: Record<HouseTier, ShadowCaster> = {
   terrace: { x: 2, y: 14, w: 28, d: 11, z: HOUSE_TIER_HEIGHT.terrace },
   block: { x: 3, y: 12, w: 26, d: 16, z: HOUSE_TIER_HEIGHT.block },
   tower: { x: 3, y: 6, w: 26, d: 22, z: HOUSE_TIER_HEIGHT.tower },
+  semi: { x: 4, y: 11, w: 24, d: 11, z: HOUSE_TIER_HEIGHT.semi },
+  villa: { x: 3, y: 10, w: 26, d: 12, z: HOUSE_TIER_HEIGHT.villa },
 };
 
 /** Draw a one-tile house of `tier` with its top-left corner at (px, py). */
@@ -1063,6 +1236,8 @@ export function drawHouse(g: Ctx, px: number, py: number, variant: number, year:
   if (tier !== 'house') {
     if (tier === 'terrace') drawTerrace(g, style, v, win);
     else if (tier === 'block') drawBlock(g, style, v, win);
+    else if (tier === 'semi') drawSemi(g, style, v, win);
+    else if (tier === 'villa') drawVilla(g, style, v, win);
     else drawTower(g, v, lit);
     g.restore();
     return;

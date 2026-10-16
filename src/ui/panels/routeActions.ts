@@ -5,10 +5,10 @@ import type { IconId } from '../../render/icons';
 import type { Selection } from '../../render/world';
 import { earn } from '../../sim/finance';
 import { acceptsGood, handlesCargo, noCargoError } from '../../sim/inventory';
-import { buyTrain, STATION_TYPE, TRAIN } from '../../sim/rail';
+import { buyTrain, STATION_TYPE } from '../../sim/rail';
 import { appendStop, offeredGoods } from '../../sim/routeHelpers';
 import type { Building, GameState, Route, RouteStop } from '../../sim/types';
-import { buyTruck, createRoute, deleteRoute, TRUCK, VEHICLE_KINDS } from '../../sim/vehicles';
+import { buyTruck, createRoute, deleteRoute, sellRefund, VEHICLE_KINDS, vehiclePrice } from '../../sim/vehicles';
 
 export type Kind = Route['kind'];
 
@@ -18,10 +18,10 @@ export const buildingName = (b: Building | undefined): string => (b ? (BUILDINGS
 /** Atlas icon for a building's category ('warning' when it is gone). */
 export const buildingIcon = (b: Building | undefined): IconId => (b ? (CATEGORY_ICON[BUILDINGS[b.typeId]?.category] ?? 'factory') : 'warning');
 
-/** Words, icon and price for the vehicles of a route kind. */
+/** Words and icon for the vehicles of a route kind (sim/vehicles.ts vehiclePrice gives the price). */
 export const KIND_INFO = {
-  truck: { one: 'truck', many: 'trucks', icon: 'truck', cost: TRUCK.cost, way: 'road', buy: buyTruck },
-  train: { one: 'train', many: 'trains', icon: 'train', cost: TRAIN.cost, way: 'track', buy: buyTrain },
+  truck: { one: 'truck', many: 'trucks', icon: 'truck', way: 'road', buy: buyTruck },
+  train: { one: 'train', many: 'trains', icon: 'train', way: 'track', buy: buyTrain },
 } as const;
 
 /** Access tiles for a stop of a route kind (road for trucks, rail for trains). */
@@ -164,7 +164,6 @@ function undoSendGoods(
   }
   const kind = state.vehicles[made.vehicleId].kind;
   deleteRoute(ctx, made.routeId); // refunds half
-  const cost = VEHICLE_KINDS[kind]?.spec.cost ?? 0;
-  earn(state.companies.player, 'vehicles', cost * 0.5, state.date); // the rest: a full refund
+  earn(state.companies.player, 'vehicles', vehiclePrice(state, kind) - sellRefund(state, kind), state.date); // the rest: a full refund
   ctx.bus.emit({ type: 'toast', message: 'Route undone, vehicle refunded', tone: 'info' });
 }

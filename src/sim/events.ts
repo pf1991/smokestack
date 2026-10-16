@@ -4,16 +4,14 @@ import { RECIPES, recipeEra } from '../data/recipes';
 import { addDays, compareDates, dateToDays } from './clock';
 import { currentLedger } from './finance';
 import { publishNews } from './news';
+import { pushModifier } from './modifiers';
 import { chance, pick, random } from './rng';
-import { nextId } from './state';
 import type { Building, GoodId, NewsItem, SimContext } from './types';
 
 const DAYS_PER_MONTH = 30;
 
-export function pushModifier(ctx: SimContext, tag: string, goodId: GoodId | '*', cityId: number | null, factor: number, days: number): void {
-  const { state } = ctx;
-  state.modifiers.push({ id: `${tag}:${nextId(state)}`, goodId, cityId, factor, until: addDays(state.date, days) });
-}
+// re-exported: callers import it from here (the card helpers use the leaf module directly)
+export { pushModifier };
 
 // ---------------------------------------------------------------------------
 // Historic events

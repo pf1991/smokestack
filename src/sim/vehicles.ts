@@ -5,6 +5,8 @@ import { acceptsGood, handlesCargo, loadSource, noCargoError, storageLeft } from
 import { findPath, pathMemo, pathStillPassable, roadPassable, type Passable } from './pathfinding';
 import { truckTollsMonth } from './politics/mayorEdicts';
 import { accessTiles, nextId } from './state';
+import { AGING_GRACE, agingEfficiency, assetAge, assetUpkeep, NO_WEAR } from './society/aging';
+import { atPrices } from './society/economy';
 import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
 export interface VehicleSpec {
@@ -42,7 +44,7 @@ export const ROUTE_COLORS = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f5823
 
 /** Ticks between path retries of a stuck vehicle (staggered by vehicle id). */
 export const STUCK_RETRY_TICKS = 24;
-const SELL_REFUND = 0.5;
+export const SELL_REFUND = 0.5;
 /** Window (30 days of 24 ticks) over which completed unloading stops are counted. */
 export const TRIP_WINDOW_TICKS = 30 * 24;
 
@@ -214,8 +216,9 @@ export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kin
   const spawn = first ? def.access(state, first)[0] : undefined;
   if (!spawn) return err(def.noAccessError ?? 'Stop has no road access');
   const company = state.companies[owner];
-  if (!canAfford(company, def.spec.cost)) return err('Not enough money');
-  spend(company, 'vehicles', def.spec.cost, state.date);
+  const price = vehiclePrice(state, kind);
+  if (!canAfford(company, price)) return err('Not enough money');
+  spend(company, 'vehicles', price, state.date);
   const vehicle: Vehicle = {
     id: nextId(state),
     kind,
@@ -231,6 +234,7 @@ export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kin
     state: route.stops.length >= 2 ? 'moving' : 'idle',
     waitTicks: 0,
     stuckNotified: false,
+    builtYear: state.date.year,
   };
   state.vehicles[vehicle.id] = vehicle;
   return ok(vehicle);
@@ -246,11 +250,63 @@ export function sellVehicle(ctx: SimContext, id: number): Result {
   const { state } = ctx;
   const veh = state.vehicles[id];
   if (!veh) return err('No such vehicle');
-  const cost = VEHICLE_KINDS[veh.kind]?.spec.cost ?? 0;
-  earn(state.companies[veh.ownerId], 'vehicles', cost * SELL_REFUND, state.date);
+  earn(state.companies[veh.ownerId], 'vehicles', sellRefund(state, veh.kind), state.date);
   delete state.vehicles[id];
   fleetRemovals++;
   return ok();
+}
+
+/**
+ * Replaces an (old) vehicle with a new one of the same kind on the same route: sells it
+ * (sellVehicle, cargo lost) and buys new at today's price (buyVehicle). The newcomer takes the old
+ * one's place (its tile and next stop) and re-plans from there: a vehicle in service is on the
+ * route's working network, while the first stop's spawn tile may be a stub the network has since
+ * outgrown. Checks the purchase can go through first, so it never sells without rebuying.
+ */
+export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Result<Vehicle> {
+  const { state } = ctx;
+  const veh = state.vehicles[id];
+  if (!veh) return err('No such vehicle');
+  if (owner !== undefined && veh.ownerId !== owner) return err('Not your vehicle');
+  const route = veh.routeId !== null ? state.routes[veh.routeId] : undefined;
+  if (!route) return err('Assign it to a route first');
+  const def = VEHICLE_KINDS[veh.kind];
+  const first = route.stops[0] ? state.buildings[route.stops[0].buildingId] : undefined;
+  if (!def || !first || !def.access(state, first)[0]) return err(def?.noAccessError ?? 'Stop has no road access');
+  if (assetAge(state, veh) <= AGING_GRACE) return err(NO_WEAR);
+  if (!canAfford(state.companies[veh.ownerId], replaceCost(state, veh.kind))) return err('Not enough money');
+  const { ownerId, kind, stopIndex } = veh;
+  const at = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };
+  sellVehicle(ctx, id);
+  const bought = buyVehicle(ctx, ownerId, route.id, kind);
+  if (!bought.ok) return bought;
+  const fresh = bought.value;
+  fresh.pos = { ...at };
+  fresh.prevPos = { ...at };
+  fresh.stopIndex = stopIndex;
+  fresh.path = [];
+  fresh.pathIndex = 0;
+  return bought;
+}
+
+/** Price of a new vehicle of `kind` at today's prices, rounded. */
+export function vehiclePrice(state: GameState, kind: Vehicle['kind']): number {
+  return Math.round(atPrices(state, VEHICLE_KINDS[kind]?.spec.cost ?? 0));
+}
+
+/** What selling a vehicle of `kind` refunds: SELL_REFUND of today's price, rounded. */
+export function sellRefund(state: GameState, kind: Vehicle['kind']): number {
+  return Math.round(vehiclePrice(state, kind) * SELL_REFUND);
+}
+
+/** Net price of replacing a vehicle of `kind`: a new one less the old one's refund. */
+export function replaceCost(state: GameState, kind: Vehicle['kind']): number {
+  return vehiclePrice(state, kind) - sellRefund(state, kind);
+}
+
+/** Monthly upkeep of `veh`: its kind's maintenance at today's prices × its age factor. */
+export function vehicleUpkeep(state: GameState, veh: Vehicle): number {
+  return atPrices(state, VEHICLE_KINDS[veh.kind]?.spec.maintenance ?? 0) * assetUpkeep(state, veh);
 }
 
 /**
@@ -284,8 +340,7 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
 export function vehicleMaintenanceMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const veh of Object.values(state.vehicles)) {
-    const def = VEHICLE_KINDS[veh.kind];
-    if (def) spend(state.companies[veh.ownerId], 'vehicles', def.spec.maintenance, state.date);
+    if (VEHICLE_KINDS[veh.kind]) spend(state.companies[veh.ownerId], 'vehicles', vehicleUpkeep(state, veh), state.date);
   }
   truckTollsMonth(ctx);
 }
@@ -420,7 +475,9 @@ const EPS = 1e-9;
 /** Advances `speed` tiles along the path, crossing several nodes if needed; arrival at the last node. */
 function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
   const { map } = ctx.state;
-  let remaining = def.spec.speed;
+  // an old vehicle is slower (society/aging.ts); the hot path skips the call while it is young
+  const age = ctx.state.date.year - veh.builtYear;
+  let remaining = age > AGING_GRACE ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
   let replanned = false;
   for (;;) {
     if (veh.pathIndex >= veh.path.length) {

@@ -4,11 +4,13 @@ import { transferOwnership } from '../companies';
 import { earn, spend } from '../finance';
 import { publishNews } from '../news';
 import { assetValue } from '../state';
+import { atPrices } from '../society/economy';
 import type { GameState, OwnerId, SimContext } from '../types';
 import { clearProjectFlags } from './projects';
 
 const TAKEOVER_MULTIPLE = 3;
-const TAKEOVER_MIN_WORTH = 1_000_000;
+/** Least net worth for a takeover, in 1900 dollars (× price index). */
+export const TAKEOVER_MIN_WORTH = 1_000_000;
 const TAKEOVER_PREMIUM = 1.2;
 
 export function netWorth(state: GameState, owner: OwnerId): number {
@@ -19,7 +21,7 @@ export function netWorth(state: GameState, owner: OwnerId): number {
 export function canTakeover(state: GameState): boolean {
   if (!state.companies.rival.active) return false;
   const mine = netWorth(state, 'player');
-  return mine >= TAKEOVER_MIN_WORTH && mine >= TAKEOVER_MULTIPLE * netWorth(state, 'rival');
+  return mine >= atPrices(state, TAKEOVER_MIN_WORTH) && mine >= TAKEOVER_MULTIPLE * netWorth(state, 'rival');
 }
 
 export function takeoverPrice(state: GameState): number {
@@ -29,7 +31,7 @@ export function takeoverPrice(state: GameState): number {
 /** Buys out the Baron: every rival building, route, vehicle and road passes to the player. */
 export function takeover(ctx: SimContext): Result<{ price: number }> {
   const { state } = ctx;
-  if (!canTakeover(state)) return err('Your net worth must be 3× the Baron’s and at least $1,000,000');
+  if (!canTakeover(state)) return err(`Your net worth must be 3× the Baron’s and at least $${Math.round(atPrices(state, TAKEOVER_MIN_WORTH)).toLocaleString('en-US')}`);
   const price = takeoverPrice(state);
   const player = state.companies.player;
   const rival = state.companies.rival;

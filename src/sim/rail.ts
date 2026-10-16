@@ -17,6 +17,7 @@ import { layerAt } from './layers';
 import { findPath, invalidatePaths, railPassable, type Passable } from './pathfinding';
 import type { Building, BuildingTypeId, GameMap, GameState, OwnerId, SimContext, Tile, Vec2, Vehicle } from './types';
 import { buyVehicle, VEHICLE_KINDS, type VehicleSpec } from './vehicles';
+import { atPrices } from './society/economy';
 
 export const TRAIN = { cost: 60000, capacity: 120, speed: 1.0, maintenance: 1200, loadTicks: 12 } as const satisfies VehicleSpec;
 /** Dollars per tile of track laid. */
@@ -36,11 +37,17 @@ function railBlocked(t: Tile | undefined): boolean {
   return !t || t.terrain === 'water' || t.terrain === 'mountain' || t.buildingId !== null;
 }
 
+/** Price of one tile of track at today's prices, rounded. */
+export function railTileCost(state: GameState): number {
+  return Math.round(atPrices(state, RAIL_COST));
+}
+
 /** Cost of laying track on `tiles` (existing track and duplicates are free), or the reason it cannot be built. */
 export function railQuote(state: GameState, owner: OwnerId, tiles: Vec2[]): { cost: number; error: string | null } {
   const { map } = state;
   const seen = new Set<number>();
   let cost = 0;
+  const each = railTileCost(state);
   for (const p of tiles) {
     const t = tileOf(map, p.x, p.y);
     if (t?.rail) continue;
@@ -49,14 +56,14 @@ export function railQuote(state: GameState, owner: OwnerId, tiles: Vec2[]): { co
     const i = p.y * map.width + p.x;
     if (seen.has(i)) continue;
     seen.add(i);
-    cost += RAIL_COST;
+    cost += each;
   }
   if (!canAfford(state.companies[owner], cost)) return { cost, error: 'Not enough money' };
   return { cost, error: null };
 }
 
 /**
- * Atomic: lays track on every tile that lacks it ($1,200 each) or changes nothing. Track may cross
+ * Atomic: lays track on every tile that lacks it (RAIL_COST × price index each) or changes nothing. Track may cross
  * existing road (a level crossing) but not water, mountains, buildings or landmarks.
  */
 export function buildRail(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Result<{ built: number; cost: number }> {

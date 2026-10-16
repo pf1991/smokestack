@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SCENARIOS, evaluateGoals, recordSale } from './scenarios';
+import { SCENARIOS, evaluateGoals, goalProgress, recordSale } from './scenarios';
 import { runDays } from './simulation';
 import { runAutoplay } from '../game/autoplay';
 import { createGame } from './state';
@@ -15,6 +15,19 @@ describe('scenarios', () => {
     s.companies.player.money = 10;
     s.date.year = 1920;
     expect(evaluateGoals(s)).toEqual({ done: [false], failed: true });
+  });
+
+  it('money goals count 1900 dollars: cash / price index (R-S14)', () => {
+    const s = testState({ year: 1915 });
+    s.scenarioId = 'lumber_baron';
+    s.economy.priceIndex = 1.6;
+    s.companies.player.money = 1_500_000; // $937,500 in 1900 dollars
+    expect(evaluateGoals(s).done).toEqual([false]);
+    s.companies.player.money = 1_600_000;
+    expect(evaluateGoals(s).done).toEqual([true]);
+    const p = goalProgress(s, SCENARIOS.lumber_baron.goals[0]);
+    expect(p.label).toBe('Hold $1,000,000 in cash (in 1900 dollars)');
+    expect(p.value).toBeCloseTo(1_000_000, 6);
   });
 
   it('goals system emits victory once and stops the clock', () => {

@@ -77,6 +77,12 @@
   gap: 4px;
 }
 
+/* author display rules beat the UA's [hidden] { display: none }: restore it */
+.insp-section[hidden],
+.insp-list[hidden] {
+  display: none;
+}
+
 .insp-stat {
   display: flex;
   justify-content: space-between;
@@ -246,4 +252,31 @@
 .insp-follow.active {
   background: var(--brass-light);
   color: var(--walnut);
+}
+
+/* city panel: the three-segment class bar (Working / Middle / Upper) */
+.insp-class-bar {
+  display: flex;
+  width: 55%;
+  height: 16px;
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.insp-class-seg {
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: width 0.4s;
+}
+
+.insp-class-text {
+  display: block;
+  text-align: center;
+  line-height: 16px;
+  font-size: 10px;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
 }

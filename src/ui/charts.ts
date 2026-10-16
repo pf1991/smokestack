@@ -69,13 +69,14 @@ function gridColor(): string {
 }
 
 /**
- * Multi-series line chart. Non-finite values leave a gap in the line. Y axis uses formatMoney;
- * X labels are thinned so at most about six appear.
+ * Multi-series line chart. Non-finite values leave a gap in the line. Y axis uses `format`
+ * (formatMoney by default); X labels are thinned so at most about six appear.
  */
 export function lineChart(
   canvas: HTMLCanvasElement,
   series: { label: string; color: string; values: number[]; dashed?: boolean }[],
   labels: string[],
+  format: (v: number) => string = formatMoney,
 ): void {
   const p = prepare(canvas);
   if (!p) return;
@@ -104,7 +105,7 @@ export function lineChart(
     g.moveTo(PAD.left, ty);
     g.lineTo(PAD.left + plotW, ty);
     g.stroke();
-    g.fillText(formatMoney(t), PAD.left - 6, ty);
+    g.fillText(format(t), PAD.left - 6, ty);
   }
 
   g.textAlign = 'center';

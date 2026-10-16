@@ -12,6 +12,7 @@ import { CARDS_BY_ID } from '../../data/cards';
 import { DAYS_PER_MONTH, MONTHS_PER_YEAR, START_DATE } from '../clock';
 import { PLAYER_ID } from '../companies';
 import { canAfford, spend } from '../finance';
+import { INITIAL_CLASSES } from '../market';
 import { publishNews } from '../news';
 import { chance, pick, random } from '../rng';
 import type { City, GameState, SimContext } from '../types';
@@ -19,7 +20,9 @@ import { triggerCard } from './cards';
 import { adjustOpinion } from './factions';
 import { chooseMayorEdicts } from './mayorEdicts';
 import { workCity } from './workforce';
+import { REVOLT_REFORMER_VOTE, smogTier } from '../society/tiers';
 import type { CityPolitics } from './types';
+import { atPrices } from '../society/economy';
 
 export const ELECTION_TERM = 48;
 /** Oldest entries of `politics.elections` are dropped beyond this. */
@@ -61,16 +64,45 @@ export function newCityPolitics(cityIndex: number, startYear: number, nowIndex: 
   };
 }
 
+/** Old Money's class weight is capped here before normalising. */
+export const OLDMONEY_WEIGHT_CAP = 0.4;
+
+/**
+ * The share of the town each faction speaks for, from its class mix (Phase 3 Task 7), normalised to
+ * sum to 1: workers base × working / 0.75, Old Money base × upper / 0.05 (capped at 0.4), reformers
+ * base × middle / 0.2, church and baron at their base weights (FACTIONS[f].weight: 0.40 / 0.18 /
+ * 0.17 / 0.20 / 0.05). At the initial 1900 mix these are exactly the base weights.
+ */
+export function factionWeights(city: City): Record<FactionId, number> {
+  const c = city.classes ?? INITIAL_CLASSES;
+  const w = {} as Record<FactionId, number>;
+  let total = 0;
+  for (const f of FACTION_IDS) {
+    const base = FACTIONS[f].weight;
+    let v = base;
+    if (f === 'workers') v = base * (c.working / INITIAL_CLASSES.working);
+    else if (f === 'oldmoney') v = Math.min(OLDMONEY_WEIGHT_CAP, base * (c.upper / INITIAL_CLASSES.upper));
+    else if (f === 'reformers') v = base * (c.middle / INITIAL_CLASSES.middle);
+    w[f] = v;
+    total += v;
+  }
+  for (const f of FACTION_IDS) w[f] /= total;
+  return w;
+}
+
 export function voteShares(city: City): Record<FactionId, number> {
   const p = city.politics;
   const scores = {} as Record<FactionId, number>;
+  const weights = factionWeights(city);
   let total = 0;
   for (const f of FACTION_IDS) {
-    let s = FACTIONS[f].weight * (0.6 + (0.8 * Math.abs(city.opinion[f] - 50)) / 50);
+    let s = weights[f] * (0.6 + (0.8 * Math.abs(city.opinion[f] - 50)) / 50);
     if (p.endorsed === f) {
       s *= ENDORSE_SHARE_BONUS;
       s *= 1 + 0.25 * Math.min(MAX_SLUSH, Math.max(0, p.slush));
     }
+    // a smog revolt (tier 4) swings the town to the reformers
+    if (f === 'reformers' && smogTier(city) >= 4) s *= REVOLT_REFORMER_VOTE;
     scores[f] = s;
     total += s;
   }
@@ -165,8 +197,12 @@ export const SLUSH_RISK = 0.15;
 export const SCANDAL_CHANCE_PER_RISK = 0.1;
 export const SCANDAL_RISK_DECAY = 0.01;
 
-export function slushCost(year: number): number {
-  return Math.round((5000 * (1 + (year - 1900) / 25)) / 500) * 500;
+/** A slush payment in 1900 dollars. */
+export const SLUSH_BASE = 5000;
+
+/** A slush payment now: SLUSH_BASE at today's prices (society/economy.ts), rounded to $500. */
+export function slushCost(state: GameState): number {
+  return Math.round(atPrices(state, SLUSH_BASE) / 500) * 500;
 }
 
 /** Why slush cannot be paid in this city right now, or null. */
@@ -176,7 +212,7 @@ export function slushBlocker(state: GameState, cityId: number): string | null {
   const p = city.politics;
   if (p.endorsed === null) return 'Endorse a faction first';
   if (p.slush >= MAX_SLUSH) return `Slush already paid ${MAX_SLUSH} times this cycle`;
-  if (!canAfford(state.companies[PLAYER_ID], slushCost(state.date.year))) return 'Not enough money';
+  if (!canAfford(state.companies[PLAYER_ID], slushCost(state))) return 'Not enough money';
   return null;
 }
 
@@ -193,7 +229,7 @@ export function paySlush(ctx: SimContext, cityId: number): Result {
   const why = slushBlocker(state, cityId);
   if (why) return err(why);
   const city = state.cities.find((c) => c.id === cityId)!;
-  spend(state.companies[PLAYER_ID], 'events', slushCost(state.date.year), state.date);
+  spend(state.companies[PLAYER_ID], 'events', slushCost(state), state.date);
   city.politics.slush += 1;
   city.politics.scandalRisk += SLUSH_RISK;
   return ok();
@@ -209,7 +245,7 @@ export function scandalMonth(ctx: SimContext): void {
       adjustOpinion(state, 'church', city.id, -6, 'Bribery scandal');
       adjustOpinion(state, 'reformers', 'national', -3, 'Bribery scandal');
       // a consequence, not a purchase: charged even into debt
-      spend(state.companies[PLAYER_ID], 'events', 2 * slushCost(state.date.year), state.date);
+      spend(state.companies[PLAYER_ID], 'events', 2 * slushCost(state), state.date);
       p.scandalRisk = 0;
       ctx.bus.emit({ type: 'scandal', cityId: city.id });
       triggerCard(ctx, 'scandal', city.id);

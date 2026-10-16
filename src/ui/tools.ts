@@ -6,4 +6,6 @@ export type ToolSpec =
   | { kind: 'road' }
   | { kind: 'rail' }
   | { kind: 'bulldoze' }
+  /** drag a rectangle of grass to plant forest (sim/state.ts plantForest) */
+  | { kind: 'trees' }
   | { kind: 'pickStop'; routeId: number | null };

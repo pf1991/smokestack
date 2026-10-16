@@ -2,17 +2,19 @@ import type { Result } from '../../core/result';
 import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
-import { repayLoan, takeLoan, LOAN_STEP } from '../finance';
+import { loanStep, repayLoan, repayStep, takeLoan } from '../finance';
 import { loadSource, storageLeft } from '../inventory';
 import { publishNews } from '../news';
 import { connectToRoads, ensureRoadLink } from '../roads';
 import { demolishBuilding, findPlacement, placeBuilding } from '../state';
 import type { Building, City, GameState, GoodId, SimContext, Vec2 } from '../types';
-import { buyTruck, createRoute, deleteRoute, TRUCK } from '../vehicles';
+import { buyTruck, createRoute, deleteRoute, replaceCost, replaceVehicle, TRUCK } from '../vehicles';
+import { assetAge, renewBuilding, renewCost } from '../society/aging';
 import { planChain } from './chains';
 import type { ChainEdge, ChainNode } from './chains';
 import { block, rivalStoreIn } from './market';
-import { FULL_RATIO, MAX_STALL_MONTHS, RIVAL_RESERVE } from './shared';
+import { FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
+import { atPrices, priceIndex } from '../society/economy';
 
 const LOAN_BELOW = 20000;
 const LOAN_CAP = 200000;
@@ -24,7 +26,7 @@ const F_BUILDINGS = 'rivalBuildings';
 const F_FAILS = 'rivalFails';
 const F_STALL = 'rivalStall';
 
-function projectIds(state: GameState): number[] {
+export function projectIds(state: GameState): number[] {
   const v = state.flags[F_BUILDINGS];
   return typeof v === 'string' && v ? v.split(',').map(Number) : [];
 }
@@ -117,7 +119,8 @@ function fail(ctx: SimContext, reason: string): void {
   if (fails >= MAX_FAILS) abandon(ctx, reason);
 }
 
-export const affordable = (state: GameState, cost: number) => state.companies.rival.money - cost >= RIVAL_RESERVE;
+/** Whether the Baron can pay `cost` (1900 dollars) and keep RIVAL_RESERVE, both at today's prices. */
+export const affordable = (state: GameState, cost: number) => state.companies.rival.money - atPrices(state, cost) >= rivalReserve(state);
 
 function routeFor(state: GameState, from: Building, to: Building, good: GoodId) {
   return Object.values(state.routes).find(
@@ -224,7 +227,7 @@ export function advanceProject(ctx: SimContext): void {
   if (project.stage === total) {
     // roads: give every building access, then make sure every leg is drivable
     for (const b of built) {
-      const r = connectToRoads(ctx, b, { owner: 'rival', reserve: RIVAL_RESERVE });
+      const r = connectToRoads(ctx, b, { owner: 'rival', reserve: rivalReserve(state) });
       if (!r.ok) {
         if (r.error !== 'Not enough money') fail(ctx, 'no road could reach a site');
         else stall(ctx, city, false);
@@ -233,7 +236,7 @@ export function advanceProject(ctx: SimContext): void {
     }
     for (const e of plan.edges) {
       const [a, b] = endpoints(e);
-      const r = ensureRoadLink(ctx, 'rival', a, b, RIVAL_RESERVE);
+      const r = ensureRoadLink(ctx, 'rival', a, b, rivalReserve(state));
       if (!r.ok) {
         if (r.error !== 'Not enough money') fail(ctx, 'the roads would not meet');
         else stall(ctx, city, false);
@@ -307,14 +310,36 @@ export function topUpTrucks(ctx: SimContext): void {
   }
 }
 
+/** Age at which the Baron overhauls a works or replaces a vehicle (society/aging.ts). */
+export const RIVAL_RENEW_AGE = 30;
+
+/**
+ * The Baron keeps his empire up like any owner must: each month he renews his oldest works and
+ * replaces his oldest vehicle once they reach RIVAL_RENEW_AGE, when he can pay and keep his reserve.
+ */
+export function renewOldAssets(ctx: SimContext): void {
+  const { state } = ctx;
+  const rival = state.companies.rival;
+  const oldest = <T extends { id: number; ownerId: string; builtYear: number }>(xs: T[]): T | undefined =>
+    xs
+      .filter((x) => x.ownerId === 'rival' && assetAge(state, x) >= RIVAL_RENEW_AGE)
+      .sort((a, b) => a.builtYear - b.builtYear || a.id - b.id)[0];
+  const b = oldest(Object.values(state.buildings));
+  if (b && rival.money - renewCost(state, b) >= rivalReserve(state)) renewBuilding(ctx, b.id, 'rival');
+  const v = oldest(Object.values(state.vehicles).filter((x) => x.routeId !== null));
+  if (v && rival.money - replaceCost(state, v.kind) >= rivalReserve(state)) replaceVehicle(ctx, v.id, 'rival');
+}
+
 export function manageLoans(ctx: SimContext): void {
   const rival = ctx.state.companies.rival;
-  if (rival.money < LOAN_BELOW && rival.loan < LOAN_CAP) takeLoan(rival, LOAN_STEP);
+  const index = priceIndex(ctx.state);
+  if (rival.money < LOAN_BELOW * index && rival.loan < LOAN_CAP * index) takeLoan(rival, loanStep(index), index);
 }
 
 export function repayLoans(ctx: SimContext): void {
   const rival = ctx.state.companies.rival;
-  if (rival.money > REPAY_ABOVE && rival.loan > 0) repayLoan(rival, LOAN_STEP);
+  const index = priceIndex(ctx.state);
+  if (rival.money > REPAY_ABOVE * index && rival.loan > 0) repayLoan(rival, repayStep(rival, index), index);
 }
 
 /**

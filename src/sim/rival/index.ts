@@ -6,18 +6,22 @@
 import type { SimContext } from '../types';
 import { chooseProject } from './market';
 import {
-  advanceProject, clearProjectFlags, manageLoans, maxRivalChains, repayLoans, rivalChainCount, topUpTrucks,
+  advanceProject, clearProjectFlags, manageLoans, maxRivalChains, renewOldAssets, repayLoans, rivalChainCount, topUpTrucks,
 } from './projects';
 import { advanceRail, retryScrap, startRailProject } from './railways';
+import { baronInsolvent, insolvencyGuard } from './insolvency';
 
 /** The Baron's monthly turn (no-op once he is inactive). */
 export function rivalMonth(ctx: SimContext): void {
   const { state } = ctx;
   const rival = state.companies.rival;
   if (!rival.active) return;
+  // R-S13: below 0 at month end he sells off his worst earner and starts nothing new
+  insolvencyGuard(ctx);
+  const broke = baronInsolvent(state);
   manageLoans(ctx);
   retryScrap(ctx);
-  if (!state.rivalProject && !state.rivalRail && rivalChainCount(state) < maxRivalChains(state.date.year)) {
+  if (!broke && !state.rivalProject && !state.rivalRail && rivalChainCount(state) < maxRivalChains(state.date.year)) {
     const pick = chooseProject(state);
     if (pick) {
       state.rivalProject = { cityId: pick.city.id, goodId: pick.goodId, stage: 0 };
@@ -25,9 +29,10 @@ export function rivalMonth(ctx: SimContext): void {
     }
   }
   if (state.rivalProject) advanceProject(ctx);
-  if (!state.rivalProject && !state.rivalRail) startRailProject(ctx);
+  if (!broke && !state.rivalProject && !state.rivalRail) startRailProject(ctx);
   if (state.rivalRail) advanceRail(ctx);
   topUpTrucks(ctx);
+  renewOldAssets(ctx);
   repayLoans(ctx);
 }
 

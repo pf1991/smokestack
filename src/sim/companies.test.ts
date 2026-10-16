@@ -35,7 +35,7 @@ describe('companies', () => {
   it('transferOwnership moves every asset and tile count and emits once', () => {
     const ctx = testCtx(testState());
     const { state } = ctx;
-    for (const id of [1, 2]) state.buildings[id] = { id, ownerId: 'rival' } as Building;
+    for (const id of [1, 2]) state.buildings[id] = { id, ownerId: 'rival', salesThisMonth: 50, earnings12: [-5] } as Building;
     state.buildings[3] = { id: 3, ownerId: 'player' } as Building;
     state.routes[4] = { id: 4, ownerId: 'rival' } as Route;
     for (const id of [5, 6]) state.vehicles[id] = { id, ownerId: 'rival' } as Vehicle;
@@ -50,6 +50,8 @@ describe('companies', () => {
     const all = [...Object.values(state.buildings), ...Object.values(state.routes), ...Object.values(state.vehicles)];
     expect(all.some((a) => a.ownerId === 'rival')).toBe(false);
     expect(state.map.tiles.some((t) => t.roadOwner === 'rival' || t.railOwner === 'rival')).toBe(false);
+    // the Baron's insolvency bookkeeping is dropped (R-S13)
+    expect(Object.values(state.buildings).some((b) => 'salesThisMonth' in b || 'earnings12' in b)).toBe(false);
     expect(state.companies.rival.roadTiles).toBe(0);
     expect(state.companies.rival.railTiles).toBe(0);
     expect(state.companies.player.roadTiles).toBe(5);

@@ -17,6 +17,7 @@ import {
   landPriceFactor,
   loanRate,
   MAYOR_EDICTS,
+  mayorEdictEffect,
   permitRefusal,
   TRUCK_TOLL,
   truckTollsMonth,
@@ -244,11 +245,12 @@ describe('construction cost levers', () => {
 });
 
 describe('smog limit', () => {
-  function smogTown(pollution: number) {
+  /** A smog-limit town whose smog level (the 3-month average, ruling R-S5) is `level`. */
+  function smogTown(level: number) {
     const ctx = town();
     const city = ctx.state.cities[0];
     city.politics.edicts = ['smog_limit'];
-    city.pollution = pollution;
+    city.smog.level = level;
     const mill = must(placeBuilding(ctx, 'player', 'sawmill', NEAR));
     const rural = must(placeBuilding(ctx, 'player', 'sawmill', RURAL));
     const baron = must(placeBuilding(ctx, 'rival', 'sawmill', { x: 29, y: 23 }));
@@ -256,8 +258,8 @@ describe('smog limit', () => {
     return { ctx, mill, rural, baron };
   }
 
-  it('runs dirty player works near the town at 0.75 while its smog is above 0.4', () => {
-    const { ctx, mill, rural, baron } = smogTown(0.41);
+  it('runs dirty player works near the town at 0.75 while its smog level is at or above 0.10', () => {
+    const { ctx, mill, rural, baron } = smogTown(0.1);
     // r_lumber takes one day: at full rate a batch completes, at 0.75 it does not
     productionDay(ctx);
     expect(mill.progress).toBeCloseTo(0.75, 12);
@@ -267,7 +269,7 @@ describe('smog limit', () => {
   });
 
   it('stacks with staffing: a half-staffed limited works runs at 0.375', () => {
-    const { ctx, mill, rural } = smogTown(0.41);
+    const { ctx, mill, rural } = smogTown(0.12);
     mill.staffing = 0.5;
     rural.staffing = 0.5;
     productionDay(ctx);
@@ -275,8 +277,9 @@ describe('smog limit', () => {
     expect(rural.progress).toBeCloseTo(0.5, 12);
   });
 
-  it('does nothing at or below 0.4', () => {
-    const { ctx, mill } = smogTown(0.4);
+  it('does nothing below a level of 0.10, whatever the raw pollution', () => {
+    const { ctx, mill } = smogTown(0.099);
+    ctx.state.cities[0].pollution = 0.9;
     productionDay(ctx);
     expect(mill.output.lumber).toBe(5);
   });
@@ -291,7 +294,7 @@ describe('truck tolls', () => {
     };
     const v: Vehicle = {
       id: state.nextId++, kind: 'truck', ownerId: owner, routeId, pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 },
-      path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false,
+      path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900,
     };
     state.vehicles[v.id] = v;
     return v;
@@ -385,5 +388,13 @@ describe('Old Money credit', () => {
     c.loan = 120000;
     expect(closeMonth(c, state.date).interest).toBe(Math.round((120000 * LOAN_RATE) / 12));
     expect(closeMonth(c, state.date, 0.09).interest).toBe(900);
+  });
+});
+
+describe('edict text at today\'s prices (Task 8)', () => {
+  it('the toll shows the indexed amount; other edicts read as written', () => {
+    expect(mayorEdictEffect('truck_tolls', 1)).toBe(`$${TRUCK_TOLL}/month per truck stopping in town`);
+    expect(mayorEdictEffect('truck_tolls', 17.6)).toBe('$704/month per truck stopping in town');
+    expect(mayorEdictEffect('tax_break', 17.6)).toBe(MAYOR_EDICTS.tax_break.effect);
   });
 });

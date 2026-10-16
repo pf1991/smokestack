@@ -43,10 +43,12 @@ describe('factionOverlay', () => {
     setFactionMode('mayor');
     factionOverlay.draw(g, state, cam);
     expect(calls.filter((c) => c === 'arc').length).toBe(state.cities.length);
+    expect(texts).toEqual([]); // the legend is drawn separately, after the post effects
+    factionOverlay.drawLegend!(g, state, cam);
     expect(texts).toContain('Workers');
     const m = mockCtx();
     setFactionMode('workers');
-    factionOverlay.draw(m.g, state, cam);
+    factionOverlay.drawLegend!(m.g, state, cam);
     expect(m.texts).toEqual(expect.arrayContaining(['35', '50', '65']));
     setFactionMode('mayor');
     factionOverlay.enabled = false;
@@ -89,12 +91,12 @@ describe('factionOverlay', () => {
     setFactionMode('mayor');
     const { g } = mockCtx();
     const n = legendRenders;
-    factionOverlay.draw(g, state, cam);
-    factionOverlay.draw(g, state, cam);
-    factionOverlay.draw(g, state, cam);
+    factionOverlay.drawLegend!(g, state, cam);
+    factionOverlay.drawLegend!(g, state, cam);
+    factionOverlay.drawLegend!(g, state, cam);
     expect(legendRenders).toBe(n + 1);
     setFactionMode('workers');
-    factionOverlay.draw(g, state, cam);
+    factionOverlay.drawLegend!(g, state, cam);
     expect(legendRenders).toBe(n + 2);
     setFactionMode('mayor');
     factionOverlay.enabled = false;

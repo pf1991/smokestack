@@ -22,6 +22,19 @@ describe('crossedMilestone', () => {
 });
 
 describe('RollingCounter', () => {
+  it('rolls eight-digit inflated sums through formatMoney without overflowing the text', async () => {
+    const { formatMoney } = await import('./format');
+    const el = document.createElement('div');
+    const c = new RollingCounter(el, formatMoney);
+    c.snap(9_999_999);
+    expect(el.textContent).toBe('$10M');
+    c.set(123_456_789, 0);
+    c.tick(300);
+    expect(el.textContent).toMatch(/^\$\d{2,3}(\.\d{1,2})?M$/);
+    c.tick(600);
+    expect(el.textContent).toBe('$123.46M');
+  });
+
   const fmt = (n: number) => `$${Math.round(n)}`;
   it('rolls to the target and re-targets from the shown value', () => {
     const el = document.createElement('div');

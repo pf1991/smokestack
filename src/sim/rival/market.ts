@@ -8,7 +8,8 @@ import type { Building, City, GameState, GoodId } from '../types';
 import { TRUCK } from '../vehicles';
 import { planChain } from './chains';
 import type { ChainPlan } from './chains';
-import { F_BLOCKED, RIVAL_RESERVE } from './shared';
+import { F_BLOCKED, rivalReserve } from './shared';
+import { atPrices, priceIndex } from '../society/economy';
 
 /** rough allowance for access roads when judging whether a project is affordable */
 const ROAD_BUDGET = 10000;
@@ -112,13 +113,13 @@ export function chooseProject(state: GameState): Candidate | null {
     const storeCost = rivalStoreIn(state, city.id) ? 0 : BUILDINGS.store.cost;
     for (const [goodId, { cost, upkeep, capacity }] of plans) {
       if (blockedKeys.includes(`${city.id}:${goodId}`)) continue;
-      if (cost + storeCost > money - RIVAL_RESERVE) continue;
+      if (atPrices(state, cost + storeCost) > money - rivalReserve(state)) continue;
       const demand = monthlyDemand(city, goodId, state.date.year, demandModifier(state, city.id, goodId));
       const unmet = demand - rivalSupply(state, city.id, goodId);
       if (unmet <= 0) continue;
-      const price = salePrice(goodId, supplyRatio(city.market[goodId]));
+      const price = salePrice(goodId, supplyRatio(city.market[goodId]), priceIndex(state));
       // a new chain can only serve as much of the gap as it produces, and must pay its own upkeep
-      const score = Math.min(unmet, capacity) * price - upkeep;
+      const score = Math.min(unmet, capacity) * price - atPrices(state, upkeep);
       if (score <= 0) continue;
       cands.push({ city, goodId, score, playerThere: playerSells(state, city.id, goodId) });
     }

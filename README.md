@@ -37,6 +37,16 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Faction overlay:** switch the map to the faction mood overlay to see, city by city, who loves you and who does not.
 - **The newspaper front page:** the Daily Smokestack is now the political front page, with election results, endorsements and scandals.
 
+## What's new in SMOKESTACK II (Phase 3)
+
+- **Drifting smog, wind and rain:** your chimneys now smoke for real. Smog drifts downwind across the map, rain washes it out of the air, and a visible haze settles over polluted districts. The Smog button shows the heat map and its legend.
+- **Smog tiers and the toll on the towns:** a town that breathes too much smog climbs through four tiers. Its people fall ill with Black Lung, its workers grow restless, and at the worst tiers it protests and finally revolts against you.
+- **Strikes:** when workers' patience runs out they walk out. A struck building produces nothing until you settle, wait it out or break it.
+- **National smoke laws and fines:** as smog worsens, the country passes smoke laws (abatement, clean air, emission caps). Once a law is in force, breaking its limits costs you fines every month.
+- **Scrubbers, tall chimneys and trees:** buy scrubbers and tall chimneys for your plants, or plant trees, to cut and spread your smoke and keep the fines and the protesters away.
+- **Social classes, demand and villas:** each town splits into working, middle and upper classes. Their wealth changes what they buy, and prosperous, clean towns grow villas and semis.
+- **Inflation, aging, renew and replace:** prices rise across the century and your buildings age and wear. Renew an old building to restore it, or replace it with something new.
+
 ## Scenarios
 
 | Scenario | Goal |

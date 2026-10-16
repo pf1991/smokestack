@@ -16,6 +16,36 @@ describe('checkInvariants', () => {
     expect(msgs[0]).toContain('player');
   });
 
+  it('flags tile pollution that is non-finite or outside [0, cap]', () => {
+    for (const bad of [NaN, Infinity, -0.5, 100.5]) {
+      const state = createGame({ seed: 7 });
+      state.map.tiles[123].pollution = bad;
+      const msgs = checkInvariants(state);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toContain('pollution');
+    }
+  });
+
+  it('flags wind components outside [-1, 1]', () => {
+    for (const [windX, windY] of [[1.2, 0], [0, -1.01], [NaN, 0]]) {
+      const state = createGame({ seed: 7 });
+      state.weather = { ...state.weather, windX, windY };
+      const msgs = checkInvariants(state);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toContain('wind');
+    }
+  });
+
+  it('flags a non-boolean rain flag and a bad rainDays count', () => {
+    for (const patch of [{ rain: 1 }, { rain: undefined }, { rainDays: -1 }, { rainDays: NaN }, { rainDays: '2' }]) {
+      const state = createGame({ seed: 7 });
+      state.weather = { ...state.weather, ...(patch as object) };
+      const msgs = checkInvariants(state);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toMatch(/rain/);
+    }
+  });
+
   it('flags a vehicle on a missing route', () => {
     const state = createGame({ seed: 7 });
     const v: Vehicle = {
@@ -32,7 +62,7 @@ describe('checkInvariants', () => {
       capacity: 10,
       state: 'idle',
       waitTicks: 0,
-      stuckNotified: false,
+      stuckNotified: false, builtYear: 1900,
     };
     state.vehicles[v.id] = v;
     const msgs = checkInvariants(state);

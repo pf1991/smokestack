@@ -7,6 +7,7 @@ import { RECIPES } from '../data/recipes';
 import { monthlyDemand, urbanRadius } from './market';
 import { testCtx, testState } from './testkit';
 import type { Building, SimContext } from './types';
+import { newCityClasses } from './society/classes';
 
 function place(ctx: SimContext, type: string, x: number, y: number, recipe?: string): Building {
   const r = placeBuilding(ctx, 'player', type, { x, y }, recipe);
@@ -29,7 +30,7 @@ function storeCtx(stock: number) {
 }
 
 const PRICE = GOODS.furniture.basePrice * 1.5;
-const DAILY = (monthlyDemand({ population: 10000 } as never, 'furniture', 1900)) / 30;
+const DAILY = (monthlyDemand({ population: 10000, classes: newCityClasses() } as never, 'furniture', 1900)) / 30;
 
 describe('production', () => {
   it('lumber camp produces full recipe output on full forest', () => {

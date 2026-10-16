@@ -8,6 +8,9 @@ import { monthlyDemand, satisfaction } from './market';
 import { publishNews } from './news';
 import { random } from './rng';
 import { nextId } from './state';
+import { atPrices } from './society/economy';
+// a pure, DOM-free leaf: inflated rewards read "$1.2M" like every other figure in the game
+import { formatMoney } from '../core/money';
 import type { Contract, GameState, GoodId, OwnerId, SimContext } from './types';
 
 export const MAX_ACTIVE = 3;
@@ -66,7 +69,7 @@ export function offerContracts(ctx: SimContext): Contract | null {
     qty,
     delivered: 0,
     deadline: addDays(state.date, CONTRACT_DAYS),
-    reward: Math.round(qty * good.basePrice * 1.5),
+    reward: Math.round(atPrices(state, qty * good.basePrice * 1.5)),
     status: 'offered',
   };
   state.contracts.push(contract);
@@ -75,7 +78,7 @@ export function offerContracts(ctx: SimContext): Contract | null {
     ctx,
     'contract',
     `Mayor of ${city.name} pleads for ${what}!`,
-    `${city.name} is short of ${what}. The mayor offers $${contract.reward.toLocaleString('en-US')} for ${qty} delivered within four months.`,
+    `${city.name} is short of ${what}. The mayor offers ${formatMoney(contract.reward)} for ${qty} delivered within four months.`,
   );
   ctx.bus.emit({ type: 'contract', contractId: contract.id, status: 'offered' });
   return contract;
@@ -105,7 +108,7 @@ export function contractsDay(ctx: SimContext): void {
       if (city) city.population = Math.round(city.population * 1.05);
       recordContractDone(state);
       bus.emit({ type: 'contract', contractId: c.id, status: 'done' });
-      bus.emit({ type: 'toast', message: `Contract complete: ${city?.name} thanks you for the ${name}! +$${c.reward.toLocaleString('en-US')}`, tone: 'good' });
+      bus.emit({ type: 'toast', message: `Contract complete: ${city?.name} thanks you for the ${name}! +${formatMoney(c.reward)}`, tone: 'good' });
     } else if (compareDates(state.date, c.deadline) > 0) {
       c.status = 'failed';
       if (city) city.happiness = Math.max(0, city.happiness - 0.1);

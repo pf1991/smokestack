@@ -18,6 +18,8 @@ import { checkInvariants } from '../invariants';
 import { stateHash } from '../hash';
 
 const town = (year = 1905, seed = 3) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
+/** Sets the price index (society/economy.ts), which drives card money since Task 8. */
+const prices = (ctx: SimContext, index: number) => (ctx.state.economy.priceIndex = index);
 const at = (ctx: SimContext, year: number, month: number, day = 1) => {
   ctx.state.date = { ...ctx.state.date, year, month, day };
 };
@@ -192,11 +194,12 @@ describe('resolveCard', () => {
   it('spends the cost, applies the effects, records history and news', () => {
     const ctx = town();
     at(ctx, 1906, 4);
+    prices(ctx, 1.24);
     open(ctx, 'founders_parade', 1);
     const m = money(ctx);
     const w = ctx.state.cities[1].opinion.workers;
     const cost = choiceCost(ctx.state, CARDS_BY_ID.founders_parade.choices[0]);
-    expect(cost).toBe(3700); // 3000 x 1.24 (1906), rounded to $100
+    expect(cost).toBe(3700); // 3000 x 1.24 (price index), rounded to $100
     const r = resolveCard(ctx, 500, 0);
     expect(r.ok).toBe(true);
     expect(money(ctx)).toBe(m - 3700);
@@ -213,10 +216,11 @@ describe('resolveCard', () => {
 
   it('earns a negative cost under events', () => {
     const ctx = town();
+    prices(ctx, 1.2);
     open(ctx, 'founders_parade', 0);
     const m = money(ctx);
     expect(resolveCard(ctx, 500, 1).ok).toBe(true);
-    expect(money(ctx)).toBe(m + 2400); // -2000 x 1.2 (1905)
+    expect(money(ctx)).toBe(m + 2400); // -2000 x 1.2 (price index)
     expect(ctx.state.companies[PLAYER_ID].ledger.at(-1)!.income.events).toBe(2400);
   });
 
@@ -254,6 +258,7 @@ describe('cardsDay', () => {
   it('auto-resolves after 60 days with the default choice', () => {
     const ctx = town();
     at(ctx, 1906, 5, 1);
+    prices(ctx, 1.24);
     pending(ctx).push({ uid: 7, cardId: 'war_office', cityId: null, openedDay: dateToDays(ctx.state.date) });
     const m = money(ctx);
     ctx.state.date = { ...ctx.state.date, month: 6, day: 30 }; // 59 days later
@@ -263,7 +268,7 @@ describe('cardsDay', () => {
     expect(AUTO_RESOLVE_DAYS).toBe(60);
     cardsDay(ctx);
     expect(pending(ctx)).toEqual([]);
-    expect(money(ctx)).toBe(m + 9900); // default 0: sell steel, 8000 x 1.24
+    expect(money(ctx)).toBe(m + 9900); // default 0: sell steel, 8000 x 1.24 (price index)
   });
 
   it('falls back to the first affordable choice when the default is unaffordable', () => {
@@ -296,13 +301,14 @@ describe('cardsDay', () => {
 describe('forceCard and autoResolve', () => {
   it('opens any card now and answers it with its default', () => {
     const ctx = town(1950);
+    prices(ctx, 3);
     expect(forceCard(ctx, 'war_office')).toBe(true);
     expect(forceCard(ctx, 'no_such_card')).toBe(false);
     expect(forceCard(testCtx(testState()), 'founders_parade')).toBe(false); // no towns
     const inst = pending(ctx)[0];
     const m = money(ctx);
     expect(autoResolve(ctx, inst.uid).ok).toBe(true);
-    expect(money(ctx)).toBe(m + 8000 * 3); // 1950: era scale 3
+    expect(money(ctx)).toBe(m + 8000 * 3); // price index 3
     expect(autoResolve(ctx, inst.uid).ok).toBe(false);
   });
 });
@@ -319,8 +325,10 @@ describe('card money scaling (R-Q8)', () => {
     expect(choiceCost(ctx.state, steel)).toBe(-8000);
   });
 
-  it('follows the era: 3 in 1950', () => {
+  it('follows the price index (Task 8, replacing the era term): 3 at index 3', () => {
     const ctx = town(1950);
+    expect(cardScale(ctx.state)).toBe(1); // the year alone no longer scales it
+    prices(ctx, 3);
     expect(cardScale(ctx.state)).toBe(3);
     expect(choiceCost(ctx.state, bonds)).toBe(15000);
   });
@@ -332,17 +340,29 @@ describe('card money scaling (R-Q8)', () => {
     expect(choiceCost(ctx.state, bonds)).toBe(50000);
   });
 
-  it('is capped at 40', () => {
+  it('caps the wealth term at 40, in real terms', () => {
     const ctx = town(1900);
     ctx.state.companies[PLAYER_ID].money = 1e9;
     expect(cardScale(ctx.state)).toBe(40);
-    at(ctx, 2000, 4);
+    prices(ctx, 5);
     ctx.state.companies[PLAYER_ID].money = 0;
     expect(cardScale(ctx.state)).toBe(5);
+    ctx.state.companies[PLAYER_ID].money = 1e10;
+    expect(cardScale(ctx.state)).toBe(200); // 40x real wealth at index 5
+  });
+
+  it('the wealth term counts real net worth (nominal / price index)', () => {
+    const ctx = town(1900);
+    ctx.state.companies[PLAYER_ID].money = 3_000_000;
+    prices(ctx, 4);
+    expect(cardScale(ctx.state)).toBe(10); // $3M is $750k in 1900 dollars: wealth 2.5 x index 4
+    ctx.state.companies[PLAYER_ID].money = 60_000_000;
+    expect(cardScale(ctx.state)).toBe(160); // $15M real: wealth 50, capped at 40, x index 4
   });
 
   it('affordability uses the scaled cost', () => {
     const ctx = town(1950);
+    prices(ctx, 3);
     ctx.state.companies[PLAYER_ID].money = 10_000; // affords 5000 but not 15000
     expect(canAffordChoice(ctx.state, bonds)).toBe(false);
     pending(ctx).push({ uid: 3, cardId: 'war_office', cityId: null, openedDay: 0 });

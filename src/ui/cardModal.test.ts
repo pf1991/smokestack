@@ -153,7 +153,7 @@ describe('card modal', () => {
 
   it('shows the scaled cost that resolving books', () => {
     const s = withCard();
-    s.date.year = 1950; // era scale 3
+    s.economy.priceIndex = 3; // card scale 3 (the price index, Task 8)
     const t = attach(s);
     t.frame();
     const shown = [...document.querySelectorAll('.card-cost')].map((e) => e.textContent);

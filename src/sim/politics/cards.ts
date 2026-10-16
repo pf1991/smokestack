@@ -23,6 +23,7 @@ import { assetValue, nextId } from '../state';
 import type { GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CardInstance } from './types';
+import { priceIndex } from '../society/economy';
 
 /** Days a card may stay unanswered before it resolves itself with its default choice. */
 export const AUTO_RESOLVE_DAYS = 60;
@@ -119,6 +120,17 @@ function openCard(ctx: SimContext, trigger: CardTrigger, cityId: number | null):
   state.politics.cards.pending.push(inst);
 }
 
+/**
+ * Opens card `cardId` for a sim event that names its card (a law passing), unless that card is
+ * already pending. Returns whether it opened. No rng, no cooldown or era checks.
+ */
+export function openCardById(ctx: SimContext, cardId: string, cityId: number | null): boolean {
+  const { state } = ctx;
+  if (!CARDS_BY_ID[cardId] || state.politics.cards.pending.some((p) => p.cardId === cardId)) return false;
+  state.politics.cards.pending.push({ uid: nextId(state), cardId, cityId, openedDay: dateToDays(state.date) });
+  return true;
+}
+
 /** 1 April, once a year from FIRST_CARD_YEAR (`nextCardYear` guards against a second draw). */
 export function drawSpringCard(ctx: SimContext): void {
   const { state } = ctx;
@@ -134,15 +146,17 @@ export function triggerCard(ctx: SimContext, trigger: CardDef['trigger'], cityId
 }
 
 /**
- * Ruling R-Q8: card money grows with the century and with the player. The larger of the era scale
- * (1 in 1900, 3 in 1950) and the wealth scale (player net worth / $300,000), clamped to 1..40.
+ * Ruling R-Q8 (era term replaced by the price index in Task 8): card money grows with prices and with
+ * the player. The price index (society/economy.ts) times the wealth scale: the player's real net
+ * worth (nominal / price index) over $300,000, clamped to 1..40. So a card costs the same in 1900
+ * dollars whatever the year, and the cap of 40 means a 40× richer company than the 1900 start.
  */
 export function cardScale(state: GameState): number {
-  const era = 1 + (state.date.year - 1900) / 25;
+  const index = priceIndex(state);
   // net worth as rival/takeover.ts's netWorth (not imported: it would close an import cycle)
   const c = state.companies[PLAYER_ID];
-  const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / BASE_NET_WORTH;
-  return Math.min(MAX_CARD_SCALE, Math.max(1, era, wealth));
+  const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / index / BASE_NET_WORTH;
+  return index * Math.min(MAX_CARD_SCALE, Math.max(1, wealth));
 }
 
 /** A choice's cost now, in today's dollars, rounded to $100 (negative: money received). */
@@ -192,7 +206,7 @@ export function resolveCard(ctx: SimContext, uid: number, choice: number, defs: 
     if (scope === null) continue;
     adjustOpinion(state, e.faction, scope, e.delta, title);
   }
-  c.apply?.(ctx, inst.cityId);
+  c.apply?.(ctx, inst.cityId, inst);
   cards.pending.splice(cards.pending.indexOf(inst), 1);
   cards.history.push({ id: card.id, year: state.date.year, choice });
   if (cards.history.length > HISTORY_CAP) cards.history.splice(0, cards.history.length - HISTORY_CAP);

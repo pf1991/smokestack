@@ -1,3 +1,4 @@
+import type { SocietyState } from '../data/laws';
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
 import type { LandmarkId } from '../data/landmarks';
@@ -62,6 +63,38 @@ export interface Building {
   producedThisMonth: Inventory;
   /** 0..1 share of `workers` the building could hire, recomputed monthly (sim/politics/workforce.ts) */
   staffing: number;
+  /** a strike at this works (sim/society/strikes.ts); null or absent when there is none */
+  strike?: BuildingStrike | null;
+  /** smoke abatement bought for this works (sim/society/upgrades.ts); absent means none */
+  upgrades?: BuildingUpgrades;
+  /** the year it was built or last renewed (sim/society/aging.ts); set to the load year for old saves */
+  builtYear: number;
+  /** the Baron's buildings only (rival/insolvency.ts, R-S13): revenue a store took this month */
+  salesThisMonth?: number;
+  /** the Baron's buildings only: the last 12 months' earnings (sales or output value, less upkeep), oldest first */
+  earnings12?: number[];
+}
+
+/** A works' smoke abatement (sim/society/upgrades.ts). */
+export interface BuildingUpgrades {
+  /** scrubber tier fitted, 0 = none (a new tier replaces the previous one) */
+  scrubber: 0 | 1 | 2 | 3;
+  /** a tall chimney: the smoke lands downwind instead of on the works */
+  tallChimney: boolean;
+}
+
+/** A strike at a building (sim/society/strikes.ts). Days are `dateToDays` numbers. */
+export interface BuildingStrike {
+  /** the day the strike ends (it is on while today < until, and never past since + 120) */
+  until: number;
+  /** why the men came out, shown in the inspector */
+  reason: string;
+  /** the day it began */
+  since: number;
+  /** the town the works hires from: the strike card's town */
+  cityId: number;
+  /** uid of its pending strike card (the card's `apply` acts on this strike: `strikeTarget`); null when none is open */
+  cardUid: number | null;
 }
 
 export interface MarketEntry {
@@ -90,6 +123,33 @@ export interface City {
   opinion: Record<FactionId, number>;
   /** mayor, council and election schedule (sim/politics/elections.ts) */
   politics: CityPolitics;
+  /** Phase 3 smog escalation (sim/society/escalation.ts); added to old saves by the v6 migration */
+  smog: CitySmog;
+  /** Phase 3 social classes (sim/society/classes.ts): shares summing to 1; added to old saves by the v6 migration */
+  classes: CityClasses;
+}
+
+/** A town's class mix: shares of the population, summing to 1, each within [0.05, 0.85]. */
+export interface CityClasses {
+  working: number;
+  middle: number;
+  upper: number;
+}
+
+export type SmogTier = 0 | 1 | 2 | 3 | 4;
+
+/** A town's smog escalation state, written only by sim/society/escalation.ts (and initialisers). */
+export interface CitySmog {
+  tier: SmogTier;
+  /**
+   * Consecutive-month streak: positive counts months with `level` above the next tier's threshold,
+   * negative counts months below 80% of the current tier's threshold; 0 in between.
+   */
+  months: number;
+  /** cumulative smog deaths in this town */
+  blackLung: number;
+  /** 3-month EMA of `city.pollution` (level = 0.5 × level + 0.5 × pollution, monthly); tiers read this */
+  level: number;
 }
 
 export interface RouteStop {
@@ -127,6 +187,8 @@ export interface Vehicle {
   stuckNotified: boolean;
   /** ticks at which this vehicle completed an unloading stop (pruned to the last 30 days); absent in old saves */
   trips30?: number[];
+  /** the year it was bought (sim/society/aging.ts); set to the load year for old saves */
+  builtYear: number;
 }
 
 export type LedgerCategory =
@@ -137,7 +199,8 @@ export type LedgerCategory =
   | 'interest'
   | 'contracts'
   | 'events'
-  | 'demolition';
+  | 'demolition'
+  | 'fines';
 
 export interface LedgerMonth {
   year: number;
@@ -162,7 +225,7 @@ export interface Company {
   active: boolean;
 }
 
-export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics';
+export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics' | 'protest';
 
 export interface NewsItem {
   id: number;
@@ -223,6 +286,16 @@ export interface RivalRailProject {
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
 
+/** Today's weather (sim/weather.ts). Wind (+x east, +y south) carries smog; rain washes it out. */
+export interface Weather {
+  /** each in [-1, 1] */
+  windX: number;
+  windY: number;
+  rain: boolean;
+  /** consecutive rain days up to today (0 on a dry day) */
+  rainDays: number;
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -251,6 +324,20 @@ export interface GameState {
   layers: Record<string, number[]>;
   /** Phase 2 politics (sim/politics); added to old saves by the v5 migration */
   politics: PoliticsState;
+  /** Phase 3 weather (sim/weather.ts); added to old saves by the v6 migration */
+  weather: Weather;
+  /** Phase 3 national smoke laws (sim/society/regulation.ts); added to old saves by the v6 migration */
+  society: SocietyState;
+  /** Phase 3 inflation (sim/society/economy.ts); added to old saves by the v6 migration at index 1 */
+  economy: EconomyState;
+}
+
+/** The price level (sim/society/economy.ts). */
+export interface EconomyState {
+  /** 1 in 1900; every price and cost is its 1900 figure × this */
+  priceIndex: number;
+  /** the index at each of the last 120 month ends, oldest first */
+  history: number[];
 }
 
 export interface SimContext {

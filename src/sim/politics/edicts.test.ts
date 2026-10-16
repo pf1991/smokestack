@@ -16,6 +16,7 @@ import { EventBus } from '../../core/events';
 import { FACTION_IDS } from '../../data/factions';
 import { runAutoplay } from '../../game/autoplay';
 import { runDays } from '../simulation';
+import { newCitySmog } from '../society/tiers';
 import { buyPhilanthropy, EDICT_KEYS, edictDrive, EDICTS, edictsMonth, MAX_EDICT_DRIVE, MAX_OPTION_DRIVE, maintenanceFactor, philanthropyBlocker, setEdict } from './edicts';
 import { factionsMonth, nationalOpinion, opinionHistoryYear, opinionTrend } from './factions';
 import { politicsSystem } from './index';
@@ -167,7 +168,12 @@ describe('company edicts', () => {
       must(runAutoplay(ctx));
       ctx.state.politics.edicts = { ...edicts };
       for (let y = 0; y < 30; y++) {
-        runDays(ctx, 360);
+        // this test is about edicts, not smog: keep every town's smog escalation clean (Phase 3
+        // tiers, ruling R-S4) by zeroing the smog level at every month end
+        for (let m = 0; m < 12; m++) {
+          runDays(ctx, 30);
+          for (const c of ctx.state.cities) c.smog = newCitySmog();
+        }
         for (const c of ctx.state.cities) {
           for (const f of FACTION_IDS) {
             const v = c.opinion[f];

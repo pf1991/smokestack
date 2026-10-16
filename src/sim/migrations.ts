@@ -1,9 +1,14 @@
+import { defaultSociety } from '../data/laws';
 import { err, ok, type Result } from '../core/result';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { defaultOpinion } from '../data/factions';
 import { monthIndex, newCityPolitics } from './politics/elections';
 import { chooseMayorEdicts } from './politics/mayorEdicts';
 import { defaultPolitics } from './politics/types';
+import { defaultWeather } from './weather';
+import { newCitySmog } from './society/tiers';
+import { newCityClasses } from './society/classes';
+import { defaultEconomy } from './society/economy';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -72,6 +77,45 @@ export const MIGRATIONS: Migration[] = [
         if (typeof buildings !== 'object' || buildings === null) throw new Error('bad buildings');
         for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) b.staffing = 1;
       }
+    },
+  },
+  {
+    // v6: Phase 3 smog and society. Weather starts calm and dry, blowing the month's prevailing wind.
+    // Every town starts clean of escalation (tier 0, no Black Lung) with its smog level at its
+    // current pollution. Later Phase 3 tasks extend this entry until the phase merges.
+    from: 5,
+    migrate(o) {
+      const date = o.date as { month?: unknown; year?: unknown } | undefined;
+      if (typeof date?.month !== 'number' || typeof date.year !== 'number') throw new Error('bad date');
+      const year = date.year;
+      o.weather = defaultWeather(date.month);
+      const cities = o.cities;
+      if (!Array.isArray(cities)) throw new Error('bad cities');
+      for (const c of cities as Record<string, unknown>[]) {
+        c.smog = newCitySmog(typeof c.pollution === 'number' && Number.isFinite(c.pollution) ? c.pollution : 0);
+        // social classes (Task 7): every town at the initial 1900 mix
+        c.classes = newCityClasses();
+      }
+      // smoke laws (Task 5): none passed
+      o.society = defaultSociety();
+      // strikes (Task 4): no building is on strike
+      const buildings = o.buildings;
+      if (buildings !== undefined) {
+        if (typeof buildings !== 'object' || buildings === null) throw new Error('bad buildings');
+        for (const b of Object.values(buildings as Record<string, Record<string, unknown>>)) {
+          b.strike = null;
+          // aging (Task 8): an old save's works count as built this year (their true age is unknown)
+          b.builtYear = year;
+        }
+      }
+      const vehicles = o.vehicles;
+      if (vehicles !== undefined) {
+        if (typeof vehicles !== 'object' || vehicles === null) throw new Error('bad vehicles');
+        for (const v of Object.values(vehicles as Record<string, Record<string, unknown>>)) v.builtYear = year;
+      }
+      // inflation (Task 8): the index starts at 1 at load, whatever the year (past inflation is
+      // unknown), so a late-year old save keeps its 1900 prices and inflates from here
+      o.economy = defaultEconomy();
     },
   },
 ];

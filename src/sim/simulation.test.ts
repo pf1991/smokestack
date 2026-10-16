@@ -88,7 +88,8 @@ describe('stepTick', () => {
     const apr = s.companies.player.ledger.find((m) => m.year === 1900 && m.month === 4);
     expect(apr?.expense.maintenance).toBe(BUILDINGS.sawmill.maintenance);
     expect(apr?.cashEnd).toBe(afterBuild - BUILDINGS.sawmill.maintenance);
-    expect(apr?.netWorthEnd).toBe(apr!.cashEnd + BUILDINGS.sawmill.cost * 0.5);
+    // assets are valued at the month-end price index (the economy system steps before finance closes)
+    expect(apr?.netWorthEnd).toBe(apr!.cashEnd + Math.round(BUILDINGS.sawmill.cost * 0.5 * s.economy.priceIndex));
     expect(s.companies.player.ledger.find((m) => m.month === 5)?.expense.maintenance ?? 0).toBe(0);
   });
 
@@ -233,7 +234,7 @@ describe('saves', () => {
     };
     const corrupted = { ok: false, error: 'Save file is corrupted' };
     const incomplete = { ok: false, error: 'Save file is incomplete' };
-    expect(SAVE_VERSION).toBe(5);
+    expect(SAVE_VERSION).toBe(6);
     expect(deserialize('{')).toEqual(corrupted);
     expect(deserialize('')).toEqual(corrupted);
     expect(deserialize('null')).toEqual(corrupted);
@@ -254,6 +255,7 @@ describe('saves', () => {
     expect(deserialize(variant((o) => (o.routes = [])))).toEqual(incomplete);
     expect(deserialize(variant((o) => (o.cities = {})))).toEqual(incomplete);
     expect(deserialize(variant((o) => delete o.politics))).toEqual(incomplete);
+    expect(deserialize(variant((o) => delete o.weather))).toEqual(incomplete);
     expect(deserialize(variant(() => undefined)).ok).toBe(true);
   });
 });

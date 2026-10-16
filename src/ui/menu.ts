@@ -31,7 +31,7 @@ function button(label: string, onClick: () => void, opts: { disabled?: boolean; 
 }
 
 function goalText(g: Goal): string {
-  const state = { flags: {}, companies: { player: { money: 0 } }, cities: [] } as unknown as GameState;
+  const state = { flags: {}, companies: { player: { money: 0 } }, cities: [], economy: { priceIndex: 1, history: [] } } as unknown as GameState;
   return `${goalProgress(state, g).label} by ${g.byYear}`;
 }
 

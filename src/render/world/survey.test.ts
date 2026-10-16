@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/events';
-import { testState } from '../../sim/testkit';
+import { must, testCtx, testState } from '../../sim/testkit';
+import { placeBuilding } from '../../sim/state';
+import { dateToDays } from '../../sim/clock';
 import { WorldRenderer } from './index';
 import { FACTIONS } from '../../data/factions';
-import { CityLabelCache, UrbanWatch, drawCityLabels } from './survey';
+import { CityLabelCache, UrbanWatch, drawCityLabels, drawSurveySymbols } from './survey';
 
 /** A canvas whose 2D context accepts every call, so the renderer can be built under jsdom. */
 function fakeCanvas(): HTMLCanvasElement {
@@ -74,5 +76,56 @@ describe('city label mayor dot', () => {
     state.cities[0].politics.mayor.faction = 'baron';
     drawCityLabels(g, state, cam, 1, [], cache);
     expect(fills).toEqual([FACTIONS.church.color, FACTIONS.baron.color]);
+  });
+});
+
+describe('city label protest fist', () => {
+  it('counts the fist in the label box, so HUD avoidance and collisions see it', () => {
+    const state = testState({ cities: [{ x: 10, y: 10 }] });
+    const cache = new CityLabelCache();
+    const texts: number[] = [];
+    const props: Record<string | symbol, unknown> = {};
+    const g = new Proxy(props, {
+      get: (t, k) => {
+        if (k in t) return t[k];
+        if (k === 'measureText') return () => ({ width: 40 });
+        if (k === 'fillText') return (_s: string, x: number) => texts.push(x);
+        return () => undefined;
+      },
+      set: (t, k, v) => { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const cam = { x: 0, y: 0, zoom: 1, viewW: 800, viewH: 600 };
+    drawCityLabels(g, state, cam, 1, [], cache);
+    expect(texts).toHaveLength(1);
+    // a HUD rect starting just past the plain label's box (text centre + 20 px of text + 4 px pad)
+    const tx = texts[0];
+    const y = (10 + 0.5) * 32;
+    const hud = [{ x: tx + 26, y: y - 50, w: 100, h: 100 }];
+    drawCityLabels(g, state, cam, 1, hud, cache);
+    expect(texts).toHaveLength(2);
+    state.cities[0].smog.tier = 3;
+    drawCityLabels(g, state, cam, 1, hud, cache);
+    expect(texts).toHaveLength(2);
+  });
+});
+
+describe('survey strike placard', () => {
+  it('draws the strike glyph over a striking works only', () => {
+    const ctx = testCtx(testState({ money: 1e6, cities: [{ x: 10, y: 10 }] }));
+    const b = must(placeBuilding(ctx, 'player', 'sawmill', { x: 20, y: 5 }));
+    const rects: number[] = [];
+    const props: Record<string | symbol, unknown> = {};
+    const g = new Proxy(props, {
+      get: (t, k) => (k in t ? t[k] : k === 'rect' ? () => rects.push(1) : () => undefined),
+      set: (t, k, v) => { t[k] = v; return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const r = { x0: 0, y0: 0, x1: 99, y1: 99 };
+    drawSurveySymbols(g, ctx.state, [b], r, new Map(), 0, 1);
+    expect(rects).toHaveLength(0);
+    const today = dateToDays(ctx.state.date);
+    b.strike = { until: today + 30, reason: 'Pay and hours', since: today, cityId: 0, cardUid: null };
+    drawSurveySymbols(g, ctx.state, [b], r, new Map(), 0, 1);
+    // the placard: the board and its red stripe
+    expect(rects).toHaveLength(2);
   });
 });

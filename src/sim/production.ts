@@ -3,7 +3,11 @@ import { recordSale } from './scenarios';
 import { onSale } from './contracts';
 import { notePoliticsSale } from './politics/factions';
 import { playerBuildingUpkeep, SMOG_LIMIT_FACTOR, smogLimited } from './politics/mayorEdicts';
-import { companyIds, PLAYER_ID } from './companies';
+import { growthPenalty, PROTEST_FACTOR } from './society/tiers';
+import { protestedBuildings } from './society/escalation';
+import { SLOWDOWN_FACTOR, slowedBuildings, strikeActive } from './society/strikeState';
+import { strikeOver } from './society/strikes';
+import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
 import { RECIPES } from '../data/recipes';
@@ -11,21 +15,15 @@ import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
-import { computeDailySales, monthlyDemand, monthlyGrowth, satisfaction, updateMarketDay, urbanRadius, type StoreStock } from './market';
-import { footprint, layCityStreets, refreshUrbanTiles } from './state';
+import { averageSatisfaction, computeDailySales, demandModifier, monthlyDemand, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
+import { footprint, layCityStreets, refreshUrbanTiles, ROAD_UPKEEP } from './state';
+import { assetEfficiency } from './society/aging';
+import { atPrices, priceIndex } from './society/economy';
+import { buildingMaintenance } from './society/upgrades';
 import type { Building, City, GameState, GoodId, SimContext, Vec2 } from './types';
 
-/** Product of active (unexpired) modifiers matching the good (or '*') and the city (or null). */
-export function demandModifier(state: GameState, cityId: number, goodId: GoodId): number {
-  let f = 1;
-  for (const m of state.modifiers) {
-    if (compareDates(m.until, state.date) <= 0) continue;
-    if (m.goodId !== '*' && m.goodId !== goodId) continue;
-    if (m.cityId !== null && m.cityId !== cityId) continue;
-    f *= m.factor;
-  }
-  return f;
-}
+/** demandModifier and averageSatisfaction live in market.ts (a leaf for society/classes.ts); re-exported for existing importers. */
+export { averageSatisfaction, demandModifier } from './market';
 
 function extractorEfficiency(state: GameState, b: Building, outputs: string[]): number {
   const tiles = footprint(b).map((p) => state.map.tiles[p.y * state.map.width + p.x]);
@@ -54,8 +52,22 @@ export function productionDay(ctx: SimContext): void {
   const { state } = ctx;
   // mayors' smog limits hold some of the player's dirty works back (politics/mayorEdicts.ts)
   const limited = smogLimited(state);
+  // smog protests (tier 3+) slow the player's polluters in the town's zone (society/escalation.ts)
+  const protested = protestedBuildings(state);
+  // a go-slow (workers' opinion below 30) in the town a works hires from (society/strikeState.ts)
+  const slowed = slowedBuildings(state);
+  const today = dateToDays(state.date);
   for (const b of Object.values(state.buildings)) {
     const def = BUILDINGS[b.typeId];
+    // a striking works produces nothing; on the day it ends the strike is cleared and an unanswered
+    // strike card withdrawn (society/strikes.ts)
+    if (b.strike) {
+      if (strikeActive(b.strike, today)) {
+        b.status = 'halted';
+        continue;
+      }
+      strikeOver(ctx, b);
+    }
     if (b.haltedUntil) {
       if (compareDates(b.haltedUntil, state.date) > 0) {
         b.status = 'halted';
@@ -69,7 +81,8 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     const outs = Object.keys(recipe.outputs);
-    const rate = limited.has(b.id) ? b.staffing * SMOG_LIMIT_FACTOR : b.staffing;
+    // staffing and age (society/aging.ts) scale every works' rate alike
+    const rate = b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;
@@ -111,7 +124,7 @@ export function retailDay(ctx: SimContext): void {
     const stores = storesByCity.get(city.id) ?? [];
     const stocks: StoreStock[] = stores.map((b) => ({ buildingId: b.id, ownerId: b.ownerId, stock: loadSource(b) }));
     const mod = (g: GoodId) => demandModifier(state, city.id, g);
-    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset);
+    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state));
     const soldByGood: Record<GoodId, number> = {};
     const soldStores = new Set<number>();
     for (const s of sales) {
@@ -120,6 +133,11 @@ export function retailDay(ctx: SimContext): void {
       src[s.goodId] = (src[s.goodId] ?? 0) - s.qty;
       const company = state.companies[s.ownerId];
       earn(company, 'sales', s.revenue, state.date);
+      // the Baron's per-store takings feed his insolvency guard (rival/insolvency.ts)
+      if (s.ownerId === BARON_ID) {
+        const store = state.buildings[s.buildingId];
+        store.salesThisMonth = (store.salesThisMonth ?? 0) + s.revenue;
+      }
       const sbg = currentLedger(company, state.date).salesByGood;
       sbg[s.goodId] = (sbg[s.goodId] ?? 0) + s.revenue;
       soldByGood[s.goodId] = (soldByGood[s.goodId] ?? 0) + s.qty;
@@ -150,10 +168,11 @@ export function maintenanceMonth(ctx: SimContext): void {
   for (const owner of companyIds(state)) {
     const company = state.companies[owner];
     let total = 0;
-    // company edicts (wages, safety, unions) and mayors' minimum wage scale the player's building upkeep only
+    // every building's upkeep is at today's prices × its age factor (society/upgrades.ts buildingMaintenance);
+    // company edicts (wages, safety, unions) and mayors' minimum wage scale the player's only
     if (owner === PLAYER_ID) total = playerBuildingUpkeep(state);
-    else for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += BUILDINGS[b.typeId].maintenance;
-    total += company.roadTiles * 5 + company.railTiles * RAIL_UPKEEP;
+    else for (const b of Object.values(state.buildings)) if (b.ownerId === owner) total += buildingMaintenance(state, b);
+    total += atPrices(state, company.roadTiles * ROAD_UPKEEP + company.railTiles * RAIL_UPKEEP);
     if (total > 0) spend(company, 'maintenance', total, state.date);
   }
 }
@@ -165,12 +184,9 @@ export function growthMonth(ctx: SimContext): void {
   const grown: City[] = [];
   const newStreets: Vec2[] = [];
   for (const city of state.cities) {
-    const sats = Object.keys(DEMAND_PER_1000)
-      .filter((g) => monthlyDemand(city, g, state.date.year, demandModifier(state, city.id, g)) > 0)
-      .map((g) => satisfaction(city, g));
-    const avg = sats.length > 0 ? sats.reduce((a, b) => a + b, 0) / sats.length : 0.4;
+    const avg = averageSatisfaction(state, city);
     city.prevPopulation = city.population;
-    city.population = monthlyGrowth(city.population, avg, city.pollution);
+    city.population = monthlyGrowth(city.population, avg, city.pollution, growthPenalty(city));
     city.happiness = avg;
     const r = urbanRadius(city.population);
     if (r !== city.urbanRadius) radiusChanged = true;

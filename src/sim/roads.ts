@@ -3,7 +3,7 @@ import { err, ok } from '../core/result';
 import { BUILDINGS } from '../data/buildings';
 import { canAfford } from './finance';
 import { findPath, roadBuildableIn, roadPassable, waterAvoidingCost } from './pathfinding';
-import { accessTiles, BRIDGE_COST, buildRoad, ROAD_COST } from './state';
+import { accessTiles, buildRoad, roadTileCost } from './state';
 import type { Building, GameState, OwnerId, SimContext, Vec2 } from './types';
 
 /** Cost of laying road on `tiles` (tiles that already carry road are free). */
@@ -16,7 +16,7 @@ export function roadCost(state: GameState, tiles: Vec2[]): number {
     const t = map.tiles[i];
     if (!t || t.road || seen.has(i)) continue;
     seen.add(i);
-    cost += t.terrain === 'water' ? BRIDGE_COST : ROAD_COST;
+    cost += roadTileCost(state, t.terrain === 'water');
   }
   return cost;
 }

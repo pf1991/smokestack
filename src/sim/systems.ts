@@ -3,9 +3,15 @@ import { checkUnlocks, eraBanner, fadeWarnings } from './eras';
 import { eventsDay, eventsMonth } from './events';
 import { BANKRUPT_MONTHS, closeMonth, currentLedger } from './finance';
 import { pollutionSystem } from './pollution';
+import { escalationMonth } from './society/escalation';
+import { classesMonth } from './society/classes';
+import { regulationMonth } from './society/regulation';
+import { strikesMonth } from './society/strikes';
+import { economyMonth } from './society/economy';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { assetValue } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
+import { recordBaronEarnings } from './rival/insolvency';
 import { landmarksMonth } from './landmarks';
 import { politicsSystem } from './politics';
 import { companyLoanRate } from './politics/mayorEdicts';
@@ -60,6 +66,8 @@ export const SYSTEMS: SimSystem[] = [
     id: 'upkeep',
     onMonth(ctx) {
       maintenanceMonth(ctx);
+      // before growthMonth clears producedThisMonth (R-S13)
+      recordBaronEarnings(ctx);
       growthMonth(ctx);
     },
   },
@@ -68,8 +76,20 @@ export const SYSTEMS: SimSystem[] = [
   contractsSystem,
   { id: 'events', onDay: eventsDay, onMonth: eventsMonth },
   // after upkeep: onDay refreshes city.pollution on the month's last day (before growthMonth reads it),
-  // onMonth then owns the final happiness value
-  pollutionSystem,
+  // onMonth then owns the final happiness value. Smog escalation (society/escalation.ts) steps right
+  // after it: after growthMonth (which reads last month's tier) and before politics, so this month's
+  // tier reaches workforceMonth and any election held this month (tier-4 reformers ×1.5). The class
+  // shift (society/classes.ts) follows escalation: it reads the month's final satisfaction and smog
+  // level, and politics (later) votes with the new mix
+  {
+    ...pollutionSystem,
+    onMonth(ctx) {
+      pollutionSystem.onMonth(ctx);
+      escalationMonth(ctx);
+      classesMonth(ctx);
+      regulationMonth(ctx);
+    },
+  },
   {
     id: 'eras',
     onDay(ctx) {
@@ -83,4 +103,9 @@ export const SYSTEMS: SimSystem[] = [
   { id: 'landmarks', onMonth: landmarksMonth },
   // Phase 2 politics (cards daily; workforce, edicts, opinion, housing, elections monthly); reads the month's pollution and sales
   politicsSystem,
+  // Phase 3 strikes: after politics, so this month's workers' opinion decides who walks out
+  { id: 'strikes', onMonth: strikesMonth },
+  // Phase 3 inflation: last, so every price charged this month used the month's index; finance (always
+  // run last) then values the month-end net worth at the new index that next month's prices use
+  { id: 'economy', onMonth: economyMonth },
 ];

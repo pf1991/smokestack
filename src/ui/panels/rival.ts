@@ -4,6 +4,8 @@ import type { GameController } from '../../game/controller';
 import { drawBaronPortrait, type BaronMood } from '../../render/portrait';
 import { canTakeover, netWorth, takeover, takeoverPrice } from '../../sim/rival';
 import { runDays } from '../../sim/simulation';
+import { TAKEOVER_MIN_WORTH } from '../../sim/rival/takeover';
+import { atPrices } from '../../sim/society/economy';
 import type { GameState } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney } from '../format';
@@ -112,10 +114,11 @@ function render(game: GameController, refresh: () => void): HTMLElement {
       refresh();
     },
   }, rival.active ? `Hostile Takeover · ${formatMoney(price)}` : 'Takeover complete');
-  const need = Math.max(1_000_000, 3 * his);
+  const floor = atPrices(game.ctx.state, TAKEOVER_MIN_WORTH);
+  const need = Math.max(floor, 3 * his);
   const hint = rival.active && !able
     ? h('div', { style: { fontSize: '12px', opacity: '0.8', marginTop: '4px' } },
-      `Reach ${formatMoney(need)} net worth (3× his, at least $1M) to buy him out.`)
+      `Reach ${formatMoney(need)} net worth (3× his, at least ${formatMoney(floor)}) to buy him out.`)
     : null;
 
   return h('div', { class: 'rival-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },

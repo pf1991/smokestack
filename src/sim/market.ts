@@ -1,5 +1,6 @@
-import { DEMAND_PER_1000, GOODS } from '../data/goods';
-import type { City, GoodId, Inventory, MarketEntry, OwnerId } from './types';
+import { CLASS_DEMAND, DEMAND_PER_1000, GOODS } from '../data/goods';
+import { compareDates } from './clock';
+import type { City, CityClasses, GameState, GoodId, Inventory, MarketEntry, OwnerId } from './types';
 
 export interface StoreStock {
   buildingId: number;
@@ -28,16 +29,38 @@ export function lifecycleFactor(goodId: GoodId, year: number): number {
   return 1 - 0.8 * t;
 }
 
+/** The class mix every town starts with (Phase 3 Task 7, sim/society/classes.ts). */
+export const INITIAL_CLASSES: Readonly<CityClasses> = Object.freeze({ working: 0.75, middle: 0.2, upper: 0.05 });
+
+const classMix = (c: Readonly<CityClasses>, m: Readonly<CityClasses>): number => c.working * m.working + c.middle * m.middle + c.upper * m.upper;
+
+/** Each demand good's class normaliser sum(initial share × multiplier), precomputed once. */
+const CLASS_NORM: Record<GoodId, number> = {};
+for (const g of DEMAND_GOODS) CLASS_NORM[g] = classMix(INITIAL_CLASSES, CLASS_DEMAND[g]);
+
+/**
+ * Demand scale of `goodId` for a town with class mix `c`: sum(share × multiplier) over
+ * sum(initial share × multiplier), so exactly 1 at the initial mix (a 1900 town keeps its v1
+ * demand). Pure and allocation-free; 1 for a good without class multipliers.
+ */
+export function classDemandFactor(c: Readonly<CityClasses>, goodId: GoodId): number {
+  const m = CLASS_DEMAND[goodId];
+  const norm = CLASS_NORM[goodId];
+  if (m === undefined || norm === undefined || norm <= 0) return 1;
+  return classMix(c, m) / norm;
+}
+
 export function monthlyDemand(city: City, goodId: GoodId, year: number, modifier = 1): number {
   const per = DEMAND_PER_1000[goodId];
   if (per === undefined) return 0;
-  return (city.population / 1000) * per * lifecycleFactor(goodId, year) * modifier;
+  return (city.population / 1000) * per * lifecycleFactor(goodId, year) * modifier * classDemandFactor(city.classes, goodId);
 }
 
-export function salePrice(goodId: GoodId, ratio: number): number {
+/** Price of one unit at supply ratio `ratio`, at price index `index` (society/economy.ts), rounded. */
+export function salePrice(goodId: GoodId, ratio: number, index = 1): number {
   const base = GOODS[goodId]?.basePrice ?? 0;
   const f = Math.min(1.5, Math.max(0.5, 1.5 - 0.75 * ratio));
-  return Math.max(1, Math.round(base * f));
+  return Math.max(1, Math.round(base * f * index));
 }
 
 export function supplyRatio(entry: MarketEntry | undefined): number {
@@ -51,6 +74,7 @@ export function computeDailySales(
   year: number,
   demandMod: (goodId: GoodId) => number,
   dayOffset = 0,
+  index = 1,
 ): Sale[] {
   const out: Sale[] = [];
   const goodIds = DEMAND_GOODS;
@@ -94,7 +118,7 @@ export function computeDailySales(
       }
       active = active.filter((i) => got[i] < avail[i]);
     }
-    const price = salePrice(goodId, supplyRatio(entry));
+    const price = salePrice(goodId, supplyRatio(entry), index);
     let soldTotal = 0;
     stores.forEach((s, i) => {
       if (got[i] > 0) {
@@ -124,12 +148,34 @@ export const POP_CAP = 80_000;
 /** Largest urban radius, so big late-game cities don't swallow the map. */
 export const MAX_URBAN_RADIUS = 16;
 
-export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number): number {
+/** `penalty` is taken off the monthly rate (the smog tier-2 health penalty, society/tiers.ts). */
+export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number, penalty = 0): number {
   const room = Math.max(0, 1 - population / POP_CAP);
-  const next = population * (1 + 0.015 * avgSatisfaction * room - 0.01 * pollution);
+  const next = population * (1 + 0.015 * avgSatisfaction * room - 0.01 * pollution - penalty);
   return Math.min(POP_CAP, Math.max(500, Math.round(next)));
 }
 
 export function urbanRadius(population: number): number {
   return Math.min(MAX_URBAN_RADIUS, 3 + Math.floor(Math.sqrt(population / 250)));
 }
+
+/** Product of active (unexpired) modifiers matching the good (or '*') and the city (or null). */
+export function demandModifier(state: GameState, cityId: number, goodId: GoodId): number {
+  let f = 1;
+  for (const m of state.modifiers) {
+    if (compareDates(m.until, state.date) <= 0) continue;
+    if (m.goodId !== '*' && m.goodId !== goodId) continue;
+    if (m.cityId !== null && m.cityId !== cityId) continue;
+    f *= m.factor;
+  }
+  return f;
+}
+
+/** Mean market satisfaction over the goods `city` wants this month (0.4 when it wants none). */
+export function averageSatisfaction(state: GameState, city: City): number {
+  const sats = Object.keys(DEMAND_PER_1000)
+    .filter((g) => monthlyDemand(city, g, state.date.year, demandModifier(state, city.id, g)) > 0)
+    .map((g) => satisfaction(city, g));
+  return sats.length > 0 ? sats.reduce((a, b) => a + b, 0) / sats.length : 0.4;
+}
+

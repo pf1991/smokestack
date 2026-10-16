@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/events';
 import { currentLedger } from '../sim/finance';
 import { createGame } from '../sim/state';
-import { Hud, eraName } from './hud';
+import { Hud, eraName, windLabel } from './hud';
 import { factionName, GREENS_YEAR } from '../data/factions';
 import { factionModes } from '../render/factionOverlay';
 
@@ -103,5 +103,33 @@ describe('Hud', () => {
     state.companies.player.money = 5_000;
     hud.update(state, 1);
     expect((root.querySelector('.hud-money') as HTMLElement).textContent).toBe('$5,000');
+  });
+
+  it('wind vane follows the weather on dayStart only', () => {
+    const { root, hud, state } = setup();
+    state.weather = { windX: 1, windY: 0, rain: false, rainDays: 0 };
+    hud.update(state);
+    const bus = new EventBus();
+    hud.attach(bus);
+    const vane = root.querySelector<HTMLElement>('.hud-wind')!;
+    const arrow = vane.querySelector<HTMLElement>('[data-icon="wind"]')!;
+    const rain = vane.querySelector<HTMLElement>('[data-icon="rain"]')!;
+    expect(vane.title).toBe(windLabel(state.weather));
+    expect(arrow.style.transform).toBe('rotate(0deg)');
+    expect(rain.hidden).toBe(true);
+    state.weather = { windX: 0, windY: 1, rain: true, rainDays: 1 };
+    hud.update(state); // per-frame updates leave the vane alone
+    expect(arrow.style.transform).toBe('rotate(0deg)');
+    bus.emit({ type: 'dayStart', date: { ...state.date } });
+    expect(arrow.style.transform).toBe('rotate(90deg)');
+    expect(rain.hidden).toBe(false);
+    expect(vane.title).toContain('Rain');
+  });
+
+  it('names the wind by where it blows from and how hard', () => {
+    expect(windLabel({ windX: 1, windY: -0.2, rain: false, rainDays: 0 })).toBe('Wind: west, brisk');
+    expect(windLabel({ windX: 0.2, windY: 1, rain: false, rainDays: 0 })).toBe('Wind: north, brisk');
+    expect(windLabel({ windX: -0.3, windY: -0.3, rain: true, rainDays: 2 })).toBe('Wind: south-east, light. Rain');
+    expect(windLabel({ windX: 0.05, windY: 0, rain: false, rainDays: 0 })).toBe('Wind: calm');
   });
 });
