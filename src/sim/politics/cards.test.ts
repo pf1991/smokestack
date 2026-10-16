@@ -340,24 +340,24 @@ describe('card money scaling (R-Q8)', () => {
     expect(choiceCost(ctx.state, bonds)).toBe(50000);
   });
 
-  it('is capped at 40', () => {
+  it('caps the wealth term at 40, in real terms', () => {
     const ctx = town(1900);
     ctx.state.companies[PLAYER_ID].money = 1e9;
     expect(cardScale(ctx.state)).toBe(40);
     prices(ctx, 5);
     ctx.state.companies[PLAYER_ID].money = 0;
     expect(cardScale(ctx.state)).toBe(5);
-    prices(ctx, 60);
-    expect(cardScale(ctx.state)).toBe(40);
+    ctx.state.companies[PLAYER_ID].money = 1e10;
+    expect(cardScale(ctx.state)).toBe(200); // 40x real wealth at index 5
   });
 
   it('the wealth term counts real net worth (nominal / price index)', () => {
     const ctx = town(1900);
     ctx.state.companies[PLAYER_ID].money = 3_000_000;
     prices(ctx, 4);
-    expect(cardScale(ctx.state)).toBe(4); // $3M is $750k in 1900 dollars: wealth 2.5 < index 4
+    expect(cardScale(ctx.state)).toBe(10); // $3M is $750k in 1900 dollars: wealth 2.5 x index 4
     ctx.state.companies[PLAYER_ID].money = 60_000_000;
-    expect(cardScale(ctx.state)).toBe(40); // $15M real: wealth 50, capped at 40
+    expect(cardScale(ctx.state)).toBe(160); // $15M real: wealth 50, capped at 40, x index 4
   });
 
   it('affordability uses the scaled cost', () => {

@@ -122,14 +122,14 @@ describe('R-S7 and late starts', () => {
     expect(monthlyFines(ctx.state)).toBe(6 * 400);
   });
 
-  it('passes laws whose year is past silently, in force at once', () => {
+  it('passes laws whose year is past without a card, fined from next month, with a news line', () => {
     const ctx = world(2000);
     regulationMonth(ctx);
     for (const id of LAW_IDS) {
-      expect(ctx.state.society.laws[id]).toEqual({ passed: LAWS[id].latest, enforcedFrom: monthIndex(ctx.state.date), lobbied: false });
+      expect(ctx.state.society.laws[id]).toEqual({ passed: LAWS[id].latest, enforcedFrom: monthIndex(ctx.state.date) + 1, lobbied: false });
     }
     expect(ctx.state.politics.cards.pending).toHaveLength(0);
-    expect(ctx.state.news.some((n) => n.kind === 'historic')).toBe(false);
+    expect(ctx.state.news.filter((n) => n.kind === 'historic' && n.headline.endsWith('IN FORCE'))).toHaveLength(LAW_IDS.length);
   });
 });
 
@@ -139,7 +139,7 @@ describe('lobbying', () => {
     regulationMonth(ctx);
     const law = ctx.state.society.laws.smoke_abatement;
     const start = law.enforcedFrom!;
-    expect(start).toBe(monthIndex(ctx.state.date));
+    expect(start).toBe(monthIndex(ctx.state.date) + 1); // a month's grace
     const inst = ctx.state.politics.cards.pending[0];
     const lobby = CARDS_BY_ID.law_smoke_abatement.choices.findIndex((c) => c.label === 'Lobby for delay');
     must(resolveCard(ctx, inst.uid, lobby));

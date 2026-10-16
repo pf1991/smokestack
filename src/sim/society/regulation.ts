@@ -34,7 +34,8 @@ function passLaw(ctx: SimContext, id: LawId): void {
   const { state } = ctx;
   const law = state.society.laws[id];
   law.passed = state.date.year;
-  law.enforcedFrom = monthIndex(state.date);
+  // a month's grace: the first fine falls after the player has seen the card and could fit a scrubber
+  law.enforcedFrom = monthIndex(state.date) + 1;
   const def = LAWS[id];
   publishNews(
     ctx,
@@ -78,9 +79,10 @@ export function regulationMonth(ctx: SimContext): void {
     const law = state.society.laws[id];
     if (law.passed !== null) continue;
     if (year > def.latest) {
-      // a game or save that starts after the law's year: already in force, no card, no news
+      // a game or save that starts after the law's year: already in force (no card), fined from next month
       law.passed = def.latest;
-      law.enforcedFrom = monthIndex(state.date);
+      law.enforcedFrom = monthIndex(state.date) + 1;
+      publishNews(ctx, 'historic', `${def.title.toUpperCase()} IN FORCE`, `The ${def.title} is the law of the land. Works below tier ${def.tier} scrubbers pay a fine every month.`);
       continue;
     }
     const inWindow = year >= def.earliest && year <= def.latest;

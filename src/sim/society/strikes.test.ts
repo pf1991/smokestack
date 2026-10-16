@@ -390,16 +390,16 @@ describe('strike cards', () => {
 });
 
 describe('demolition mid-strike', () => {
-  it('leaves no dangling state, and the open card resolves harmlessly', () => {
+  it('leaves no dangling state and withdraws the strike card (nothing left to concede)', () => {
     const ctx = towns();
-    const b = mill(ctx);
+    const a = mill(ctx, { x: 29, y: 14 });
+    const b = mill(ctx, { x: 29, y: 19 });
+    startStrike(ctx, a, ctx.state.cities[0]);
     startStrike(ctx, b, ctx.state.cities[0]);
-    const inst = ctx.state.politics.cards.pending[0];
-    expect(demolishBuilding(ctx, b.id, 'player').ok).toBe(true);
-    expect(strikeTarget(ctx.state, 0)).toBeNull();
-    expect(Object.values(ctx.state.buildings).some((x) => x.strike)).toBe(false);
-    const card = STRIKE_CARDS.find((c) => c.id === inst.cardId)!;
-    expect(resolveCard(ctx, inst.uid, card.choices.findIndex((c) => c.label.startsWith('Break it'))).ok).toBe(true);
+    const [ofA, ofB] = ctx.state.politics.cards.pending;
+    expect(demolishBuilding(ctx, a.id, 'player').ok).toBe(true);
+    expect(strikeTarget(ctx.state, ofA.uid)).toBeNull();
+    expect(ctx.state.politics.cards.pending.map((p) => p.uid)).toEqual([ofB.uid]); // the other strike's card stays
     expect(checkInvariants(ctx.state)).toEqual([]);
   });
 });

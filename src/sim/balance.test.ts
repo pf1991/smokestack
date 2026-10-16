@@ -107,7 +107,7 @@ describe('economy balance', () => {
     }
   }, 60_000);
 
-  it('100-year headless run completes under 20 s with no exceptions and victory emitted', () => {
+  it('100-year headless run completes under 21 s with no exceptions and victory emitted', () => {
     // The reference strategy plays the whole century (eras, events, contracts, pollution, growth and
     // goals all run). The rival is off here: his long-run play is covered by the 20-year test above,
     // and his fleet would multiply the vehicle work of this run.
@@ -126,6 +126,7 @@ describe('economy balance', () => {
     );
     expect(events).toEqual([{ type: 'victory', reason: 'The century is over' }]);
     expect(ctx.state.date.year).toBe(2001);
-    expect(cpu).toBeLessThan(20_000);
+    // Phase 3 budget: 1.5x the Phase 2 run (about 14 s); Phase 3 runs it in about 15.5 s alone
+    expect(cpu).toBeLessThan(21_000);
   }, 90_000);
 });

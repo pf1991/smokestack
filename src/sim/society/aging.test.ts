@@ -7,7 +7,7 @@ import { placeBuilding } from '../state';
 import { buildReferenceStrategy, must, testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
 import { replaceCost, replaceVehicle, sellRefund, tripsLast30, vehiclePrice, vehicleUpkeep } from '../vehicles';
-import { agingEfficiency, agingUpkeep, assetAge, renewBuilding, renewCost } from './aging';
+import { agingEfficiency, agingUpkeep, assetAge, NO_WEAR, renewBuilding, renewCost } from './aging';
 import '../rail';
 
 describe('aging curves', () => {
@@ -77,7 +77,7 @@ describe('aging buildings', () => {
     expect(currentLedger(ctx.state.companies.player, ctx.state.date).expense.construction).toBe(Math.round(BUILDINGS.lumber_camp.cost * 0.8));
     expect(b.builtYear).toBe(1941);
     expect(assetAge(ctx.state, b)).toBe(0);
-    expect(renewBuilding(ctx, id, 'player')).toEqual({ ok: false, error: 'Already as good as new' });
+    expect(renewBuilding(ctx, id, 'player')).toEqual({ ok: false, error: NO_WEAR });
   });
 
   it('renewBuilding refuses another company’s works and an empty purse', () => {
@@ -141,6 +141,8 @@ describe('aging vehicles', () => {
     const { ctx } = buildReferenceStrategy(7, { rival: false });
     const s = ctx.state;
     const [a, b] = Object.values(s.vehicles);
+    expect(replaceVehicle(ctx, a.id, 'player')).toEqual({ ok: false, error: NO_WEAR }); // brand new: nothing to gain
+    a.builtYear -= 30;
     expect(replaceVehicle(ctx, a.id, 'rival')).toEqual({ ok: false, error: 'Not your vehicle' });
     s.companies.player.money = 0;
     expect(replaceVehicle(ctx, a.id, 'player')).toEqual({ ok: false, error: 'Not enough money' });

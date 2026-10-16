@@ -515,6 +515,13 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
   if (!building) return err('No such building');
   if (owner !== undefined && building.ownerId !== owner) return err('Not your building');
   earn(state.companies[building.ownerId], 'demolition', demolitionRefund(state, building), state.date);
+  // a strike ends with its works: withdraw the strike card still waiting on it (as strikes.ts strikeOver)
+  const strikeUid = building.strike?.cardUid;
+  if (strikeUid !== null && strikeUid !== undefined) {
+    const pending = state.politics.cards.pending;
+    const at = pending.findIndex((c) => c.uid === strikeUid);
+    if (at >= 0) pending.splice(at, 1);
+  }
   for (const p of footprint(building)) {
     const t = state.map.tiles[p.y * state.map.width + p.x];
     if (t.buildingId === id) t.buildingId = null;

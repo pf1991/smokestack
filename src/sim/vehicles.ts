@@ -5,7 +5,7 @@ import { acceptsGood, handlesCargo, loadSource, noCargoError, storageLeft } from
 import { findPath, pathMemo, pathStillPassable, roadPassable, type Passable } from './pathfinding';
 import { truckTollsMonth } from './politics/mayorEdicts';
 import { accessTiles, nextId } from './state';
-import { AGING_GRACE, agingEfficiency, assetUpkeep } from './society/aging';
+import { AGING_GRACE, agingEfficiency, assetAge, assetUpkeep, NO_WEAR } from './society/aging';
 import { atPrices } from './society/economy';
 import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -273,6 +273,7 @@ export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Re
   const def = VEHICLE_KINDS[veh.kind];
   const first = route.stops[0] ? state.buildings[route.stops[0].buildingId] : undefined;
   if (!def || !first || !def.access(state, first)[0]) return err(def?.noAccessError ?? 'Stop has no road access');
+  if (assetAge(state, veh) <= AGING_GRACE) return err(NO_WEAR);
   if (!canAfford(state.companies[veh.ownerId], replaceCost(state, veh.kind))) return err('Not enough money');
   const { ownerId, kind, stopIndex } = veh;
   const at = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };

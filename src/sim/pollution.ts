@@ -23,8 +23,8 @@ export const HILL_DECAY = 0.95;
 export const RAIN_DECAY = 0.7;
 /** Share of the day's loss a valley pocket (all 4 neighbours hills or mountain) keeps. */
 export const POCKET_KEEP = 0.5;
-/** Below this a tile is clean (and leaves the dirty set). */
-const CLEAN = 1e-4;
+/** Below this a tile is clean (and leaves the dirty set): 0.01% of the cap, invisible, and it halves the active set. */
+const CLEAN = 0.01;
 
 /**
  * Emission scale of building `b` (1 = unabated): its scrubber tier's multiplier (society/upgrades.ts).
@@ -77,7 +77,7 @@ for (let code = 0; code < 32; code++) {
  *  3. decay: ×0.97, then ×0.94 on forest, ×0.95 on hills and mountain, ×0.90 on park landmark
  *     tiles, and ×0.7 everywhere on a rain day;
  *  4. settling: a valley pocket (all 4 neighbours hills or mountain) keeps half of that loss;
- *  5. clamp to [0, POLLUTION_CAP]; anything under 1e-4 becomes 0.
+ *  5. clamp to [0, POLLUTION_CAP]; anything under CLEAN (0.01) becomes 0.
  * Only tiles in the dirty set (non-zero smog) and their neighbours are touched. Step 2 is a gather:
  * every tile sums what it keeps and what flows in from its neighbours, read from a snapshot of the
  * post-emission values in a fixed order, so the result is bit-identical whatever order the dirty
@@ -111,16 +111,17 @@ export function smogDay(ctx: SimContext): void {
 
   // snapshot the smog tiles and enlist their neighbours (the tiles that can receive smog today)
   const { snap, next } = scratch(map);
-  const n0 = list.length;
+  const n0 = dirty.count;
+  let n = n0;
   for (let j = 0; j < n0; j++) {
     const i = list[j];
     snap[i] = tiles[i].pollution;
     const y = (i / width) | 0;
     const x = i - y * width;
-    if (x > 0 && !member[i - 1]) (member[i - 1] = 1), list.push(i - 1);
-    if (x < width - 1 && !member[i + 1]) (member[i + 1] = 1), list.push(i + 1);
-    if (y > 0 && !member[i - width]) (member[i - width] = 1), list.push(i - width);
-    if (y < height - 1 && !member[i + width]) (member[i + width] = 1), list.push(i + width);
+    if (x > 0 && !member[i - 1]) (member[i - 1] = 1), (list[n++] = i - 1);
+    if (x < width - 1 && !member[i + 1]) (member[i + 1] = 1), (list[n++] = i + 1);
+    if (y > 0 && !member[i - width]) (member[i - width] = 1), (list[n++] = i - width);
+    if (y < height - 1 && !member[i + width]) (member[i + width] = 1), (list[n++] = i + width);
   }
 
   // 2–4. gather: kept share plus inflow from each neighbour, then decay and settling
@@ -138,7 +139,7 @@ export function smogDay(ctx: SimContext): void {
   const cls = terrainCodes(map);
   const park = parkMask(state);
   const rainBit = weather.rain ? 16 : 0;
-  const total = list.length;
+  const total = n;
   for (let j = 0; j < total; j++) {
     const i = list[j];
     const y = (i / width) | 0;
@@ -162,7 +163,7 @@ export function smogDay(ctx: SimContext): void {
     if (t !== 0) list[kept++] = i;
     else member[i] = 0;
   }
-  list.length = kept;
+  dirty.count = kept;
 }
 
 /** `amount` on tile i and half of it on each orthogonal neighbour inside the map. */
@@ -181,7 +182,7 @@ function emit(tiles: GameMap['tiles'], dirty: DirtySet, i: number, amount: numbe
   tiles[i].pollution += amount;
   if (!dirty.member[i]) {
     dirty.member[i] = 1;
-    dirty.list.push(i);
+    dirty.list[dirty.count++] = i;
   }
 }
 
@@ -275,7 +276,9 @@ function parkMask(state: GameState): Uint8Array {
 }
 
 interface DirtySet {
-  list: number[];
+  /** the dirty tile indices in list[0, count); preallocated to the map size, which bounds the set */
+  list: Int32Array;
+  count: number;
   member: Uint8Array;
 }
 
@@ -289,11 +292,11 @@ const dirtyByMap = new WeakMap<GameMap, DirtySet>();
 function dirtyTiles(map: GameMap): DirtySet {
   let d = dirtyByMap.get(map);
   if (!d) {
-    d = { list: [], member: new Uint8Array(map.tiles.length) };
+    d = { list: new Int32Array(map.tiles.length), count: 0, member: new Uint8Array(map.tiles.length) };
     for (let i = 0; i < map.tiles.length; i++) {
       if (map.tiles[i].pollution !== 0) {
         d.member[i] = 1;
-        d.list.push(i);
+        d.list[d.count++] = i;
       }
     }
     dirtyByMap.set(map, d);
@@ -306,7 +309,7 @@ function dirtyTiles(map: GameMap): DirtySet {
  * their 4 neighbours, so this bounds a day's work (tests pin it instead of wall-clock time).
  */
 export function activeSmogTiles(map: GameMap): number {
-  return dirtyTiles(map).list.length;
+  return dirtyTiles(map).count;
 }
 
 /** Mean tile pollution over the city's urban tiles, 0..1. */

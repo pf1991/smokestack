@@ -16,6 +16,8 @@ export const AGING_EFFICIENCY_LOSS = 0.01;
 export const AGING_EFFICIENCY_FLOOR = 0.7;
 export const AGING_UPKEEP_GAIN = 0.02;
 export const AGING_UPKEEP_CAP = 1.8;
+/** Refusal for renewing or replacing an asset still inside AGING_GRACE: it would buy nothing. */
+export const NO_WEAR = `No wear yet: assets start to age after ${AGING_GRACE} years`;
 /** Renewal price as a share of today's build price. */
 export const RENEW_SHARE = 0.4;
 
@@ -50,7 +52,7 @@ export function renewCost(state: GameState, b: Building): number {
 /** Why `b` cannot be renewed by `owner` now, or null. */
 export function renewRefusal(state: GameState, b: Building, owner?: OwnerId): string | null {
   if (owner !== undefined && b.ownerId !== owner) return 'Not your building';
-  if (assetAge(state, b) === 0) return 'Already as good as new';
+  if (assetAge(state, b) <= AGING_GRACE) return NO_WEAR;
   if (!canAfford(state.companies[b.ownerId], renewCost(state, b))) return 'Not enough money';
   return null;
 }
