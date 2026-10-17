@@ -5,7 +5,7 @@
   border-color: var(--brass-dark);
 }
 .news-window .window-body {
-  max-height: calc(100vh - 140px);
+  max-height: calc((100 * var(--uvh)) - 140px);
   overflow-y: auto;
 }
 
@@ -84,7 +84,7 @@
 .lead { text-align: center; padding-bottom: 12px; border-bottom: 3px double #231d15; }
 .lead h2 {
   margin: 4px 0 8px;
-  font-size: clamp(26px, 4vw, 40px);
+  font-size: clamp(26px, (4 * var(--uvw)), 40px);
   line-height: 1.08;
   font-weight: 900;
   letter-spacing: -0.01em;

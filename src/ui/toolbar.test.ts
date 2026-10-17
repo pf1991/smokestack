@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGame } from '../sim/state';
 import { PRICE_NOTE, Toolbar } from './toolbar';
 import type { ToolSpec } from './tools';
+import { applyUiScale } from './scale';
 
 const made: Toolbar[] = [];
 afterEach(() => {
@@ -159,6 +160,23 @@ describe('Toolbar', () => {
     tab(root, 'extract');
     // bar rect is all zeros in jsdom: left = clamp(0 - 450, 8, 1366-546-8-900 -> <8 -> 8) -> 8 - 0 - 2
     expect(parseFloat(fly.style.left)).toBe(6);
+    document.documentElement.style.removeProperty('--side-panel-w');
+  });
+
+  it('placeFlyout writes left and max-width in zoomed px under a UI scale', () => {
+    const { root } = setup();
+    applyUiScale(1.25);
+    document.documentElement.style.setProperty('--side-panel-w', '500px');
+    Object.defineProperty(window, 'innerWidth', { value: 1366, configurable: true });
+    const bar = root.querySelector('.toolbar') as HTMLElement;
+    const body = root.querySelector('.tb-body, .tb-flyout') as HTMLElement;
+    bar.getBoundingClientRect = () => ({ left: 400, width: 600, top: 0, right: 1000, bottom: 40, height: 40, x: 400, y: 0, toJSON() {} });
+    body.getBoundingClientRect = () => ({ left: 0, width: 300, top: 0, right: 300, bottom: 40, height: 40, x: 0, y: 0, toJSON() {} });
+    tab(root, 'manufacture');
+    // screen px: max = 1366 - 500 - 16 = 850; left = min(400 + 300 - 150, 1366 - 500 - 8 - 300) = 550
+    expect(body.style.maxWidth).toBe(`${850 / 1.25}px`);
+    expect(body.style.left).toBe(`${Math.round((550 - 400 - 2.5) / 1.25)}px`);
+    applyUiScale(1);
     document.documentElement.style.removeProperty('--side-panel-w');
   });
 });

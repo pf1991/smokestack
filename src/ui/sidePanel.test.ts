@@ -144,6 +144,21 @@ describe('side panel width', () => {
     applyUiScale(1);
   });
 
+  it('top and bottom follow the bars measured in screen px, written in zoomed px', () => {
+    const rect = (top: number, bottom: number) => () => ({ top, bottom, left: 0, right: 0, width: 100, height: bottom - top, x: 0, y: top, toJSON() {} }) as DOMRect;
+    const hud = h('div', { class: 'hud-bar' });
+    const tb = h('div', { class: 'toolbar' });
+    hud.getBoundingClientRect = rect(0, 100);
+    tb.getBoundingClientRect = rect(700, 740);
+    document.body.append(hud, tb);
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
+    applyUiScale(1.25);
+    open('a');
+    expect(parseFloat(panel()!.style.top)).toBeCloseTo(100 / 1.25);
+    expect(parseFloat(panel()!.style.bottom)).toBeCloseTo(68 / 1.25);
+    applyUiScale(1);
+  });
+
   it('dragging the grip resizes, clamps and persists through settings', () => {
     open('a');
     const grip = panel()!.querySelector<HTMLElement>('.side-panel-grip')!;

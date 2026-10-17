@@ -1,5 +1,6 @@
 import { loadSettings, saveSettings, UI_SCALES } from './game/settings';
 import { startUiScale } from './ui/scale';
+import { openHelp } from './ui/help';
 import './ui/theme.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
@@ -222,6 +223,9 @@ if (debugStart) {
     else if (tutorial) app.showTutorial(g);
     if (notice) g.ctx.bus.emit({ type: 'toast', ...notice });
     if (import.meta.env.DEV && params.get('pause') === '1') g.onPause?.();
+    // `help=1` opens the help overlay, `settings=1` the pause menu's Settings screen (dev, screenshots)
+    if (import.meta.env.DEV && params.get('help') === '1') openHelp();
+    if (import.meta.env.DEV && params.get('settings') === '1') g.onPause?.('settings');
   });
 } else {
   const menu = app.showMenu();

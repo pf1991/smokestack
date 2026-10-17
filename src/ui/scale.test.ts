@@ -58,4 +58,15 @@ describe('ui scale', () => {
     expect(canvas.style.getPropertyValue('zoom')).toBe('');
     expect(getComputedStyle(canvas).getPropertyValue('zoom')).not.toBe('1.3');
   });
+
+  it('forces the scale to 1 where CSS zoom is unsupported', () => {
+    const real = (globalThis as { CSS?: unknown }).CSS;
+    (globalThis as { CSS?: unknown }).CSS = { supports: (p: string) => p !== 'zoom' };
+    try {
+      applyUiScale(1.3);
+      expect(currentUiScale()).toBe(1);
+    } finally {
+      (globalThis as { CSS?: unknown }).CSS = real;
+    }
+  });
 });

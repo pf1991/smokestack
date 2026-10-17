@@ -1,6 +1,9 @@
 /* SMOKESTACK theme: industrial art-deco. Walnut panels, brass trim, cream paper. */
 
 :root {
+  /* 1vw / 1vh in px of a zoomed UI root: viewport units are not compensated for zoom (ui/scale.ts) */
+  --uvw: calc(1vw / var(--ui-scale, 1));
+  --uvh: calc(1vh / var(--ui-scale, 1));
   --walnut: #2b1d14;
   --walnut-light: #3d2a1d;
   --brass: #c9a227;
@@ -148,7 +151,7 @@ input[type='text'] {
 
 .window-body {
   padding: 10px;
-  max-height: 70vh;
+  max-height: calc(70 * var(--uvh));
   overflow: auto;
 }
 
@@ -163,7 +166,7 @@ input[type='text'] {
   flex-direction: column;
   gap: 6px;
   z-index: 1000;
-  max-width: min(360px, calc(100vw - 32px));
+  max-width: min(360px, calc((100 * var(--uvw)) - 32px));
 }
 
 .toast {

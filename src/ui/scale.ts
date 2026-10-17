@@ -11,8 +11,13 @@ export function resolveUiScale(setting: UiScale, viewportW: number): number {
   return viewportW < 1440 ? 0.9 : viewportW <= 2200 ? 1 : 1.15;
 }
 
+/** False only when the engine positively lacks CSS zoom; the scale is then forced to 1 so no px maths diverges from the layout. */
+export function zoomSupported(): boolean {
+  return !(typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && !CSS.supports('zoom', '1'));
+}
+
 export function applyUiScale(scale: number): void {
-  document.documentElement.style.setProperty('--ui-scale', String(scale));
+  document.documentElement.style.setProperty('--ui-scale', String(zoomSupported() ? scale : 1));
   window.dispatchEvent(new Event('uiscalechange'));
 }
 

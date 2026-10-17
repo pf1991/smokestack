@@ -4,7 +4,7 @@
 .fl-filters { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
 .fl-filter { padding: 2px 9px; }
 .fl-filter.active { background: var(--brass-light); color: var(--walnut); }
-.fl-body { max-height: 52vh; overflow-y: auto; }
+.fl-body { max-height: calc(52 * var(--uvh)); overflow-y: auto; }
 .fl-row { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px minmax(60px, 1fr) 34px 70px auto; gap: 6px; align-items: center; padding: 4px 6px; background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; margin-bottom: 4px; }
 .fl-row.problem { border-color: #f0a35a; }
 .fl-route { font: inherit; min-width: 0; width: 100%; color: var(--paper); background: var(--walnut-light); border: 1px solid var(--brass-dark); border-radius: 2px; padding: 2px; }
