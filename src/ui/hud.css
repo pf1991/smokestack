@@ -467,11 +467,9 @@
 .tb-flyout {
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0; /* toolbar.ts places it (placeFlyout): centred on the bar, clamped to the map left of the side panel */
   width: max-content;
-  /* the bar is centred on the viewport: stay clear of the side panel on the right (cards then scroll) */
-  max-width: min(calc(100vw - 32px), calc(100vw - 2 * var(--side-panel-w, 0px) - 16px));
+  max-width: calc(100vw - var(--side-panel-w, 0px) - 16px);
   background: linear-gradient(180deg, #3d2a1d, #24170f);
   border: 2px solid var(--brass-dark);
   border-radius: 6px;

@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGame } from '../sim/state';
 import { PRICE_NOTE, Toolbar } from './toolbar';
 import type { ToolSpec } from './tools';
+
+const made: Toolbar[] = [];
+afterEach(() => {
+  for (const t of made.splice(0)) t.closeDrawer();
+});
 
 function setup() {
   const root = document.createElement('div');
   document.body.appendChild(root);
   const onSelect = vi.fn<(t: ToolSpec) => void>();
   const tb = new Toolbar(root, onSelect);
+  made.push(tb);
   const state = createGame({ seed: 1 });
   tb.update(state);
   return { root, onSelect, tb, state };
@@ -117,5 +123,42 @@ describe('Toolbar', () => {
     const btn = root.querySelector('[data-tab="refine"]') as HTMLElement;
     expect(btn.querySelector('img.icon')).not.toBeNull();
     expect(btn.textContent).toContain('Refine');
+  });
+
+  it('B (toggle) closes the flyout', () => {
+    const { root, tb } = setup();
+    tab(root, 'extract');
+    tb.toggle();
+    expect(tb.drawerOpen).toBe(false);
+    tb.toggle();
+    expect((root.querySelector('.tb-flyout') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('an outside press closes the flyout and is swallowed; a press on the bar is not', () => {
+    const { root, tb } = setup();
+    tab(root, 'extract');
+    const inside = new MouseEvent('pointerdown', { bubbles: true, cancelable: true });
+    root.querySelector('.tb-tabs')!.dispatchEvent(inside);
+    expect(inside.defaultPrevented).toBe(false);
+    expect(tb.drawerOpen).toBe(true);
+    const outside = new MouseEvent('pointerdown', { bubbles: true, cancelable: true });
+    document.body.dispatchEvent(outside);
+    expect(outside.defaultPrevented).toBe(true);
+    expect(tb.drawerOpen).toBe(false);
+    const after = new MouseEvent('pointerdown', { bubbles: true, cancelable: true });
+    document.body.dispatchEvent(after);
+    expect(after.defaultPrevented).toBe(false);
+  });
+
+  it('the flyout stays clear of the side panel', () => {
+    const { root } = setup();
+    document.documentElement.style.setProperty('--side-panel-w', '546px');
+    Object.defineProperty(window, 'innerWidth', { value: 1366, configurable: true });
+    const fly = root.querySelector('.tb-flyout') as HTMLElement;
+    Object.defineProperty(fly, 'offsetWidth', { value: 900, configurable: true });
+    tab(root, 'extract');
+    // bar rect is all zeros in jsdom: left = clamp(0 - 450, 8, 1366-546-8-900 -> <8 -> 8) -> 8 - 0 - 2
+    expect(parseFloat(fly.style.left)).toBe(6);
+    document.documentElement.style.removeProperty('--side-panel-w');
   });
 });

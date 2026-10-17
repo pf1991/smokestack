@@ -164,11 +164,39 @@ export class Toolbar {
     this.activeTab = this.activeTab === id ? null : id;
     for (const [tid, panel] of this.panels) panel.hidden = tid !== this.activeTab;
     this.body.hidden = this.activeTab === null;
+    if (this.activeTab !== null) {
+      this.placeFlyout();
+      window.addEventListener('pointerdown', this.onOutside, true);
+      window.addEventListener('resize', this.onResize);
+    } else {
+      window.removeEventListener('pointerdown', this.onOutside, true);
+      window.removeEventListener('resize', this.onResize);
+    }
     for (const [tid, btn] of this.tabButtons) {
       btn.classList.toggle('active', tid === this.activeTab);
       btn.setAttribute('aria-expanded', String(tid === this.activeTab));
     }
     this.bar.classList.toggle('open', this.activeTab !== null);
+  }
+
+  private readonly onResize = (): void => this.placeFlyout();
+
+  /** A press outside the bar closes the flyout and does not reach the map. */
+  private readonly onOutside = (e: Event): void => {
+    if (this.activeTab === null || this.bar.contains(e.target as Node)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.closeDrawer();
+  };
+
+  /** Centres the flyout on the bar, then keeps it on the map left of the side panel (>= 8 px from the left edge). */
+  private placeFlyout(): void {
+    const bar = this.bar.getBoundingClientRect();
+    const panel = parseFloat(document.documentElement.style.getPropertyValue('--side-panel-w')) || 0;
+    const max = window.innerWidth - panel - 16;
+    const w = Math.min(this.body.offsetWidth, max);
+    const left = Math.max(8, Math.min(bar.left + bar.width / 2 - w / 2, window.innerWidth - panel - 8 - w));
+    this.body.style.left = `${Math.round(left - bar.left - 2)}px`; // 2 px: the bar's border
   }
 
   private static keyOf(t: ToolSpec): string {
@@ -205,6 +233,7 @@ export class Toolbar {
 
   /** B: show or hide the toolbar. */
   toggle(): void {
+    this.closeDrawer();
     this.bar.classList.toggle('collapsed');
   }
 
