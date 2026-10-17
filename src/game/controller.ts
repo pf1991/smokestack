@@ -291,6 +291,10 @@ export class GameController {
     this.exitPhoto = exit;
   }
 
+  toggleOverlay(id: 'pollution' | 'factions'): void {
+    this.hud.toggleOverlay(id);
+  }
+
   toggleToolbar(): void {
     this.toolbar.toggle();
   }

@@ -9,6 +9,7 @@ import { priceIndex } from '../sim/society/economy';
 import type { GameState, Inventory } from '../sim/types';
 import { type Child, h } from './dom';
 import { iconEl } from './icon';
+import { shortcutFor, withShortcut } from './shortcuts';
 import { formatMoney } from './format';
 import type { ToolSpec } from './tools';
 import './hud.css';
@@ -90,7 +91,7 @@ export class Toolbar {
     const inspect = h('button', {
       class: 'tb-tab tb-inspect',
       'data-tool': 'inspect',
-      title: 'Inspect (Esc)',
+      title: withShortcut('Inspect', 'escape'),
       onClick: () => this.select({ kind: 'inspect' }),
     }, 'Inspect');
     this.toolButtons.set('inspect', inspect);
@@ -142,7 +143,7 @@ export class Toolbar {
     toolCard('road', 'Road', 'Drag to lay roads (bridges over water)', perTile(formatMoney(ROAD_COST)), { kind: 'road' }, { base: ROAD_COST, text: perTile });
     toolCard('rail', 'Rail', 'Drag to lay track (level crossings over roads, never water)', perTile(formatMoney(RAIL_COST)), { kind: 'rail' }, { base: RAIL_COST, text: perTile });
     toolCard('trees', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', perTile(formatMoney(TREE_COST)), { kind: 'trees' }, { base: TREE_COST, text: perTile });
-    toolCard('bulldoze', 'Bulldoze', 'Demolish for a 25% refund (Del)', 'Click a building, road or rail', { kind: 'bulldoze' });
+    toolCard('bulldoze', 'Bulldoze', `Demolish for a 25% refund (${shortcutFor('bulldoze') ?? 'Del'})`, 'Click a building, road or rail', { kind: 'bulldoze' });
 
     this.bar = h('div', { class: 'toolbar' }, tabsRow, body);
     root.appendChild(this.bar);

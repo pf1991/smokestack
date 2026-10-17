@@ -2,6 +2,8 @@ import { clampCamera, screenToTile, screenToWorld, setZoomTarget, stepZoom } fro
 import type { Camera } from '../render/constants';
 import type { GameMap, Speed, Vec2 } from '../sim/types';
 import type { ToolSpec } from '../ui/tools';
+import { closeHelp, isHelpOpen, toggleHelp } from '../ui/help';
+import { shortcutForEvent } from '../ui/shortcuts';
 
 /** What the input layer drives (implemented by GameController). */
 export interface InputHost {
@@ -24,6 +26,8 @@ export interface InputHost {
   escape?(): void;
   /** P: toggles photo mode */
   togglePhotoMode?(): void;
+  /** M / K: flips a map overlay and keeps its HUD button in sync */
+  toggleOverlay?(id: 'pollution' | 'factions'): void;
   /** opens a registered panel; returns false when none is registered under `id` */
   tryOpenPanel(id: string): boolean;
   /** the player panned by hand (cancels camera follow) */
@@ -47,8 +51,6 @@ const PAN_KEYS: Record<string, Vec2> = {
   d: { x: 1, y: 0 },
   arrowright: { x: 1, y: 0 },
 };
-const SPEED_KEYS: Record<string, Speed> = { '1': 1, '2': 2, '3': 4, '4': 8 };
-const PANEL_KEYS: Record<string, string> = { r: 'routes', f: 'finance', n: 'newspaper', v: 'fleet' };
 /** screen pixels per millisecond for keyboard panning */
 const KEY_PAN_SPEED = 0.9;
 const WHEEL_STEP = 1.15;
@@ -65,7 +67,7 @@ export function isTyping(target: EventTarget | null): boolean {
 /**
  * Mouse, wheel and keyboard handling per Game Design → Controls. Left button → current tool;
  * right/middle drag pans; wheel zooms at the cursor; WASD/arrows pan; Space pauses; 1–4 set speeds;
- * Esc cancels the tool; B toggles the toolbar; Delete picks the bulldozer; R/F/N open panels.
+ * Esc cancels the tool; B toggles the toolbar; Delete picks the bulldozer; panel, overlay and help keys come from ui/shortcuts.
  * In photo mode (`host.photoActive`) the left button pans too and only Esc, P and the pan keys act.
  */
 export class Input {
@@ -228,27 +230,52 @@ export class Input {
       return;
     }
     if (e.repeat) return;
-    if (this.host.photoActive && key !== 'escape' && key !== 'p') return;
-    if (key === ' ') {
-      e.preventDefault();
-      this.host.togglePause();
-    } else if (key in SPEED_KEYS) {
-      this.host.setSpeed(SPEED_KEYS[key]);
-    } else if (key === 'escape') {
-      if (this.host.escape) {
-        this.host.escape();
-      } else {
-        this.host.tools.cancel();
-        this.host.closeDrawer();
+    if (isHelpOpen()) {
+      // the help overlay is modal: Esc, ? and H close it, everything else waits
+      if (key === 'escape' || key === '?' || key === 'h') {
+        e.preventDefault();
+        closeHelp();
       }
-    } else if (key === 'p') {
-      this.host.togglePhotoMode?.();
-    } else if (key === 'b') {
-      this.host.toggleToolbar();
-    } else if (key === 'delete') {
-      this.host.setTool({ kind: 'bulldoze' });
-    } else if (key in PANEL_KEYS) {
-      this.host.tryOpenPanel(PANEL_KEYS[key]);
+      return;
+    }
+    const sc = shortcutForEvent(e.key);
+    if (!sc) return;
+    const a = sc.action;
+    if (this.host.photoActive && a.kind !== 'escape' && a.kind !== 'photo') return;
+    switch (a.kind) {
+      case 'pause':
+        e.preventDefault();
+        this.host.togglePause();
+        break;
+      case 'speed':
+        this.host.setSpeed(a.speed);
+        break;
+      case 'escape':
+        if (this.host.escape) {
+          this.host.escape();
+        } else {
+          this.host.tools.cancel();
+          this.host.closeDrawer();
+        }
+        break;
+      case 'photo':
+        this.host.togglePhotoMode?.();
+        break;
+      case 'toolbar':
+        this.host.toggleToolbar();
+        break;
+      case 'bulldoze':
+        this.host.setTool({ kind: 'bulldoze' });
+        break;
+      case 'panel':
+        this.host.tryOpenPanel(a.id);
+        break;
+      case 'overlay':
+        this.host.toggleOverlay?.(a.id);
+        break;
+      case 'help':
+        toggleHelp();
+        break;
     }
   }
 

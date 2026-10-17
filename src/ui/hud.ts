@@ -7,6 +7,7 @@ import type { GameState, Speed, Weather } from '../sim/types';
 import { setOverlay } from '../render/overlays';
 import { factionOverlay, factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
 import { h } from './dom';
+import { withShortcut } from './shortcuts';
 import { iconEl } from './icon';
 import { formatMoney } from './format';
 import { RollingCounter } from './juice';
@@ -21,11 +22,11 @@ export interface HudHandlers {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const SPEEDS: { speed: Speed; label: string; title: string }[] = [
-  { speed: 0, label: '⏸', title: 'Pause' },
-  { speed: 1, label: '▶', title: 'Normal speed' },
-  { speed: 2, label: '▶▶', title: 'Fast' },
-  { speed: 4, label: '▶▶▶', title: 'Faster' },
-  { speed: 8, label: '⏩', title: 'Fastest' },
+  { speed: 0, label: '⏸', title: withShortcut('Pause', 'pause') },
+  { speed: 1, label: '▶', title: withShortcut('Normal speed', 'speed', '1') },
+  { speed: 2, label: '▶▶', title: withShortcut('Fast', 'speed', '2') },
+  { speed: 4, label: '▶▶▶', title: withShortcut('Faster', 'speed', '4') },
+  { speed: 8, label: '⏩', title: withShortcut('Fastest', 'speed', '8') },
 ];
 
 const PANELS: { id: string; label: string; icon?: string }[] = [
@@ -78,6 +79,7 @@ export class Hud {
   private state: GameState | null = null;
   private seeded = false;
   private readonly modeSel: HTMLSelectElement;
+  private readonly overlayButtons = new Map<'pollution' | 'factions', HTMLElement>();
   /** whether the faction-mode labels were built for the post-GREENS_YEAR names */
   private modeGreen = false;
 
@@ -109,12 +111,13 @@ export class Hud {
       PANELS.map((p) => h('button', {
         class: 'hud-panel-btn',
         'data-panel': p.id,
+        title: withShortcut(p.label, 'panel', p.id),
         onClick: () => handlers.onOpenPanel(p.id),
       }, ...(p.icon ? [iconEl(p.icon, 16), ` ${p.label}`] : [p.label]))));
 
     const smog = h('button', {
       class: 'hud-panel-btn hud-smog',
-      title: 'Toggle pollution map',
+      title: withShortcut('Toggle pollution map', 'overlay', 'pollution'),
       'aria-pressed': 'false',
       onClick: () => {
         const on = smog.getAttribute('aria-pressed') !== 'true';
@@ -124,6 +127,7 @@ export class Hud {
       },
     }, iconEl('smog', 16), ' Smog');
     panels.appendChild(smog);
+    this.overlayButtons.set('pollution', smog);
     const modeSel = h('select', {
       class: 'hud-faction-mode',
       title: 'What the faction map shows',
@@ -135,7 +139,7 @@ export class Hud {
     this.modeSel = modeSel as HTMLSelectElement;
     const factions = h('button', {
       class: 'hud-panel-btn hud-factions',
-      title: 'Toggle faction map',
+      title: withShortcut('Toggle faction map', 'overlay', 'factions'),
       'aria-pressed': 'false',
       onClick: () => {
         const on = factions.getAttribute('aria-pressed') !== 'true';
@@ -152,9 +156,10 @@ export class Hud {
       modeSel.hidden = false;
     }
     panels.append(factions, modeSel);
+    this.overlayButtons.set('factions', factions);
     const photo = h('button', {
       class: 'hud-panel-btn hud-photo',
-      title: 'Photo mode (P)',
+      title: withShortcut('Photo mode', 'photo'),
       'aria-label': 'Photo mode',
       onClick: () => handlers.onPhoto?.(),
     }, iconEl('camera', 16), ' Photo');
@@ -168,6 +173,11 @@ export class Hud {
       panels);
 
     root.append(bar, h('div', { id: 'ticker', class: 'hud-ticker' }));
+  }
+
+  /** M / K: presses the overlay's button so its pressed state and the map stay in sync. */
+  toggleOverlay(id: 'pollution' | 'factions'): void {
+    this.overlayButtons.get(id)?.click();
   }
 
   /** Pops the player's month result when a month closes. Returns an unsubscribe. */
