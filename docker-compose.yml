@@ -5,3 +5,18 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    depends_on:
+      - ai-proxy
+
+  ai-proxy:
+    image: node:22-alpine
+    working_dir: /srv
+    volumes:
+      - ./server:/srv:ro
+    command: node ai-proxy.mjs
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    expose:
+      - "8787"

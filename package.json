@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "ai-proxy": "node server/ai-proxy.mjs",
     "soak": "tsx scripts/soak.ts",
     "fixture": "tsx scripts/make-fixture.ts"
   },
