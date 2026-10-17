@@ -4,11 +4,12 @@
  * An inactive Baron (taken over, bankrupt) still passes the title on, silently.
  */
 import { BARON_ID } from '../companies';
+import { openCardById } from '../politics/cards';
 import { publishNews } from '../news';
 import { chance, pick } from '../rng';
 import type { SimContext } from '../types';
 import { scaleGrudges } from './grudges';
-import { BARON_TRAIT_IDS, type BaronHead } from './types';
+import { BARON_TRAIT_IDS, FOUNDER, type BaronHead } from './types';
 
 export const SUCCESSION_FIRST_YEAR = 1940;
 export const SUCCESSION_FORCED_YEAR = 1955;
@@ -38,7 +39,8 @@ export function successionMonth(ctx: SimContext): void {
       ctx,
       'rival',
       'THE OLD BARON IS DEAD; LONG LIVE THE BARON',
-      'Baron Cornelius Smogsworth has passed away. His son, Reginald Jr., takes the chair, and the ledger of old grudges with it.',
+      `${FOUNDER.name} has passed away. His son, Reginald Jr., takes the chair, and the ledger of old grudges with it.`,
     );
+    openCardById(ctx, 'baron_funeral', null);
   }
 }

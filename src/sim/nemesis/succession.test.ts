@@ -88,16 +88,30 @@ describe('successionMonth', () => {
 });
 
 describe('baron_funeral card', () => {
-  it('is eligible only the spring after the succession', () => {
+  const pending = (ctx: SimContext) => ctx.state.politics.cards.pending.filter((p) => p.cardId === 'baron_funeral');
+
+  it('opens exactly once, at the succession, and never from the spring draw', () => {
     const ctx = setup(5, 1955);
-    const ids = () => eligibleCards(ctx.state, 'spring', null).map((e) => e.card.id);
-    expect(ids()).not.toContain('baron_funeral');
+    expect(eligibleCards(ctx.state, 'spring', null).map((e) => e.card.id)).not.toContain('baron_funeral');
     successionMonth(ctx);
-    expect(ids()).not.toContain('baron_funeral'); // same year, still December
-    ctx.state.date = { year: 1956, month: 4, day: 1, hour: 0 };
-    expect(ids()).toContain('baron_funeral');
-    ctx.state.date.year = 1957;
-    expect(ids()).not.toContain('baron_funeral');
+    expect(pending(ctx)).toHaveLength(1);
+    ctx.state.date.year = 1956;
+    successionMonth(ctx);
+    expect(pending(ctx)).toHaveLength(1);
+  });
+
+  it('does not open while the Baron is inactive', () => {
+    const ctx = setup(5, 1955);
+    ctx.state.companies.rival.active = false;
+    successionMonth(ctx);
+    expect(pending(ctx)).toEqual([]);
+  });
+
+  it('opens for a late succession (a game started after 1955)', () => {
+    const ctx = setup(5, 1980);
+    successionMonth(ctx);
+    expect(ctx.state.nemesis.succession.year).toBe(1980);
+    expect(pending(ctx)).toHaveLength(1);
   });
 
   it('the wake leaves a double city grudge at the next monthly hook', () => {

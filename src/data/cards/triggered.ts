@@ -5,6 +5,7 @@
  * need the town passed in, so a disaster with no town (cityId null) skips them.
  */
 import { city, DAYS_PER_MONTH, demand, haltNearestWorks, mayorIs, nation, strikeResolution } from './helpers';
+import { FOUNDER } from '../../sim/nemesis/types';
 import { WAKE_FLAG } from '../nemesis';
 import { cityOf, type CardDef } from './types';
 
@@ -439,20 +440,19 @@ export const INVENTION_CARDS: readonly CardDef[] = [
 ];
 
 /**
- * Spring card after the old Baron's death. The succession happens in December and the spring draw is
- * early in the next year, so the card is eligible when the succession was last year.
+ * Opened by successionMonth (sim/nemesis/succession.ts) the moment the old Baron dies, only while the
+ * Baron is active; it never comes up in a draw.
  */
 export const DYNASTY_CARDS: readonly CardDef[] = [
   {
     id: 'baron_funeral',
     title: 'The Baron Is Buried',
-    body: 'Baron Cornelius Smogsworth is being laid to rest with a brass band and four hundred top hats. Half the county expects you at the graveside. The other half expects you to dance on it.',
-    trigger: 'spring',
-    years: [1941, 1956],
+    body: `${FOUNDER.name} is being laid to rest with a brass band and four hundred top hats. Half the county expects you at the graveside. The other half expects you to dance on it.`,
+    trigger: 'succession',
+    years: [1940, 2000],
     weight: 12,
     cooldownYears: 0,
     needsCity: false,
-    condition: (state) => state.nemesis.succession.year === state.date.year - 1,
     choices: [
       { label: 'Send a wreath', cost: 2000, effects: [nation('oldmoney', 4)] },
       { label: 'Skip the funeral', cost: 0, effects: [nation('church', -3)] },
