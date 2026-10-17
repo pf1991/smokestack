@@ -18,7 +18,7 @@ import { netWorth } from '../rival/takeover';
 import { buildingsInCity } from '../state';
 import type { GameState, SimContext } from '../types';
 import { retaliateMonth } from './retaliation';
-import { CONTRACTS_SEEN_CAP, type Grudge, type GrudgeKind } from './types';
+import { CONTRACTS_SEEN_CAP, RETALIATE_AT, type BaronMood, type Grudge, type GrudgeKind } from './types';
 
 export const GRUDGE_CAP = 40;
 export const GRUDGE_DECAY = 0.8;
@@ -49,6 +49,27 @@ export function grudgeTotal(state: GameState): number {
   let sum = 0;
   for (const g of state.nemesis.grudges) sum += g.weight;
   return sum;
+}
+
+/** grudges weighing at least this make the Baron furious */
+export const FURIOUS_AT = 12;
+/** months after a strike (inclusive) that the Baron gloats */
+export const GLOAT_MONTHS = 2;
+
+/**
+ * The Baron's mood for his portrait: gloating within GLOAT_MONTHS months of his last strike,
+ * otherwise furious at FURIOUS_AT grudge weight, scheming at RETALIATE_AT, else smug.
+ */
+export function baronMood(state: GameState): BaronMood {
+  const last = state.nemesis.lastAction;
+  if (last) {
+    const since = state.date.year * 12 + state.date.month - (last.year * 12 + last.month);
+    if (since >= 0 && since <= GLOAT_MONTHS) return 'gloating';
+  }
+  const total = grudgeTotal(state);
+  if (total >= FURIOUS_AT) return 'furious';
+  if (total >= RETALIATE_AT) return 'scheming';
+  return 'smug';
 }
 
 /** The heaviest grudge (the oldest among equals), or null for an empty ledger. Read-only. */

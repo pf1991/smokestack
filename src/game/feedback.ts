@@ -2,6 +2,7 @@
 import type { GameState, Route, SimContext } from '../sim/types';
 import { ACHIEVEMENTS } from './achievements';
 import { BUILDINGS } from '../data/buildings';
+import { RETALIATION_LABELS } from '../data/nemesis';
 import { formatMoney } from '../ui/format';
 import { crossedMilestone, showStamp } from '../ui/juice';
 
@@ -46,6 +47,21 @@ export function attachStrikeToasts(ctx: SimContext, inspect?: (buildingId: numbe
       message: `Strike! Your ${name}${city ? ` at ${city.name}` : ''} has downed tools`,
       tone: 'bad',
       ...(inspect ? { action: { label: 'Inspect', run: () => inspect(e.buildingId) } } : {}),
+    });
+  });
+}
+
+/**
+ * A 'bad' toast when the Baron strikes back (sim/nemesis/retaliation.ts): "Smogsworth strikes: <move>",
+ * with a "Rival" action that runs `openRival` (the rival panel). Returns an unsubscribe.
+ */
+export function attachBaronStrikeToasts(ctx: SimContext, openRival: () => void): () => void {
+  return ctx.bus.on('baronStrike', (e) => {
+    ctx.bus.emit({
+      type: 'toast',
+      message: `Smogsworth strikes: ${RETALIATION_LABELS[e.kind]}`,
+      tone: 'bad',
+      action: { label: 'Rival', run: openRival },
     });
   });
 }

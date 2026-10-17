@@ -2,6 +2,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { LANDMARK_IDS } from '../data/landmarks';
 import { drawLandmark, LANDMARK_HEADROOM, LANDMARK_PX } from './landmarks';
+import { BARON_MOODS, drawBaronPortrait } from './portrait';
 import { chimneyOffsets, drawHouse, drawTrain, drawTruck, getBuildingSprite, windowRects } from './sprites';
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
@@ -68,6 +69,29 @@ for (const lit of [false, true]) {
     x += LANDMARK_PX + 10;
   }
   y += LANDMARK_PX + LANDMARK_HEADROOM + 8;
+}
+// portrait sheet: the Baron's four moods, then Junior's (generation 2)
+const PORTRAIT = 96;
+for (const gen of [1, 2] as const) {
+  const iy = y;
+  let x = 4;
+  for (const mood of BARON_MOODS) {
+    const ix = x;
+    items.push({
+      x: ix, y: iy,
+      draw: g => {
+        g.save();
+        g.translate(ix, iy);
+        drawBaronPortrait(g, PORTRAIT, mood, gen);
+        g.restore();
+        g.fillStyle = '#1d1a16';
+        g.font = '7px sans-serif';
+        g.fillText(`${mood} / gen ${gen}`, ix + 2, iy + PORTRAIT + 8);
+      },
+    });
+    x += PORTRAIT + 10;
+  }
+  y += PORTRAIT + 14;
 }
 
 // size first (resets transform), then scale, fill, draw

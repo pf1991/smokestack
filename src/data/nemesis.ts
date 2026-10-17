@@ -45,3 +45,24 @@ export const GRUDGE_WEIGHTS: Record<GrudgeKind, number> = {
   /** each December the player's net worth is at least half the Baron's (Phase 4 fix round: a source needing no shared town) */
   rivalry: 3,
 };
+
+/** How a grudge reads in the rival panel's ledger: "Undercut in Millbrook, 1923". */
+export const GRUDGE_LABELS: Record<GrudgeKind, string> = {
+  undercut: 'Undercut',
+  contract: 'Contract taken',
+  shares: 'Share dealings',
+  city: 'Stores routed',
+  sabotage_exposed: 'Saboteurs exposed',
+  takeover_bid: 'Takeover bid',
+  rivalry: 'A rival fortune',
+};
+
+/** Short names of the Baron's moves, as the `baronStrike` toast reads them. */
+export const RETALIATION_LABELS: Record<RetaliationKind, string> = {
+  price_war: 'Price war',
+  poach: 'Poached foremen',
+  fund_opponent: 'Bought candidate',
+  smear: 'Smear campaign',
+  sabotage: 'Sabotage',
+  hostile_bid: 'Hostile bid',
+};

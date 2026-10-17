@@ -24,6 +24,19 @@ export interface BaronHead {
   generation: 1 | 2;
 }
 
+/** How the Baron looks in his portrait (render/portrait.ts); see baronMood in nemesis/grudges.ts. */
+export const BARON_MOODS = ['smug', 'furious', 'scheming', 'gloating'] as const;
+export type BaronMood = (typeof BARON_MOODS)[number];
+
+/**
+ * the grudge weight below which the Baron never strikes. Lives here (a leaf module) so grudges.ts can
+ * read it without importing retaliation.ts; retaliation.ts re-exports it.
+ */
+export const RETALIATE_AT = 6;
+
+/** the tag on the news item each retaliation prints (NewsItem.tag), which the rival panel lists */
+export const NEMESIS_NEWS_TAG = 'nemesis';
+
 export const RETALIATION_KINDS = ['price_war', 'poach', 'fund_opponent', 'smear', 'sabotage', 'hostile_bid'] as const;
 export type RetaliationKind = (typeof RETALIATION_KINDS)[number];
 

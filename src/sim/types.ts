@@ -234,6 +234,8 @@ export interface NewsItem {
   headline: string;
   body: string;
   kind: NewsKind;
+  /** optional marker for a news thread: 'nemesis' = one of the Baron's retaliations (Phase 4) */
+  tag?: string;
 }
 
 export interface DemandModifier {

@@ -395,6 +395,11 @@ describe('every kind', () => {
       expect(retaliate(ctx, kind), kind).toBe(true);
       expect(seen.map((s) => s.kind)).toEqual([kind]);
       expect(ctx.state.news.filter((n) => n.kind === 'rival').length, kind).toBeGreaterThanOrEqual(1);
+      // exactly the retaliation's own item carries the nemesis tag (the rival panel's history)
+      const tagged = ctx.state.news.filter((n) => n.tag === 'nemesis');
+      expect(tagged, kind).toHaveLength(1);
+      expect(tagged[0].kind, kind).toBe('rival');
+      expect(tagged[0].body, kind).not.toMatch(/\{\w+\}/);
       expect(checkInvariants(ctx.state), kind).toEqual([]);
     }
   });

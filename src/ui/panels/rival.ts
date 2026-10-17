@@ -1,12 +1,16 @@
 import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
+import { BARON_TRAITS, GRUDGE_LABELS } from '../../data/nemesis';
 import type { GameController } from '../../game/controller';
 import { drawBaronPortrait, type BaronMood } from '../../render/portrait';
+import { formatDate } from '../../sim/clock';
+import { baronMood } from '../../sim/nemesis/grudges';
+import { NEMESIS_NEWS_TAG, type Grudge } from '../../sim/nemesis/types';
 import { canTakeover, netWorth, takeover, takeoverPrice } from '../../sim/rival';
 import { runDays } from '../../sim/simulation';
 import { TAKEOVER_MIN_WORTH } from '../../sim/rival/takeover';
 import { atPrices } from '../../sim/society/economy';
-import type { GameState } from '../../sim/types';
+import type { GameState, NewsItem } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney } from '../format';
 import { createWindow, type GameWindow } from '../window';
@@ -15,13 +19,15 @@ import type { PanelDef } from './index';
 const PLAYER_COLOR = '#2f6fb5';
 const RIVAL_COLOR = '#b5302f';
 const PORTRAIT_PX = 132;
+/** how many grudges and retaliations the panel lists */
+const LIST_MAX = 5;
 
-function portrait(mood: BaronMood): HTMLElement {
+function portrait(mood: BaronMood, generation: 1 | 2, name: string): HTMLElement {
   const canvas = h('canvas', {
     width: PORTRAIT_PX * 2,
     height: PORTRAIT_PX * 2,
     style: { width: `${PORTRAIT_PX}px`, height: `${PORTRAIT_PX}px`, flex: '0 0 auto' },
-    'aria-label': `Portrait of Baron Smogsworth, looking ${mood}`,
+    'aria-label': `Portrait of ${name}, looking ${mood}`,
   }) as HTMLCanvasElement;
   // jsdom and very old browsers have no 2D context; the panel still works without the picture
   let g: CanvasRenderingContext2D | null = null;
@@ -30,7 +36,7 @@ function portrait(mood: BaronMood): HTMLElement {
   } catch {
     g = null;
   }
-  if (g) drawBaronPortrait(g, PORTRAIT_PX * 2, mood);
+  if (g) drawBaronPortrait(g, PORTRAIT_PX * 2, mood, generation);
   return canvas;
 }
 
@@ -75,26 +81,92 @@ function lastQuip(state: GameState): string | null {
   return null;
 }
 
+/** "Undercut in Millbrook, 1923", or "Takeover bid, 1925" for a grudge tied to no town. */
+export function grudgeLine(state: GameState, g: Grudge): string {
+  const town = g.cityId === null ? undefined : state.cities.find((c) => c.id === g.cityId)?.name;
+  return `${GRUDGE_LABELS[g.kind]}${town ? ` in ${town}` : ''}, ${g.year}`;
+}
+
+/** The heaviest LIST_MAX grudges, heaviest first (older first among equals). */
+function topGrudges(state: GameState): Grudge[] {
+  return [...state.nemesis.grudges].sort((a, b) => b.weight - a.weight).slice(0, LIST_MAX);
+}
+
+/** The last LIST_MAX retaliations (rival news tagged 'nemesis'), newest first. */
+function lastStrikes(state: GameState): NewsItem[] {
+  const out: NewsItem[] = [];
+  for (let i = state.news.length - 1; i >= 0 && out.length < LIST_MAX; i--) {
+    const n = state.news[i];
+    if (n.kind === 'rival' && n.tag === NEMESIS_NEWS_TAG) out.push(n);
+  }
+  return out;
+}
+
+const sectionTitle = (text: string) =>
+  h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', margin: '10px 0 4px' } }, text);
+
+function traitChips(state: GameState): HTMLElement {
+  return h('div', { class: 'rival-traits', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+    state.nemesis.traits.map((t) => h('div', {
+      class: 'rival-trait',
+      'data-trait': t,
+      style: { fontSize: '12px', lineHeight: '1.3' },
+    },
+    h('span', {
+      class: 'rival-trait-label',
+      style: {
+        display: 'inline-block', padding: '0 6px', marginRight: '6px', background: '#3a1a18',
+        border: '1px solid #8a6d17', borderRadius: '2px', color: '#efe3c3', fontWeight: 'bold',
+      },
+    }, BARON_TRAITS[t].label),
+    h('span', { style: { opacity: '0.85' } }, BARON_TRAITS[t].blurb))));
+}
+
+function grudgeList(state: GameState): HTMLElement {
+  const top = topGrudges(state);
+  const heaviest = top[0]?.weight ?? 1;
+  if (top.length === 0) return h('div', { class: 'rival-grudges', style: { fontSize: '13px', opacity: '0.8' } }, 'No grudges. He barely knows your name.');
+  return h('ul', { class: 'rival-grudges', style: { margin: '0', paddingLeft: '0', listStyle: 'none', fontSize: '13px' } },
+    top.map((g) => h('li', {
+      title: `Weight ${g.weight.toFixed(1)}`,
+      style: {
+        padding: '1px 6px', marginBottom: '2px',
+        background: `linear-gradient(90deg, rgba(181,48,47,0.45) ${Math.round((g.weight / heaviest) * 100)}%, transparent 0)`,
+      },
+    }, grudgeLine(state, g))));
+}
+
+function strikeList(state: GameState): HTMLElement {
+  const strikes = lastStrikes(state);
+  if (strikes.length === 0) return h('div', { class: 'rival-strikes', style: { fontSize: '13px', opacity: '0.8' } }, 'He has not struck back. Yet.');
+  return h('ul', { class: 'rival-strikes', style: { margin: '0', paddingLeft: '18px', fontSize: '13px' } },
+    strikes.map((n) => h('li', { title: n.body },
+      h('span', { style: { opacity: '0.7', fontSize: '12px' } }, `${formatDate(n.date)}: `), n.headline)));
+}
+
 function render(game: GameController, refresh: () => void): HTMLElement {
   const { state } = game.ctx;
   const rival = state.companies.rival;
   const mine = netWorth(state, 'player');
   const his = netWorth(state, 'rival');
-  const mood: BaronMood = rival.active && his >= mine ? 'smug' : 'furious';
+  const nem = state.nemesis;
+  // an ousted Baron only rages; otherwise his grudges and his last strike set the face
+  const mood: BaronMood = rival.active ? baronMood(state) : 'furious';
   const quip = rival.active ? lastQuip(state) : 'Ousted. The Baron now spends his days writing furious letters to the editor.';
 
   const head = h('div', { style: { display: 'flex', gap: '12px', alignItems: 'flex-start' } },
-    portrait(mood),
+    portrait(mood, nem.head.generation, nem.head.name),
     h('div', { style: { minWidth: '0' } },
-      h('div', { style: { fontFamily: 'var(--font-display)', fontSize: '17px', color: 'var(--brass-light)' } }, 'Baron Cornelius Smogsworth'),
-      h('div', { style: { fontSize: '12px', opacity: '0.8', marginBottom: '6px' } }, `${rival.name}${rival.active ? '' : ' (defunct)'}`),
+      h('div', { class: 'rival-head-name', style: { fontFamily: 'var(--font-display)', fontSize: '17px', color: 'var(--brass-light)' } }, nem.head.name),
+      h('div', { class: 'rival-head-age', style: { fontSize: '12px', opacity: '0.8', marginBottom: '6px' } },
+        `aged ${state.date.year - nem.head.born} · ${rival.name}${rival.active ? '' : ' (defunct)'}`),
       quip && h('div', { style: { fontStyle: 'italic', fontSize: '13px', lineHeight: '1.35' } }, quip.startsWith("'") ? quip : `“${quip}”`),
       h('div', { style: { fontSize: '12px', marginTop: '6px', opacity: '0.85' } },
         `Cash ${formatMoney(rival.money)} · Loan ${formatMoney(rival.loan)}`)));
 
   const stores = storesByCity(state);
   const storeList = h('div', null,
-    h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', margin: '10px 0 4px' } }, 'His stores'),
+    sectionTitle('His stores'),
     stores.length === 0
       ? h('div', { style: { fontSize: '13px', opacity: '0.8' } }, 'None yet. He is scheming.')
       : h('ul', { class: 'rival-stores', style: { margin: '0', paddingLeft: '18px', fontSize: '13px' } },
@@ -123,6 +195,12 @@ function render(game: GameController, refresh: () => void): HTMLElement {
 
   return h('div', { class: 'rival-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
     head,
+    sectionTitle('His character'),
+    traitChips(state),
+    sectionTitle('Grudges against you'),
+    grudgeList(state),
+    sectionTitle('His last strikes'),
+    strikeList(state),
     h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', marginTop: '8px' } }, 'Net worth'),
     worthBar(mine, his, state.companies.player.name),
     storeList,

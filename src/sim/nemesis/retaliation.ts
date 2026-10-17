@@ -10,6 +10,7 @@
  * and cleared by the election). All randomness is the state rng; towns and factions are visited in
  * id / FACTION_IDS order.
  */
+import { BARON_LINES, fillBaronLine } from '../../data/baronLines';
 import { BUILDINGS } from '../../data/buildings';
 import { FACTION_IDS, factionName, type FactionId } from '../../data/factions';
 import { GOODS } from '../../data/goods';
@@ -27,12 +28,11 @@ import { atPrices } from '../society/economy';
 import { strikeActive } from '../society/strikeState';
 import type { Building, City, GameState, GoodId, SimContext } from '../types';
 import { addGrudge, grudgeTotal, heaviestGrudge, spendHeaviestGrudge } from './grudges';
-import { RETALIATION_KINDS, type GrudgeKind, type RetaliationKind } from './types';
+import { NEMESIS_NEWS_TAG, RETALIATE_AT, RETALIATION_KINDS, type GrudgeKind, type RetaliationKind } from './types';
 
 export { BARON_BACK_BONUS } from '../politics/elections';
 
-/** the grudge weight below which the Baron never strikes */
-export const RETALIATE_AT = 6;
+export { RETALIATE_AT } from './types';
 export const MAX_ACTIONS_PER_YEAR = 6;
 /** months that must pass between two strikes (2: never in consecutive months) */
 export const MIN_ACTION_GAP = 2;
@@ -299,7 +299,11 @@ export function retaliate(ctx: SimContext, kind: RetaliationKind): boolean {
   const why = cause(state, g?.kind ?? null, g?.cityId ?? null);
   spendHeaviestGrudge(state);
   const s = apply(ctx, kind);
-  publishNews(ctx, 'rival', s.headline, `${s.body} Smogsworth has not forgotten ${why}.`);
+  const town = state.cities.find((c) => c.id === s.cityId)?.name ?? null;
+  // a move with no town picks from the lines that name none
+  const lines = BARON_LINES.retaliation[kind].filter((l) => town !== null || !l.includes('{city}'));
+  const line = fillBaronLine(pick(state, lines), state.companies[PLAYER_ID].name, town ?? 'town');
+  publishNews(ctx, 'rival', s.headline, `${s.body} Smogsworth has not forgotten ${why}. '${line}'`, NEMESIS_NEWS_TAG);
   if (s.exposed) exposeSabotage(ctx);
   const n = state.nemesis;
   n.lastAction = { kind, year: state.date.year, month: state.date.month };

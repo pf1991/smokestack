@@ -7,8 +7,9 @@ import { runDays } from '../simulation';
 import { createGame, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Contract } from '../types';
+import { RETALIATE_AT } from './retaliation';
 import { netWorth } from '../rival/takeover';
-import { addGrudge, RIVALRY_SHARE, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, salesGrudges } from './grudges';
+import { addGrudge, baronMood, RIVALRY_SHARE, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, salesGrudges } from './grudges';
 
 function twoTowns() {
   return testCtx(testState({ width: 60, height: 30, money: 1e7, cities: [{ x: 10, y: 10, population: 6000 }, { x: 45, y: 15, population: 2000 }] }));
@@ -213,5 +214,34 @@ describe('grudge causes', () => {
     runDays(ctx, 31);
     expect(ctx.state.nemesis.grudges).toHaveLength(1);
     expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+});
+
+describe('baronMood', () => {
+  const at = (kind: 'undercut', weight: number) => ({ kind, weight, year: 1900, cityId: null });
+  it('is smug, scheming at RETALIATE_AT, furious at 12', () => {
+    const s = createGame({ seed: 7 });
+    expect(baronMood(s)).toBe('smug');
+    s.nemesis.grudges = [at('undercut', RETALIATE_AT - 0.01)];
+    expect(baronMood(s)).toBe('smug');
+    s.nemesis.grudges = [at('undercut', RETALIATE_AT)];
+    expect(baronMood(s)).toBe('scheming');
+    s.nemesis.grudges = [at('undercut', 6), at('undercut', 5.99)];
+    expect(baronMood(s)).toBe('scheming');
+    s.nemesis.grudges = [at('undercut', 6), at('undercut', 6)];
+    expect(baronMood(s)).toBe('furious');
+  });
+  it('gloats for 2 months after a strike, whatever his grudges', () => {
+    const s = createGame({ seed: 7 });
+    s.nemesis.grudges = [at('undercut', 20)];
+    s.date = { year: 1910, month: 11, day: 5, hour: 9 };
+    s.nemesis.lastAction = { kind: 'smear', year: 1910, month: 11 };
+    expect(baronMood(s)).toBe('gloating');
+    s.date = { year: 1911, month: 1, day: 30, hour: 9 };
+    expect(baronMood(s)).toBe('gloating');
+    s.date = { year: 1911, month: 2, day: 1, hour: 0 };
+    expect(baronMood(s)).toBe('furious');
+    s.nemesis.grudges = [];
+    expect(baronMood(s)).toBe('smug');
   });
 });
