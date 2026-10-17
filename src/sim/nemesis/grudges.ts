@@ -10,7 +10,7 @@
  * - contract reads `state.contracts` in `nemesisMonth` (contracts finish in contractsDay and stay
  *   listed, so a seen-id list finds the new ones).
  */
-import { GRUDGE_WEIGHTS } from '../../data/nemesis';
+import { GRUDGE_WEIGHTS, WAKE_FLAG } from '../../data/nemesis';
 import { GOODS } from '../../data/goods';
 import { advanceHour } from '../clock';
 import { BARON_ID, PLAYER_ID } from '../companies';
@@ -18,6 +18,7 @@ import { netWorth } from '../rival/takeover';
 import { buildingsInCity } from '../state';
 import type { GameState, SimContext } from '../types';
 import { retaliateMonth } from './retaliation';
+import { successionMonth } from './succession';
 import { CONTRACTS_SEEN_CAP, RETALIATE_AT, type BaronMood, type Grudge, type GrudgeKind } from './types';
 
 export const GRUDGE_CAP = 40;
@@ -42,6 +43,11 @@ export function addGrudge(state: GameState, kind: GrudgeKind, cityId: number | n
     for (let i = 1; i < grudges.length; i++) if (grudges[i].weight < grudges[lightest].weight) lightest = i;
     grudges.splice(lightest, 1);
   }
+}
+
+/** Multiplies every grudge's weight by `factor` (a new Baron inherits the ledger at a discount). */
+export function scaleGrudges(state: GameState, factor: number): void {
+  for (const g of state.nemesis.grudges) g.weight *= factor;
 }
 
 /** The weight of every grudge the Baron holds. */
@@ -179,8 +185,17 @@ export function nemesisDay(ctx: SimContext): void {
   noteContested(ctx.state);
 }
 
-/** Monthly: the contract grudges, then the Baron's retaliation (Task 2). */
+/** The funeral card's wake choice leaves a flag; the Baron takes it as a double city grudge (none if he is out of the game). */
+function wakeGrudge(state: GameState): void {
+  if (!state.flags[WAKE_FLAG]) return;
+  delete state.flags[WAKE_FLAG];
+  addGrudge(state, 'city', null, 2);
+}
+
+/** Monthly: the contract grudges, the succession (December), then the Baron's retaliation (Task 2). */
 export function nemesisMonth(ctx: SimContext): void {
   contractGrudges(ctx.state);
+  wakeGrudge(ctx.state);
+  successionMonth(ctx);
   retaliateMonth(ctx);
 }

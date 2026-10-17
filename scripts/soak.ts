@@ -193,7 +193,7 @@ for (const seed of seeds) {
     `  economy ${seed}: priceIndex 2000 ${Number.isFinite(index2000) ? index2000.toFixed(2) : 'n/a'}, final ${idx.toFixed(2)} | real net worth (1900 $) player ${money(netWorth(state, 'player') / idx)}, baron ${money(netWorth(state, 'rival') / idx)} | avg building age player ${ages('player')}, baron ${ages('rival')}${renew ? ` | renewals ${renewals}` : ''}`,
   );
   console.log(
-    `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)}) | baron net worth ${money(netWorth(state, 'rival'))}`,
+    `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | succession ${state.nemesis.succession.year ?? 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)}) | baron net worth ${money(netWorth(state, 'rival'))}`,
   );
   if (years >= 100) {
     const gate: string[] = [];

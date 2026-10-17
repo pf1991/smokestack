@@ -66,3 +66,6 @@ export const RETALIATION_LABELS: Record<RetaliationKind, string> = {
   sabotage: 'Sabotage',
   hostile_bid: 'Hostile bid',
 };
+
+/** state.flags key set by the funeral card's wake choice; nemesisMonth turns it into a grudge (cards cannot import sim/nemesis/grudges without an import cycle) */
+export const WAKE_FLAG = 'nemesis:wake';
