@@ -87,4 +87,35 @@ describe('Toolbar', () => {
     tb.closeDrawer(); // no-op when already closed
     expect((root.querySelector('[data-panel-tab="refine"]') as HTMLElement).hidden).toBe(true);
   });
+
+  it('a category click opens its flyout and a second click closes it', () => {
+    const { root, tb } = setup();
+    const fly = () => root.querySelector('.tb-flyout') as HTMLElement;
+    expect(fly().hidden).toBe(true);
+    tab(root, 'extract');
+    expect(fly().hidden).toBe(false);
+    expect(tb.drawerOpen).toBe(true);
+    tab(root, 'extract');
+    expect(fly().hidden).toBe(true);
+    expect(tb.drawerOpen).toBe(false);
+  });
+
+  it('picking a card selects its tool and closes the flyout', () => {
+    const { root, onSelect, tb } = setup();
+    tab(root, 'extract');
+    (root.querySelector('[data-building="lumber_camp"]') as HTMLElement).click();
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'lumber_camp' });
+    expect(tb.drawerOpen).toBe(false);
+    expect((root.querySelector('.tb-flyout') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('Esc (cancel) closes the flyout; categories show icon and label', () => {
+    const { root, tb } = setup();
+    tab(root, 'refine');
+    tb.cancel();
+    expect((root.querySelector('.tb-flyout') as HTMLElement).hidden).toBe(true);
+    const btn = root.querySelector('[data-tab="refine"]') as HTMLElement;
+    expect(btn.querySelector('img.icon')).not.toBeNull();
+    expect(btn.textContent).toContain('Refine');
+  });
 });

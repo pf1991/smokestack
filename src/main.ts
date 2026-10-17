@@ -1,3 +1,4 @@
+import { loadSettings, saveSettings } from './game/settings';
 import './ui/theme.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
@@ -27,6 +28,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
  *  - `hudmenu=<id>` (dev) open a top-bar dropdown: company, operations, world, more
  *  - `scenario=<id>`   start a scenario
+ *  - `buildtab=<extract|refine|manufacture|retail|transport>` (dev) open a build bar flyout; `ticker=scroll|headline|off` (dev) set the news strip
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
  *  - `pause=1` (dev, with a debug start) open the pause menu
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
@@ -194,6 +196,11 @@ if (debugStart) {
       const sel = hudMenu === 'more' ? '.hud-more-btn' : hudMenu === 'factions' ? '.hud-factions-mode-btn' : `.hud-group-btn[data-group="${CSS.escape(hudMenu)}"]`;
       document.querySelector<HTMLElement>(sel)?.click();
     }
+    // `buildtab=<category id>` opens a build bar flyout; `ticker=scroll|headline|off` sets the news strip (screenshots)
+    const buildTab = params.get('buildtab');
+    if (import.meta.env.DEV && buildTab) document.querySelector<HTMLElement>(`.toolbar [data-tab="${CSS.escape(buildTab)}"]`)?.click();
+    const tickerParam = params.get('ticker');
+    if (import.meta.env.DEV && (tickerParam === 'scroll' || tickerParam === 'headline' || tickerParam === 'off')) saveSettings({ ...loadSettings(), ticker: tickerParam });
     if (import.meta.env.DEV && params.get('openroute') === '1') {
       const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');
       if (r) g.openPanel('routes', r.id);

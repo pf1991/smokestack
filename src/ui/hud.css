@@ -357,7 +357,7 @@
   right: 0;
   bottom: 0;
   z-index: 50;
-  height: calc(28px + env(safe-area-inset-bottom, 0px));
+  height: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px));
   padding: 0 16px env(safe-area-inset-bottom, 0px);
   display: flex;
   align-items: center;
@@ -372,16 +372,36 @@
   box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.5);
 }
 
-/* Toolbar sits above the ticker. */
+/* Headline mode: one static line, click opens the newspaper. */
+.hud-ticker[hidden] {
+  display: none;
+}
+.hud-ticker.headline {
+  font-size: 13px;
+  text-overflow: ellipsis;
+  border-top-width: 2px;
+  cursor: pointer;
+}
+.hud-ticker.headline .ticker-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-ticker.headline .ticker-item b {
+  font-style: italic;
+  font-weight: normal;
+}
+.hud-ticker.headline:hover {
+  color: var(--walnut);
+}
+
+/* Build bar: one 40 px row, centred and only as wide as its content; cards open as a flyout above it. */
 .toolbar {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(28px + env(safe-area-inset-bottom, 0px) + 6px);
+  bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 6px);
   z-index: 49;
-  width: min(1080px, calc(100vw - 32px));
-  display: flex;
-  flex-direction: column-reverse;
+  max-width: calc(100vw - 32px);
   background: linear-gradient(180deg, #3d2a1d, #24170f);
   border: 2px solid var(--brass-dark);
   border-radius: 6px;
@@ -395,20 +415,41 @@
 
 .tb-tabs {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
-  padding: 6px;
+  height: 40px;
+  padding: 0 6px;
+  overflow-x: auto;
 }
 
 .tb-tab {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
   font-size: 12px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tb-tab.active {
+  border-color: var(--brass-light);
+  color: var(--brass-light);
+}
+
+.tb-key {
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0;
+  padding: 0 4px;
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+  color: var(--brass-light);
 }
 
 .tb-inspect {
-  margin-left: auto;
+  margin-left: 8px;
 }
 
 .tb-tab.tb-inspect.selected {
@@ -416,18 +457,39 @@
   color: var(--brass-light);
 }
 
-.tb-body {
-  border-bottom: 1px solid var(--brass-dark);
+@media (max-width: 720px) {
+  .tb-label {
+    display: none;
+  }
+}
+
+/* Overlays the map just above the bar, so the bar itself (and the side panel above it) never moves. */
+.tb-flyout {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  /* the bar is centred on the viewport: stay clear of the side panel on the right (cards then scroll) */
+  max-width: min(calc(100vw - 32px), calc(100vw - 2 * var(--side-panel-w, 0px) - 16px));
+  background: linear-gradient(180deg, #3d2a1d, #24170f);
+  border: 2px solid var(--brass-dark);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--brass), 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+.tb-flyout[hidden] {
+  display: none;
 }
 
 .tb-panel {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
   padding: 8px;
-  max-height: 40vh;
-  overflow-x: hidden;
-  overflow-y: auto;
+  max-height: 132px;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .tb-panel[hidden] {
@@ -435,11 +497,12 @@
 }
 
 .tool-card {
-  flex: 0 0 168px;
+  flex: 0 0 112px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: 3px;
+  padding: 6px 7px;
+  overflow: hidden;
   text-align: left;
   font-family: var(--font-body);
   color: var(--ink);
@@ -472,12 +535,15 @@
 .tc-name {
   font-family: var(--font-display);
   font-weight: bold;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .tc-flow {
-  min-height: 2.6em;
-  font-size: 13px;
+  min-height: 18px;
+  max-height: 3.9em;
+  overflow: hidden;
+  font-size: 11px;
   line-height: 1.3;
 }
 .tc-flow .icon + .icon {
@@ -489,7 +555,7 @@
   flex-wrap: wrap; /* "base $X" and "base +$Y/mo" stack when they do not fit side by side */
   justify-content: space-between;
   gap: 0 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 

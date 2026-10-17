@@ -7,6 +7,7 @@ import { RAIL_COST } from '../sim/rail';
 import { TREE_COST } from '../sim/society/upgrades';
 import { priceIndex } from '../sim/society/economy';
 import type { GameState, Inventory } from '../sim/types';
+import type { IconId } from '../render/icons';
 import { type Child, h } from './dom';
 import { iconEl } from './icon';
 import { shortcutFor, withShortcut } from './shortcuts';
@@ -16,12 +17,12 @@ import './hud.css';
 
 type TabId = 'extract' | 'refine' | 'manufacture' | 'retail' | 'transport';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'extract', label: 'Extract' },
-  { id: 'refine', label: 'Refine' },
-  { id: 'manufacture', label: 'Manufacture' },
-  { id: 'retail', label: 'Retail & Logistics' },
-  { id: 'transport', label: 'Transport' },
+const TABS: { id: TabId; label: string; icon: IconId }[] = [
+  { id: 'extract', label: 'Extract', icon: 'pick' },
+  { id: 'refine', label: 'Refine', icon: 'factory' },
+  { id: 'manufacture', label: 'Manufacture', icon: 'tools' },
+  { id: 'retail', label: 'Retail', icon: 'shop' },
+  { id: 'transport', label: 'Transport', icon: 'truck' },
 ];
 
 function tabOf(def: BuildingDef): TabId | null {
@@ -65,6 +66,7 @@ interface Card {
 export class Toolbar {
   private readonly root: HTMLElement;
   private readonly bar: HTMLElement;
+  private readonly body: HTMLElement;
   private readonly tabButtons = new Map<TabId, HTMLElement>();
   private readonly panels = new Map<TabId, HTMLElement>();
   private readonly cards: Card[] = [];
@@ -78,9 +80,17 @@ export class Toolbar {
   constructor(root: HTMLElement, private readonly onSelect: (t: ToolSpec) => void) {
     this.root = root;
     const tabsRow = h('div', { class: 'tb-tabs' });
-    const body = h('div', { class: 'tb-body' });
+    const body = h('div', { class: 'tb-flyout' });
+    this.body = body;
+    body.hidden = true;
     for (const t of TABS) {
-      const btn = h('button', { class: 'tb-tab', 'data-tab': t.id, onClick: () => this.openTab(t.id) }, t.label);
+      const btn = h('button', {
+        class: 'tb-tab',
+        'data-tab': t.id,
+        title: t.id === 'retail' ? 'Retail & Logistics' : t.label,
+        'aria-expanded': 'false',
+        onClick: () => this.openTab(t.id),
+      }, iconEl(t.icon, 18), h('span', { class: 'tb-label' }, t.label));
       this.tabButtons.set(t.id, btn);
       tabsRow.appendChild(btn);
       const panel = h('div', { class: 'tb-panel', 'data-panel-tab': t.id });
@@ -93,7 +103,7 @@ export class Toolbar {
       'data-tool': 'inspect',
       title: withShortcut('Inspect', 'escape'),
       onClick: () => this.select({ kind: 'inspect' }),
-    }, 'Inspect');
+    }, iconEl('star', 18), h('span', { class: 'tb-label' }, 'Inspect'), h('kbd', { class: 'tb-key' }, shortcutFor('escape') ?? ''));
     this.toolButtons.set('inspect', inspect);
     tabsRow.appendChild(inspect);
 
@@ -145,7 +155,7 @@ export class Toolbar {
     toolCard('trees', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', perTile(formatMoney(TREE_COST)), { kind: 'trees' }, { base: TREE_COST, text: perTile });
     toolCard('bulldoze', 'Bulldoze', `Demolish for a 25% refund (${shortcutFor('bulldoze') ?? 'Del'})`, 'Click a building, road or rail', { kind: 'bulldoze' });
 
-    this.bar = h('div', { class: 'toolbar' }, tabsRow, body);
+    this.bar = h('div', { class: 'toolbar' }, body, tabsRow);
     root.appendChild(this.bar);
     this.root.classList.add('tb-root');
   }
@@ -153,7 +163,11 @@ export class Toolbar {
   private openTab(id: TabId): void {
     this.activeTab = this.activeTab === id ? null : id;
     for (const [tid, panel] of this.panels) panel.hidden = tid !== this.activeTab;
-    for (const [tid, btn] of this.tabButtons) btn.classList.toggle('active', tid === this.activeTab);
+    this.body.hidden = this.activeTab === null;
+    for (const [tid, btn] of this.tabButtons) {
+      btn.classList.toggle('active', tid === this.activeTab);
+      btn.setAttribute('aria-expanded', String(tid === this.activeTab));
+    }
     this.bar.classList.toggle('open', this.activeTab !== null);
   }
 
@@ -162,6 +176,7 @@ export class Toolbar {
   }
 
   select(t: ToolSpec): void {
+    this.closeDrawer();
     this.selectedKey = Toolbar.keyOf(t);
     for (const c of this.cards) c.el.classList.toggle('selected', `build:${c.def.id}` === this.selectedKey);
     for (const [k, el] of this.toolButtons) el.classList.toggle('selected', k === this.selectedKey);
@@ -170,7 +185,6 @@ export class Toolbar {
 
   /** Esc: back to inspecting, closing any open build drawer. */
   cancel(): void {
-    this.closeDrawer();
     this.select({ kind: 'inspect' });
   }
 

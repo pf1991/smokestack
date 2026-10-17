@@ -88,7 +88,7 @@ export class App implements PauseHost {
     this.game = game;
     game.onPause = (screen) => openPauseMenu(game, this, screen);
     game.load(state);
-    Ticker.attach(document.getElementById('ticker')!, game.ctx.bus, game.state.news);
+    Ticker.attach(document.getElementById('ticker')!, game.ctx.bus, game.state.news, () => game.openPanel('newspaper'));
     attachNewspaper(game);
     game.ctx.bus.on('victory', (e) => showEndScreen('victory', e.reason, this, () => {}));
     game.ctx.bus.on('gameOver', (e) => showEndScreen('gameOver', e.reason, this, () => {}));
