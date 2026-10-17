@@ -5,3 +5,7 @@ dist/
 coverage/
 .claude/
 shots/
+.env
+.env.*
+!.env.example
+.superpowers/

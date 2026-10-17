@@ -116,6 +116,19 @@ docker compose up -d --build
 
 Then open http://localhost:8080. The image is built in two stages: `node:18-alpine` runs `npm ci && npm run build`, and `nginx:1.27-alpine` serves `dist/` with gzip for text assets, a one-year immutable cache for `/assets/`, `no-cache` for `index.html`, and an SPA fallback. Stop it with `docker compose down`.
 
+## Smart events (JEV)
+
+Optional. Each spring, JEV (TypeSafe's decision model) is asked which of the eligible event cards fits the moment best. The game blends its preference with the authored card weights and never lets one card hold more than 60% of the odds, so the dealing stays varied and deterministic for a given answer.
+
+Enable it (needs Docker Compose 2.24 or newer, for the optional `env_file`):
+
+1. Create a `.env` file at the repo root (it is git-ignored) containing `TYPESAFE_API_KEY=<your key>`.
+2. Run `docker compose up -d --build`.
+3. Check `curl localhost:8080/api/health`, which should return `{"enabled":true}`.
+4. Optionally run one live check: `TYPESAFE_API_KEY=<your key> npm run jev-smoke` (it prints the chosen card, the probabilities, the latency and the token usage; without a key it skips).
+
+The key stays in the `ai-proxy` container and never reaches the browser bundle. Turn it off any time under Settings, Smart events. The game works identically without it: with no key, no proxy or no answer in time, the authored weights decide.
+
 ## Architecture
 
 Everything in `src/` is one of seven layers. The simulation is pure and deterministic; the renderer and UI only read it, and issue commands through sim functions.

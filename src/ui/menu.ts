@@ -1,3 +1,4 @@
+import { aiStatus, onAiStatus } from '../ai/client';
 import { COMPANY_NAMES } from '../data/names';
 import { ACHIEVEMENTS, loadUnlocked } from '../game/achievements';
 import type { GameController, NewGameOpts } from '../game/controller';
@@ -99,11 +100,28 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
       apply();
     },
   });
+  const smart = h('input', {
+    type: 'checkbox', checked: s.smartEvents,
+    onChange: (e: Event) => {
+      s.smartEvents = (e.target as HTMLInputElement).checked;
+      apply();
+    },
+  });
+  const status = h('p', { class: 'mn-note mn-ai-status' });
+  const showStatus = () => {
+    status.textContent = `JEV: ${s.smartEvents ? (aiStatus() === 'unknown' ? 'not checked yet' : aiStatus()) : 'off'}`;
+  };
+  showStatus();
+  // the health check may resolve while the screen is open; stop listening once it leaves the page
+  const off = onAiStatus(() => (status.isConnected ? showStatus() : off()));
+  smart.addEventListener('change', showStatus);
   return h('div', { class: 'mn-form' },
     h('label', { class: 'mn-row' }, h('span', null, 'Master volume'), vol),
     h('label', { class: 'mn-row' }, h('span', null, 'Mute all sound'), mute),
     h('label', { class: 'mn-row' }, h('span', null, 'Open the newspaper automatically'), news),
-    h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro));
+    h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro),
+    h('label', { class: 'mn-row' }, h('span', null, 'Smart events (JEV)'), smart),
+    status);
 }
 
 function achievementsView(): HTMLElement {

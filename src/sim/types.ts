@@ -330,6 +330,25 @@ export interface GameState {
   society: SocietyState;
   /** Phase 3 inflation (sim/society/economy.ts); added to old saves by the v6 migration at index 1 */
   economy: EconomyState;
+  /** JEV decision mailbox (sim/ai/mailbox.ts); created lazily, absent in older saves and until a decision is posted */
+  ai?: AiMailbox;
+}
+
+export interface AiOption { key: string; label: string }
+export interface AiRequest {
+  id: string;
+  question: string;
+  options: AiOption[];
+  context: Record<string, unknown>;
+  /** dateToDays when the sim will decide */
+  dueDay: number;
+}
+export interface AiAnswer { probabilities: Record<string, number> }
+export interface AiMailbox {
+  pending: AiRequest[];
+  answers: Record<string, AiAnswer>;
+  /** the last 20 decisions taken, oldest first, for the UI */
+  log: { id: string; picked: string; usedAi: boolean }[];
 }
 
 /** The price level (sim/society/economy.ts). */

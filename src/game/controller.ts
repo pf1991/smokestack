@@ -11,6 +11,7 @@ import { PANELS } from '../ui/panels/index';
 import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
+import { startAiClient } from '../ai/client';
 import { attachAchievements } from './achievements';
 import { attachMilestoneStamps, attachStrikeToasts, attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
@@ -183,6 +184,7 @@ export class GameController {
       this.hud.attach(bus),
       attachAutosave(this.ctx),
       attachAchievements(this.ctx),
+      startAiClient(this, { enabled: () => loadSettings().smartEvents }),
       bus.on('unlock', () => this.toolbar.update(this.state)),
       bus.on('monthEnd', () => this.toolbar.update(this.state)),
       bus.on('gameOver', (e) => this.end(`Game over — ${e.reason}`, 'bad')),

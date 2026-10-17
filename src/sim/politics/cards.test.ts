@@ -5,10 +5,11 @@ import { PLAYER_ID } from '../companies';
 import { dateToDays } from '../clock';
 import { migrateSave } from '../migrations';
 import { runDays } from '../simulation';
+import { answerDecision } from '../ai/mailbox';
 import { createGame } from '../state';
 import { testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
-import { AUTO_RESOLVE_DAYS, autoResolve, canAffordChoice, cardCity, cardScale, cardsDay, cardText, choiceCost, drawSpringCard, eligibleCards, forceCard, HISTORY_CAP, resolveCard, triggerCard } from './cards';
+import { AUTO_RESOLVE_DAYS, autoResolve, canAffordChoice, cardCity, cardScale, cardsDay, cardText, choiceCost, cardsDayHook, drawSpringCard, eligibleCards, forceCard, HISTORY_CAP, resolveCard, triggerCard } from './cards';
 import { netWorth } from '../rival/takeover';
 import { holdElection, playerHiresFrom } from './elections';
 import { placeBuilding } from '../state';
@@ -510,5 +511,67 @@ describe('election cards only when it matters (R-Q10b)', () => {
     forceCard(ctx, 'letter_to_editor');
     expect(resolveCard(ctx, pending(ctx)[0].uid, 1).ok).toBe(true);
     expect(seen).toEqual(['letter_to_editor']);
+  });
+});
+
+describe('spring card dealer asks JEV', () => {
+  const SNAPSHOT = ['dust_bowl', 'baron_smear', 'baron_smear', 'leaning_steeple', 'dust_bowl', 'company_hour', 'letter_to_editor', 'founders_parade', 'works_dance', 'company_hour', 'company_hour', 'hard_times', 'company_hour', 'soup_kitchen', 'works_dance', 'dust_bowl', 'dust_bowl', 'hard_times', 'letter_to_editor', 'baron_smear'];
+  const spring = (seed: number, year = 1935) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
+
+  it('without an answer draws exactly as the pre-JEV weighted pick (seeds 1-20)', () => {
+    const picked: string[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const ctx = spring(seed);
+      drawSpringCard(ctx);
+      picked.push(pending(ctx)[0].cardId);
+    }
+    expect(picked).toEqual(SNAPSHOT);
+  });
+
+  it('posts card:<year> on 1 March with the eligible card ids, once', () => {
+    const ctx = spring(3);
+    at(ctx, 1935, 3, 1);
+    cardsDayHook(ctx);
+    cardsDayHook(ctx);
+    const box = ctx.state.ai!;
+    expect(box.pending.length).toBe(1);
+    const r = box.pending[0];
+    expect(r.id).toBe('card:1935');
+    expect(r.options.map((o) => o.key)).toEqual(eligibleCards(ctx.state, 'spring', null).slice(0, 32).map((e) => e.card.id));
+    expect(r.options[0].label.startsWith(CARDS_BY_ID[r.options[0].key].title)).toBe(true);
+    expect(r.dueDay).toBe(dateToDays({ ...ctx.state.date, month: 4, day: 1 }));
+    // an answered request is not posted again before the draw
+    answerDecision(ctx.state, 'card:1935', { probabilities: { hard_times: 1 } });
+    cardsDayHook(ctx);
+    expect(ctx.state.ai!.pending.length).toBe(0);
+  });
+
+  it('a one-hot answer lifts the pick rate to 0.55-0.6 over 2000 draws, never past the cap', () => {
+    let hits = 0;
+    for (let i = 0; i < 2000; i++) {
+      const ctx = spring(1);
+      ctx.state.rngState = i * 2654435761;
+      at(ctx, 1935, 3, 1);
+      cardsDayHook(ctx);
+      answerDecision(ctx.state, 'card:1935', { probabilities: { hard_times: 1 } });
+      at(ctx, 1935, 4, 1);
+      drawSpringCard(ctx);
+      if (pending(ctx)[0].cardId === 'hard_times') hits++;
+      expect(ctx.state.ai!.answers['card:1935']).toBeUndefined();
+    }
+    expect(hits / 2000).toBeGreaterThanOrEqual(0.55);
+    expect(hits / 2000).toBeLessThanOrEqual(0.6);
+  });
+
+  it('ignores an answer for a card that is not eligible', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const ctx = spring(seed);
+      at(ctx, 1935, 3, 1);
+      cardsDayHook(ctx);
+      answerDecision(ctx.state, 'card:1935', { probabilities: { not_a_card: 1, hard_times_gone: 1 } });
+      at(ctx, 1935, 4, 1);
+      drawSpringCard(ctx);
+      expect(pending(ctx)[0].cardId).toBe(SNAPSHOT[seed - 1]);
+    }
   });
 });
