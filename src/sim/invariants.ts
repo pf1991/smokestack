@@ -5,6 +5,7 @@ import { POLLUTION_CAP } from './pollution';
 import { footprint } from './state';
 import { STRIKE_MAX_DAYS } from './society/strikeState';
 import { classesValid } from './society/classes';
+import { MAX_LOG, MAX_PENDING } from './ai/mailbox';
 import type { GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
@@ -89,6 +90,19 @@ export function checkInvariants(state: GameState): string[] {
   if (typeof w?.rain !== 'boolean') out.push(`weather: rain ${w?.rain} is not a boolean`);
   const rd = w?.rainDays;
   if (typeof rd !== 'number' || !Number.isFinite(rd) || rd < 0) out.push(`weather: rainDays ${rd} is not a finite number >= 0`);
+
+  const ai = state.ai;
+  if (ai) {
+    if (ai.pending.length > MAX_PENDING) out.push(`ai: ${ai.pending.length} pending requests, cap is ${MAX_PENDING}`);
+    const nAnswers = Object.keys(ai.answers).length;
+    if (nAnswers > MAX_PENDING) out.push(`ai: ${nAnswers} stored answers, cap is ${MAX_PENDING}`);
+    for (const [id, a] of Object.entries(ai.answers)) {
+      for (const [k, v] of Object.entries(a.probabilities)) {
+        if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) out.push(`ai: answer ${id} probability ${k} is ${v}`);
+      }
+    }
+    if (ai.log.length > MAX_LOG) out.push(`ai: log has ${ai.log.length} entries, cap is ${MAX_LOG}`);
+  }
 
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {
