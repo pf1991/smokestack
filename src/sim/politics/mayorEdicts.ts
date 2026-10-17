@@ -17,7 +17,8 @@ import { PLAYER_ID } from '../companies';
 import { LOAN_RATE, spend } from '../finance';
 import { buildingsNear } from '../spatial';
 import type { Building, BuildingTypeId, City, GameState, OwnerId, SimContext, Vec2 } from '../types';
-import { EDICTS, maintenanceFactor } from './edicts';
+import { companyEdictFactor, EDICTS, maintenanceFactor } from './edicts';
+import { dynastyModifier } from '../dynasty/types';
 import { NEAR_MARGIN, nationalOpinion } from './factions';
 import { forcedEdicts, SMOG_TIER_3 } from '../society/tiers';
 import { buildingMaintenance } from '../society/upgrades';
@@ -221,9 +222,11 @@ export function smogLimited(state: GameState): Set<number> {
  */
 export function playerBuildingUpkeep(state: GameState): number {
   const edicts = state.politics.edicts;
-  const normal = maintenanceFactor(edicts);
+  // the head of the family's traits scale the whole edict multiplier (a brute ×0.8)
+  const family = dynastyModifier(state).edictCost;
+  const normal = companyEdictFactor(state);
   // 'fair' wages cost ×1, so this is safety × union × max(wage, floor)
-  const minWage = maintenanceFactor({ ...edicts, wage: 'fair' }) * Math.max(EDICTS.wage.options[edicts.wage]?.cost ?? 1, MINIMUM_WAGE_FACTOR);
+  const minWage = maintenanceFactor({ ...edicts, wage: 'fair' }) * Math.max(EDICTS.wage.options[edicts.wage]?.cost ?? 1, MINIMUM_WAGE_FACTOR) * family;
   const anyMinWage = state.cities.some((c) => hasEdict(c, 'minimum_wage'));
   let total = 0;
   for (const b of Object.values(state.buildings)) {

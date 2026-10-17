@@ -1,4 +1,5 @@
 import type { NemesisState } from './nemesis/types';
+import type { DynastyState } from './dynasty/types';
 import type { SocietyState } from '../data/laws';
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
@@ -335,6 +336,8 @@ export interface GameState {
   economy: EconomyState;
   /** Phase 4 the Baron as a person: traits, grudges, retaliation (sim/nemesis); added by the v7 migration */
   nemesis: NemesisState;
+  /** Phase 4 the player's family: head, spouse, children, heir (sim/dynasty); added by the v7 migration */
+  dynasty: DynastyState;
 }
 
 /** The price level (sim/society/economy.ts). */

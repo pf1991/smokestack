@@ -24,6 +24,7 @@ import type { GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CardInstance } from './types';
 import { priceIndex } from '../society/economy';
+import { dynastyModifier } from '../dynasty/types';
 
 /** Days a card may stay unanswered before it resolves itself with its default choice. */
 export const AUTO_RESOLVE_DAYS = 60;
@@ -156,7 +157,8 @@ export function cardScale(state: GameState): number {
   // net worth as rival/takeover.ts's netWorth (not imported: it would close an import cycle)
   const c = state.companies[PLAYER_ID];
   const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / index / BASE_NET_WORTH;
-  return index * Math.min(MAX_CARD_SCALE, Math.max(1, wealth));
+  // the head of the family's traits (shrewd, reckless) haggle every card's money
+  return index * Math.min(MAX_CARD_SCALE, Math.max(1, wealth)) * dynastyModifier(state).cardCost;
 }
 
 /** A choice's cost now, in today's dollars, rounded to $100 (negative: money received). */

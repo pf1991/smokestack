@@ -6,6 +6,7 @@ import { footprint } from './state';
 import { STRIKE_MAX_DAYS } from './society/strikeState';
 import { classesValid } from './society/classes';
 import { GRUDGE_CAP } from './nemesis/grudges';
+import { HEIR_MIN_AGE, HEIR_TRAITS, MAX_CHILDREN, successor } from './dynasty/types';
 import type { GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
@@ -100,9 +101,38 @@ export function checkInvariants(state: GameState): string[] {
     }
   }
 
+  out.push(...dynastyProblems(state));
+
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {
     if (l.length !== n) out.push(`layer ${id}: length ${l.length}, expected ${n}`);
+  }
+  return out;
+}
+
+/** The player's family (sim/dynasty): unique ids, a valid heir, a living head unless the line ended. */
+function dynastyProblems(state: GameState): string[] {
+  const out: string[] = [];
+  const d = state.dynasty;
+  if (!d || typeof d !== 'object' || !d.head) return ['dynasty: missing'];
+  if (!Number.isFinite(d.prestige)) out.push(`dynasty: prestige ${d.prestige} is not finite`);
+  if (!Number.isInteger(d.generation) || d.generation < 1) out.push(`dynasty: generation ${d.generation} is not an integer >= 1`);
+  if (!Array.isArray(d.children)) return [...out, 'dynasty: children missing'];
+  if (d.children.length > MAX_CHILDREN) out.push(`dynasty: ${d.children.length} children, more than ${MAX_CHILDREN}`);
+  const people = [d.head, ...(d.spouse ? [d.spouse] : []), ...d.children];
+  const ids = new Set<number>();
+  for (const p of people) {
+    if (ids.has(p.id)) out.push(`dynasty: person id ${p.id} used twice`);
+    ids.add(p.id);
+    if (!Number.isInteger(p.id) || p.id >= d.nextPersonId) out.push(`dynasty: person id ${p.id} not below nextPersonId ${d.nextPersonId}`);
+    if (!Number.isFinite(p.born)) out.push(`dynasty: ${p.name} born ${p.born} is not finite`);
+    for (const t of p.traits) if (!HEIR_TRAITS.includes(t)) out.push(`dynasty: ${p.name} has unknown trait ${t}`);
+  }
+  if (d.heirId !== null && !d.children.some((c) => c.id === d.heirId && c.alive)) out.push(`dynasty: heir ${d.heirId} is not a living child`);
+  if (!d.head.alive) {
+    // only a line that ended may have a dead head: an adult successor would have taken the chair
+    const heir = successor(d);
+    if (heir && state.date.year - heir.born >= HEIR_MIN_AGE) out.push(`dynasty: ${d.head.name} is dead but ${heir.name} never took the chair`);
   }
   return out;
 }

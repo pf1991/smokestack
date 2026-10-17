@@ -23,6 +23,7 @@ import { layerAt } from './layers';
 import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
 import { newNemesis } from './nemesis/types';
+import { newDynasty } from './dynasty/types';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
 import { TREE_COST } from './society/upgrades';
@@ -287,6 +288,8 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   const rival = createCompany('rival', RIVAL_NAME);
   rival.active = opts.rival ?? true;
   const nemesis = newNemesis(rng);
+  // the founder's age is fixed at the start, whatever the scenario's year (draws 1 trait from the rng)
+  const dynasty = newDynasty(rng, playerName, SCENARIOS[opts.scenarioId ?? 'sandbox']?.startYear ?? START_DATE.year);
   const state: GameState = {
     version: SAVE_VERSION,
     seed: opts.seed,
@@ -315,6 +318,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     society: defaultSociety(),
     economy: defaultEconomy(),
     nemesis,
+    dynasty,
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {

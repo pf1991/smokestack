@@ -41,3 +41,7 @@ PANELS.fleet = fleetPanel;
 import { politicsPanel } from './politics';
 
 PANELS.politics = politicsPanel;
+
+import { familyPanel } from './family';
+
+PANELS.family = familyPanel;

@@ -17,6 +17,7 @@ import { politicsSystem } from './politics';
 import { companyLoanRate } from './politics/mayorEdicts';
 import { goalsMonth } from './scenarios';
 import { grudgesYear, nemesisDay, nemesisMonth } from './nemesis/grudges';
+import { dynastyMonth, dynastyYear } from './dynasty/family';
 import { companyIds } from './companies';
 import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
@@ -112,4 +113,6 @@ export const SYSTEMS: SimSystem[] = [
   // Phase 4 the Baron's grudge ledger. onDay reads the month's sales on its last day (goalsMonth and
   // factionsMonth clear them during onMonth); onMonth adds contract grudges, then retaliates
   { id: 'nemesis', onDay: nemesisDay, onMonth: nemesisMonth, onYear: grudgesYear },
+  // Phase 4 the player's family: opinion drift and the marriage card monthly; births and deaths each December
+  { id: 'dynasty', onMonth: dynastyMonth, onYear: dynastyYear },
 ];

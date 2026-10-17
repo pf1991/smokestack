@@ -186,7 +186,8 @@ describe('content catalog', () => {
       expect(c.years[1], c.id).toBeLessThanOrEqual(2000);
       expect(Number.isInteger(c.defaultChoice) && c.defaultChoice >= 0 && c.defaultChoice < c.choices.length, `${c.id} defaultChoice`).toBe(true);
       // ruling R-Q8: authored in 1900 dollars for a $300k company; the engine scales them
-      const maxCost = c.trigger === 'crash' || c.trigger === 'disaster' ? 60_000 : 15_000;
+      // the marriage card's dowry (Phase 4 Task 5) is the one larger spring sum
+      const maxCost = c.trigger === 'crash' || c.trigger === 'disaster' ? 60_000 : c.id === 'marriage' ? 20_000 : 15_000;
       for (const ch of c.choices) {
         expect(Math.abs(ch.cost), `${c.id}: ${ch.label} cost`).toBeLessThanOrEqual(maxCost);
         expect(ch.label.length, `${c.id}: ${ch.label}`).toBeLessThan(40);

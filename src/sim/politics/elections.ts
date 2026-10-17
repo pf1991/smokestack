@@ -23,6 +23,7 @@ import { workCity } from './workforce';
 import { REVOLT_REFORMER_VOTE, smogTier } from '../society/tiers';
 import type { CityPolitics } from './types';
 import { atPrices } from '../society/economy';
+import { dynastyModifier } from '../dynasty/types';
 
 export const ELECTION_TERM = 48;
 /** Oldest entries of `politics.elections` are dropped beyond this. */
@@ -243,7 +244,7 @@ export function scandalMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const city of state.cities) {
     const p = city.politics;
-    if (p.scandalRisk > 0 && chance(state, p.scandalRisk * SCANDAL_CHANCE_PER_RISK)) {
+    if (p.scandalRisk > 0 && chance(state, p.scandalRisk * SCANDAL_CHANCE_PER_RISK * dynastyModifier(state).scandal)) {
       publishNews(ctx, 'politics', `BRIBERY SCANDAL ROCKS ${city.name.toUpperCase()} CITY HALL`, `Payments to the ${city.name} campaign have come to light.`);
       adjustOpinion(state, 'reformers', city.id, -10, 'Bribery scandal');
       adjustOpinion(state, 'church', city.id, -6, 'Bribery scandal');

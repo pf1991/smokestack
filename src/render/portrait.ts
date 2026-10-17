@@ -764,3 +764,244 @@ export function drawFamilyCrest(ctx: CanvasRenderingContext2D, size: number, nam
 
   ctx.restore();
 }
+
+// ---------------------------------------------------------------------------
+// the player's family (sim/dynasty)
+
+/** What drawFamilyPortrait needs of a person (sim/dynasty Person). */
+export interface PortraitPerson {
+  id: number;
+  name: string;
+  born: number;
+  alive: boolean;
+}
+
+export type AgeBracket = 'child' | 'adult' | 'elder';
+
+export const ageBracket = (age: number): AgeBracket => (age < 16 ? 'child' : age < 60 ? 'adult' : 'elder');
+
+const SKIN = ['#f1d2b6', '#e6bf9c', '#d9a983', '#c48d66'];
+const HAIR = ['#2a1b12', '#5a3a22', '#8a5a2b', '#b8863a', '#3b2a20', '#a0522d'];
+const SITTER_BG = ['#5b6f7d', '#6b5d4a', '#4f6b58', '#6f5468'];
+
+/** A small stable hash of the person's id and name: every look choice reads its own bits. */
+function personHash(p: PortraitPerson): number {
+  let h = 2166136261 ^ p.id;
+  for (let i = 0; i < p.name.length; i++) h = Math.imul(h ^ p.name.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/**
+ * Procedural portrait of a member of the player's family, drawn into the square (0, 0, size, size)
+ * of `ctx`; no image assets. Unlike the Baron's oval cameo, a studio photograph: a square walnut
+ * frame around a tinted backdrop, a head-and-shoulders sitter. The look (skin, hair colour and style,
+ * moustache, backdrop) is fixed by the person's id and name; `female` picks a high lace collar and a
+ * bun (or ribbons for a girl) over a collar and tie (and a cap for a boy). The age at `year` sets the
+ * bracket: a child is drawn small and round-faced, an elder grey-haired with spectacles. The dead are
+ * drawn in sepia with a black mourning ribbon across the corner.
+ */
+export function drawFamilyPortrait(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+  person: PortraitPerson,
+  opts: { year?: number; female?: boolean } = {},
+): void {
+  const h = personHash(person);
+  const bracket = ageBracket((opts.year ?? person.born + 40) - person.born);
+  const female = opts.female ?? false;
+  const skin = SKIN[h % SKIN.length];
+  const hair = bracket === 'elder' ? (h & 64 ? '#d8d4cc' : '#9a958c') : HAIR[(h >>> 3) % HAIR.length];
+  const child = bracket === 'child';
+  // a child's head is lower in the frame and rounder
+  const cy = child ? 50 : 44;
+  const rx = child ? 15 : 14;
+  const ry = child ? 16 : 18;
+
+  ctx.save();
+  ctx.scale(size / 100, size / 100);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // --- frame and backdrop
+  ctx.fillStyle = '#4a2e1a';
+  ctx.fillRect(0, 0, 100, 100);
+  ctx.strokeStyle = '#c9a227';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(5, 5, 90, 90);
+  const bg = ctx.createLinearGradient(0, 8, 0, 92);
+  bg.addColorStop(0, SITTER_BG[(h >>> 6) % SITTER_BG.length]);
+  bg.addColorStop(1, '#1d1a16');
+  ctx.fillStyle = bg;
+  ctx.fillRect(8, 8, 84, 84);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(8, 8, 84, 84);
+  ctx.clip();
+
+  // --- shoulders: a dark coat (or a dress) with a collar
+  ctx.fillStyle = female ? (h & 128 ? '#5a2a3a' : '#2f3f5a') : '#22242a';
+  ctx.beginPath();
+  ctx.moveTo(child ? 24 : 16, 94);
+  ctx.quadraticCurveTo(50, child ? 62 : 58, child ? 76 : 84, 94);
+  ctx.closePath();
+  ctx.fill();
+  if (female) {
+    // high lace collar and a brooch
+    ctx.fillStyle = '#efe6d6';
+    ctx.fillRect(43, cy + ry - 3, 14, 9);
+    ctx.fillStyle = '#c9a227';
+    ctx.beginPath();
+    ctx.arc(50, cy + ry + 7, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // wing collar and a tie
+    ctx.fillStyle = '#f2efe6';
+    ctx.beginPath();
+    ctx.moveTo(42, cy + ry + 1);
+    ctx.lineTo(50, cy + ry + 8);
+    ctx.lineTo(58, cy + ry + 1);
+    ctx.lineTo(50, cy + ry - 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = h & 256 ? '#7a1f1f' : '#1f3a6a';
+    ctx.beginPath();
+    ctx.moveTo(48.5, cy + ry + 5);
+    ctx.lineTo(51.5, cy + ry + 5);
+    ctx.lineTo(52.5, cy + ry + 14);
+    ctx.lineTo(50, cy + ry + 16);
+    ctx.lineTo(47.5, cy + ry + 14);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // --- hair behind the head (a bun for a woman, long hair for a girl)
+  ctx.fillStyle = hair;
+  if (female) {
+    ctx.beginPath();
+    ctx.ellipse(50, cy - ry + 2, 7, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (child) {
+      ctx.beginPath();
+      ctx.ellipse(50, cy + 4, rx + 3, ry + 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // --- face
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(50, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(46, cy + ry - 4, 8, 5);
+
+  // --- hair on top: parted one side or the other, or swept up
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  const part = h & 512 ? -1 : 1;
+  ctx.moveTo(50 - rx - 0.5, cy - 1);
+  ctx.quadraticCurveTo(50 - rx, cy - ry - 3, 50 + part * 3, cy - ry - 1);
+  ctx.quadraticCurveTo(50 + rx, cy - ry - 2, 50 + rx + 0.5, cy - 1);
+  ctx.quadraticCurveTo(50 + part * 4, cy - ry + 6, 50 - rx - 0.5, cy - 1);
+  ctx.fill();
+  if (bracket === 'elder' && !female) {
+    // receding: a bald crown shows through
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(50, cy - ry + 3, 7, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // --- eyes, brows, nose, mouth
+  ctx.fillStyle = '#1d1a16';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(50 + side * 5.5, cy - 1, child ? 1.6 : 1.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = hair;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (const side of [-1, 1]) {
+    ctx.moveTo(50 + side * 3.5, cy - 4.5);
+    ctx.lineTo(50 + side * 8, cy - 5 + (h & 1024 ? 0.6 : -0.4));
+  }
+  ctx.stroke();
+  ctx.strokeStyle = '#8a5a3c';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(50, cy);
+  ctx.lineTo(49, cy + 5);
+  ctx.lineTo(51, cy + 5.5);
+  ctx.stroke();
+  ctx.strokeStyle = '#7a3a2a';
+  ctx.beginPath();
+  ctx.moveTo(46.5, cy + 9);
+  ctx.quadraticCurveTo(50, cy + (child ? 11.5 : 10), 53.5, cy + 9);
+  ctx.stroke();
+  if (child) {
+    ctx.fillStyle = 'rgba(214, 110, 110, 0.35)';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(50 + side * 8, cy + 4, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // --- moustache for some grown men; spectacles for elders
+  if (!female && !child && h & 2048) {
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.moveTo(50, cy + 6.5);
+    ctx.quadraticCurveTo(44, cy + 5.5, 43, cy + 8.5);
+    ctx.quadraticCurveTo(47, cy + 7.8, 50, cy + 7.6);
+    ctx.quadraticCurveTo(53, cy + 7.8, 57, cy + 8.5);
+    ctx.quadraticCurveTo(56, cy + 5.5, 50, cy + 6.5);
+    ctx.fill();
+  }
+  if (bracket === 'elder') {
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    for (const side of [-1, 1]) {
+      ctx.moveTo(50 + side * 5.5 + 3, cy - 1);
+      ctx.arc(50 + side * 5.5, cy - 1, 3, 0, Math.PI * 2);
+    }
+    ctx.moveTo(47.5, cy - 1.5);
+    ctx.lineTo(52.5, cy - 1.5);
+    ctx.stroke();
+  }
+
+  // --- a boy's cap or a girl's ribbon
+  if (child) {
+    if (female) {
+      ctx.fillStyle = h & 4096 ? '#c8463a' : '#4a6f9a';
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(50 + side * 4, cy - ry - 1, 4, 2.4, side * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = '#4a4038';
+      ctx.beginPath();
+      ctx.ellipse(50, cy - ry + 3, rx + 1, 6, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(50 - rx - 1, cy - ry + 2, (rx + 1) * 2 + 4, 2);
+    }
+  }
+  ctx.restore();
+
+  // --- the dead: sepia wash and a mourning ribbon
+  if (!person.alive) {
+    ctx.fillStyle = 'rgba(112, 86, 52, 0.55)';
+    ctx.fillRect(8, 8, 84, 84);
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.moveTo(70, 5);
+    ctx.lineTo(80, 5);
+    ctx.lineTo(95, 20);
+    ctx.lineTo(95, 30);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}

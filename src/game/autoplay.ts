@@ -11,6 +11,8 @@ import type { Building, City, SimContext, Vec2 } from '../sim/types';
 import { runTicks } from '../sim/simulation';
 import { buyTruck, createRoute } from '../sim/vehicles';
 import { suggestStops } from '../sim/routeHelpers';
+import { nameHeir } from '../sim/dynasty/family';
+import { livingChildren } from '../sim/dynasty/types';
 
 export function biggestCity(cities: City[]): City | undefined {
   return [...cities].sort((a, b) => b.population - a.population)[0];
@@ -101,3 +103,16 @@ export function runAutoplay(ctx: SimContext): Result<Building[]> {
   return ok(chain);
 }
 
+/**
+ * Headless heir choice (the soak calls it yearly): the eldest living child with the most of
+ * `shrewd`/`charming`, else the eldest. Only through the public API (nameHeir); no-op when childless.
+ */
+export function autoplayNameHeir(ctx: SimContext): void {
+  const d = ctx.state.dynasty;
+  const kids = livingChildren(d);
+  if (kids.length === 0) return;
+  const good = (p: (typeof kids)[number]) => p.traits.filter((t) => t === 'shrewd' || t === 'charming').length;
+  let best = kids[0];
+  for (const k of kids) if (good(k) > good(best)) best = k;
+  if (d.heirId !== best.id) nameHeir(ctx.state, best.id);
+}

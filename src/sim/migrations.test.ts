@@ -231,6 +231,17 @@ describe('v6 -> v7: nemesis', () => {
     expect(migrateSave(o).ok).toBe(true);
     expect((o.nemesis as GameState['nemesis']).track.contractsSeen).toEqual([3, 5]);
   });
+  it('starts the player family with a single founder Josiah, aged 28 at load, named after the company', () => {
+    const o: Record<string, unknown> = {
+      version: 6, rngState: 42, date: { year: 1930, month: 1 }, cities: [],
+      companies: { player: { name: 'Bellows & Daughters' } },
+    };
+    expect(migrateSave(o).ok).toBe(true);
+    const d = o.dynasty as GameState['dynasty'];
+    expect(d.head).toMatchObject({ id: 1, name: 'Josiah Bellows', born: 1902, alive: true });
+    expect(d.head.traits).toHaveLength(1);
+    expect(d).toMatchObject({ spouse: null, children: [], heirId: null, generation: 1, prestige: 0, nextPersonId: 2 });
+  });
   it('phase3.save.json migrates with nemesis set, holds invariants and plays a year', () => {
     const raw = JSON.parse(phase3) as { version: number };
     expect(raw.version).toBe(6);
@@ -239,6 +250,8 @@ describe('v6 -> v7: nemesis', () => {
     expect(r.value.version).toBe(7);
     expect(r.value.nemesis.traits).toHaveLength(2);
     expect(r.value.nemesis.grudges).toEqual([]);
+    expect(r.value.dynasty.head.name.startsWith('Josiah ')).toBe(true);
+    expect(r.value.dynasty.generation).toBe(1);
     expect(checkInvariants(r.value)).toEqual([]);
     const ctx = testCtx(r.value);
     runDays(ctx, 360);

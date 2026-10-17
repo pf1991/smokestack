@@ -28,11 +28,14 @@
  * in the smog field (Tile.pollution scanned yearly), player solvent.
  * A seventh line reports the Baron's retaliation (Phase 4 Task 2): moves made (the `baronStrike` bus event) in
  * all and by kind, his traits, his grudge ledger at the end (count and total weight) and his final net worth.
+ * An eighth line reports the player's dynasty (Phase 4 Task 5): the generation reached and each head with
+ * the year they took the chair. Autoplay names an heir each year (autoplayNameHeir). Century gate: no
+ * game over of any kind (the family line must not end) and generation >= 2.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
 import { EventBus } from '../src/core/events';
-import { runAutoplay } from '../src/game/autoplay';
+import { autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
 import { CARDS_BY_ID } from '../src/data/cards';
 import { FACTION_IDS } from '../src/data/factions';
 import { checkInvariants } from '../src/sim/invariants';
@@ -121,7 +124,11 @@ for (const seed of seeds) {
   let index2000 = Number.NaN;
   let renewals = 0;
   let smogNaN = false;
+  const heads: string[] = [`${ctx.state.dynasty.head.name} ${ctx.state.date.year}`];
   while (ctx.state.date.year < endYear && !over) {
+    // the heir is (re)named once a year, before December's births and deaths
+    autoplayNameHeir(ctx);
+    const headId = ctx.state.dynasty.head.id;
     // a year as 12 months of 30 days, sampling every town's smog tier at each month end
     for (let m = 0; m < 12 && !over; m++) {
       runDays(ctx, 30);
@@ -147,6 +154,7 @@ for (const seed of seeds) {
         clean2000 = `${cl.name} (pop ${cl.population}) working ${q.working.toFixed(3)} / middle ${q.middle.toFixed(3)} / upper ${q.upper.toFixed(3)}`;
       }
     }
+    if (ctx.state.dynasty.head.id !== headId) heads.push(`${ctx.state.dynasty.head.name} ${ctx.state.date.year - 1}`);
     if (renew) {
       for (const b of Object.values(ctx.state.buildings)) {
         if (b.ownerId === 'player' && assetAge(ctx.state, b) >= RENEW_AGE && renewBuilding(ctx, b.id, 'player').ok) renewals++;
@@ -195,9 +203,12 @@ for (const seed of seeds) {
   console.log(
     `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | succession ${state.nemesis.succession.year ?? 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)}) | baron net worth ${money(netWorth(state, 'rival'))}`,
   );
+  console.log(`  dynasty ${seed}: generation ${state.dynasty.generation} | heads ${heads.join(', ')} | prestige ${state.dynasty.prestige} | children ${state.dynasty.children.length}`);
   if (years >= 100) {
     const gate: string[] = [];
     if (over === 'Bankrupt') gate.push('player went bankrupt');
+    else if (over) gate.push(`game over: ${over}`);
+    if (state.dynasty.generation < 2) gate.push(`dynasty generation ${state.dynasty.generation} (need 2)`);
     if (cardTotal < 99) gate.push(`only ${cardTotal} cards resolved (need 99)`);
     if (elections < 100) gate.push(`only ${elections} elections (need 100)`);
     if (pinFails.size > 0) gate.push(`opinion pinned 10+ years: ${[...pinFails].join(', ')}`);

@@ -171,9 +171,11 @@ describe('company edicts', () => {
       for (let y = 0; y < 30; y++) {
         // this test is about edicts, not smog: keep every town's smog escalation clean (Phase 3
         // tiers, ruling R-S4) by zeroing the smog level at every month end, and keep the Baron's
-        // retaliation (Phase 4, nemesis/retaliation.ts: poaching, smears) out by spending his year's moves
+        // retaliation (Phase 4, nemesis/retaliation.ts: poaching, smears) out by spending his year's moves,
+        // and the head of the family's opinion drift (Phase 4 dynasty traits) out by clearing them
         for (let m = 0; m < 12; m++) {
           ctx.state.nemesis.actionsThisYear = MAX_ACTIONS_PER_YEAR;
+          ctx.state.dynasty.head.traits = [];
           runDays(ctx, 30);
           for (const c of ctx.state.cities) c.smog = newCitySmog();
         }
