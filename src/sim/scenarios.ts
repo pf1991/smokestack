@@ -119,7 +119,7 @@ export function goalProgress(state: GameState, g: Goal): { label: string; value:
 /**
  * Sim-side bookkeeping, called where the sale happens (production.ts retailDay) so headless runs count
  * too: units the player sold (`flags['sold:<good>']`) and which companies sold each good in each city
- * this month (`flags['seller:<city>:<good>']`, reset monthly by goalsMonth).
+ * this month (`flags['seller:<city>:<good>']`, reset monthly by goalsMonth; see sellerFlag).
  */
 export function recordSale(state: GameState, e: { ownerId: string; cityId: number; goodId: GoodId; qty: number }): void {
   if (e.qty <= 0) return;
@@ -130,7 +130,35 @@ export function recordSale(state: GameState, e: { ownerId: string; cityId: numbe
   }
   const sk = `seller:${e.cityId}:${e.goodId}`;
   const prev = state.flags[sk];
-  state.flags[sk] = prev === undefined || prev === e.ownerId ? e.ownerId : 'both';
+  if (prev === e.ownerId) return;
+  if (prev === undefined) {
+    state.flags[sk] = e.ownerId;
+    return;
+  }
+  const list = sellerList(prev);
+  if (list.includes(e.ownerId)) return;
+  state.flags[sk] = sellerFlag([...list, e.ownerId]);
+}
+
+/**
+ * A seller flag's value: the one owner who sold, `'both'` when exactly the player and the Baron sold
+ * (the two-company value older code and saves know), else every seller's id, sorted and comma-joined.
+ */
+function sellerFlag(ids: string[]): string {
+  if (ids.length === 1) return ids[0];
+  if (ids.length === 2 && ids.includes('player') && ids.includes('rival')) return 'both';
+  return [...ids].sort().join(',');
+}
+
+function sellerList(v: unknown): string[] {
+  if (typeof v !== 'string' || v === '') return [];
+  return v === 'both' ? ['player', 'rival'] : v.split(',');
+}
+
+/** Whether every one of `owners` sold `goodId` in town `cityId` this month (seller flags; others may have too). */
+export function sellersInclude(state: GameState, cityId: number, goodId: GoodId, ...owners: string[]): boolean {
+  const list = sellerList(state.flags[`seller:${cityId}:${goodId}`]);
+  return owners.every((o) => list.includes(o));
 }
 
 /** Called by contracts.ts when a contract completes. */

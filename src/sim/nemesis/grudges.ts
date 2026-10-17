@@ -15,6 +15,7 @@ import { GOODS } from '../../data/goods';
 import { advanceHour } from '../clock';
 import { BARON_ID, PLAYER_ID } from '../companies';
 import { netWorth } from '../rival/takeover';
+import { sellersInclude } from '../scenarios';
 import { buildingsInCity } from '../state';
 import type { GameState, SimContext } from '../types';
 import { retaliateMonth } from './retaliation';
@@ -125,7 +126,8 @@ export function grudgesYear(ctx: SimContext): void {
  * - undercut: the player and the Baron both sold some good in a town (at most one per town);
  * - city: the player's retail revenue in a town is more than twice the Baron's, while he sells there
  *   (at most one per town per year).
- * `'both'` only says two companies sold, so the town's tallies must show sales by both of them.
+ * The seller flag must list both the player and the Baron (a regional firm selling beside either is
+ * no undercut), and the town's tallies must show sales by both of them.
  */
 export function salesGrudges(state: GameState): void {
   if (!baronActive(state)) return;
@@ -135,7 +137,7 @@ export function salesGrudges(state: GameState): void {
   for (const city of state.cities) {
     const s = state.politics.track.sales[city.id];
     if (!s || !(s.baron > 0)) continue;
-    if (s.player > 0 && goods.some((g) => state.flags[`seller:${city.id}:${g}`] === 'both')) addGrudge(state, 'undercut', city.id);
+    if (s.player > 0 && goods.some((g) => sellersInclude(state, city.id, g, PLAYER_ID, BARON_ID))) addGrudge(state, 'undercut', city.id);
     if (s.player > 2 * s.baron && n.track.cityYear[city.id] !== year) {
       n.track.cityYear[city.id] = year;
       addGrudge(state, 'city', city.id);
@@ -172,7 +174,7 @@ export function noteContested(state: GameState): void {
     for (const city of state.cities) {
       const s = state.politics.track.sales[city.id];
       if (!s || !(s.baron > 0) || !(s.player > 0)) continue;
-      for (const g of goods) if (state.flags[`seller:${city.id}:${g}`] === 'both') out.push(`${city.id}:${g}`);
+      for (const g of goods) if (sellersInclude(state, city.id, g, PLAYER_ID, BARON_ID)) out.push(`${city.id}:${g}`);
     }
   }
   state.nemesis.track.contested = out;

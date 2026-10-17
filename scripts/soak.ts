@@ -31,6 +31,8 @@
  * An eighth line reports the player's dynasty (Phase 4 Task 5): the generation reached and each head with
  * the year they took the chair. Autoplay names an heir each year (autoplayNameHeir). Century gate: no
  * game over of any kind (the family line must not end) and generation >= 2.
+ * A ninth line reports the regional firms (Phase 4 Task 6): each firm's founding year, home town, net worth at
+ * the last month end sampled in 1950 and in 2000, and whether it is still active. Century gate: >= 2 firms active.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
@@ -47,6 +49,7 @@ import { createGame } from '../src/sim/state';
 import { nationalBlackLung } from '../src/sim/society/escalation';
 import { assetAge, renewBuilding } from '../src/sim/society/aging';
 import { grudgeTotal } from '../src/sim/nemesis/grudges';
+import { companyIds } from '../src/sim/companies';
 
 const END_YEAR = 2001;
 
@@ -124,6 +127,10 @@ for (const seed of seeds) {
   let index2000 = Number.NaN;
   let renewals = 0;
   let smogNaN = false;
+  // regional firms: founding year and net worth sampled at month ends in 1950 and 2000
+  const founded: Record<string, number> = {};
+  const worth1950: Record<string, number> = {};
+  const worth2000: Record<string, number> = {};
   const heads: string[] = [`${ctx.state.dynasty.head.name} ${ctx.state.date.year}`];
   while (ctx.state.date.year < endYear && !over) {
     // the heir is (re)named once a year, before December's births and deaths
@@ -143,6 +150,12 @@ for (const seed of seeds) {
         maxUpper = Math.max(maxUpper, c.classes.upper);
         maxMiddle = Math.max(maxMiddle, c.classes.middle);
         levelSum.set(c.id, (levelSum.get(c.id) ?? 0) + c.smog.level);
+      }
+      for (const id of companyIds(ctx.state)) {
+        if (ctx.state.companies[id].kind !== 'regional') continue;
+        founded[id] ??= ctx.state.date.year;
+        if (ctx.state.date.year === 1950) worth1950[id] = netWorth(ctx.state, id);
+        if (ctx.state.date.year === 2000) worth2000[id] = netWorth(ctx.state, id);
       }
       if (ctx.state.date.year === 2000) {
         index2000 = ctx.state.economy.priceIndex;
@@ -204,8 +217,18 @@ for (const seed of seeds) {
     `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | succession ${state.nemesis.succession.year ?? 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)}) | baron net worth ${money(netWorth(state, 'rival'))}`,
   );
   console.log(`  dynasty ${seed}: generation ${state.dynasty.generation} | heads ${heads.join(', ')} | prestige ${state.dynasty.prestige} | children ${state.dynasty.children.length}`);
+  const firms = companyIds(state).filter((id) => state.companies[id].kind === 'regional');
+  const firmText = firms.map((id) => {
+    const c = state.companies[id];
+    const town = state.cities.find((x) => x.id === c.homeCityId)?.name ?? '?';
+    const w = (v: number | undefined) => (v === undefined ? 'n/a' : money(v));
+    return `${c.name} (${town}) founded ${founded[id]}, 1950 ${w(worth1950[id])}, 2000 ${w(worth2000[id])}, ${c.active ? 'active' : 'closed'}`;
+  });
+  const activeFirms = firms.filter((id) => state.companies[id].active).length;
+  console.log(`  regional ${seed}: ${firmText.join(' | ') || 'none'} | active ${activeFirms}`);
   if (years >= 100) {
     const gate: string[] = [];
+    if (activeFirms < 2) gate.push(`only ${activeFirms} regional firms active (need 2)`);
     if (over === 'Bankrupt') gate.push('player went bankrupt');
     else if (over) gate.push(`game over: ${over}`);
     if (state.dynasty.generation < 2) gate.push(`dynasty generation ${state.dynasty.generation} (need 2)`);

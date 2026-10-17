@@ -225,6 +225,8 @@ export interface Company {
   roadTiles: number;
   railTiles: number;
   active: boolean;
+  /** a regional firm's home town (regional/firms.ts); absent for the player and the Baron */
+  homeCityId?: number;
 }
 
 export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics' | 'protest';

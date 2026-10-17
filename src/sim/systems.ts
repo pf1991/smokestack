@@ -19,6 +19,7 @@ import { goalsMonth } from './scenarios';
 import { grudgesYear, nemesisDay, nemesisMonth } from './nemesis/grudges';
 import { dynastyMonth, dynastyYear } from './dynasty/family';
 import { companyIds } from './companies';
+import { regionalMonth } from './regional/firms';
 import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
@@ -115,4 +116,6 @@ export const SYSTEMS: SimSystem[] = [
   { id: 'nemesis', onDay: nemesisDay, onMonth: nemesisMonth, onYear: grudgesYear },
   // Phase 4 the player's family: opinion drift and the marriage card monthly; births and deaths each December
   { id: 'dynasty', onMonth: dynastyMonth, onYear: dynastyYear },
+  // Phase 4 regional firms: founded in January on schedule; trucks, renewals and loans monthly; closed after 6 months in the red
+  { id: 'regional', onMonth: regionalMonth },
 ];
