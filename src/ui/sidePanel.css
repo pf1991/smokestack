@@ -171,6 +171,10 @@
 .side-panel .window-body {
   max-height: none;
   overflow: auto;
+  padding: 8px 10px;
+  font-size: 13px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brass-dark) transparent;
 }
 
 .side-panel-rail {

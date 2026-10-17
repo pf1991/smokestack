@@ -1,4 +1,5 @@
 import type { GameController } from '../../game/controller';
+import './panels.css';
 import { GOODS } from '../../data/goods';
 import { addDays, dateToDays, formatDate } from '../../sim/clock';
 import { acceptContract } from '../../sim/contracts';
@@ -10,22 +11,21 @@ import { createWindow } from '../window';
 import type { PanelDef } from './index';
 
 const CSS = `
-.cb-board{min-width:520px;padding:14px;border:6px solid #5a3b21;border-radius:4px;color:#1d1a16;
+.cb-board{min-width:0;padding:10px 12px 4px;border:6px solid #5a3b21;border-radius:4px;color:#1d1a16;
  background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.07) 0 2px,transparent 3px),
  radial-gradient(circle at 70% 60%,rgba(0,0,0,.12) 0 2px,transparent 3px),
  radial-gradient(circle at 40% 80%,rgba(0,0,0,.10) 0 1px,transparent 2px),
  linear-gradient(135deg,#b98a56,#a67846 50%,#b58450);background-size:23px 23px,31px 31px,17px 17px,100% 100%;
  box-shadow:inset 0 0 22px rgba(0,0,0,.45)}
-.cb-board h3{margin:10px 0 8px;color:#f6e7c3;text-shadow:0 1px 2px #000}
-.cb-board h3:first-of-type{margin-top:0}
-.cb-grid{display:flex;flex-wrap:wrap;gap:14px}
-.cb-card{position:relative;width:220px;padding:16px 12px 10px;background-color:#f3e9d2;box-shadow:2px 4px 8px rgba(0,0,0,.45);
+.cb-board h3{margin:0 0 2px;color:#f6e7c3;text-shadow:0 1px 2px #000}
+.cb-grid{display:flex;flex-wrap:wrap;gap:10px 12px}
+.cb-card{position:relative;flex:1 1 170px;max-width:240px;padding:14px 10px 8px;background-color:#f3e9d2;box-shadow:2px 4px 8px rgba(0,0,0,.45);
  background-image:linear-gradient(transparent 23px,rgba(120,90,50,.18) 24px);background-size:100% 24px}
 .cb-card:nth-child(odd){transform:rotate(-1.2deg)}.cb-card:nth-child(even){transform:rotate(1deg)}
 .cb-card::before{content:"";position:absolute;top:-5px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;
  background:radial-gradient(circle at 35% 30%,#ff8a7a,#a52a1c 70%);box-shadow:1px 2px 3px rgba(0,0,0,.5)}
 .cb-card.done{background-color:#dcebd0}.cb-card.failed{background-color:#ecd0cb}
-.cb-title{font-weight:bold;font-size:15px}.cb-line{font-size:12px;margin:3px 0}
+.cb-title{font-weight:bold;font-size:14px}.cb-line{font-size:12px;margin:2px 0}
 .cb-reward{font-weight:bold;color:#2d6a2d}
 .cb-bar{height:10px;border:1px solid #5a3b21;background:#e4d5b2;margin:6px 0 2px}
 .cb-bar>i{display:block;height:100%;background:linear-gradient(#5aa65a,#3c8d3c)}
@@ -72,10 +72,10 @@ function card(game: GameController, c: Contract, rerender: () => void): HTMLElem
 
 export function buildBoard(game: GameController, rerender: () => void): HTMLElement {
   const cs = game.state.contracts;
-  const section = (title: string, list: Contract[], empty: string) => [
-    h('h3', null, title),
-    list.length ? h('div', { class: 'cb-grid' }, list.map((c) => card(game, c, rerender))) : h('div', { class: 'cb-empty' }, empty),
-  ];
+  const section = (title: string, list: Contract[], empty: string) =>
+    h('section', { class: 'p-section' },
+      h('h3', { class: 'p-head' }, title),
+      list.length ? h('div', { class: 'cb-grid' }, list.map((c) => card(game, c, rerender))) : h('div', { class: 'cb-empty' }, empty));
   return h(
     'div',
     { class: 'cb-board' },

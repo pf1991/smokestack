@@ -280,3 +280,154 @@
   color: #fff;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
 }
+
+/* ---- Shared panel layout (every side-panel window is built from these; Phase 4 panels adopt them) ----
+   Body text 13px, headings 14px, section headers 12px uppercase. */
+
+.p-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 8px;
+  min-width: 0;
+}
+
+.p-section[hidden] {
+  display: none;
+}
+
+/* the 12 px uppercase header every section opens with */
+.p-head {
+  margin: 0 0 2px;
+  padding-bottom: 2px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+  border-bottom: 1px solid var(--brass-dark);
+}
+
+/* 24 px key-value row: label left, value right */
+.p-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.p-row.p-grid {
+  display: grid;
+  grid-template-columns: 96px 1fr 54px;
+}
+
+/* a table whose header row stays pinned while the panel scrolls */
+.p-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.p-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--walnut-light);
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+}
+
+.p-table th,
+.p-table td {
+  padding: 2px 6px;
+  height: 24px;
+}
+
+/* a panel's primary buttons: pinned to the foot of the visible panel */
+.p-actions {
+  position: sticky;
+  /* the side panel body has 8px padding: pin past it so scrolled content never shows underneath */
+  bottom: -8px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 8px;
+  background: var(--walnut-light);
+  border-top: 1px solid var(--brass-dark);
+}
+
+.p-actions > .btn {
+  flex: 1 1 auto;
+}
+
+/* segmented control: one button per option, the pressed one is brass */
+.p-chips {
+  display: flex;
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.p-chips button {
+  flex: 1;
+  min-height: 24px;
+  font: inherit;
+  font-size: 12px;
+  border-radius: 0;
+  border: 0;
+  border-left: 1px solid var(--brass-dark);
+  padding: 2px 6px;
+  cursor: pointer;
+  background: var(--walnut-light);
+  color: var(--paper);
+}
+
+.p-chips button:first-child {
+  border-left: 0;
+}
+
+.p-chips button:hover {
+  background: var(--walnut);
+}
+
+.p-chips button[aria-pressed='true'],
+.p-chips button.active {
+  background: var(--brass-light);
+  color: var(--walnut);
+  font-weight: bold;
+}
+
+/* denser rhythm for inspectors: the stat and label rows join the 24 px grid */
+.insp {
+  gap: 2px;
+}
+
+.insp .p-section {
+  gap: 3px;
+  margin-bottom: 4px;
+}
+
+.insp .p-head {
+  margin-bottom: 0;
+}
+
+.insp > .p-actions {
+  margin-top: 4px;
+}
+
+.insp-stat,
+.insp-row {
+  min-height: 24px;
+}
+
+/* the Baron's header keeps portrait and text side by side */
+.p-section.rival-head {
+  flex-direction: row;
+  gap: 12px;
+}

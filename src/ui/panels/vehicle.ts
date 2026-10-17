@@ -39,7 +39,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const state = h('span');
   const next = h('span');
   const cargo = h('span');
-  const stat = (label: string, v: HTMLElement) => h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, label), v);
+  const stat = (label: string, v: HTMLElement) => h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, label), v);
   const sell = h('button', {
     class: 'btn insp-sell',
     onClick: () => {
@@ -70,7 +70,9 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     },
   });
   const view: InspectorView = {
-    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner), stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), stat('Age', age), follow, replace, sell),
+    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner),
+      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), stat('Age', age)),
+      h('div', { class: 'p-actions' }, follow, replace, sell)),
     update() {
       const s = host.ctx.state;
       const v = s.vehicles[id];

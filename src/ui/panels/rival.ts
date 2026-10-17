@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../../data/buildings';
+import './panels.css';
 import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import { drawBaronPortrait, type BaronMood } from '../../render/portrait';
@@ -83,7 +84,7 @@ function render(game: GameController, refresh: () => void): HTMLElement {
   const mood: BaronMood = rival.active && his >= mine ? 'smug' : 'furious';
   const quip = rival.active ? lastQuip(state) : 'Ousted. The Baron now spends his days writing furious letters to the editor.';
 
-  const head = h('div', { style: { display: 'flex', gap: '12px', alignItems: 'flex-start' } },
+  const head = h('div', { class: 'p-section rival-head', style: { display: 'flex', gap: '12px', alignItems: 'flex-start' } },
     portrait(mood),
     h('div', { style: { minWidth: '0' } },
       h('div', { style: { fontFamily: 'var(--font-display)', fontSize: '17px', color: 'var(--brass-light)' } }, 'Baron Cornelius Smogsworth'),
@@ -93,8 +94,8 @@ function render(game: GameController, refresh: () => void): HTMLElement {
         `Cash ${formatMoney(rival.money)} · Loan ${formatMoney(rival.loan)}`)));
 
   const stores = storesByCity(state);
-  const storeList = h('div', null,
-    h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', margin: '10px 0 4px' } }, 'His stores'),
+  const storeList = h('div', { class: 'p-section' },
+    h('div', { class: 'p-head', style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', margin: '10px 0 4px' } }, 'His stores'),
     stores.length === 0
       ? h('div', { style: { fontSize: '13px', opacity: '0.8' } }, 'None yet. He is scheming.')
       : h('ul', { class: 'rival-stores', style: { margin: '0', paddingLeft: '18px', fontSize: '13px' } },
@@ -123,7 +124,7 @@ function render(game: GameController, refresh: () => void): HTMLElement {
 
   return h('div', { class: 'rival-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
     head,
-    h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', marginTop: '8px' } }, 'Net worth'),
+    h('div', { class: 'p-head', style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', marginTop: '8px' } }, 'Net worth'),
     worthBar(mine, his, state.companies.player.name),
     storeList,
     button,

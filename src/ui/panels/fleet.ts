@@ -1,4 +1,5 @@
 import { GOODS } from '../../data/goods';
+import './panels.css';
 import type { GameController } from '../../game/controller';
 import type { GameState, Route, Vehicle } from '../../sim/types';
 import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle, tripsLast30, vehicleUpkeep } from '../../sim/vehicles';
@@ -99,7 +100,7 @@ class FleetPanel {
   private filter: FleetFilter = 'all';
   private readonly summary = h('div', { class: 'fl-summary' });
   private readonly filterBar = h('div', { class: 'fl-filters' });
-  private readonly body = h('div', { class: 'fl-body' });
+  private readonly body = h('div', { class: 'p-section fl-body' });
   private readonly empty = h('p', { class: 'fl-empty' }, 'No vehicles to show.');
   private readonly rows = new Map<number, Row>();
   private listSig = '\0';
@@ -121,8 +122,7 @@ class FleetPanel {
       );
     }
     this.root.append(
-      this.summary,
-      this.filterBar,
+      h('div', { class: 'p-section' }, this.summary, this.filterBar),
       h('div', { class: 'fl-head' }, h('span'), h('span', null, 'Route'), h('span', null, 'Status'), h('span', null, 'Cargo'), h('span', { title: 'Completed unloading stops in the last 30 days' }, 'Trips'), h('span', { title: 'Years since bought; old vehicles run slower and cost more to keep' }, 'Age'), h('span')),
       this.body,
     );

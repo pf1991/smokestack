@@ -1,4 +1,5 @@
 import type { GameController } from '../../game/controller';
+import './panels.css';
 import { CARDS_BY_ID } from '../../data/cards';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { formatDate } from '../../sim/clock';
@@ -109,7 +110,7 @@ function ballotBox(state: GameState, ym: { year: number; month: number }): HTMLE
   const cityName = (id: number) => state.cities.find((c) => c.id === id)?.name ?? 'Unknown';
   const past = (state.politics.elections ?? []).filter((e) => e.year < ym.year || (e.year === ym.year && e.month <= ym.month)).slice(-3).reverse();
   const next = !current ? [] : [...state.cities].sort((a, b) => a.politics.nextElection - b.politics.nextElection).slice(0, 3);
-  return h('section', { class: 'ballot-box' },
+  return h('section', { class: 'p-section ballot-box' },
     h('h4', null, 'The Ballot Box'),
     past.length === 0 && h('p', { class: 'ballot-none' }, 'No elections held yet.'),
     past.map((e) => h('div', { class: 'ballot-past' },
@@ -127,13 +128,13 @@ function ballotBox(state: GameState, ym: { year: number; month: number }): HTMLE
 function smogsworthDesk(state: GameState, ym: { year: number; month: number }): HTMLElement | null {
   const n = [...state.news].reverse().find((x) => x.kind === 'rival' && (x.date.year < ym.year || (x.date.year === ym.year && x.date.month <= ym.month)));
   if (!n) return null;
-  return h('section', { class: 'smogsworth-desk' }, h('h4', null, 'From the Smogsworth Desk'), h('h3', null, n.headline), h('p', null, n.body));
+  return h('section', { class: 'p-section smogsworth-desk' }, h('h4', null, 'From the Smogsworth Desk'), h('h3', null, n.headline), h('p', null, n.body));
 }
 
 function decisions(state: GameState, year: number): HTMLElement | null {
   const rows = state.politics.cards.history.filter((x) => x.year === year && CARDS_BY_ID[x.id]);
   if (rows.length === 0) return null;
-  return h('section', { class: 'decisions' }, h('h4', null, 'Decisions of the Year'),
+  return h('section', { class: 'p-section decisions' }, h('h4', null, 'Decisions of the Year'),
     h('ul', null, rows.map((x) => {
       const c = CARDS_BY_ID[x.id];
       const ch = x.choice !== undefined ? c.choices[x.choice] : undefined;
@@ -182,7 +183,7 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
     rest.length > 0 && h('section', { class: 'paper-cols' },
       h('div', { class: 'col' }, left.map(storyEl)),
       h('div', { class: 'col' }, right.map(storyEl))),
-    h('section', { class: 'classifieds' },
+    h('section', { class: 'p-section classifieds' },
       h('h4', null, 'Classified Advertisements'),
       h('div', { class: 'ads' }, ads.map((a) => h('div', { class: 'ad' }, h('b', null, a.head), a.text)))),
     h('div', { class: 'paper-foot' }, 'Printed by the Smokestack Steam Press · Sold in all good chimney-shops'));

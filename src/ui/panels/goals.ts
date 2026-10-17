@@ -1,4 +1,5 @@
 import type { GameController } from '../../game/controller';
+import './panels.css';
 import { dateToDays } from '../../sim/clock';
 import { evaluateGoals, goalProgress, scenarioOf } from '../../sim/scenarios';
 import type { GameState } from '../../sim/types';
@@ -15,11 +16,11 @@ function fmt(n: number, isMoney: boolean): string {
 export function buildGoals(state: GameState): HTMLElement {
   const sc = scenarioOf(state);
   if (sc.goals.length === 0) {
-    return h('div', { class: 'gl-list' },
+    return h('div', { class: 'p-section gl-list' },
       h('div', { class: 'gl-note' }, `${sc.name}: no goals, no deadlines. Build whatever you like until the century ends.`));
   }
   const { done, failed } = evaluateGoals(state);
-  return h('div', { class: 'gl-list' },
+  return h('div', { class: 'p-section gl-list' },
     h('div', { class: 'gl-note' }, `${sc.name} - ${sc.blurb}`),
     ...sc.goals.map((g, i) => {
       const p = goalProgress(state, g);

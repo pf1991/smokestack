@@ -1,4 +1,5 @@
 import type { Result } from '../../core/result';
+import './panels.css';
 import type { GameController } from '../../game/controller';
 import { GOODS } from '../../data/goods';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, loanStep, maxLoan, monthProfit, repayLoan, repayStep, takeLoan } from '../../sim/finance';
@@ -85,6 +86,11 @@ function monthValues(state: GameState, c: Company | undefined, key: number, m: L
 /** Windows that already have a refresh timer running (so a second open just re-raises them). */
 const timed = new WeakSet<HTMLElement>();
 
+/** One titled block of the ledger. */
+function section(title: string, ...children: HTMLElement[]): HTMLElement {
+  return h('section', { class: 'p-section' }, h('h3', { class: 'p-head' }, title), ...children);
+}
+
 export const financePanel: PanelDef = {
   id: 'finance',
   open(game: GameController) {
@@ -113,29 +119,13 @@ export const financePanel: PanelDef = {
     const body = h(
       'div',
       { class: 'finance' },
-      h('h3', null, 'Income statement (last 12 months)'),
-      statementBox,
-      h('h3', null, 'Cash and net worth'),
-      emptyCharts,
-      chartsBox,
-      h('h3', null, 'Sales this year'),
-      goodsEmpty,
-      goodsCanvas,
-      h('h3', null, 'Prices'),
-      indexInfo,
-      indexCanvas,
-      h('h3', null, 'Loans'),
-      h(
-        'div',
-        { class: 'finance-loan' },
-        loanInfo,
-        h(
-          'div',
-          { class: 'finance-loan-buttons' },
-          borrowBtn,
-          repayBtn,
-        ),
-      ),
+      section('Income statement (last 12 months)', statementBox),
+      section('Cash and net worth', emptyCharts, chartsBox),
+      section('Sales this year', goodsEmpty, goodsCanvas),
+      section('Prices', indexInfo, indexCanvas),
+      section('Loans', h('div', { class: 'finance-loan' }, loanInfo)),
+      // pinned to the foot of the panel so Borrow and Repay stay in reach while the charts scroll
+      h('div', { class: 'p-actions finance-loan-buttons' }, borrowBtn, repayBtn),
     );
 
     let timer = 0;

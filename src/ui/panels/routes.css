@@ -1,10 +1,10 @@
 /* Route editor window. */
 .rt { font-size: 13px; min-width: 380px; }
-.rt-top { margin-bottom: 8px; }
+.rt-top { flex-direction: row; flex-wrap: wrap; gap: 6px; }
 .rt-empty, .rt-hint { margin: 6px 0 10px; color: var(--paper-shade); font-style: italic; line-height: 1.4; }
-.rt-card { background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; margin-bottom: 6px; }
+.rt-card { background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; }
 .rt-card.open { border-color: var(--brass-light); }
-.rt-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; }
+.rt-head { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; }
 .rt-head:hover { background: rgba(232, 199, 90, 0.08); }
 .rt-swatch { width: 12px; align-self: stretch; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.5); flex: none; }
 .rt-title { flex: 1; min-width: 0; }
@@ -14,8 +14,8 @@
 .rt-stat { display: flex; flex-direction: column; align-items: flex-end; flex: none; font-size: 12px; color: var(--paper-shade); }
 .rt-stat b { color: var(--paper); font-size: 13px; }
 .rt-warn { margin: 0; padding: 4px 8px 6px 28px; list-style: none; color: #f0a35a; font-size: 12px; }
-.rt-detail { border-top: 1px solid var(--brass-dark); padding: 6px 8px 8px; }
-.rt-stop { padding: 4px 0 6px; border-bottom: 1px dotted rgba(201, 162, 39, 0.35); }
+.rt-detail { border-top: 1px solid var(--brass-dark); padding: 4px 8px 6px; }
+.rt-stop { padding: 3px 0 4px; border-bottom: 1px dotted rgba(201, 162, 39, 0.35); }
 .rt-stop-head { display: flex; align-items: center; gap: 6px; }
 .rt-num { width: 18px; height: 18px; border-radius: 50%; background: var(--brass); color: var(--walnut); font-size: 11px; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .rt-bname { flex: 1; font-weight: bold; }

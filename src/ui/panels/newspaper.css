@@ -11,7 +11,7 @@
 
 .paper {
   position: relative;
-  padding: 14px 26px 22px;
+  padding: 10px 16px 16px;
   color: #231d15;
   font-family: var(--font-body);
   background:
@@ -140,6 +140,8 @@
 .story.civic .byline { color: #3f5a3a; }
 .paper-quiet { text-align: center; font-style: italic; padding: 24px 0 10px; color: #5a4630; }
 
+.paper .p-section { display: block; margin: 0; }
+.paper .classifieds { margin-top: 8px; }
 .classifieds {
   margin-top: 8px;
   padding: 8px 12px 10px;
