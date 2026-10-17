@@ -52,7 +52,26 @@ shot() {
   # crop the empty strip below the viewport
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
-export -f shot
+# ui shot: name, w, h, extra query params (skipYears=0, zoom=1)
+ushot() {
+  local name="$1" w="$2" h="$3" extra="$4"
+  local f="shots/ui-${w}-${name}.png"
+  local udd attempt
+  for attempt in 1 2 3; do
+    udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
+    rm -f "$f"
+    timeout 180 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+      --user-data-dir="$udd" --virtual-time-budget=10000 \
+      --window-size="$w,$((h + CHROME_H_OFFSET))" \
+      --screenshot="$f" \
+      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=25&zoom=1&hour=16&cards=0&$extra" >/dev/null 2>&1
+    rm -rf "$udd"
+    if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
+    echo "blank or missing shot $f (attempt $attempt)" >&2
+  done
+  convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
+}
+export -f shot ushot
 MIN_SHOT_BYTES="${MIN_SHOT_BYTES:-2048}"
 export PORT CHROME_H_OFFSET MIN_SHOT_BYTES
 
@@ -64,7 +83,25 @@ for size in 1366,768 1920,1080; do
   done
 done | xargs -P "$JOBS" -L 1 bash -c 'shot "$@"' _
 
+# UI matrix (DEV params): one panel, a menu, help, a flyout, ticker modes, scaled UI
+for size in 1366,768 1920,1080; do
+  w="${size%,*}"; h="${size#*,}"
+  echo "finance $w $h panel=finance"
+  echo "menu $w $h hudmenu=company"
+  echo "help $w $h help=1"
+  echo "flyout $w $h buildtab=manufacture"
+  echo "tickerheadline $w $h ticker=headline"
+  echo "tickeroff $w $h ticker=off"
+  echo "scale $w $h uiscale=1.3&panel=finance"
+done | xargs -P "$JOBS" -L 1 bash -c 'ushot "$@"' _
+
 bad=0
+for size in 1366 1920; do
+  for n in finance menu help flyout tickerheadline tickeroff scale; do
+    f="shots/ui-${size}-${n}.png"
+    if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 20480 ]; then echo "BAD: $f" >&2; bad=1; fi
+  done
+done
 for size in 1366 1920; do
   for skip in 0 25 55 85; do
     for zoom in 0.5 1 2; do

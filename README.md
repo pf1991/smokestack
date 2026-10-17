@@ -59,22 +59,31 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 
 ## Controls
 
-| Input | Action |
+**Mouse**
+
+- Left-drag pans the map in Inspect mode; a short click inspects what is under the cursor. In build, road and bulldoze tools a left click uses the tool.
+- Right or middle drag pans the map in any mode.
+- The mouse wheel or a trackpad pinch zooms at the cursor (eased).
+
+**Keyboard** (the same list is in the in-game help)
+
+| Key | Action |
 |---|---|
-| Left click | Use the current tool (build, road, select, bulldoze) |
-| Right or middle drag | Pan the map |
-| Mouse wheel | Zoom at the cursor |
-| W A S D / arrow keys | Pan the map |
-| Space | Pause / resume |
-| 1, 2, 3, 4 | Speed 1×, 2×, 4×, 8× |
-| B | Show or hide the toolbar |
-| R | Routes window |
-| F | Finance window |
-| N | The Daily Smokestack (newspaper) |
-| V | Fleet window |
-| Delete | Bulldoze tool (refunds 25% of the building's cost) |
-| P | Photo mode (Esc exits) |
-| Esc | Cancel the tool, close the open window, skip the intro or leave photo mode |
+| Space | Pause or resume |
+| 1, 2, 3, 4 | Normal, fast, faster, fastest speed |
+| R / V / F / N / C | Routes / Fleet / Finance / Newspaper / Contracts |
+| G / O / X | Goals / Politics / Rival |
+| B | Show or hide the build bar |
+| M / K | Smog map / Faction map |
+| P | Photo mode |
+| Del | Bulldoze |
+| Esc | Cancel the tool, close the active tab or leave a mode |
+| ? or H | Show the shortcut help |
+
+**Interface**
+
+- Panels open as tabs in one side panel; the tab bar switches between the open windows and Esc closes the active tab.
+- Settings include a UI scale (makes the whole interface larger or smaller) and a ticker mode (scrolling, single headline or off).
 
 ## Run it
 
