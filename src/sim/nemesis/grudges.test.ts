@@ -123,6 +123,14 @@ describe('rivalry', () => {
     grudgesYear(eq);
     expect(rivalries(eq)).toEqual([GRUDGE_WEIGHTS.rivalry]);
   });
+  it('none while the Baron is worth nothing or less', () => {
+    for (const baron of [0, -500_000]) {
+      const ctx = twoTowns();
+      worth(ctx, 1_000_000, baron);
+      grudgesYear(ctx);
+      expect(rivalries(ctx), String(baron)).toEqual([]);
+    }
+  });
   it('none below half his worth, and none while he is out', () => {
     const ctx = twoTowns();
     worth(ctx, 499_999, 1_000_000);

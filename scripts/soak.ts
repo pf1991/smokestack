@@ -27,7 +27,7 @@
  * Phase 3 gate (years >= 100, ruling R-S12): smog tier >= 2 somewhere, a law passed, priceIndex 2000 in [14, 22], no NaN
  * in the smog field (Tile.pollution scanned yearly), player solvent.
  * A seventh line reports the Baron's retaliation (Phase 4 Task 2): moves made (the `baronStrike` bus event) in
- * all and by kind, his traits, and his grudge ledger at the end (count and total weight).
+ * all and by kind, his traits, his grudge ledger at the end (count and total weight) and his final net worth.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
@@ -193,7 +193,7 @@ for (const seed of seeds) {
     `  economy ${seed}: priceIndex 2000 ${Number.isFinite(index2000) ? index2000.toFixed(2) : 'n/a'}, final ${idx.toFixed(2)} | real net worth (1900 $) player ${money(netWorth(state, 'player') / idx)}, baron ${money(netWorth(state, 'rival') / idx)} | avg building age player ${ages('player')}, baron ${ages('rival')}${renew ? ` | renewals ${renewals}` : ''}`,
   );
   console.log(
-    `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)})`,
+    `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)}) | baron net worth ${money(netWorth(state, 'rival'))}`,
   );
   if (years >= 100) {
     const gate: string[] = [];

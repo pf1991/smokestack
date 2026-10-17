@@ -69,13 +69,14 @@ export const RIVALRY_SHARE = 0.5;
 
 /**
  * December's rivalry grudge, needing no shared town: the player's net worth is at least RIVALRY_SHARE
- * of the Baron's (scale 2 once it is above his). Only while he is active (addGrudge ignores him otherwise).
+ * of the Baron's (scale 2 once it is above his). Only while he is active and worth more than 0 (addGrudge ignores him otherwise).
  */
 export function rivalryGrudge(state: GameState): void {
   if (!baronActive(state)) return;
   const mine = netWorth(state, PLAYER_ID);
   const his = netWorth(state, BARON_ID);
-  if (!(mine >= RIVALRY_SHARE * his)) return;
+  // a Baron worth nothing (or less) has no fortune to feel threatened in
+  if (!(his > 0) || !(mine >= RIVALRY_SHARE * his)) return;
   addGrudge(state, 'rivalry', null, mine > his ? 2 : 1);
 }
 

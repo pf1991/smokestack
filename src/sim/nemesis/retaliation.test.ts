@@ -18,6 +18,7 @@ import {
   priceWars,
   PRICE_WAR_DAYS,
   PRICE_WAR_FACTOR,
+  RESERVE_MULTIPLE,
   POACH_COOLDOWN_MONTHS,
   RETALIATE_AT,
   RETALIATION_COST,
@@ -114,21 +115,22 @@ describe('retaliateMonth gates', () => {
 });
 
 describe('the Baron pays', () => {
-  it('each kind is charged at today\'s prices, and he never spends below his reserve', () => {
+  it(`each kind is charged at today's prices, and he never spends below ${RESERVE_MULTIPLE} × his reserve`, () => {
     const ctx = setup();
     const rival = ctx.state.companies.rival;
-    rival.money = rivalReserve(ctx.state) + RETALIATION_COST.smear + 10;
+    const keep = () => RESERVE_MULTIPLE * rivalReserve(ctx.state);
+    rival.money = keep() + RETALIATION_COST.smear + 10;
     factory(ctx);
     expect(eligibleKinds(ctx)).toEqual(['smear']);
     expect(retaliate(ctx, 'smear')).toBe(true);
-    expect(rival.money).toBe(rivalReserve(ctx.state) + 10);
+    expect(rival.money).toBe(keep() + 10);
     expect(eligibleKinds(ctx)).toEqual([]);
     expect(retaliate(ctx, 'smear')).toBe(false);
     const seen = strikes(ctx);
     for (let i = 0; i < 200; i++) {
       feud(ctx, 40);
       month(ctx);
-      expect(rival.money).toBeGreaterThanOrEqual(rivalReserve(ctx.state));
+      expect(rival.money).toBeGreaterThanOrEqual(keep());
     }
     expect(seen).toEqual([]);
   });
@@ -280,6 +282,24 @@ describe('poach and smear', () => {
     expect(ctx.state.companies.rival.money).toBe(money);
     month(ctx);
     expect(eligibleKinds(ctx)).toContain('poach');
+  });
+
+  it('smear: never the workers (nor the Baron\'s circle), even when they like the player best', () => {
+    const ctx = setup();
+    adjustOpinion(ctx.state, 'workers', 'national', 30, 'test');
+    adjustOpinion(ctx.state, 'baron', 'national', 40, 'test');
+    adjustOpinion(ctx.state, 'church', 'national', 10, 'test');
+    const before = { workers: nationalOpinion(ctx.state, 'workers'), baron: nationalOpinion(ctx.state, 'baron'), church: nationalOpinion(ctx.state, 'church') };
+    expect(retaliate(ctx, 'smear')).toBe(true);
+    expect(nationalOpinion(ctx.state, 'workers')).toBe(before.workers);
+    expect(nationalOpinion(ctx.state, 'baron')).toBe(before.baron);
+    expect(nationalOpinion(ctx.state, 'church')).toBeCloseTo(before.church - 4, 9);
+  });
+
+  it('smear: ties go to FACTION_IDS order (oldmoney before reformers and church)', () => {
+    const ctx = setup();
+    retaliate(ctx, 'smear');
+    expect(ctx.state.politics.log.at(-1)).toMatchObject({ faction: 'oldmoney', scope: 'national', delta: -4 });
   });
 
   it('smear: the faction that likes the player best loses 4 nationally', () => {

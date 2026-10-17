@@ -2,7 +2,7 @@
  * The Baron's retaliation (Phase 4 Task 2). Once a month, after the month's grudges are in
  * (nemesisMonth), a Baron who holds enough grudges may strike back at the player with one of a menu
  * of moves, weighted by his traits (data/nemesis.ts). Each move is paid from his purse in 1900
- * dollars at today's prices, never below his reserve; each prints a 'rival' news item naming the
+ * dollars at today's prices, never below RESERVE_MULTIPLE × his reserve; each prints a 'rival' news item naming the
  * grudge it answers, spends that grudge (its weight halves) and emits `baronStrike`.
  *
  * Timed moves live in `state.nemesis.effects` until their `untilDay`: a price war (read by retailDay
@@ -139,14 +139,20 @@ function hasTarget(state: GameState, kind: RetaliationKind): boolean {
   }
 }
 
+/** he keeps this many rivalReserves after any move, so his project money is never spent on spite */
+export const RESERVE_MULTIPLE = 3;
+
+/** the factions a smear can target: never the workers (that would be an all-town poach) nor his own circle */
+export const SMEAR_FACTIONS: readonly FactionId[] = FACTION_IDS.filter((f) => f !== 'workers' && f !== 'baron');
+
 const costNow = (state: GameState, kind: RetaliationKind): number => Math.round(atPrices(state, RETALIATION_COST[kind]));
 
-/** Moves the Baron could make now: a target exists and he can pay while keeping his reserve. In RETALIATION_KINDS order. */
+/** Moves the Baron could make now: a target exists and he can pay while keeping RESERVE_MULTIPLE × his reserve. In RETALIATION_KINDS order. */
 export function eligibleKinds(ctx: SimContext): RetaliationKind[] {
   const { state } = ctx;
   if (!baronActive(state)) return [];
   const rival = state.companies[BARON_ID];
-  const reserve = rivalReserve(state);
+  const reserve = RESERVE_MULTIPLE * rivalReserve(state);
   return RETALIATION_KINDS.filter((k) => rival.money - costNow(state, k) >= reserve && hasTarget(state, k));
 }
 
@@ -233,8 +239,8 @@ function apply(ctx: SimContext, kind: Exclude<RetaliationKind, 'hostile_bid'>): 
       };
     }
     case 'smear': {
-      let faction: FactionId = FACTION_IDS[0];
-      for (const f of FACTION_IDS) if (nationalOpinion(state, f) > nationalOpinion(state, faction)) faction = f;
+      let faction: FactionId = SMEAR_FACTIONS[0];
+      for (const f of SMEAR_FACTIONS) if (nationalOpinion(state, f) > nationalOpinion(state, faction)) faction = f;
       adjustOpinion(state, faction, 'national', SMEAR_DELTA, 'Smogsworth smears your name');
       return {
         cityId: null,

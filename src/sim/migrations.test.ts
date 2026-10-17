@@ -214,6 +214,7 @@ describe('v6 -> v7: nemesis', () => {
     expect(n.lastAction).toBeNull();
     expect(n.actionsThisYear).toBe(0);
     expect(n.effects).toEqual([]);
+    expect(n.track.poached).toEqual({});
     expect(n.succession).toEqual({ done: false, year: null });
     // the draws advance the save's rng
     expect(o.rngState).not.toBe(42);
