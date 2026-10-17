@@ -65,7 +65,7 @@ describe('window manager (side panel)', () => {
     expect(active()[0].querySelector('.window-title')!.textContent).toContain('Insp i1');
   });
 
-  it('the panel does not take a window width option: windows fill the panel', () => {
+  it('a window width option is not applied to the window element: windows fill the panel', () => {
     const a = open('a');
     expect(a.el.style.width).toBe('');
   });

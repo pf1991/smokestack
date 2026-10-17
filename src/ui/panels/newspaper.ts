@@ -219,8 +219,6 @@ export const newspaperPanel: PanelDef = {
       return;
     }
     win.el.classList.add('news-window');
-    win.el.style.left = `${Math.max(0, Math.round((window.innerWidth - 820) / 2))}px`;
-    win.el.style.top = '64px';
   },
 };
 

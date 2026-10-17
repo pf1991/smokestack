@@ -7,7 +7,7 @@ export interface WindowOptions {
   title: string;
   content: HTMLElement;
   onClose?: () => void;
-  /** Kept for callers; windows fill the side panel's width, so it is not applied. */
+  /** Windows fill the side panel; a width wider than its default widens the panel while this tab is active. */
   width?: number;
 }
 
@@ -33,7 +33,12 @@ const open = new Map<string, GameWindow>();
  * If a window with the same id is already open, that window is returned and its tab focused.
  */
 export function createWindow(opts: WindowOptions): GameWindow {
-  const existing = open.get(opts.id);
+  let existing = open.get(opts.id);
+  if (existing && !existing.el.isConnected) {
+    // the page body was cleared under it: retire it (its onClose disposes the panel) and build anew
+    existing.close();
+    existing = undefined;
+  }
   if (existing) {
     focusTab(opts.id);
     return existing;
@@ -74,7 +79,7 @@ export function createWindow(opts: WindowOptions): GameWindow {
   };
 
   open.set(opts.id, win);
-  addTab({ id: opts.id, title: opts.title, el, close: () => win.close() });
+  addTab({ id: opts.id, title: opts.title, el, close: () => win.close(), width: opts.width });
   return win;
 }
 

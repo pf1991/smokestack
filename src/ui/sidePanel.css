@@ -50,17 +50,30 @@
 
 .side-panel-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 3px;
   flex: 1 1 auto;
   min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brass-dark) transparent;
+}
+
+.side-panel-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.side-panel-tabs::-webkit-scrollbar-thumb {
+  background: var(--brass-dark);
 }
 
 .side-panel-tab {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 4px;
-  max-width: 160px;
+  max-width: 140px;
   min-width: 0;
   padding: 4px 4px 4px 8px;
   cursor: pointer;
@@ -148,8 +161,9 @@
   box-shadow: none;
 }
 
+/* The tab carries the title and close button: the window's own title bar stays in the DOM, hidden. */
 .side-panel .window-title {
-  cursor: default;
+  display: none;
 }
 
 .side-panel .window-body {

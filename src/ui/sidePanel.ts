@@ -27,6 +27,11 @@ export interface TabSpec {
   el: HTMLElement;
   /** closes the window (the panel calls this to evict a tab or for the tab's close button) */
   close(): void;
+  /**
+   * The width the window asks for. Wider than the panel's default, it widens the panel to
+   * min(width, 60% of the viewport) while its tab is active, unless the player dragged a width.
+   */
+  width?: number;
 }
 
 interface Tab {
@@ -72,8 +77,17 @@ function applyWidth(): void {
     root.style.width = `${RAIL_W}px`;
     return;
   }
+  const vw = window.innerWidth;
   const w = savedWidth();
-  root.style.width = w === null ? DEFAULT_WIDTH_CSS : `${clampPanelWidth(w, window.innerWidth)}px`;
+  const asked = activeId !== null ? tabs.get(activeId)?.spec.width : undefined;
+  if (w !== null) root.style.width = `${clampPanelWidth(w, vw)}px`;
+  else if (asked !== undefined && asked > defaultWidthPx(vw)) root.style.width = `${clampPanelWidth(asked, vw)}px`;
+  else root.style.width = DEFAULT_WIDTH_CSS;
+}
+
+/** DEFAULT_WIDTH_CSS in px for viewport width `vw`. */
+function defaultWidthPx(vw: number): number {
+  return Math.min(420, 0.34 * vw);
 }
 
 /**
@@ -94,6 +108,7 @@ function layout(): void {
   root.style.top = `${Math.max(0, hudBottom)}px`;
   root.style.bottom = `${Math.max(0, window.innerHeight - toolbarTop)}px`;
   applyWidth();
+  publishWidth();
   if (!observer && typeof ResizeObserver !== 'undefined') observer = new ResizeObserver(() => layout());
   for (const sel of ['.hud-bar', '.toolbar']) {
     const el = document.querySelector(sel);
@@ -107,7 +122,7 @@ function startResize(ev: MouseEvent): void {
   const startX = ev.clientX;
   const rectW = root.getBoundingClientRect().width;
   const saved = savedWidth();
-  const startW = rectW > 0 ? rectW : saved ?? Math.min(420, 0.34 * window.innerWidth);
+  const startW = rectW > 0 ? rectW : saved ?? (parseFloat(root.style.width) || defaultWidthPx(window.innerWidth));
   let w = startW;
   root.classList.add('resizing');
   const onMove = (m: MouseEvent) => {
@@ -133,6 +148,10 @@ function startResize(ev: MouseEvent): void {
 export function sidePanelEl(): HTMLElement {
   if (root?.isConnected) return root;
   unlisten?.();
+  // the page body was cleared (or this is the first use): drop every tab of the old panel
+  tabs.clear();
+  activeId = null;
+  collapsed = false;
   strip = h('div', { class: 'side-panel-tabs', role: 'tablist', 'aria-label': 'Open windows' });
   const collapseBtn = h('button', {
     class: 'side-panel-collapse',
@@ -231,6 +250,8 @@ export function focusTab(id: string): void {
   activeId = id;
   collapsed = false;
   render();
+  // the strip is one scrolling row: bring the focused tab into view (jsdom has no scrollIntoView)
+  t.tabEl.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
 }
 
 /** Removes a tab and its window element; the most recently focused remaining tab becomes active. */

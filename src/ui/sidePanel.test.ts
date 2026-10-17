@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { h } from './dom';
 import { closeAllWindows, createWindow } from './window';
 import { clampPanelWidth, closeActiveTab, MAX_TABS, MIN_PANEL_W, RAIL_W, sidePanelEl } from './sidePanel';
@@ -244,5 +244,115 @@ describe('side panel width variable', () => {
     expect(v()).toBe(`${RAIL_W}px`);
     a.close();
     expect(v()).toBe('0px');
+  });
+});
+
+/**
+ * sidePanel.css as text. Vitest blanks CSS imports (even ?raw), so read the file; the project has no
+ * node typings, hence the untyped dynamic import.
+ */
+const FS = 'node:fs';
+const { readFileSync } = (await import(/* @vite-ignore */ FS)) as { readFileSync(p: string, enc: string): string };
+const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
+const SIDE_PANEL_CSS = readFileSync(`${cwd}/src/ui/sidePanel.css`, 'utf8');
+
+/** The declarations of the first CSS rule whose selector is exactly `sel`. */
+function cssRule(sel: string): string {
+  const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`).exec(SIDE_PANEL_CSS);
+  return m ? m[1] : '';
+}
+
+describe('side panel fix round', () => {
+  it('hides the window title bar inside the panel (the tab already carries title and close) but keeps it in the DOM', () => {
+    expect(cssRule('.side-panel .window-title')).toMatch(/display:\s*none/);
+    const a = open('a');
+    expect(a.el.querySelector('.window-title .window-close')).not.toBeNull();
+  });
+
+  it('keeps the tab strip on one row that scrolls sideways, tabs at most 140 px with ellipsis', () => {
+    const strip = cssRule('.side-panel-tabs');
+    expect(strip).toMatch(/flex-wrap:\s*nowrap/);
+    expect(strip).toMatch(/overflow-x:\s*auto/);
+    expect(strip).toMatch(/scrollbar-width:\s*thin/);
+    expect(cssRule('.side-panel-tab')).toMatch(/max-width:\s*140px/);
+    expect(cssRule('.side-panel-tab-title')).toMatch(/text-overflow:\s*ellipsis/);
+  });
+
+  it('scrolls the active tab into view when it is focused', () => {
+    const spy = vi.fn();
+    const proto = HTMLElement.prototype as unknown as { scrollIntoView?: unknown };
+    const had = proto.scrollIntoView;
+    proto.scrollIntoView = spy;
+    try {
+      ['a', 'b', 'c', 'd', 'e', 'f'].forEach((id) => open(id));
+      spy.mockClear();
+      tabs()[0].click();
+      expect(spy).toHaveBeenCalled();
+      expect(spy.mock.contexts.at(-1)).toBe(tabs()[0]);
+    } finally {
+      proto.scrollIntoView = had;
+    }
+  });
+
+  it('republishes --side-panel-w when the viewport resize re-clamps a saved width', () => {
+    saveSettings({ ...DEFAULT_SETTINGS, panelWidth: 600 });
+    open('a');
+    const v = () => document.documentElement.style.getPropertyValue('--side-panel-w');
+    expect(v()).toBe('600px');
+    const before = window.innerWidth;
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+      window.dispatchEvent(new Event('resize'));
+      expect(panel()!.style.width).toBe('480px');
+      expect(v()).toBe('480px');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: before });
+    }
+  });
+
+  it('a cleared page body leaves no stale tabs: reopening an id builds a fresh window', () => {
+    let closed = 0;
+    const a = createWindow({ id: 'a', title: 'A', content: h('div'), onClose: () => closed++ });
+    open('b');
+    document.body.innerHTML = '';
+    const a2 = createWindow({ id: 'a', title: 'A', content: h('div') });
+    expect(a2).not.toBe(a);
+    expect(a2.el.isConnected).toBe(true);
+    expect(closed).toBe(1);
+    expect(tabs()).toHaveLength(1);
+    expect(a2.docked).toBe(false);
+  });
+
+  describe('wide windows', () => {
+    const wide = (id: string, width: number) => createWindow({ id, title: id, content: h('div'), width });
+    let before = 0;
+    beforeEach(() => {
+      before = window.innerWidth;
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
+    });
+    afterEach(() => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: before });
+    });
+
+    it('a window asking for more than the panel width widens it to min(width, 60%) while active', () => {
+      wide('news', 820);
+      expect(panel()!.style.width).toBe('819.6px');
+      open('p');
+      expect(panel()!.style.width).toBe('min(420px, 34vw)');
+      tabs()[0].click();
+      expect(panel()!.style.width).toBe('819.6px');
+    });
+
+    it('a window narrower than the default leaves the default width', () => {
+      wide('pol', 400);
+      expect(panel()!.style.width).toBe('min(420px, 34vw)');
+    });
+
+    it('a width the player set by dragging wins over a wide window', () => {
+      saveSettings({ ...DEFAULT_SETTINGS, panelWidth: 380 });
+      wide('news', 820);
+      expect(panel()!.style.width).toBe('380px');
+    });
   });
 });
