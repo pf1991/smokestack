@@ -287,8 +287,8 @@
 .p-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 0 0 8px;
+  gap: 3px;
+  margin: 0 0 6px;
   min-width: 0;
 }
 
@@ -298,8 +298,8 @@
 
 /* the 12 px uppercase header every section opens with */
 .p-head {
-  margin: 0 0 2px;
-  padding-bottom: 2px;
+  margin: 0 0 1px;
+  padding-bottom: 1px;
   font-family: var(--font-display);
   font-size: 12px;
   font-weight: normal;
@@ -315,7 +315,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 24px;
+  min-height: 20px;
 }
 
 .p-row.p-grid {
@@ -345,7 +345,7 @@
 .p-table th,
 .p-table td {
   padding: 2px 6px;
-  height: 24px;
+  height: 20px;
 }
 
 /* a panel's primary buttons: pinned to the foot of the visible panel */
@@ -376,7 +376,7 @@
 
 .p-chips button {
   flex: 1;
-  min-height: 24px;
+  min-height: 22px;
   font: inherit;
   font-size: 12px;
   border-radius: 0;
@@ -405,12 +405,17 @@
 
 /* denser rhythm for inspectors: the stat and label rows join the 24 px grid */
 .insp {
-  gap: 2px;
+  gap: 3px;
+}
+
+/* a small gap between the status lines and the first section header */
+.insp > :not(.p-section) + .p-section {
+  margin-top: 5px;
 }
 
 .insp .p-section {
-  gap: 3px;
-  margin-bottom: 4px;
+  gap: 2px;
+  margin-bottom: 3px;
 }
 
 .insp .p-head {
@@ -423,11 +428,16 @@
 
 .insp-stat,
 .insp-row {
-  min-height: 24px;
+  min-height: 20px;
 }
 
 /* the Baron's header keeps portrait and text side by side */
 .p-section.rival-head {
   flex-direction: row;
   gap: 12px;
+}
+
+/* the rival panel already spaces its blocks with a flex gap */
+.rival-panel > .p-section {
+  margin-bottom: 0;
 }

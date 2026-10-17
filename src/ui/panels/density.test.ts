@@ -36,6 +36,9 @@ afterEach(() => {
 });
 
 // rival.ts is Phase 4's: it only gets classes added, its inline sizes are migrated with its content
+// panels that have several titled blocks must say so
+const MIN_SECTIONS: Record<string, number> = { finance: 5, politics: 5, building: 3, city: 3, contracts: 3, rival: 2 };
+
 const INLINE_FONT_EXEMPT = new Set(['rival']);
 
 describe('panel density classes', () => {
@@ -57,7 +60,8 @@ describe('panel density classes', () => {
       const t = setup();
       PANELS[id].open(t.game, arg(t));
       const body = document.querySelector('.window-body') as HTMLElement;
-      expect(body.querySelectorAll('.p-section').length).toBeGreaterThan(0);
+      const sections = body.querySelectorAll('.p-section').length;
+      expect(sections).toBeGreaterThanOrEqual(MIN_SECTIONS[id] ?? 1);
       if (!INLINE_FONT_EXEMPT.has(id)) expect(body.querySelectorAll('[style*="font-size"]')).toHaveLength(0);
     });
   }

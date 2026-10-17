@@ -1,7 +1,8 @@
 /* Politics window: company edicts, national opinion, recent political news. */
 .pol { display: flex; flex-direction: column; gap: 0; font-size: 13px; }
-.pol-edict { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
-.pol .pol-edict-head { align-items: baseline; min-height: 20px; }
+.pol-edict { display: flex; flex-direction: column; gap: 1px; margin-bottom: 3px; }
+.pol .pol-edict-head { align-items: baseline; min-height: 18px; }
+.pol .p-chips button { min-height: 18px; padding: 1px 6px; }
 .pol-edict-title { font-weight: bold; }
 .pol-cost { color: var(--paper-shade); font-size: 12px; white-space: nowrap; }
 .pol-effects { font-size: 12px; color: var(--paper-shade); min-height: 1.2em; }

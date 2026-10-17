@@ -27,6 +27,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `openroute=1` (dev) open the routes window on the first player route
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
  *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
+ *  - `inspectcity=1` / `inspectvehicle=1` (dev) open the first city / vehicle inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
  *  - `hudmenu=<id>` (dev) open a top-bar dropdown: company, operations, world, more
  *  - `scenario=<id>`   start a scenario
@@ -214,6 +215,11 @@ if (debugStart) {
     if (import.meta.env.DEV && upgradedId !== null && params.get('inspectup') === '1') g.openPanel('building', upgradedId);
     if (import.meta.env.DEV && params.get('inspect2') === '1') {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
+    }
+    if (import.meta.env.DEV && params.get('inspectcity') === '1') g.openPanel('city', 0);
+    if (import.meta.env.DEV && params.get('inspectvehicle') === '1') {
+      const v = Object.values(g.ctx.state.vehicles)[0];
+      if (v) g.openPanel('vehicle', v.id);
     }
     if (import.meta.env.DEV && params.get('send') === '1') {
       window.setTimeout(() => document.querySelector<HTMLElement>('[data-act="send-goods"]')?.click(), 5500);

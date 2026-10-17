@@ -205,14 +205,14 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   const log = h('ul', { class: 'pol-log' });
   const blackLung = h('span', { class: 'pol-blacklung-count' });
   const el = h('div', { class: 'pol' },
-    h('div', { class: 'p-section pol-section pol-edicts' }, h('div', { class: 'p-head' }, 'Company edicts'), ...controls.map((c) => c.el),
+    h('div', { class: 'p-section pol-edicts' }, h('div', { class: 'p-head' }, 'Company edicts'), ...controls.map((c) => c.el),
       h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)),
-    h('div', { class: 'p-section pol-section pol-national' }, h('div', { class: 'p-head' }, 'National opinion'), ...rows.map((r) => r.el)),
-    h('div', { class: 'p-section pol-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
+    h('div', { class: 'p-section pol-national' }, h('div', { class: 'p-head' }, 'National opinion'), ...rows.map((r) => r.el)),
+    h('div', { class: 'p-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
       h('div', { class: 'p-head' }, 'Black Lung toll'), blackLung),
-    h('div', { class: 'p-section pol-section pol-laws' }, h('div', { class: 'p-head' }, 'Law of the land'),
+    h('div', { class: 'p-section pol-laws' }, h('div', { class: 'p-head' }, 'Law of the land'),
       ...lawRows.map((r) => h('div', { class: 'pol-law', 'data-law': r.id }, h('strong', null, LAWS[r.id].title), ' ', r.status, h('div', null, r.detail)))),
-    h('div', { class: 'p-section pol-section pol-news' }, h('div', { class: 'p-head' }, 'Recent political news'), log));
+    h('div', { class: 'p-section pol-news' }, h('div', { class: 'p-head' }, 'Recent political news'), log));
   update();
   return { el, update };
 }
