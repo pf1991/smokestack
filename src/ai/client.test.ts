@@ -3,7 +3,7 @@ import { dateToDays } from '../sim/clock';
 import { postDecision } from '../sim/ai/mailbox';
 import { testState } from '../sim/testkit';
 import type { GameState } from '../sim/types';
-import { aiStatus, startAiClient } from './client';
+import { aiStatus, onAiStatus, startAiClient } from './client';
 
 function setup(n = 1) {
   const state = testState();
@@ -105,18 +105,83 @@ describe('startAiClient', () => {
   });
 
   it('holds the rate limit of 30 a minute', async () => {
-    const state = setup(2); // two unanswered requests: 2 posts per tick without a limit
+    const state = setup(1);
+    state.ai!.pending.length = 0;
+    for (let i = 0; i < 45; i++) {
+      state.ai!.pending.push({ id: `card:${i}`, question: 'q', options: [{ key: 'a', label: 'A' }], context: {}, dueDay: 99999 });
+    }
     const f = fake({ decide: () => ({ nope: true }) });
     const stop = startAiClient({ state }, { fetchImpl: f.fetchImpl, enabled: () => true });
     await flush();
-    for (let i = 0; i < 29; i++) await tick(); // 58 s: would be 58 posts unlimited
+    await tick(); // first tick: at most 30 of the 45
     expect(f.posts).toHaveLength(30);
-    await tick(); // 60 s: the window is still full
+    for (let i = 0; i < 28; i++) await tick(); // still inside the minute
     expect(f.posts).toHaveLength(30);
-    await tick(); // 62 s: the first posts have aged out
+    await tick(); await tick(); // the window has slid
     expect(f.posts.length).toBeGreaterThan(30);
-    expect(f.posts.length).toBeLessThanOrEqual(32);
+    expect(f.posts.length).toBeLessThanOrEqual(45);
     stop();
+  });
+
+  it('gives each request id exactly one attempt, failures included', async () => {
+    const state = setup(2);
+    const f = fake({ decide: () => ({ junk: 1 }) });
+    const stop = startAiClient({ state }, { fetchImpl: f.fetchImpl, enabled: () => true });
+    await flush();
+    for (let i = 0; i < 5; i++) await tick();
+    expect(f.posts).toHaveLength(2);
+    stop();
+  });
+
+  it('aborts a hung request after 3 s and clears it from flight', async () => {
+    const state = setup();
+    let signal: AbortSignal | undefined;
+    const fetchImpl = ((url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/api/health')) return Promise.resolve(new Response('{"enabled":true}'));
+      signal = init?.signal ?? undefined;
+      return new Promise((_, rej) => signal?.addEventListener('abort', () => rej(new Error('aborted'))));
+    }) as unknown as typeof fetch;
+    const stop = startAiClient({ state }, { fetchImpl, enabled: () => true });
+    await flush(); await tick();
+    expect(signal).toBeDefined();
+    expect(signal!.aborted).toBe(false);
+    await tick(3000);
+    expect(signal!.aborted).toBe(true);
+    expect(state.ai!.pending).toHaveLength(1);
+    stop();
+  });
+
+  it('aborts a hung health check and reports offline', async () => {
+    const state = setup();
+    const fetchImpl = ((_u: string, init?: RequestInit) =>
+      new Promise((_, rej) => init?.signal?.addEventListener('abort', () => rej(new Error('aborted'))))) as unknown as typeof fetch;
+    const stop = startAiClient({ state }, { fetchImpl, enabled: () => true });
+    await tick(3000);
+    expect(aiStatus()).toBe('offline');
+    stop();
+  });
+
+  it('drops a late answer that arrives after stop()', async () => {
+    const state = setup();
+    const f = fake({ hold: true });
+    const stop = startAiClient({ state }, { fetchImpl: f.fetchImpl, enabled: () => true });
+    await flush(); await tick();
+    expect(f.posts).toHaveLength(1);
+    stop();
+    f.release(); await flush();
+    expect(state.ai!.pending).toHaveLength(1);
+    expect(state.ai!.answers).toEqual({});
+  });
+
+  it('tells subscribers when the health result lands', async () => {
+    const state = setup();
+    const f = fake();
+    const seen: string[] = [];
+    const off = onAiStatus(() => seen.push(aiStatus()));
+    const stop = startAiClient({ state }, { fetchImpl: f.fetchImpl, enabled: () => true });
+    await flush();
+    expect(seen).toEqual(['connected']);
+    off(); stop();
   });
 
   it('a malformed response gives no answer', async () => {

@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
 import { CARDS_BY_ID } from '../data/cards';
+import { dateToDays } from '../sim/clock';
 import { PLAYER_ID } from '../sim/companies';
 import { choiceCost } from '../sim/politics/cards';
 import { formatMoney } from './format';
@@ -297,20 +298,29 @@ describe('card modal', () => {
 });
 
 describe('card modal: why this card', () => {
-  it('shows the JEV line only when the last card pick used AI', () => {
-    const s = withCard();
-    s.ai = { pending: [], answers: {}, log: [{ id: 'card:1906', picked: 'founders_parade', usedAi: true }] };
+  const shown = (log: { id: string; picked: string; usedAi: boolean }[]) => {
+    document.body.innerHTML = '';
+    const s = withCard(); // opened on day 0, which is 1900; use the real opening year
+    s.politics.cards.pending[0].openedDay = dateToDays(s.date);
+    s.ai = { pending: [], answers: {}, log };
     const a = host(s);
     live.push(attachCardModal(a.h));
     a.frame();
-    expect(document.body.textContent).toContain("Chosen by the editor's instinct (JEV)");
+    const text = document.body.textContent ?? '';
     for (const d of live.splice(0)) d();
-    document.body.innerHTML = '';
-    const t = withCard();
-    t.ai = { pending: [], answers: {}, log: [{ id: 'card:1906', picked: 'founders_parade', usedAi: false }] };
-    const b = host(t);
-    live.push(attachCardModal(b.h));
-    b.frame();
-    expect(document.body.textContent).not.toContain('JEV');
+    return { text, year: s.date.year };
+  };
+  const line = "Chosen by the editor's instinct (JEV)";
+  it('shows the line when the latest pick is this card and used AI', () => {
+    expect(shown([{ id: 'card:1906', picked: 'founders_parade', usedAi: true }]).text).toContain(line);
+  });
+  it('shows no line when the pick did not use AI, is for another year or card, or is not the latest', () => {
+    expect(shown([{ id: 'card:1906', picked: 'founders_parade', usedAi: false }]).text).not.toContain(line);
+    expect(shown([{ id: 'card:1905', picked: 'founders_parade', usedAi: true }]).text).not.toContain(line);
+    expect(shown([{ id: 'card:1906', picked: 'other_card', usedAi: true }]).text).not.toContain(line);
+    expect(shown([
+      { id: 'card:1906', picked: 'founders_parade', usedAi: true },
+      { id: 'other:1', picked: 'x', usedAi: true },
+    ]).text).not.toContain(line);
   });
 });

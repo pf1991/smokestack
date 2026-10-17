@@ -10,7 +10,7 @@ import { FACTIONS, factionName, type FactionId } from '../data/factions';
 import { canAffordChoice, cardText, choiceCost, resolveCard } from '../sim/politics/cards';
 import type { CardInstance } from '../sim/politics/types';
 import type { GameState, SimContext, Speed } from '../sim/types';
-import { formatDate } from '../sim/clock';
+import { addDays, dateToDays, formatDate } from '../sim/clock';
 import { h } from './dom';
 import { formatMoney } from './format';
 import { iconEl } from './icon';
@@ -46,11 +46,12 @@ function oldest(pending: CardInstance[]): CardInstance | undefined {
   return best;
 }
 
-/** True when the most recent yearly card pick (the log's last `card:` entry) was weighed by JEV. */
-function usedAi(state: GameState): boolean {
-  const log = state.ai?.log ?? [];
-  for (let i = log.length - 1; i >= 0; i--) if (log[i].id.startsWith('card:')) return log[i].usedAi;
-  return false;
+/** True when the latest decision taken was this card's yearly pick (`card:<opening year>`) and JEV weighed it. */
+function usedAi(state: GameState, inst: CardInstance): boolean {
+  const last = state.ai?.log.at(-1);
+  if (!last || !last.usedAi) return false;
+  const year = addDays(state.date, inst.openedDay - dateToDays(state.date)).year;
+  return last.id === `card:${year}` && last.picked === inst.cardId;
 }
 
 function chip(state: GameState, e: CardEffect, cityName: string | null): HTMLElement {
@@ -154,7 +155,7 @@ export function attachCardModal(host: CardHost): () => void {
       h('p', { class: 'card-body' }, text.body),
       h('div', { class: 'card-rule' }, 'Your answer'),
       h('div', { class: 'card-choices' }, ...choices),
-      usedAi(state) ? h('p', { class: 'card-why' }, "Chosen by the editor's instinct (JEV)") : null,
+      usedAi(state, inst) ? h('p', { class: 'card-why' }, "Chosen by the editor's instinct (JEV)") : null,
       error ? h('p', { class: 'card-error', role: 'alert' }, error) : null);
     const next = h('div', { class: 'card-modal' }, h('div', { class: 'card-backdrop' }), h('div', { class: 'card-shadow' }, clipping));
     if (root) root.replaceWith(next);
