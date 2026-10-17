@@ -8,6 +8,12 @@ import { pollutionOverlay } from '../render/pollutionOverlay';
 import { factionOverlay } from '../render/factionOverlay';
 import { closeHelp, isHelpOpen } from './help';
 import { ICON_IDS } from '../render/icons';
+
+/** hud.css as text: Vitest blanks CSS imports, and the project has no node typings (see sidePanel.test.ts). */
+const FS = 'node:fs';
+const { readFileSync } = (await import(/* @vite-ignore */ FS)) as { readFileSync(p: string, enc: string): string };
+const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
+const hudCss = readFileSync(`${cwd}/src/ui/hud.css`, 'utf8');
 import { factionName, GREENS_YEAR } from '../data/factions';
 import { factionModes } from '../render/factionOverlay';
 
@@ -358,5 +364,85 @@ describe('one-row bar with grouped menus', () => {
     window.removeEventListener('keydown', game);
     expect(game).not.toHaveBeenCalled();
     key('Escape', document.activeElement!);
+  });
+
+  it('market reports print but do not count as unread news', () => {
+    const { root, hud, state } = setup();
+    hud.update(state);
+    const bus = new EventBus();
+    hud.attach(bus);
+    const world = group(root, 'world');
+    const emit = (id: number, kind: 'market' | 'historic') => {
+      const item = { id, date: { ...state.date }, headline: 'h', body: '', kind };
+      state.news.push(item);
+      bus.emit({ type: 'news', item });
+    };
+    emit(1001, 'market');
+    expect(world.querySelector<HTMLElement>('.hud-badge')!.hidden).toBe(true);
+    emit(1002, 'historic');
+    emit(1003, 'market');
+    expect(world.querySelector('.hud-badge')!.textContent).toBe('1');
+  });
+
+  it('a click outside that closes a menu never reaches the map', () => {
+    const { root } = setup();
+    const map = document.createElement('canvas');
+    document.body.appendChild(map);
+    const onMap = vi.fn();
+    map.addEventListener('pointerdown', onMap);
+    group(root, 'company').click();
+    const ev = new MouseEvent('pointerdown', { bubbles: true, cancelable: true });
+    map.dispatchEvent(ev);
+    expect(onMap).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(true);
+    expect(menuOf(group(root, 'company')).hidden).toBe(true);
+    // with no menu open the map gets its clicks
+    map.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+    expect(onMap).toHaveBeenCalledTimes(1);
+  });
+
+  it('a game shortcut closes the open menu and still reaches the game', () => {
+    const { root } = setup();
+    const world = group(root, 'world');
+    world.click();
+    const game = vi.fn();
+    window.addEventListener('keydown', game);
+    key('n', document.activeElement!);
+    window.removeEventListener('keydown', game);
+    expect(menuOf(world).hidden).toBe(true);
+    expect(game).toHaveBeenCalledTimes(1);
+    // a key that is no shortcut leaves it open
+    world.click();
+    key('q', document.activeElement!);
+    expect(menuOf(world).hidden).toBe(false);
+    key('Escape', document.activeElement!);
+  });
+
+  it('groups and Routes are labelled from 1280 px; toggles and More only from 1600 px', () => {
+    const { root } = setup();
+    const labelled = [...root.querySelectorAll<HTMLElement>('.hud-labelled')];
+    expect(labelled.map((b) => b.dataset.group ?? b.dataset.panel).sort()).toEqual(['company', 'operations', 'routes', 'world']);
+    for (const sel of ['.hud-smog', '.hud-factions', '.hud-more-btn']) expect(root.querySelector(sel)!.matches('.hud-labelled'), sel).toBe(false);
+    const css = hudCss.replace(/\s+/g, ' ');
+    expect(css).toMatch(/@media \(min-width: 1280px\) \{ \.hud-labelled \.hud-btn-label \{ display: inline; \}/);
+    expect(css).toMatch(/\.hud-btn-label \{ display: none; \}/);
+    // icon-only group buttons list what they hold
+    expect(group(root, 'operations').title).toBe('Operations: Fleet, Contracts');
+    expect(group(root, 'operations').getAttribute('aria-label')).toBe('Operations: Fleet, Contracts');
+    // Routes sits right after the Operations dropdown, in the same set
+    const ops = group(root, 'operations').closest('.hud-group-set')!;
+    expect(ops.lastElementChild!.matches('[data-panel="routes"]')).toBe(true);
+  });
+
+  it('speed buttons are atlas icons, no text glyphs', () => {
+    const { root } = setup();
+    const counts: Record<string, number> = { 0: 1, 1: 1, 2: 2, 4: 3, 8: 2 };
+    for (const btn of root.querySelectorAll<HTMLElement>('.hud-speed')) {
+      expect(btn.textContent).toBe('');
+      expect(/[^\x00-\x7f]/.test(btn.innerHTML), btn.innerHTML).toBe(false);
+      expect(btn.querySelectorAll('.icon')).toHaveLength(counts[btn.dataset.speed!]);
+      expect(btn.getAttribute('aria-label')).toBe(btn.title);
+    }
+    expect(root.querySelector('[data-speed="0"] .icon')!.getAttribute('data-icon')).toBe('pause');
   });
 });

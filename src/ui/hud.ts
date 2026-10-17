@@ -3,11 +3,11 @@ import { GREENS_YEAR } from '../data/factions';
 import { eraName } from '../sim/eras';
 import { monthProfit } from '../sim/finance';
 export { eraName };
-import type { GameState, Speed, Weather } from '../sim/types';
+import type { GameState, NewsItem, Speed, Weather } from '../sim/types';
 import { setOverlay } from '../render/overlays';
 import { factionOverlay, factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
 import { h } from './dom';
-import { shortcutFor, withShortcut } from './shortcuts';
+import { shortcutFor, shortcutForEvent, withShortcut } from './shortcuts';
 import { openHelp } from './help';
 import type { PauseScreen } from './menu';
 import { iconEl } from './icon';
@@ -25,12 +25,13 @@ export interface HudHandlers {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const SPEEDS: { speed: Speed; label: string; title: string }[] = [
-  { speed: 0, label: '⏸', title: withShortcut('Pause', 'pause') },
-  { speed: 1, label: '▶', title: withShortcut('Normal speed', 'speed', '1') },
-  { speed: 2, label: '▶▶', title: withShortcut('Fast', 'speed', '2') },
-  { speed: 4, label: '▶▶▶', title: withShortcut('Faster', 'speed', '4') },
-  { speed: 8, label: '⏩', title: withShortcut('Fastest', 'speed', '8') },
+/** Speed buttons: atlas icons, more triangles for faster speeds (title and aria-label name them). */
+const SPEEDS: { speed: Speed; icons: string[]; title: string }[] = [
+  { speed: 0, icons: ['pause'], title: withShortcut('Pause', 'pause') },
+  { speed: 1, icons: ['play'], title: withShortcut('Normal speed', 'speed', '1') },
+  { speed: 2, icons: ['play', 'play'], title: withShortcut('Fast', 'speed', '2') },
+  { speed: 4, icons: ['play', 'play', 'play'], title: withShortcut('Faster', 'speed', '4') },
+  { speed: 8, icons: ['fast', 'fast'], title: withShortcut('Fastest', 'speed', '8') },
 ];
 
 export interface HudGroupItem {
@@ -109,6 +110,9 @@ interface Dropdown {
 
 let menuSeq = 0;
 
+/** Keys an open menu handles itself (navigation and activation). */
+const MENU_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' '];
+
 const DELTA_MS = 1500;
 
 /** Compass names, clockwise from east in screen space (+y is south). */
@@ -180,24 +184,29 @@ export class Hud {
         title: s.title,
         'aria-label': s.title,
         onClick: () => handlers.onSpeed(s.speed),
-      }, s.label);
+      }, ...s.icons.map((id) => iconEl(id, 14)));
       this.speedButtons.set(s.speed, btn);
       speeds.appendChild(btn);
     }
 
     const groups = h('div', { class: 'hud-groups' });
     for (const g of GROUPS) {
-      for (const it of g.items.filter((i) => i.direct)) groups.appendChild(this.panelButton(it));
+      // a group's direct buttons (Routes) sit joined to the right of its dropdown
+      const set = h('div', { class: 'hud-group-set' });
       const menuItems = g.items.filter((i) => !i.direct);
-      if (menuItems.length === 0) continue;
-      const dd = this.dropdown(g.label, g.icon, 'hud-group-btn', menuItems.map((it) => this.menuItem(it)));
-      dd.button.dataset.group = g.id;
-      if (g.items.some((i) => i.panel === NEWS_PANEL)) {
-        this.newsGroupButton = dd.button;
-        this.newsGroupLabel = g.label;
-        dd.button.appendChild(this.badge());
+      if (menuItems.length > 0) {
+        const title = `${g.label}: ${menuItems.map((i) => i.label).join(', ')}`;
+        const dd = this.dropdown(g.label, g.icon, 'hud-group-btn hud-labelled', menuItems.map((it) => this.menuItem(it)), 'menu', title);
+        dd.button.dataset.group = g.id;
+        if (g.items.some((i) => i.panel === NEWS_PANEL)) {
+          this.newsGroupButton = dd.button;
+          this.newsGroupLabel = title;
+          dd.button.appendChild(this.badge());
+        }
+        set.appendChild(dd.wrap);
       }
-      groups.appendChild(dd.wrap);
+      for (const it of g.items.filter((i) => i.direct)) set.appendChild(this.panelButton(it));
+      groups.appendChild(set);
     }
 
     const layers = h('div', { class: 'hud-layers' });
@@ -253,7 +262,7 @@ export class Hud {
   private panelButton(it: HudGroupItem): HTMLElement {
     const title = withShortcut(it.label, 'panel', it.panel);
     return h('button', {
-      class: 'hud-btn hud-panel-btn',
+      class: 'hud-btn hud-panel-btn hud-labelled',
       'data-panel': it.panel,
       title,
       'aria-label': title,
@@ -341,14 +350,15 @@ export class Hud {
 
   // ------------------------------------------------------------------ dropdowns
 
-  private dropdown(label: string, icon: string, cls: string, items: HTMLElement[], role: 'menu' | 'group' = 'menu'): Dropdown {
+  /** `title` (tooltip and accessible name) defaults to `label`; groups list their contents in it. */
+  private dropdown(label: string, icon: string, cls: string, items: HTMLElement[], role: 'menu' | 'group' = 'menu', title = label): Dropdown {
     const id = `hud-menu-${++menuSeq}`;
     const menu = h('div', { class: 'hud-menu', id, role, 'aria-label': label }, ...items);
     menu.hidden = true;
     const button = h('button', {
       class: `hud-btn ${cls}`,
-      title: label,
-      'aria-label': label,
+      title,
+      'aria-label': title,
       'aria-haspopup': role === 'menu' ? 'menu' : 'true',
       'aria-expanded': 'false',
       'aria-controls': id,
@@ -391,16 +401,32 @@ export class Hud {
     return [...dd.menu.querySelectorAll<HTMLElement>('[role="menuitem"], select')];
   }
 
-  /** Esc closes the open dropdown before the game sees the key (it would open the pause menu). */
+  /**
+   * Esc closes the open dropdown before the game sees the key (it would open the pause menu). Any
+   * other game shortcut closes it and goes on to the game (N with World open opens the paper),
+   * except the keys that work the menu itself while focus is inside it.
+   */
   private readonly onWindowKey = (e: KeyboardEvent): void => {
-    if (e.key !== 'Escape' || !this.open) return;
-    e.preventDefault();
-    e.stopPropagation();
-    this.closeMenu(true);
+    const dd = this.open;
+    if (!dd) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.closeMenu(true);
+      return;
+    }
+    const inside = e.target instanceof Node && dd.wrap.contains(e.target);
+    if (inside && (MENU_KEYS.includes(e.key) || e.target instanceof HTMLSelectElement)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || !shortcutForEvent(e.key)) return;
+    this.closeMenu(inside);
   };
 
+  /** A click outside closes the dropdown and stops there: it must not also act on the map. */
   private readonly onWindowPointer = (e: Event): void => {
-    if (this.open && !(e.target instanceof Node && this.open.wrap.contains(e.target))) this.closeMenu(false);
+    if (!this.open || (e.target instanceof Node && this.open.wrap.contains(e.target))) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.closeMenu(false);
   };
 
   /**
@@ -408,7 +434,7 @@ export class Hud {
    * keys stop here: the game would pan on the arrows and pause on Space.
    */
   private menuKey(e: KeyboardEvent, dd: Dropdown): void {
-    if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' '].includes(e.key)) e.stopPropagation();
+    if (MENU_KEYS.includes(e.key)) e.stopPropagation();
     const items = this.focusables(dd);
     const at = items.indexOf(document.activeElement as HTMLElement);
     let next = -1;
@@ -439,8 +465,9 @@ export class Hud {
     this.renderBadges();
   }
 
-  private noteNews(id: number): void {
-    if (id <= this.newsSeenId) return;
+  /** Monthly market reports are routine: they print, but do not count as unread news. */
+  private noteNews(item: NewsItem): void {
+    if (item.id <= this.newsSeenId || item.kind === 'market') return;
     this.unread += 1;
     this.renderBadges();
   }
@@ -453,7 +480,7 @@ export class Hud {
     }
     const btn = this.newsGroupButton;
     if (btn) {
-      const label = this.unread === 0 ? this.newsGroupLabel : `${this.newsGroupLabel}, ${this.unread} unread news`;
+      const label = this.unread === 0 ? this.newsGroupLabel : `${this.newsGroupLabel}. ${this.unread} unread news`;
       btn.setAttribute('aria-label', label);
       btn.title = label;
     }
@@ -476,7 +503,7 @@ export class Hud {
     const offDay = bus.on('dayStart', () => {
       if (this.state) this.updateVane(this.state.weather);
     });
-    const offNews = bus.on('news', (e) => this.noteNews(e.item.id));
+    const offNews = bus.on('news', (e) => this.noteNews(e.item));
     return () => {
       offMonth();
       offDay();
