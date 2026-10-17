@@ -14,6 +14,8 @@ export const MAX_TABS = 6;
 export const MIN_PANEL_W = 320;
 /** Upper width bound as a fraction of the viewport width. */
 export const MAX_PANEL_FRAC = 0.6;
+/** Automatic widening for a wide window stops at this fraction of the viewport, so the map keeps 60%. */
+export const AUTO_WIDE_FRAC = 0.4;
 /** Width of the collapsed rail. */
 export const RAIL_W = 28;
 /** Below the card modal (4000) and the menu modals (5000). */
@@ -29,7 +31,7 @@ export interface TabSpec {
   close(): void;
   /**
    * The width the window asks for. Wider than the panel's default, it widens the panel to
-   * min(width, 60% of the viewport) while its tab is active, unless the player dragged a width.
+   * min(width, AUTO_WIDE_FRAC × viewport) while its tab is active, unless the player dragged a width.
    */
   width?: number;
 }
@@ -81,7 +83,9 @@ function applyWidth(): void {
   const w = savedWidth();
   const asked = activeId !== null ? tabs.get(activeId)?.spec.width : undefined;
   if (w !== null) root.style.width = `${clampPanelWidth(w, vw)}px`;
-  else if (asked !== undefined && asked > defaultWidthPx(vw)) root.style.width = `${clampPanelWidth(asked, vw)}px`;
+  else if (asked !== undefined && asked > defaultWidthPx(vw)) {
+    root.style.width = `${Math.max(defaultWidthPx(vw), Math.min(asked, AUTO_WIDE_FRAC * vw))}px`;
+  }
   else root.style.width = DEFAULT_WIDTH_CSS;
 }
 

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { h } from './dom';
 import { closeAllWindows, createWindow } from './window';
-import { clampPanelWidth, closeActiveTab, MAX_TABS, MIN_PANEL_W, RAIL_W, sidePanelEl } from './sidePanel';
+import { AUTO_WIDE_FRAC, clampPanelWidth, closeActiveTab, MAX_TABS, MIN_PANEL_W, RAIL_W, sidePanelEl } from './sidePanel';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from '../game/settings';
 
 const open = (id: string, title = `Win ${id}`) => createWindow({ id, title, content: h('div', null, id) });
@@ -335,13 +335,24 @@ describe('side panel fix round', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: before });
     });
 
-    it('a window asking for more than the panel width widens it to min(width, 60%) while active', () => {
+    it(`a window asking for more than the panel width widens it to min(width, ${AUTO_WIDE_FRAC * 100}%) while active`, () => {
+      expect(AUTO_WIDE_FRAC).toBe(0.4);
       wide('news', 820);
-      expect(panel()!.style.width).toBe('819.6px');
+      expect(panel()!.style.width).toBe('546.4px'); // 40% of 1366: the map keeps 60%
       open('p');
       expect(panel()!.style.width).toBe('min(420px, 34vw)');
       tabs()[0].click();
-      expect(panel()!.style.width).toBe('819.6px');
+      expect(panel()!.style.width).toBe('546.4px');
+      wide('fin', 640);
+      expect(panel()!.style.width).toBe('546.4px');
+    });
+
+    it('at 1920 a wide window gets its full requested width up to 40%', () => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
+      wide('fin', 640);
+      expect(panel()!.style.width).toBe('640px');
+      wide('news', 820);
+      expect(panel()!.style.width).toBe('768px');
     });
 
     it('a window narrower than the default leaves the default width', () => {
