@@ -120,7 +120,7 @@ Then open http://localhost:8080. The image is built in two stages: `node:18-alpi
 
 Optional. Each spring, JEV (TypeSafe's decision model) is asked which of the eligible event cards fits the moment best. The game blends its preference with the authored card weights and never lets one card hold more than 60% of the odds, so the dealing stays varied and deterministic for a given answer.
 
-Enable it:
+Enable it (needs Docker Compose 2.24 or newer, for the optional `env_file`):
 
 1. Create a `.env` file at the repo root (it is git-ignored) containing `TYPESAFE_API_KEY=<your key>`.
 2. Run `docker compose up -d --build`.

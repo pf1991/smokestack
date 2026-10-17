@@ -135,4 +135,10 @@ describe('settings: Smart events', () => {
     expect(loadSettings().smartEvents).toBe(false);
     localStorage.clear();
   });
+
+  it('shows "not checked yet" before any health check has run', () => {
+    const { ui, menu } = mount();
+    menu.show('settings');
+    expect(ui.querySelector('.mn-ai-status')?.textContent).toBe('JEV: not checked yet');
+  });
 });

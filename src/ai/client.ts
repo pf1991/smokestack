@@ -6,16 +6,16 @@
 import { answerDecision } from '../sim/ai/mailbox';
 import type { GameState } from '../sim/types';
 
-export type AiStatus = 'connected' | 'not configured' | 'offline';
+export type AiStatus = 'connected' | 'not configured' | 'offline' | 'unknown';
 
 const INTERVAL_MS = 2000;
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 30;
 const QUESTION_ID = 'pick';
 
-const TIMEOUT_MS = 3000;
+const TIMEOUT_MS = 4500; // above the proxy's own 3 s upstream limit, so the proxy answers first
 
-let lastStatus: AiStatus = 'offline';
+let lastStatus: AiStatus = 'unknown';
 const listeners = new Set<() => void>();
 function setStatus(s: AiStatus): void {
   lastStatus = s;
@@ -45,7 +45,7 @@ export function startAiClient(game: { state: GameState }, opts: AiClientOptions)
   /** every request id gets exactly one attempt per client, success or failure */
   const tried = new Set<string>();
 
-  /** fetch with a 3 s abort (a fake-timer friendly stand-in for AbortSignal.timeout) */
+  /** fetch with a 4.5 s abort (a fake-timer friendly stand-in for AbortSignal.timeout) */
   const timed = async <T>(url: string, init: RequestInit | undefined, read: (r: Response) => Promise<T>): Promise<T> => {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);

@@ -133,7 +133,7 @@ describe('startAiClient', () => {
     stop();
   });
 
-  it('aborts a hung request after 3 s and clears it from flight', async () => {
+  it('aborts a hung request after 4.5 s and clears it from flight', async () => {
     const state = setup();
     let signal: AbortSignal | undefined;
     const fetchImpl = ((url: string, init?: RequestInit) => {
@@ -145,7 +145,7 @@ describe('startAiClient', () => {
     await flush(); await tick();
     expect(signal).toBeDefined();
     expect(signal!.aborted).toBe(false);
-    await tick(3000);
+    await tick(4500);
     expect(signal!.aborted).toBe(true);
     expect(state.ai!.pending).toHaveLength(1);
     stop();
@@ -156,7 +156,7 @@ describe('startAiClient', () => {
     const fetchImpl = ((_u: string, init?: RequestInit) =>
       new Promise((_, rej) => init?.signal?.addEventListener('abort', () => rej(new Error('aborted'))))) as unknown as typeof fetch;
     const stop = startAiClient({ state }, { fetchImpl, enabled: () => true });
-    await tick(3000);
+    await tick(4500);
     expect(aiStatus()).toBe('offline');
     stop();
   });
