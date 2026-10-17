@@ -157,13 +157,14 @@ export function cardScale(state: GameState): number {
   // net worth as rival/takeover.ts's netWorth (not imported: it would close an import cycle)
   const c = state.companies[PLAYER_ID];
   const wealth = (c.money - c.loan + assetValue(state, PLAYER_ID)) / index / BASE_NET_WORTH;
-  // the head of the family's traits (shrewd, reckless) haggle every card's money
-  return index * Math.min(MAX_CARD_SCALE, Math.max(1, wealth)) * dynastyModifier(state).cardCost;
+  return index * Math.min(MAX_CARD_SCALE, Math.max(1, wealth));
 }
 
 /** A choice's cost now, in today's dollars, rounded to $100 (negative: money received). */
 export function choiceCost(state: GameState, choice: CardChoice): number {
-  return Math.round((choice.cost * cardScale(state)) / 100) * 100;
+  // the head of the family's traits (shrewd, reckless) haggle what the player pays, never what he receives
+  const family = choice.cost > 0 ? dynastyModifier(state).cardCost : 1;
+  return Math.round((choice.cost * cardScale(state) * family) / 100) * 100;
 }
 
 export function canAffordChoice(state: GameState, choice: CardChoice): boolean {

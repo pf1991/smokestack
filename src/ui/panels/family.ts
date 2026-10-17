@@ -31,7 +31,8 @@ function portrait(person: Person, year: number, px: number): HTMLElement {
   } catch {
     g = null;
   }
-  if (g) drawFamilyPortrait(g, px * 2, person, { year, female: isFemale(person) });
+  // the dead are pictured at the age they died
+  if (g) drawFamilyPortrait(g, px * 2, person, { year: person.died ?? year, female: isFemale(person) });
   return canvas;
 }
 
@@ -57,7 +58,7 @@ function personRow(cls: string, person: Person, year: number, px: number, ...ext
     h('div', { style: { minWidth: '0', flex: '1 1 auto' } },
       h('div', { style: { fontFamily: 'var(--font-display)', fontSize: '15px', color: 'var(--brass-light)' } }, person.name),
       h('div', { style: { fontSize: '12px', opacity: '0.8', marginBottom: '4px' } },
-        person.alive ? `aged ${age(person, year)}` : `died, aged ${age(person, year)}`),
+        person.alive || person.died === undefined ? `aged ${age(person, year)}` : `died ${person.died}, aged ${age(person, year)}`),
       traitList(person),
       ...extra));
 }

@@ -126,6 +126,7 @@ function dynastyProblems(state: GameState): string[] {
     ids.add(p.id);
     if (!Number.isInteger(p.id) || p.id >= d.nextPersonId) out.push(`dynasty: person id ${p.id} not below nextPersonId ${d.nextPersonId}`);
     if (!Number.isFinite(p.born)) out.push(`dynasty: ${p.name} born ${p.born} is not finite`);
+    if (p.alive && p.died !== undefined) out.push(`dynasty: ${p.name} is alive but died in ${p.died}`);
     for (const t of p.traits) if (!HEIR_TRAITS.includes(t)) out.push(`dynasty: ${p.name} has unknown trait ${t}`);
   }
   if (d.heirId !== null && !d.children.some((c) => c.id === d.heirId && c.alive)) out.push(`dynasty: heir ${d.heirId} is not a living child`);

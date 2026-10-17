@@ -77,6 +77,16 @@ describe('family panel', () => {
     expect(kids[1].textContent).toContain('under 18');
   });
 
+  it('the dead stop ageing: "died <year>, aged <age at death>"', () => {
+    const ctx = familyCtx();
+    const kid = ctx.state.dynasty.children[1];
+    kid.alive = false;
+    kid.died = 1920;
+    PANELS.family.open(game(ctx));
+    const row = [...panel().querySelectorAll<HTMLElement>('.family-child')][1];
+    expect(row.textContent).toContain('died 1920, aged 5');
+  });
+
   it('a single, childless head reads as such', () => {
     const state = createGame({ seed: 3, companyName: 'Acme Works' });
     const ctx = { state, bus: new EventBus() };

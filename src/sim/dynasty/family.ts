@@ -2,7 +2,7 @@
  * Phase 4 player dynasty (spec §7.2): the family's life, one system (`dynasty` in SYSTEMS).
  *
  * - Monthly (`dynastyMonth`): the head's traits drift national opinion (`dynastyModifier`, through
- *   adjustOpinion with 'The family name'); at the end of April, a single head under 50 is offered the
+ *   adjustOpinion with 'The family name', unlogged like the company edicts' drive); at the end of April, a single head under 50 is offered the
  *   `marriage` card (data/cards/early.ts) when the spring draw did not bring it, from 1905 on.
  * - Yearly (`dynastyYear`, December): while married and under 50, a child is born with chance 0.35 (up
  *   to 5, each with 1-2 traits); then the head dies with chance `mortality(age)`.
@@ -108,6 +108,7 @@ export function headDies(ctx: SimContext): void {
   const old = d.head;
   if (!old.alive) return;
   old.alive = false;
+  old.died = year;
   const heir = successor(d);
   if (!heir || age(heir, year) < HEIR_MIN_AGE) {
     publishNews(ctx, 'civic', `${old.name.toUpperCase()} DIES WITHOUT AN HEIR`, `${old.name} has died aged ${age(old, year)}. ${LINE_ENDED}.`);
@@ -139,7 +140,7 @@ export function dynastyMonth(ctx: SimContext): void {
   const d = state.dynasty;
   if (!d.head.alive) return;
   const { opinion } = dynastyModifier(state);
-  for (const f of FACTION_IDS) if (opinion[f] !== 0) adjustOpinion(state, f, 'national', opinion[f], 'The family name');
+  for (const f of FACTION_IDS) if (opinion[f] !== 0) adjustOpinion(state, f, 'national', opinion[f], 'The family name', { log: false });
   const { year, month } = state.date;
   if (month === MARRIAGE_MONTH && year >= MARRIAGE_FIRST_YEAR && canMarry(d, year)) openCardById(ctx, MARRIAGE_CARD_ID, null);
 }

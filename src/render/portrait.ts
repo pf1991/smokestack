@@ -778,7 +778,13 @@ export interface PortraitPerson {
 
 export type AgeBracket = 'child' | 'adult' | 'elder';
 
-export const ageBracket = (age: number): AgeBracket => (age < 16 ? 'child' : age < 60 ? 'adult' : 'elder');
+export const ageBracket = (age: number): AgeBracket => (age < 14 ? 'child' : age < 60 ? 'adult' : 'elder');
+
+/** Rough perceived lightness (0..1) of a '#rrggbb' colour. */
+function lightness(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+}
 
 const SKIN = ['#f1d2b6', '#e6bf9c', '#d9a983', '#c48d66'];
 const HAIR = ['#2a1b12', '#5a3a22', '#8a5a2b', '#b8863a', '#3b2a20', '#a0522d'];
@@ -797,7 +803,8 @@ function personHash(p: PortraitPerson): number {
  * frame around a tinted backdrop, a head-and-shoulders sitter. The look (skin, hair colour and style,
  * moustache, backdrop) is fixed by the person's id and name; `female` picks a high lace collar and a
  * bun (or ribbons for a girl) over a collar and tie (and a cap for a boy). The age at `year` sets the
- * bracket: a child is drawn small and round-faced, an elder grey-haired with spectacles. The dead are
+ * bracket: a child (under 14) is drawn as a small sitter low in the frame, round-faced, with a round
+ * white collar and no tie, an elder grey-haired with spectacles. The dead are
  * drawn in sepia with a black mourning ribbon across the corner.
  */
 export function drawFamilyPortrait(
@@ -837,6 +844,13 @@ export function drawFamilyPortrait(
   ctx.beginPath();
   ctx.rect(8, 8, 84, 84);
   ctx.clip();
+  // a child (under 14) is a small sitter: the whole figure shrunk to three quarters about the bottom of the
+  // frame, so the head sits low with empty backdrop above it
+  if (child) {
+    ctx.translate(50, 96);
+    ctx.scale(0.74, 0.74);
+    ctx.translate(-50, -96);
+  }
 
   // --- shoulders: a dark coat (or a dress) with a collar
   ctx.fillStyle = female ? (h & 128 ? '#5a2a3a' : '#2f3f5a') : '#22242a';
@@ -845,7 +859,28 @@ export function drawFamilyPortrait(
   ctx.quadraticCurveTo(50, child ? 62 : 58, child ? 76 : 84, 94);
   ctx.closePath();
   ctx.fill();
-  if (female) {
+  if (child) {
+    // a round white schoolchild's collar (no tie), with a bow for a girl
+    ctx.fillStyle = '#f2efe6';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(50 + side * 6, cy + ry + 4, 7, 4.5, side * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (female) {
+      ctx.fillStyle = h & 4096 ? '#c8463a' : '#4a6f9a';
+      ctx.beginPath();
+      ctx.moveTo(50, cy + ry + 3);
+      ctx.lineTo(45, cy + ry);
+      ctx.lineTo(45, cy + ry + 6);
+      ctx.closePath();
+      ctx.moveTo(50, cy + ry + 3);
+      ctx.lineTo(55, cy + ry);
+      ctx.lineTo(55, cy + ry + 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (female) {
     // high lace collar and a brooch
     ctx.fillStyle = '#efe6d6';
     ctx.fillRect(43, cy + ry - 3, 14, 9);
@@ -981,7 +1016,8 @@ export function drawFamilyPortrait(
         ctx.fill();
       }
     } else {
-      ctx.fillStyle = '#4a4038';
+      // a cap that stands out from the hair: straw over dark hair, navy over fair
+      ctx.fillStyle = lightness(hair) < 0.4 ? '#d9b86a' : '#24345a';
       ctx.beginPath();
       ctx.ellipse(50, cy - ry + 3, rx + 1, 6, 0, Math.PI, Math.PI * 2);
       ctx.fill();

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CARDS_BY_ID } from '../../data/cards';
 import { DYNASTY_TRAITS } from '../../data/dynasty';
 import { autoplayNameHeir } from '../../game/autoplay';
-import { autoResolve, cardScale, eligibleCards, resolveCard } from '../politics/cards';
+import { autoResolve, cardScale, choiceCost, eligibleCards, resolveCard } from '../politics/cards';
 import { scandalMonth } from '../politics/elections';
 import { companyEdictFactor, maintenanceFactor } from '../politics/edicts';
 import { nationalOpinion } from '../politics/factions';
@@ -44,6 +44,23 @@ describe('newDynasty', () => {
     expect(d.head.born).toBe(1872);
     expect(d.head.traits).toHaveLength(1);
     expect(d).toMatchObject({ spouse: null, children: [], heirId: null, generation: 1, prestige: 0 });
+  });
+});
+
+describe('marry', () => {
+  it('never weds a spouse under 18, even to an 18-year-old head', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const s = setup(seed, 1930).state;
+      s.dynasty.head.born = 1912; // 18
+      marry(s);
+      expect(1930 - s.dynasty.spouse!.born, `seed ${seed}`).toBeGreaterThanOrEqual(18);
+    }
+    // an older head keeps the age-gap roll: 0-6 years younger
+    const s = setup(2, 1930).state;
+    s.dynasty.head.born = 1890;
+    marry(s);
+    expect(s.dynasty.spouse!.born - 1890).toBeGreaterThanOrEqual(0);
+    expect(s.dynasty.spouse!.born - 1890).toBeLessThanOrEqual(6);
   });
 });
 
@@ -146,6 +163,7 @@ describe('succession', () => {
     expect(overs).toEqual(['The family line has ended']);
     expect(ctx.state.speed).toBe(0);
     expect(ctx.state.dynasty.head.alive).toBe(false);
+    expect(ctx.state.dynasty.head.died).toBe(1925);
     expect(checkInvariants(ctx.state)).toEqual([]);
     // nothing more happens to a dead line
     ctx.state.date = { year: 1926, month: 12, day: 30, hour: 0 };
@@ -291,12 +309,19 @@ describe('trait modifiers', () => {
     expect(dynastyModifier(s).opinion).toMatchObject({ reformers: 0.75, church: 0.75, oldmoney: -0.25, workers: 0.25 });
   });
 
-  it('reach cardScale', () => {
+  it('discount what the player pays for a card, never what he receives', () => {
     const s = setup().state;
+    const paid = { label: 'Pay', cost: 10_000, effects: [] };
+    const dowry = CARDS_BY_ID.marriage.choices[0];
     s.dynasty.head.traits = [];
-    const base = cardScale(s);
+    const scale = cardScale(s);
+    expect(choiceCost(s, paid)).toBe(Math.round((10_000 * scale) / 100) * 100);
+    const dowryBase = choiceCost(s, dowry);
+    expect(dowryBase).toBeLessThan(0);
     s.dynasty.head.traits = ['shrewd'];
-    expect(cardScale(s)).toBeCloseTo(base * 0.85, 9);
+    expect(cardScale(s)).toBe(scale);
+    expect(choiceCost(s, paid)).toBe(Math.round((10_000 * scale * 0.85) / 100) * 100);
+    expect(choiceCost(s, dowry)).toBe(dowryBase);
   });
 
   it('reach the edict maintenance multiplier', () => {
@@ -334,7 +359,19 @@ describe('trait modifiers', () => {
     expect(nationalOpinion(s, 'reformers')).toBeCloseTo(before.r + 0.5, 9);
     expect(nationalOpinion(s, 'oldmoney')).toBeCloseTo(before.o - 0.5, 9);
     expect(nationalOpinion(s, 'workers')).toBeCloseTo(before.w, 9);
-    expect(s.politics.log.some((l) => l.reason === 'The family name')).toBe(true);
+  });
+
+  it('a year of drift adds nothing to the politics log', () => {
+    const ctx = setup(1, 1902);
+    const s = ctx.state;
+    s.dynasty.head.traits = ['idealist', 'charming'];
+    const before = s.politics.log.length;
+    for (let m = 1; m <= 12; m++) {
+      s.date = { year: 1902, month: m, day: 30, hour: 0 };
+      dynastyMonth(ctx);
+    }
+    expect(s.politics.log.length).toBe(before);
+    expect(s.politics.log.some((l) => l.reason === 'The family name')).toBe(false);
   });
 
   it('every trait has a label, a blurb and modifiers', () => {

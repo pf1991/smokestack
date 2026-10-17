@@ -18,6 +18,8 @@ export interface Person {
   born: number;
   traits: HeirTrait[];
   alive: boolean;
+  /** the year of death (absent while alive, and for the dead of states from before this field) */
+  died?: number;
 }
 
 export interface DynastyState {
@@ -48,9 +50,12 @@ export const MAX_CHILDREN = 5;
 /** An heir must be this old to take the chair. */
 export const HEIR_MIN_AGE = 18;
 export const MARRIAGE_PRESTIGE = 5;
+/** A spouse is at least this old at the wedding. */
+export const MIN_SPOUSE_AGE = 18;
 export const SUCCESSION_PRESTIGE = 10;
 
-export const age = (p: Person, year: number): number => year - p.born;
+/** Age in `year`; the dead stop ageing at the year they died. */
+export const age = (p: Person, year: number): number => (p.died ?? year) - p.born;
 
 /** The family name: the first word of the company name ("Gilded Gear & Co." gives "Gilded"). */
 export function familyName(companyName: string): string {
@@ -107,7 +112,9 @@ export function marry(state: RngHolder & { dynasty: DynastyState; date: { year: 
   if (d.spouse !== null || !d.head.alive) return;
   const female = !isFemale(d.head);
   const given = freshGivenName(state, d, female);
-  d.spouse = { id: d.nextPersonId++, name: `${given} ${surname(d.head)}`, born: d.head.born + randInt(state, 0, 6), traits: [], alive: true };
+  // a few years younger than the head, but never under MIN_SPOUSE_AGE at the wedding
+  const born = Math.min(d.head.born + randInt(state, 0, 6), state.date.year - MIN_SPOUSE_AGE);
+  d.spouse = { id: d.nextPersonId++, name: `${given} ${surname(d.head)}`, born, traits: [], alive: true };
   d.prestige += MARRIAGE_PRESTIGE;
 }
 

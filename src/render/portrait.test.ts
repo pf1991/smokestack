@@ -81,9 +81,20 @@ describe('drawFamilyPortrait', () => {
     expect(draw(person(2, 'Ezra Gilded'), 1885)).not.toBe(draw(person(2, 'Ezra Gilded'), 1920));
     expect(draw(person(2, 'Ezra Gilded'), 1950)).not.toBe(draw(person(2, 'Ezra Gilded'), 1920));
     expect(draw(person(2, 'Ezra Gilded'), 1920, true)).not.toBe(draw(person(2, 'Ezra Gilded'), 1920));
-    expect(ageBracket(15)).toBe('child');
-    expect(ageBracket(16)).toBe('adult');
+    expect(ageBracket(13)).toBe('child');
+    expect(ageBracket(14)).toBe('adult');
     expect(ageBracket(60)).toBe('elder');
+  });
+
+  it('draws a child small and low, with no tie', () => {
+    const calls = (year: number) => {
+      const m = mockCtx();
+      drawFamilyPortrait(m.g, 100, person(5, 'Oswald Gilded', 1930), { year });
+      return m.calls;
+    };
+    const kid = calls(1932);
+    expect(kid).toContain('scale(0.74,0.74)');
+    expect(calls(1960)).not.toContain('scale(0.74,0.74)');
   });
 
   it('is not the Baron: a square frame, no oval cameo', () => {

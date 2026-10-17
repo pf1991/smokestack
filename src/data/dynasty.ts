@@ -15,7 +15,7 @@ export interface DynastyModifiers {
   opinion?: Partial<Record<FactionId, number>>;
   /** × the company edicts' maintenance multiplier (sim/politics/edicts.ts companyEdictFactor) */
   edictCost?: number;
-  /** × every event card's money (sim/politics/cards.ts cardScale) */
+  /** × what the player pays for an event card choice (sim/politics/cards.ts choiceCost; money received is not scaled) */
   cardCost?: number;
   /** × the monthly bribery scandal chance (sim/politics/elections.ts scandalMonth) */
   scandal?: number;
