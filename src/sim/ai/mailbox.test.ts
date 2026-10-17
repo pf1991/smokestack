@@ -203,3 +203,23 @@ describe('decision mailbox', () => {
     expect(checkInvariants(r.value)).toEqual([]);
   });
 });
+
+describe('takeDecision maxShare', () => {
+  it('caps a dominant option and spreads the excess; no answer means no cap', () => {
+    const o = [{ key: 'a', weight: 1 }, { key: 'b', weight: 1 }, { key: 'c', weight: 1 }, { key: 'd', weight: 1 }];
+    let hitsAi = 0;
+    let hitsPlain = 0;
+    for (let i = 0; i < 3000; i++) {
+      const s = posted();
+      s.rngState = i * 2654435761;
+      answerDecision(s, 'card:1', { probabilities: { a: 1 } });
+      if (takeDecision(s, 'card:1', o, 1, 0.6) === 'a') hitsAi++;
+      const t = posted();
+      t.rngState = i * 2654435761;
+      if (takeDecision(t, 'card:1', [{ key: 'a', weight: 9 }, { key: 'b', weight: 1 }], 0.5, 0.6) === 'a') hitsPlain++;
+    }
+    expect(hitsAi / 3000).toBeGreaterThan(0.56);
+    expect(hitsAi / 3000).toBeLessThan(0.64);
+    expect(hitsPlain / 3000).toBeGreaterThan(0.86);
+  });
+});
