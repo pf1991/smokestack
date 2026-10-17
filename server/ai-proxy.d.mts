@@ -5,5 +5,6 @@ export interface ProxyOptions {
   upstream?: string;
   fetchImpl?: typeof fetch;
   now?: () => number;
+  trustProxy?: boolean;
 }
 export function createProxy(opts: ProxyOptions): RequestListener;

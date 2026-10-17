@@ -10,7 +10,10 @@ services:
 
   ai-proxy:
     image: node:22-alpine
+    user: node
     working_dir: /srv
+    environment:
+      HOST: 0.0.0.0
     volumes:
       - ./server:/srv:ro
     command: node ai-proxy.mjs

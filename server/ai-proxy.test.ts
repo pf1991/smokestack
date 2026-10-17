@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createProxy } from './ai-proxy.mjs';
@@ -60,6 +60,18 @@ describe('ai-proxy', () => {
     expect(sent.questions.q1.criteria).toEqual({ a: 'A', b: 'B' });
   });
 
+  it('does not forward extra question fields and uses a 3000 ms timeout', async () => {
+    const calls: Call[] = [];
+    const spy = vi.spyOn(AbortSignal, 'timeout');
+    const base = await start({ apiKey: 'test-key', fetchImpl: okFetch(calls) });
+    await post(base, body({ questions: { q1: { ...question, evil: 'x', extra: { a: 1 } } }, junk: 1 }));
+    const sent = JSON.parse(calls[0].init.body as string);
+    expect(Object.keys(sent).sort()).toEqual(['model', 'questions', 'state']);
+    expect(Object.keys(sent.questions.q1).sort()).toEqual(['criteria', 'instructions', 'type']);
+    expect(spy).toHaveBeenCalledWith(3000);
+    spy.mockRestore();
+  });
+
   it('uses the TypeSafe endpoint by default', async () => {
     const calls: Call[] = [];
     const base = await start({ apiKey: 'test-key', fetchImpl: okFetch(calls) });
@@ -86,6 +98,43 @@ describe('ai-proxy', () => {
         expect(calls).toHaveLength(0);
       });
     }
+    it('non-string criteria value', async () => {
+      const base = await start({ apiKey: 'test-key', fetchImpl: okFetch() });
+      expect((await post(base, body({ questions: { q: { ...question, criteria: { a: 5 } } } }))).status).toBe(400);
+    });
+    it('missing instructions', async () => {
+      const base = await start({ apiKey: 'test-key', fetchImpl: okFetch() });
+      const { instructions: _i, ...q } = question;
+      expect((await post(base, body({ questions: { q } }))).status).toBe(400);
+    });
+    it('long instructions, bad ids, long descriptions, oversized questions', async () => {
+      const base = await start({ apiKey: 'test-key', fetchImpl: okFetch() });
+      const bad = [
+        { q: { ...question, instructions: 'x'.repeat(1025) } },
+        { 'Bad Id': question },
+        { q: { ...question, criteria: { 'Bad Key': 'd' } } },
+        { q: { ...question, criteria: { a: 'x'.repeat(257) } } },
+        // 4 questions x 20 options x 256 chars exceeds 16 KB
+        Object.fromEntries(['a', 'b', 'c', 'd'].map((k) => [k, { ...question, criteria: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`o${i}`, "x".repeat(256)])) }])),
+      ];
+      for (const questions of bad) expect((await post(base, body({ questions }))).status).toBe(400);
+    });
+    it('state cap is measured in bytes', async () => {
+      const base = await start({ apiKey: 'test-key', fetchImpl: okFetch() });
+      // 5000 chars of 3-byte glyphs = 15000 bytes > 12 KB, but only ~5 KB of chars
+      expect((await post(base, body({ state: { s: '€'.repeat(5000) } }))).status).toBe(400);
+    });
+    it('oversized streamed body gets 413, not a reset', async () => {
+      const base = await start({ apiKey: 'test-key', fetchImpl: okFetch() });
+      const status = await new Promise<number>((resolve, reject) => {
+        const r = http.request(base + '/api/decide', { method: 'POST' }, (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+        r.on('error', reject);
+        r.write('x'.repeat(40 * 1024));
+        r.write('x'.repeat(40 * 1024));
+        r.end();
+      });
+      expect(status).toBe(413);
+    });
     it('invalid JSON', async () => {
       const base = await start({ apiKey: 'test-key', fetchImpl: okFetch() });
       const res = await fetch(base + '/api/decide', { method: 'POST', body: '{nope' });
@@ -136,6 +185,19 @@ describe('ai-proxy', () => {
     expect((await fetch(base + '/api/health')).status).toBe(429);
     t += 60_000;
     expect((await fetch(base + '/api/health')).status).toBe(200);
+  });
+
+  it('enforces a global ceiling across IPs and only trusts X-Real-IP when asked', async () => {
+    const base = await start({ apiKey: 'test-key', fetchImpl: okFetch(), now: () => 5, trustProxy: true });
+    for (let i = 0; i < 600; i++) {
+      const r = await fetch(base + '/api/health', { headers: { 'x-real-ip': `10.0.${i % 250}.${Math.floor(i / 250)}` } });
+      expect(r.status).toBe(200);
+    }
+    expect((await fetch(base + '/api/health', { headers: { 'x-real-ip': '9.9.9.9' } })).status).toBe(429);
+    // untrusted: spoofed header must not give a fresh bucket
+    const plain = await start({ apiKey: 'test-key', fetchImpl: okFetch(), now: () => 5 });
+    for (let i = 0; i < 120; i++) await fetch(plain + '/api/health', { headers: { 'x-real-ip': `1.1.1.${i}` } });
+    expect((await fetch(plain + '/api/health', { headers: { 'x-real-ip': '2.2.2.2' } })).status).toBe(429);
   });
 
   it('unknown paths and methods return 404', async () => {
