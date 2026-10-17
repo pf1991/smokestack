@@ -23,7 +23,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `panel=<id>`      open a panel (e.g. `routes`) on load
  *  - `openroute=1` (dev) open the routes window on the first player route
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
- *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the dock)
+ *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
  *  - `scenario=<id>`   start a scenario
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen

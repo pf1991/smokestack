@@ -1,6 +1,6 @@
 /* Photo mode: hide the interface, keep the toast stack and the photo bar. */
 body.photo-mode #ui > :not(.photo-bar):not(.toast-stack),
-body.photo-mode .dock,
+body.photo-mode .side-panel,
 body.photo-mode .window {
   visibility: hidden !important;
 }

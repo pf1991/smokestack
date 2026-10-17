@@ -6,13 +6,15 @@ export interface Settings {
   autoNews: boolean;
   /** start new games without the cold-open intro (game/coldOpen.ts) */
   skipIntro: boolean;
+  /** side panel width in CSS px (ui/sidePanel.ts); null means the default min(420px, 34vw) */
+  panelWidth: number | null;
 }
 
 const KEY = 'smokestack:settings';
 /** Same key the newspaper panel reads ('off' disables auto-open). */
 const AUTO_NEWS_KEY = 'smokestack:autoNews';
 
-export const DEFAULT_SETTINGS: Settings = { volume: 0.6, muted: false, autoNews: true, skipIntro: false };
+export const DEFAULT_SETTINGS: Settings = { volume: 0.6, muted: false, autoNews: true, skipIntro: false, panelWidth: null };
 
 export function loadSettings(): Settings {
   const out = { ...DEFAULT_SETTINGS };
@@ -23,6 +25,7 @@ export function loadSettings(): Settings {
       if (typeof p.volume === 'number' && Number.isFinite(p.volume)) out.volume = Math.min(1, Math.max(0, p.volume));
       if (typeof p.muted === 'boolean') out.muted = p.muted;
       if (typeof p.skipIntro === 'boolean') out.skipIntro = p.skipIntro;
+      if (typeof p.panelWidth === 'number' && Number.isFinite(p.panelWidth) && p.panelWidth > 0) out.panelWidth = p.panelWidth;
     }
     out.autoNews = localStorage.getItem(AUTO_NEWS_KEY) !== 'off';
   } catch {
@@ -33,7 +36,7 @@ export function loadSettings(): Settings {
 
 export function saveSettings(s: Settings): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ volume: s.volume, muted: s.muted, skipIntro: s.skipIntro }));
+    localStorage.setItem(KEY, JSON.stringify({ volume: s.volume, muted: s.muted, skipIntro: s.skipIntro, panelWidth: s.panelWidth }));
     localStorage.setItem(AUTO_NEWS_KEY, s.autoNews ? 'on' : 'off');
   } catch {
     /* quota or blocked storage: settings last for this session only */

@@ -17,6 +17,7 @@ import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
 import { enterPhotoMode } from './photoMode';
 import { closeAllWindows } from '../ui/window';
+import { closeActiveTab } from '../ui/sidePanel';
 import { clearStamps } from '../ui/juice';
 import { Input } from './input';
 import { ToolController } from './toolController';
@@ -258,13 +259,17 @@ export class GameController {
     };
   }
 
-  /** Esc: cancels the active tool or open drawer; with nothing to cancel it asks for the pause menu. */
+  /**
+   * Esc: cancels the active tool or open drawer; with no tool it closes the side panel's active tab;
+   * with nothing to cancel or close it asks for the pause menu.
+   */
   escape(): void {
     if (this.tools.activeTool.kind !== 'inspect' || this.toolbar.drawerOpen || this.renderer.hasSelection()) {
       this.tools.cancel();
       this.closeDrawer();
       return;
     }
+    if (closeActiveTab()) return;
     this.onPause?.();
   }
 

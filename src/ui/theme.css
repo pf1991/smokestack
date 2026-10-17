@@ -99,7 +99,7 @@ input[type='text'] {
   padding: 6px 8px;
 }
 
-/* Draggable window with brass frame. */
+/* Window with brass frame (shown as a tab in the side panel). */
 .window {
   position: absolute;
   pointer-events: auto;
@@ -152,12 +152,13 @@ input[type='text'] {
   overflow: auto;
 }
 
-/* Toasts stack in the top-right corner, below the HUD bar (--hud-height is set by the game). */
+/* Toasts stack in the top-right corner, below the HUD bar (--hud-height is set by the game) and left of
+   the side panel (--side-panel-w is set by sidePanel.ts). */
 .toast-stack {
   position: fixed;
   pointer-events: auto;
   top: calc(var(--hud-height, env(safe-area-inset-top, 0px)) + 12px);
-  right: 12px;
+  right: calc(12px + var(--side-panel-w, 0px));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -269,7 +270,7 @@ input[type='text'] {
   }
 }
 
-/* Window manager: window body fills a height-capped window; docked windows live in a right-side tab strip. */
+/* Window body fills a height-capped window (windows live in the side panel, sidePanel.css). */
 .window {
   display: flex;
   flex-direction: column;
@@ -278,66 +279,4 @@ input[type='text'] {
 .window-body {
   flex: 1 1 auto;
   min-height: 0;
-}
-
-.dock {
-  position: fixed;
-  right: 8px;
-  top: calc(var(--hud-height, 56px) + 8px);
-  max-height: calc(100vh - var(--hud-height, 56px) - 150px);
-  overflow-y: auto;
-  z-index: 90;
-  width: 124px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.dock:empty {
-  display: none;
-}
-
-.dock-tab {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  flex: 0 0 auto;
-  padding: 5px 6px;
-  cursor: pointer;
-  font-family: var(--font-display);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--paper);
-  background: var(--walnut-light);
-  border: 2px solid var(--brass-dark);
-  border-radius: 3px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-}
-
-.dock-tab:hover {
-  border-color: var(--brass);
-}
-
-.dock-tab-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dock-tab-close {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  cursor: pointer;
-  color: var(--paper);
-  background: var(--walnut);
-  border: 1px solid var(--brass-dark);
-  border-radius: 2px;
-}
-
-.dock-tab-close:hover {
-  background: var(--rival);
 }

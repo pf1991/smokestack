@@ -106,46 +106,16 @@ describe('createWindow', () => {
   const pointer = (target: EventTarget, type: string, x: number, y: number) =>
     target.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }));
 
-  it('dragging the title bar moves the window by the pointer delta', () => {
+  it('the title bar does not drag the window: it lives in the side panel', () => {
     const win = createWindow({ id: 'd1', title: 'T', content: h('div') });
-    document.body.appendChild(win.el);
     const title = win.el.querySelector('.window-title') as HTMLElement;
-    const startLeft = parseFloat(win.el.style.left);
-    const startTop = parseFloat(win.el.style.top);
     pointer(title, 'pointerdown', 300, 300);
     pointer(document, 'pointermove', 320, 310);
     pointer(document, 'pointerup', 320, 310);
-    expect(parseFloat(win.el.style.left)).toBe(startLeft + 20);
-    expect(parseFloat(win.el.style.top)).toBe(startTop + 10);
+    expect(win.el.style.left).toBe('');
+    expect(win.el.style.top).toBe('');
+    expect(win.el.closest('.side-panel')).not.toBeNull();
     win.close();
-  });
-
-  it('clamps the window inside the viewport while dragging', () => {
-    const win = createWindow({ id: 'clamp1', title: 'T', content: h('div') });
-    document.body.appendChild(win.el);
-    const title = win.el.querySelector('.window-title') as HTMLElement;
-    pointer(title, 'pointerdown', 300, 300);
-    pointer(document, 'pointermove', -5000, -5000);
-    expect(win.el.style.left).toBe('0px');
-    expect(win.el.style.top).toBe('0px');
-    pointer(document, 'pointermove', 50000, 50000);
-    pointer(document, 'pointerup', 50000, 50000);
-    expect(parseFloat(win.el.style.left)).toBeLessThanOrEqual(window.innerWidth);
-    expect(parseFloat(win.el.style.top)).toBeLessThanOrEqual(window.innerHeight);
-    win.close();
-  });
-
-  it('closing mid-drag stops the drag and removes document listeners', () => {
-    const win = createWindow({ id: 'cd1', title: 'T', content: h('div') });
-    document.body.appendChild(win.el);
-    const title = win.el.querySelector('.window-title') as HTMLElement;
-    pointer(title, 'pointerdown', 300, 300);
-    pointer(document, 'pointermove', 310, 300);
-    const leftBefore = win.el.style.left;
-    win.close();
-    pointer(document, 'pointermove', 400, 400);
-    pointer(document, 'pointerup', 400, 400);
-    expect(win.el.style.left).toBe(leftBefore);
     expect(win.el.isConnected).toBe(false);
   });
 
