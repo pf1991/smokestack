@@ -25,6 +25,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
  *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
+ *  - `hudmenu=<id>` (dev) open a top-bar dropdown: company, operations, world, more
  *  - `scenario=<id>`   start a scenario
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
  *  - `pause=1` (dev, with a debug start) open the pause menu
@@ -187,6 +188,12 @@ if (debugStart) {
     if (import.meta.env.DEV && at?.length === 2 && at.every(Number.isFinite)) g.centerOn({ x: at[0], y: at[1] });
     if (import.meta.env.DEV && params.get('tiltshift') === '1') g.renderer.forceTiltShift = true;
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
+    // `hudmenu=<group id|more|factions>` opens a top-bar dropdown (screenshots of the menus)
+    const hudMenu = params.get('hudmenu');
+    if (import.meta.env.DEV && hudMenu) {
+      const sel = hudMenu === 'more' ? '.hud-more-btn' : hudMenu === 'factions' ? '.hud-factions-mode-btn' : `.hud-group-btn[data-group="${CSS.escape(hudMenu)}"]`;
+      document.querySelector<HTMLElement>(sel)?.click();
+    }
     if (import.meta.env.DEV && params.get('openroute') === '1') {
       const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');
       if (r) g.openPanel('routes', r.id);

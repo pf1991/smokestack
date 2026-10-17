@@ -7,6 +7,7 @@ import { stepTick } from '../sim/simulation';
 import { createGame } from '../sim/state';
 import type { GameMap, GameState, SimContext, Speed, Vec2 } from '../sim/types';
 import { Hud } from '../ui/hud';
+import type { PauseScreen } from '../ui/menu';
 import { PANELS } from '../ui/panels/index';
 import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
@@ -66,8 +67,11 @@ export class GameController {
   readonly hud: Hud;
   readonly toolbar: Toolbar;
   readonly sfx = new Sfx();
-  /** Called when Esc is pressed with no tool or drawer to cancel (the pause menu hooks in here). */
-  onPause: (() => void) | null = null;
+  /**
+   * Called when Esc is pressed with no tool or drawer to cancel (the pause menu hooks in here), and
+   * by the HUD's More menu with the screen to open (Save, Load, Settings).
+   */
+  onPause: ((screen?: PauseScreen) => void) | null = null;
   private readonly input: Input;
   private readonly g2d: CanvasRenderingContext2D;
   /** unfiltered canvas above the world for ghost, selection and floaters */
@@ -127,6 +131,7 @@ export class GameController {
       onSpeed: (s) => this.setSpeed(s),
       onOpenPanel: (id) => this.openPanel(id),
       onPhoto: () => this.togglePhotoMode(),
+      onMenu: (screen) => this.onPause?.(screen),
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
     this.input = new Input(canvas, this);

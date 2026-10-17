@@ -326,8 +326,14 @@ function modal(kind: string, content: HTMLElement[], onEsc: (() => void) | null)
   return handle;
 }
 
-/** Esc menu: Resume, Save to slot, Load, Settings, Quit to menu. Pauses the game while open. */
-export function openPauseMenu(game: GameController, host: PauseHost): void {
+/** A pause-menu screen the HUD's More menu can open directly. */
+export type PauseScreen = 'save' | 'load' | 'settings';
+
+/**
+ * Esc menu: Resume, Save to slot, Load, Settings, Quit to menu. Pauses the game while open.
+ * `screen` opens straight onto Save, Load or Settings (Back still leads to the home screen).
+ */
+export function openPauseMenu(game: GameController, host: PauseHost, screen?: PauseScreen): void {
   if (current) return;
   const resumeSpeed = game.state.speed;
   game.setSpeed(0);
@@ -338,25 +344,30 @@ export function openPauseMenu(game: GameController, host: PauseHost): void {
     if (resumeSpeed > 0) game.setSpeed(resumeSpeed);
   };
   const body = h('div', { class: 'mn-pause' });
+  const screens: Record<PauseScreen, () => void> = {
+    save: () => sub('Save Game', slotList('save', (slot) => {
+      const r = saveTo(slot, game.state);
+      return r.ok ? `Saved to ${SLOT_LABEL[slot]}.` : `Could not save: ${r.error}`;
+    })),
+    load: () => sub('Load Game', slotList('load', (slot) => {
+      const r = loadFrom(slot);
+      if (!r.ok) return r.error;
+      close();
+      host.startLoaded(r.value);
+    })),
+    settings: () => sub('Settings', settingsView((s) => {
+      game.sfx.setVolume(s.volume);
+      game.sfx.setMuted(s.muted);
+    })),
+  };
   const home = () => {
     body.replaceChildren(
       h('h2', null, 'Paused'),
       h('div', { class: 'mn-home' },
         button('Resume', resume, { cls: 'mn-primary' }),
-        button('Save to slot', () => sub('Save Game', slotList('save', (slot) => {
-          const r = saveTo(slot, game.state);
-          return r.ok ? `Saved to ${SLOT_LABEL[slot]}.` : `Could not save: ${r.error}`;
-        }))),
-        button('Load', () => sub('Load Game', slotList('load', (slot) => {
-          const r = loadFrom(slot);
-          if (!r.ok) return r.error;
-          close();
-          host.startLoaded(r.value);
-        }))),
-        button('Settings', () => sub('Settings', settingsView((s) => {
-          game.sfx.setVolume(s.volume);
-          game.sfx.setMuted(s.muted);
-        }))),
+        button('Save to slot', screens.save),
+        button('Load', screens.load),
+        button('Settings', screens.settings),
         quitButton()));
   };
   const sub = (title: string, view: HTMLElement) =>
@@ -373,7 +384,8 @@ export function openPauseMenu(game: GameController, host: PauseHost): void {
     }, { cls: 'mn-danger' });
     return b;
   };
-  home();
+  if (screen) screens[screen]();
+  else home();
   m = modal('pause', [body], resume);
 }
 

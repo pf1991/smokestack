@@ -200,6 +200,8 @@ export const newspaperPanel: PanelDef = {
   id: 'newspaper',
   open(game: GameController) {
     const state = game.state;
+    // every way in (HUD, N key, the month-end auto-open) clears the HUD's unread badge
+    game.hud?.markNewsRead();
     const content = h('div', null);
     let cur = monthsWithNews(state).length - 1;
     const draw = () => {

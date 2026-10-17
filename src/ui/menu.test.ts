@@ -3,7 +3,7 @@ import { SAVE_VERSION } from '../sim/migrations';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveTo } from '../game/saves';
 import { createGame } from '../sim/state';
-import { closeModal, MainMenu, showEndScreen } from './menu';
+import { closeModal, MainMenu, openPauseMenu, showEndScreen } from './menu';
 import { buildGoals } from './panels/goals';
 import { testState } from '../sim/testkit';
 
@@ -124,5 +124,21 @@ describe('settings: Skip intro', () => {
     box.dispatchEvent(new Event('change'));
     expect(loadSettings().skipIntro).toBe(true);
     expect(loadSettings().volume).toBe(0.6);
+  });
+});
+
+describe('pause menu: opening straight onto a screen', () => {
+  const fakeGame = () => ({ state: { speed: 2 }, setSpeed: vi.fn(), sfx: { setVolume: vi.fn(), setMuted: vi.fn() } });
+  const host = { startNew: vi.fn(), startLoaded: vi.fn(), quitToMenu: vi.fn() };
+  it.each([['settings', 'Settings'], ['save', 'Save Game'], ['load', 'Load Game']] as const)('%s opens the %s screen', (screen, title) => {
+    closeModal();
+    const game = fakeGame();
+    openPauseMenu(game as never, host, screen);
+    expect(document.querySelector('.mn-modal h2')?.textContent).toBe(title);
+    expect(game.setSpeed).toHaveBeenCalledWith(0);
+    // Back still leads to the pause home
+    btn(document.body, 'Back').click();
+    expect(document.querySelector('.mn-modal h2')?.textContent).toBe('Paused');
+    closeModal();
   });
 });

@@ -27,6 +27,14 @@ describe('newspaper panel', () => {
     expect(document.querySelectorAll('.paper')).toHaveLength(1);
     expect(document.querySelector('.paper-nav span')?.textContent).toBe('Vol. 73 · No. 1');
   });
+
+  it('every open (HUD, N key, month-end auto-open) clears the HUD unread badge', () => {
+    const ctx = testCtx(testState());
+    const markNewsRead = vi.fn();
+    const game = { state: ctx.state, ctx, hud: { markNewsRead } } as unknown as GameController;
+    newspaperPanel.open(game);
+    expect(markNewsRead).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('auto-open', () => {
