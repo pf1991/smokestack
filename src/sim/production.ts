@@ -169,6 +169,8 @@ export function maintenanceMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const owner of companyIds(state)) {
     const company = state.companies[owner];
+    // a closed company (a regional firm gone under, the Baron out of the game) holds nothing to keep up
+    if (!company.active) continue;
     let total = 0;
     // every building's upkeep is at today's prices × its age factor (society/upgrades.ts buildingMaintenance);
     // company edicts (wages, safety, unions) and mayors' minimum wage scale the player's only

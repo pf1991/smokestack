@@ -4,7 +4,8 @@
  * route and truck goes through the public sim API (sim/chainBuilder.ts) and is paid with the firm's
  * own money. Each month a firm tops up trucks on backed-up legs, renews worn assets and borrows or
  * repays like the Baron (rival/projects.ts, parameterised by owner); six months in the red and it
- * closes, selling its assets through demolishBuilding and sellVehicle. Finance closes their books
+ * closes, selling its assets through demolishBuilding and sellVehicle. Each December it pays its
+ * owners a dividend (DIVIDEND_SHARE of its cash above DIVIDEND_KEEP), so its cash does not pile up. Finance closes their books
  * with every other company's (companyIds). Town politics ignores their sales (politics/factions.ts).
  *
  * Founding happens in January's hook. At most one firm is founded a year: the earliest due firm whose
@@ -20,8 +21,8 @@ import { REGIONAL_FIRM_NAMES } from '../../data/names';
 import { BUILDINGS } from '../../data/buildings';
 import { RECIPES } from '../../data/recipes';
 import { buildChain, CHAINS, type ChainId } from '../chainBuilder';
-import { addCompany, companyIds } from '../companies';
-import { BANKRUPT_MONTHS } from '../finance';
+import { abandonInfrastructure, addCompany, companyIds } from '../companies';
+import { BANKRUPT_MONTHS, spend } from '../finance';
 import { publishNews } from '../news';
 import { manageLoans, renewOldAssets, repayLoans, topUpTrucks } from '../rival/projects';
 import { atPrices } from '../society/economy';
@@ -52,6 +53,11 @@ export const REGIONAL_RESERVE = 20_000;
  * Two per leg from the start doubled the firms' fleets for little trade and cost the soak ~7% in time.
  */
 export const FOUNDING_TRUCKS = 1;
+
+/** Cash a firm keeps through December, in 1900 dollars (× price index). */
+export const DIVIDEND_KEEP = 200_000;
+/** Share of the cash above DIVIDEND_KEEP a firm pays its owners each December. */
+export const DIVIDEND_SHARE = 0.6;
 
 const isRegional = (c: Company | undefined): c is Company => c?.kind === 'regional';
 
@@ -130,7 +136,8 @@ function foundDueFirm(ctx: SimContext): void {
 
 /**
  * Closes a firm: routes deleted and vehicles sold (sellVehicle), buildings demolished (refunds
- * included), what cash is left settles the loan and the bank writes off the rest. Its roads stay.
+ * included); the bank takes what cash is left against the loan and writes off the rest, negative
+ * cash included, so the firm ends at zero. Its roads and rails stay, abandoned (nobody's).
  */
 export function closeFirm(ctx: SimContext, id: OwnerId, news = true): void {
   const { state } = ctx;
@@ -138,13 +145,18 @@ export function closeFirm(ctx: SimContext, id: OwnerId, news = true): void {
   for (const r of Object.values(state.routes)) if (r.ownerId === id) deleteRoute(ctx, r.id);
   for (const v of Object.values(state.vehicles)) if (v.ownerId === id) sellVehicle(ctx, v.id);
   for (const b of Object.values(state.buildings)) if (b.ownerId === id) demolishBuilding(ctx, b.id, id);
-  const settle = Math.min(c.loan, Math.max(0, c.money));
-  c.money -= settle;
+  abandonInfrastructure(state, id);
+  c.money = 0;
   c.loan = 0;
   c.active = false;
   if (!news) return;
   const town = state.cities.find((x) => x.id === c.homeCityId)?.name ?? 'the provinces';
   publishNews(ctx, 'market', `${c.name} closes its doors`, `After ${BANKRUPT_MONTHS} months in the red, ${c.name} of ${town} has sold off its works and shut up shop.`);
+}
+
+/** December payout: DIVIDEND_SHARE of the firm's cash above DIVIDEND_KEEP at today's prices (0 below it). */
+export function regionalDividend(state: GameState, c: Company): number {
+  return Math.round(DIVIDEND_SHARE * Math.max(0, c.money - atPrices(state, DIVIDEND_KEEP)));
 }
 
 /** The regional system's monthly hook. */
@@ -163,5 +175,8 @@ export function regionalMonth(ctx: SimContext): void {
     topUpTrucks(ctx, id, reserve);
     renewOldAssets(ctx, id, reserve);
     repayLoans(ctx, id);
+    // the firm's (abstract) owners take their dividend; the money leaves the economy
+    const dividend = state.date.month === 12 ? regionalDividend(state, c) : 0;
+    if (dividend > 0) spend(c, 'dividends', dividend, state.date);
   }
 }

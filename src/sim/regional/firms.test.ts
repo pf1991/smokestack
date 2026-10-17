@@ -15,7 +15,8 @@ import { createGame } from '../state';
 import { stateHash } from '../hash';
 import { testCtx, testState } from '../testkit';
 import type { GameState, SimContext, Terrain } from '../types';
-import { REGIONAL_FIRMS, REGIONAL_START_MONEY, regionalMonth } from './firms';
+import { DIVIDEND_KEEP, DIVIDEND_SHARE, REGIONAL_FIRMS, REGIONAL_START_MONEY, regionalDividend, regionalMonth } from './firms';
+import { maintenanceMonth } from '../production';
 
 const fresh = (seed = 42): SimContext => ({ state: createGame({ seed }), bus: new EventBus() });
 
@@ -150,6 +151,54 @@ describe('regional firms', () => {
     const money = c.money;
     regionalMonth(ctx);
     expect(c.money).toBe(money);
+  });
+
+  it('a closed firm abandons its roads, has its cash zeroed and pays no more upkeep', () => {
+    const ctx = fresh();
+    const { state } = ctx;
+    january(ctx, 1905);
+    const c = state.companies.regional_1;
+    // give it some road of its own whatever the map gave it for free
+    const free = state.map.tiles.findIndex((t) => !t.road && t.buildingId === null && t.terrain === 'grass' && t.cityId === null);
+    state.map.tiles[free].road = true;
+    state.map.tiles[free].roadOwner = 'regional_1';
+    c.roadTiles += 1;
+    c.money = -500_000;
+    c.loan = 100_000;
+    c.monthsInRed = BANKRUPT_MONTHS;
+    state.date = { year: 1905, month: 7, day: 30, hour: 23 };
+    regionalMonth(ctx);
+    expect(c.active).toBe(false);
+    expect([c.money, c.loan, c.roadTiles, c.railTiles]).toEqual([0, 0, 0, 0]);
+    expect(state.map.tiles.some((t) => t.roadOwner === 'regional_1' || t.railOwner === 'regional_1')).toBe(false);
+    // the road itself stays, now nobody's
+    expect(state.map.tiles[free].road).toBe(true);
+    // upkeep skips the closed firm, even should it somehow still hold a road tile count
+    c.roadTiles = 10;
+    maintenanceMonth(ctx);
+    expect(c.money).toBe(0);
+  });
+
+  it(`December dividend: ${DIVIDEND_SHARE * 100}% of cash above ${DIVIDEND_KEEP} (today's prices) leaves the firm`, () => {
+    const ctx = fresh();
+    const { state } = ctx;
+    january(ctx, 1905);
+    const c = state.companies.regional_1;
+    const keep = atPrices(state, DIVIDEND_KEEP);
+    c.money = keep + 100_000;
+    expect(regionalDividend(state, c)).toBe(60_000);
+    c.money = keep - 1;
+    expect(regionalDividend(state, c)).toBe(0);
+    // paid in December's hook only, booked as 'dividends' (not counted as an operating expense)
+    c.money = keep + 100_000;
+    c.loan = 0;
+    state.date = { year: 1905, month: 11, day: 30, hour: 23 };
+    regionalMonth(ctx);
+    expect(c.money).toBe(keep + 100_000);
+    state.date = { year: 1905, month: 12, day: 30, hour: 23 };
+    regionalMonth(ctx);
+    expect(c.money).toBe(keep + 40_000);
+    expect(c.ledger.at(-1)!.expense.dividends).toBe(60_000);
   });
 
   it('a firm short of cash borrows, like the Baron', () => {

@@ -202,7 +202,9 @@ export type LedgerCategory =
   | 'contracts'
   | 'events'
   | 'demolition'
-  | 'fines';
+  | 'fines'
+  /** a regional firm's payout to its owners (regional/firms.ts): a distribution, not an operating expense */
+  | 'dividends';
 
 export interface LedgerMonth {
   year: number;
