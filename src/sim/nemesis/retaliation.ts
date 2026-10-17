@@ -42,9 +42,14 @@ export const MAX_CHANCE = 0.6;
 
 export const PRICE_WAR_DAYS = 90;
 export const PRICE_WAR_FACTOR = 0.85;
-export const POACH_DELTA = -5;
+export const POACH_DELTA = -4;
 /** months before the Baron poaches in the same town again */
-export const POACH_COOLDOWN_MONTHS = 24;
+export const POACH_COOLDOWN_MONTHS = 48;
+/**
+ * he only poaches where the workers' opinion is at least this: never in a town already near the
+ * go-slow (30) or strike (25) line, so poaching cannot by itself hold a town in unrest
+ */
+export const POACH_MIN_WORKERS = 35;
 export const SMEAR_DELTA = -4;
 export const SABOTAGE_MIN_DAYS = 10;
 export const SABOTAGE_MAX_DAYS = 20;
@@ -97,12 +102,14 @@ function warTargets(state: GameState): { cityId: number; goodId: GoodId }[] {
   return out;
 }
 
-/** towns the player hires from where the Baron has not poached in the last POACH_COOLDOWN_MONTHS */
+/** towns the player hires from, with workers' opinion >= POACH_MIN_WORKERS, where the Baron has not poached in the last POACH_COOLDOWN_MONTHS */
 function poachTargets(state: GameState): City[] {
   const now = monthIndex(state.date);
   // `?? {}`: a save written earlier in Phase 4 (already v7) has no poach record yet
   const last = state.nemesis.track.poached ?? {};
-  return state.cities.filter((c) => (last[c.id] === undefined || now - last[c.id] >= POACH_COOLDOWN_MONTHS) && playerHiresFrom(state, c.id));
+  return state.cities.filter(
+    (c) => c.opinion.workers >= POACH_MIN_WORKERS && (last[c.id] === undefined || now - last[c.id] >= POACH_COOLDOWN_MONTHS) && playerHiresFrom(state, c.id),
+  );
 }
 
 /** towns voting within the next 12 months that the Baron is not already funding in */

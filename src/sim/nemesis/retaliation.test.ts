@@ -20,6 +20,8 @@ import {
   PRICE_WAR_FACTOR,
   RESERVE_MULTIPLE,
   POACH_COOLDOWN_MONTHS,
+  POACH_DELTA,
+  POACH_MIN_WORKERS,
   RETALIATE_AT,
   RETALIATION_COST,
   retaliate,
@@ -257,20 +259,39 @@ describe('fund_opponent', () => {
 });
 
 describe('poach and smear', () => {
-  it('poach: the workers of a town the player hires from lose 5', () => {
+  it('poach: the workers of a town the player hires from lose 4', () => {
     const ctx = setup();
     expect(eligibleKinds(ctx)).not.toContain('poach');
     factory(ctx);
     expect(eligibleKinds(ctx)).toContain('poach');
     const w = ctx.state.cities[0].opinion.workers;
     expect(retaliate(ctx, 'poach')).toBe(true);
-    expect(ctx.state.cities[0].opinion.workers).toBe(w - 5);
-    expect(ctx.state.politics.log.at(-1)).toMatchObject({ faction: 'workers', scope: 0, delta: -5, reason: 'Smogsworth poaches your men' });
+    expect(POACH_DELTA).toBe(-4);
+    expect(ctx.state.cities[0].opinion.workers).toBe(w - 4);
+    expect(ctx.state.politics.log.at(-1)).toMatchObject({ faction: 'workers', scope: 0, delta: -4, reason: 'Smogsworth poaches your men' });
+  });
+
+  it(`poach: only in towns whose workers' opinion is at least ${POACH_MIN_WORKERS}`, () => {
+    const ctx = setup();
+    factory(ctx);
+    const city = ctx.state.cities[0];
+    adjustOpinion(ctx.state, 'workers', 0, POACH_MIN_WORKERS - 1 - city.opinion.workers, 'test');
+    expect(city.opinion.workers).toBe(34);
+    expect(eligibleKinds(ctx)).not.toContain('poach');
+    expect(retaliate(ctx, 'poach')).toBe(false);
+    adjustOpinion(ctx.state, 'workers', 0, 1, 'test');
+    expect(city.opinion.workers).toBe(35);
+    expect(eligibleKinds(ctx)).toContain('poach');
+    expect(retaliate(ctx, 'poach')).toBe(true);
+    expect(city.opinion.workers).toBe(31);
   });
 
   it(`poach: not again in the same town within ${POACH_COOLDOWN_MONTHS} months`, () => {
     const ctx = setup();
+    // no December rivalry grudges, so no moves of his own while the months pass
+    ctx.state.companies.rival.money = 1e12;
     factory(ctx);
+    expect(POACH_COOLDOWN_MONTHS).toBe(48);
     expect(retaliate(ctx, 'poach')).toBe(true);
     expect(ctx.state.nemesis.track.poached).toEqual({ 0: monthIndex(ctx.state.date) });
     for (let i = 0; i < POACH_COOLDOWN_MONTHS - 1; i++) {
