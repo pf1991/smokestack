@@ -295,3 +295,22 @@ describe('card modal', () => {
     expect(heard).toBe(1);
   });
 });
+
+describe('card modal: why this card', () => {
+  it('shows the JEV line only when the last card pick used AI', () => {
+    const s = withCard();
+    s.ai = { pending: [], answers: {}, log: [{ id: 'card:1906', picked: 'founders_parade', usedAi: true }] };
+    const a = host(s);
+    live.push(attachCardModal(a.h));
+    a.frame();
+    expect(document.body.textContent).toContain("Chosen by the editor's instinct (JEV)");
+    for (const d of live.splice(0)) d();
+    document.body.innerHTML = '';
+    const t = withCard();
+    t.ai = { pending: [], answers: {}, log: [{ id: 'card:1906', picked: 'founders_parade', usedAi: false }] };
+    const b = host(t);
+    live.push(attachCardModal(b.h));
+    b.frame();
+    expect(document.body.textContent).not.toContain('JEV');
+  });
+});

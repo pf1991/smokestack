@@ -126,3 +126,13 @@ describe('settings: Skip intro', () => {
     expect(loadSettings().volume).toBe(0.6);
   });
 });
+
+describe('settings: Smart events', () => {
+  it('defaults on and is stored with the other settings', async () => {
+    const { loadSettings, saveSettings } = await import('../game/settings');
+    expect(loadSettings().smartEvents).toBe(true);
+    saveSettings({ ...loadSettings(), smartEvents: false });
+    expect(loadSettings().smartEvents).toBe(false);
+    localStorage.clear();
+  });
+});

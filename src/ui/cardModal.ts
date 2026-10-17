@@ -46,6 +46,13 @@ function oldest(pending: CardInstance[]): CardInstance | undefined {
   return best;
 }
 
+/** True when the most recent yearly card pick (the log's last `card:` entry) was weighed by JEV. */
+function usedAi(state: GameState): boolean {
+  const log = state.ai?.log ?? [];
+  for (let i = log.length - 1; i >= 0; i--) if (log[i].id.startsWith('card:')) return log[i].usedAi;
+  return false;
+}
+
 function chip(state: GameState, e: CardEffect, cityName: string | null): HTMLElement {
   const year = state.date.year;
   const where = e.scope === 'national' ? 'all towns' : (cityName ?? 'here');
@@ -147,6 +154,7 @@ export function attachCardModal(host: CardHost): () => void {
       h('p', { class: 'card-body' }, text.body),
       h('div', { class: 'card-rule' }, 'Your answer'),
       h('div', { class: 'card-choices' }, ...choices),
+      usedAi(state) ? h('p', { class: 'card-why' }, "Chosen by the editor's instinct (JEV)") : null,
       error ? h('p', { class: 'card-error', role: 'alert' }, error) : null);
     const next = h('div', { class: 'card-modal' }, h('div', { class: 'card-backdrop' }), h('div', { class: 'card-shadow' }, clipping));
     if (root) root.replaceWith(next);
