@@ -1,4 +1,5 @@
-import { loadSettings, saveSettings } from './game/settings';
+import { loadSettings, saveSettings, UI_SCALES } from './game/settings';
+import { startUiScale } from './ui/scale';
 import './ui/theme.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
@@ -49,6 +50,10 @@ import { startStrike } from './sim/society/strikes';
 const canvas = document.getElementById('world') as HTMLCanvasElement;
 const ui = document.getElementById('ui') as HTMLElement;
 const params = new URLSearchParams(location.search);
+// `uiscale=0.8|0.9|1|1.15|1.3` (dev) sets the interface scale (screenshots)
+const uiScaleParam = Number(params.get('uiscale'));
+if (import.meta.env.DEV && UI_SCALES.includes(uiScaleParam)) saveSettings({ ...loadSettings(), uiScale: uiScaleParam as 0.8 });
+startUiScale();
 const app = new App(canvas, ui);
 
 // inspect2 does nothing outside DEV, so only there does it start a debug game

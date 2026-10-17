@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { h } from './dom';
 import { closeAllWindows, createWindow } from './window';
 import { AUTO_WIDE_FRAC, clampPanelWidth, closeActiveTab, MAX_TABS, MIN_PANEL_W, RAIL_W, sidePanelEl } from './sidePanel';
+import { applyUiScale } from './scale';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from '../game/settings';
 
 const open = (id: string, title = `Win ${id}`) => createWindow({ id, title, content: h('div', null, id) });
@@ -132,6 +133,15 @@ describe('side panel width', () => {
   it('defaults to min(420px, 34vw) when no width is saved', () => {
     open('a');
     expect(panel()!.style.width).toBe('min(420px, 34vw)');
+  });
+
+  it('under a UI scale the width is written in zoomed px and published in screen px', () => {
+    applyUiScale(1.25);
+    saveSettings({ ...loadSettings(), panelWidth: 500 });
+    open('a');
+    expect(parseFloat(panel()!.style.width)).toBeCloseTo(500 / 1.25);
+    expect(document.documentElement.style.getPropertyValue('--side-panel-w')).toBe('500px');
+    applyUiScale(1);
   });
 
   it('dragging the grip resizes, clamps and persists through settings', () => {

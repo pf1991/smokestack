@@ -1,5 +1,6 @@
 /* Keyboard and mouse help (ui/help.ts). Above the card modal (4000), below the pause menu (5000). */
 .help-modal {
+  zoom: var(--ui-scale, 1);
   position: fixed;
   inset: 0;
   z-index: 4500;

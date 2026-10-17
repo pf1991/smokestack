@@ -1,5 +1,6 @@
 /* Event card modal (ui/cardModal.ts): a clipping cut from The Daily Smokestack over a dimmed valley. */
 .card-modal {
+  zoom: var(--ui-scale, 1);
   position: fixed;
   inset: 0;
   /* above windows (z from 100 up), toasts and the cold open; below the pause menu (5000) */

@@ -1,12 +1,17 @@
 import { h } from './dom';
 import { iconEl } from './icon';
 import { loadSettings, saveSettings } from '../game/settings';
+import { currentUiScale } from './scale';
 import './sidePanel.css';
 
 /**
  * The one side panel: a fixed column on the right edge, between the HUD bar and the build bar,
  * holding every open window as a tab. Only the active tab's window is displayed; the others are
  * `display: none` and keep their content. window.ts's createWindow registers windows here.
+ *
+ * The root carries `zoom: var(--ui-scale)`, so the px it is given (top, bottom, width) are zoomed px:
+ * everything measured or computed in screen px (rects, innerWidth, the 40% and [320, 60%] bounds) is
+ * divided by currentUiScale() on the way in. getBoundingClientRect and --side-panel-w stay in screen px.
  */
 
 /** Most tabs at once; opening one more closes the least recently focused. */
@@ -75,6 +80,7 @@ function savedWidth(): number | null {
 /** The panel's width when expanded: the saved one (re-clamped to this viewport) or the default. */
 function applyWidth(): void {
   if (!root) return;
+  const s = currentUiScale();
   if (collapsed) {
     root.style.width = `${RAIL_W}px`;
     return;
@@ -82,11 +88,11 @@ function applyWidth(): void {
   const vw = window.innerWidth;
   const w = savedWidth();
   const asked = activeId !== null ? tabs.get(activeId)?.spec.width : undefined;
-  if (w !== null) root.style.width = `${clampPanelWidth(w, vw)}px`;
+  if (w !== null) root.style.width = `${clampPanelWidth(w, vw) / s}px`;
   else if (asked !== undefined && asked > defaultWidthPx(vw)) {
-    root.style.width = `${Math.max(defaultWidthPx(vw), Math.min(asked, AUTO_WIDE_FRAC * vw))}px`;
+    root.style.width = `${Math.max(defaultWidthPx(vw), Math.min(asked, AUTO_WIDE_FRAC * vw)) / s}px`;
   }
-  else root.style.width = DEFAULT_WIDTH_CSS;
+  else root.style.width = s === 1 ? DEFAULT_WIDTH_CSS : `${defaultWidthPx(vw) / s}px`;
 }
 
 /** DEFAULT_WIDTH_CSS in px for viewport width `vw`. */
@@ -99,7 +105,9 @@ function defaultWidthPx(vw: number): number {
  * stack (theme.css) moves left of it instead of sliding underneath.
  */
 function publishWidth(): void {
-  const w = root && !root.hidden ? root.style.width || '0px' : '0px';
+  let w = root && !root.hidden ? root.style.width || '0px' : '0px';
+  // the root's width is in zoomed px; the variable is in screen px
+  if (w.endsWith('px') && !w.startsWith('min')) w = `${parseFloat(w) * currentUiScale()}px`;
   document.documentElement.style.setProperty('--side-panel-w', w);
 }
 
@@ -109,8 +117,9 @@ let observer: ResizeObserver | null = null;
 function layout(): void {
   if (!root) return;
   const { hudBottom, toolbarTop } = measure();
-  root.style.top = `${Math.max(0, hudBottom)}px`;
-  root.style.bottom = `${Math.max(0, window.innerHeight - toolbarTop)}px`;
+  const s = currentUiScale();
+  root.style.top = `${Math.max(0, hudBottom) / s}px`;
+  root.style.bottom = `${Math.max(0, window.innerHeight - toolbarTop) / s}px`;
   applyWidth();
   publishWidth();
   if (!observer && typeof ResizeObserver !== 'undefined') observer = new ResizeObserver(() => layout());
@@ -126,12 +135,12 @@ function startResize(ev: MouseEvent): void {
   const startX = ev.clientX;
   const rectW = root.getBoundingClientRect().width;
   const saved = savedWidth();
-  const startW = rectW > 0 ? rectW : saved ?? (parseFloat(root.style.width) || defaultWidthPx(window.innerWidth));
+  const startW = rectW > 0 ? rectW : saved ?? (parseFloat(root.style.width) * currentUiScale() || defaultWidthPx(window.innerWidth));
   let w = startW;
   root.classList.add('resizing');
   const onMove = (m: MouseEvent) => {
     w = clampPanelWidth(startW + (startX - m.clientX), window.innerWidth);
-    if (root) root.style.width = `${w}px`;
+    if (root) root.style.width = `${w / currentUiScale()}px`;
     publishWidth();
   };
   const onUp = () => {
@@ -181,7 +190,11 @@ export function sidePanelEl(): HTMLElement {
   document.body.appendChild(root);
   const onResize = () => layout();
   window.addEventListener('resize', onResize);
-  unlisten = () => window.removeEventListener('resize', onResize);
+  window.addEventListener('uiscalechange', onResize);
+  unlisten = () => {
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('uiscalechange', onResize);
+  };
   return root;
 }
 

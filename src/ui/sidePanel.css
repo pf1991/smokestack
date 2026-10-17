@@ -1,6 +1,8 @@
 /* The one side panel (sidePanel.ts): tabbed windows on the right edge, between the HUD bar and the build bar. */
 .side-panel {
   position: fixed;
+  /* top, bottom and width are written in zoomed px (sidePanel.ts divides screen px by the scale) */
+  zoom: var(--ui-scale, 1);
   right: 0;
   display: flex;
   flex-direction: column;

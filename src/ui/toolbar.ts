@@ -13,6 +13,7 @@ import { iconEl } from './icon';
 import { shortcutFor, withShortcut } from './shortcuts';
 import { formatMoney } from './format';
 import type { ToolSpec } from './tools';
+import { currentUiScale } from './scale';
 import './hud.css';
 
 type TabId = 'extract' | 'refine' | 'manufacture' | 'retail' | 'transport';
@@ -168,9 +169,11 @@ export class Toolbar {
       this.placeFlyout();
       window.addEventListener('pointerdown', this.onOutside, true);
       window.addEventListener('resize', this.onResize);
+      window.addEventListener('uiscalechange', this.onResize);
     } else {
       window.removeEventListener('pointerdown', this.onOutside, true);
       window.removeEventListener('resize', this.onResize);
+      window.removeEventListener('uiscalechange', this.onResize);
     }
     for (const [tid, btn] of this.tabButtons) {
       btn.classList.toggle('active', tid === this.activeTab);
@@ -194,9 +197,12 @@ export class Toolbar {
     const bar = this.bar.getBoundingClientRect();
     const panel = parseFloat(document.documentElement.style.getPropertyValue('--side-panel-w')) || 0;
     const max = window.innerWidth - panel - 16;
-    const w = Math.min(this.body.offsetWidth, max);
+    // rects, innerWidth and --side-panel-w are screen px; style.left is in zoomed px (#ui is zoomed), so divide by the scale
+    const s = currentUiScale();
+    this.body.style.maxWidth = `${max / s}px`; // the stylesheet's vw-based cap is not reliable under zoom
+    const w = Math.min(this.body.getBoundingClientRect().width || this.body.offsetWidth * s, max);
     const left = Math.max(8, Math.min(bar.left + bar.width / 2 - w / 2, window.innerWidth - panel - 8 - w));
-    this.body.style.left = `${Math.round(left - bar.left - 2)}px`; // 2 px: the bar's border
+    this.body.style.left = `${Math.round((left - bar.left - 2 * s) / s)}px`; // 2 px: the bar's border
   }
 
   private static keyOf(t: ToolSpec): string {

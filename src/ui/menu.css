@@ -10,7 +10,7 @@
   color: var(--paper);
   font-family: var(--font-body);
 }
-.mn-modal { z-index: 5000; background: rgba(10, 6, 3, 0.62); }
+.mn-modal { zoom: var(--ui-scale, 1); z-index: 5000; background: rgba(10, 6, 3, 0.62); }
 .mn-vignette {
   position: fixed;
   inset: 0;

@@ -2,7 +2,7 @@ import { COMPANY_NAMES } from '../data/names';
 import { ACHIEVEMENTS, loadUnlocked } from '../game/achievements';
 import type { GameController, NewGameOpts } from '../game/controller';
 import { listSaves, loadFrom, saveTo, SLOTS, unreadableSlots, type SaveInfo, type SaveSlot } from '../game/saves';
-import { loadSettings, saveSettings, type Settings } from '../game/settings';
+import { loadSettings, saveSettings, UI_SCALES, type Settings } from '../game/settings';
 import { goalProgress, SCENARIOS, type Goal } from '../sim/scenarios';
 import type { GameState } from '../sim/types';
 import { h } from './dom';
@@ -107,12 +107,22 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
     },
   }, ...(['headline', 'scroll', 'off'] as const).map((m) =>
     h('option', { value: m, selected: s.ticker === m }, { headline: 'Latest headline', scroll: 'Scrolling', off: 'Hidden' }[m]))) as HTMLSelectElement;
+  const scale = h('select', {
+    'aria-label': 'Interface scale',
+    onChange: (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      s.uiScale = v === 'auto' ? 'auto' : (Number(v) as Settings['uiScale']);
+      apply();
+    },
+  }, h('option', { value: 'auto', selected: s.uiScale === 'auto' }, 'Auto'),
+  ...UI_SCALES.map((n) => h('option', { value: String(n), selected: s.uiScale === n }, `${Math.round(n * 100)}%`))) as HTMLSelectElement;
   return h('div', { class: 'mn-form' },
     h('label', { class: 'mn-row' }, h('span', null, 'Master volume'), vol),
     h('label', { class: 'mn-row' }, h('span', null, 'Mute all sound'), mute),
     h('label', { class: 'mn-row' }, h('span', null, 'Open the newspaper automatically'), news),
     h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro),
-    h('label', { class: 'mn-row' }, h('span', null, 'News ticker'), ticker));
+    h('label', { class: 'mn-row' }, h('span', null, 'News ticker'), ticker),
+    h('label', { class: 'mn-row' }, h('span', null, 'Interface scale'), scale));
 }
 
 function achievementsView(): HTMLElement {
