@@ -116,9 +116,14 @@ export function smogDay(ctx: SimContext): void {
   const { snap, next } = scratch(map);
   const n0 = dirty.count;
   let n = n0;
+  // the tile reads alone first: a tight loop keeps many of these (mostly cache-missing) loads in
+  // flight at once, then the neighbour scan below runs on the small arrays only
   for (let j = 0; j < n0; j++) {
     const i = list[j];
     snap[i] = tiles[i].pollution;
+  }
+  for (let j = 0; j < n0; j++) {
+    const i = list[j];
     const y = (i / width) | 0;
     const x = i - y * width;
     if (x > 0 && !member[i - 1]) (member[i - 1] = 1), (list[n++] = i - 1);
