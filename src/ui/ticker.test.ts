@@ -60,4 +60,31 @@ describe('Ticker', () => {
     saveSettings({ ...DEFAULT_SETTINGS, ticker: 'off' });
     expect(el.hidden).toBe(true);
   });
+
+  it('the headline strip is a keyboard-reachable button', () => {
+    const { el, open } = setup('headline');
+    expect(el.getAttribute('role')).toBe('button');
+    expect(el.tabIndex).toBe(0);
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it('the scroll strip is not a button', () => {
+    const { el, open } = setup('scroll');
+    expect(el.getAttribute('role')).toBeNull();
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('the detach function stops listening to settings changes', () => {
+    localStorage.clear();
+    saveSettings({ ...DEFAULT_SETTINGS, ticker: 'scroll' });
+    const el = document.createElement('div');
+    const off = Ticker.attach(el, new EventBus(), [], undefined);
+    off();
+    saveSettings({ ...DEFAULT_SETTINGS, ticker: 'off' });
+    expect(el.hidden).toBe(false);
+  });
 });

@@ -19,16 +19,22 @@ export const Ticker = {
       el.classList.toggle('headline', mode === 'headline');
       document.documentElement.style.setProperty('--ticker-h', `${STRIP_PX[mode]}px`);
       if (mode === 'off') {
+        el.removeAttribute('role');
+        el.removeAttribute('tabindex');
         el.replaceChildren();
         return;
       }
       if (mode === 'headline') {
         const latest = items[items.length - 1];
         el.title = 'Open the newspaper';
+        el.setAttribute('role', 'button');
+        el.tabIndex = 0;
         el.replaceChildren(h('span', { class: 'ticker-item' }, h('b', null, latest ? latest.headline : MASTHEAD)));
         return;
       }
       el.removeAttribute('title');
+      el.removeAttribute('role');
+      el.removeAttribute('tabindex');
       const track = h('span', { class: 'ticker-track' });
       if (items.length === 0) track.append(h('span', { class: 'ticker-item' }, MASTHEAD));
       [...items].reverse().forEach((n, i) => {
@@ -40,7 +46,14 @@ export const Ticker = {
     const click = () => {
       if (mode === 'headline') onOpen?.();
     };
+    const key = (e: KeyboardEvent) => {
+      if (mode === 'headline' && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        onOpen?.();
+      }
+    };
     el.addEventListener('click', click);
+    el.addEventListener('keydown', key);
     render();
     const offNews = bus.on('news', (e) => {
       items = [...items, e.item].slice(-MAX_HEADLINES);
@@ -55,6 +68,7 @@ export const Ticker = {
       offNews();
       offSettings();
       el.removeEventListener('click', click);
+      el.removeEventListener('keydown', key);
     };
   },
 };
