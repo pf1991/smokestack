@@ -10,6 +10,7 @@ import { iconEl } from './icon';
 import { formatMoney } from './format';
 import './menu.css';
 import { MenuBackdrop } from './menuBackdrop';
+import { buildLegacy } from './panels/legacy';
 
 /** What the menus need from the application shell. */
 export interface MenuHost {
@@ -378,11 +379,12 @@ export function openPauseMenu(game: GameController, host: PauseHost): void {
 }
 
 /** Victory / game-over card. */
-export function showEndScreen(kind: 'victory' | 'gameOver', reason: string, host: { quitToMenu(): void }, onKeepLooking: () => void): void {
+export function showEndScreen(kind: 'victory' | 'gameOver', reason: string, host: { quitToMenu(): void }, onKeepLooking: () => void, state?: GameState): void {
   if (current?.kind === 'end') return; // victory and bankruptcy can land in the same tick: first one wins
   const m: ModalHandle = modal('end', [
     h('h2', { class: kind === 'victory' ? 'mn-won' : 'mn-lost' }, kind === 'victory' ? 'Victory!' : 'Game Over'),
     h('p', { class: 'mn-reason' }, reason),
+    ...(state ? [buildLegacy(state)] : []),
     h('div', { class: 'mn-actions' },
       button('Look around', () => {
         m.close();

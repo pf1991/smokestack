@@ -1,5 +1,6 @@
 import type { GameController } from '../../game/controller';
 import { dateToDays } from '../../sim/clock';
+import { legacyScore } from '../../sim/legacy';
 import { evaluateGoals, goalProgress, scenarioOf } from '../../sim/scenarios';
 import type { GameState } from '../../sim/types';
 import { h } from '../dom';
@@ -14,9 +15,11 @@ function fmt(n: number, isMoney: boolean): string {
 
 export function buildGoals(state: GameState): HTMLElement {
   const sc = scenarioOf(state);
+  const legacy = h('div', { class: 'gl-line gl-legacy' }, h('b', null, 'Legacy'), h('span', null, formatNumber(legacyScore(state).total)));
   if (sc.goals.length === 0) {
     return h('div', { class: 'gl-list' },
-      h('div', { class: 'gl-note' }, `${sc.name}: no goals, no deadlines. Build whatever you like until the century ends.`));
+      h('div', { class: 'gl-note' }, `${sc.name}: no goals, no deadlines. Build whatever you like until the century ends.`),
+      legacy);
   }
   const { done, failed } = evaluateGoals(state);
   return h('div', { class: 'gl-list' },
@@ -33,7 +36,8 @@ export function buildGoals(state: GameState): HTMLElement {
         h('div', { class: 'gl-line' },
           g.kind === 'takeover' ? h('span', null, done[i] ? 'Complete' : 'Reach 3x his net worth first') : h('span', null, `${fmt(Math.min(p.value, p.target), money)} / ${fmt(p.target, money)}`),
           h('span', null, status)));
-    }));
+    }),
+    legacy);
 }
 
 export const goalsPanel: PanelDef = {

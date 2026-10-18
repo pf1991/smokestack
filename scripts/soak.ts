@@ -53,6 +53,7 @@ import { nationalBlackLung } from '../src/sim/society/escalation';
 import { assetAge, renewBuilding } from '../src/sim/society/aging';
 import { grudgeTotal } from '../src/sim/nemesis/grudges';
 import { companyIds } from '../src/sim/companies';
+import { legacyScore } from '../src/sim/legacy';
 
 const END_YEAR = 2001;
 
@@ -228,6 +229,8 @@ for (const seed of seeds) {
     `  exchange ${seed}: bids started ${bids.started}, repelled ${bids.repelled}, lost ${bids.lost} | baron holds ${stake('rival', 'player')} of the player, player ${stake('player', 'player')} own | player loan ${money(state.companies.player.loan)} | baron ${state.companies.rival.active ? 'active' : 'taken over'}`,
   );
   console.log(`  dynasty ${seed}: generation ${state.dynasty.generation} | heads ${heads.join(', ')} | prestige ${state.dynasty.prestige} | children ${state.dynasty.children.length}`);
+  const lg = legacyScore(state);
+  console.log(`  legacy ${seed}: ${lg.total} = fortune ${lg.fortune} + landmarks ${lg.landmarks} + reputation ${lg.reputation} + dynasty ${lg.dynasty}`);
   const firms = companyIds(state).filter((id) => state.companies[id].kind === 'regional');
   const firmText = firms.map((id) => {
     const c = state.companies[id];

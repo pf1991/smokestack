@@ -49,3 +49,7 @@ PANELS.family = familyPanel;
 import { exchangePanel } from './exchange';
 
 PANELS.exchange = exchangePanel;
+
+import { legacyPanel } from './legacy';
+
+PANELS.legacy = legacyPanel;
