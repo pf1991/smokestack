@@ -308,5 +308,6 @@ export class Input {
     for (const off of this.offs) off();
     this.offs.length = 0;
     this.held.clear();
+    closeHelp();
   }
 }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flatMap } from '../sim/testkit';
+import { isHelpOpen, openHelp } from '../ui/help';
 import { Input, type InputHost } from './input';
 
 function pointer(target: HTMLElement, type: string, button: number, x = 100, y = 100): void {
@@ -43,6 +44,16 @@ function setup(photoActive: boolean, activeToolKind = 'inspect') {
 const live: (() => void)[] = [];
 afterEach(() => {
   for (const d of live.splice(0)) d();
+});
+
+describe('Input.destroy', () => {
+  it('closes the help overlay', () => {
+    const { input } = setup(false);
+    openHelp();
+    expect(isHelpOpen()).toBe(true);
+    input.destroy();
+    expect(isHelpOpen()).toBe(false);
+  });
 });
 
 describe('Input in photo mode', () => {
