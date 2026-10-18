@@ -83,9 +83,11 @@ export function historicFlag(id: string): string {
 export function historicDay(ctx: SimContext): void {
   const { state } = ctx;
   for (const ev of HISTORIC_EVENTS) {
+    // the date test first: it rules out almost every event on almost every day without building
+    // the flag key and looking it up in state.flags (both tests are pure, so the order is free)
+    if (state.date.year !== ev.year || state.date.month !== ev.month) continue;
     const key = historicFlag(ev.id);
     if (state.flags[key]) continue;
-    if (state.date.year !== ev.year || state.date.month !== ev.month) continue;
     state.flags[key] = true;
     ev.apply(ctx);
     publishNews(ctx, 'historic', ev.headline, ev.body);
