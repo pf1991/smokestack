@@ -169,6 +169,13 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['logistics/models.ts', 'migrations.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
+  it('a manager\'s employer, post and salary are written only by logistics/managers.ts, logistics/release.ts and companies.ts', () => {
+    const re = /\.(?:employer|post)\s*=(?!=)|\.salary\s*(?:[-+*\/]?=(?!=))/;
+    for (const w of ['m.employer = "player";', 'm.post=null', 'm.salary *= 1.2;', 'm.salary = 5']) expect(re.test(w), w).toBe(true);
+    for (const w of ['m.employer === owner', 'm.post == 3', 'm.salary >= 5', 'employer: null,', 'post: null,']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['companies.ts', 'logistics/managers.ts', 'logistics/release.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
 });
 
 describe('layering', () => {

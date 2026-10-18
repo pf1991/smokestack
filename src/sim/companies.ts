@@ -57,6 +57,11 @@ export function transferOwnership(
     delete b.salesThisMonth;
     delete b.earnings12;
   }
+  for (const m of state.logistics.managers) {
+    if (m.employer !== from) continue;
+    m.employer = to;
+    state.logistics.rev++;
+  }
   for (const r of Object.values(state.routes)) if (r.ownerId === from) (r.ownerId = to), routes++;
   for (const v of Object.values(state.vehicles)) if (v.ownerId === from) (v.ownerId = to), vehicles++;
   for (const t of state.map.tiles) {

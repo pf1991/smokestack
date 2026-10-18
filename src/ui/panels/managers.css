@@ -1,0 +1,49 @@
+/* Managers window and the inspector's manager slot */
+.mgr-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--brass-dark);
+}
+
+.mgr-row:last-child {
+  border-bottom: 0;
+}
+
+.mgr-skills {
+  display: inline-flex;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mgr-skills > span {
+  padding: 0 4px;
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.mgr-skills > span[data-skill='5'],
+.mgr-skills > span[data-skill='4'] {
+  color: var(--brass-light);
+}
+
+.mgr-name {
+  font-weight: bold;
+}
+
+.mgr-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mgr-acts select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mgr-empty {
+  opacity: 0.7;
+}

@@ -26,6 +26,8 @@ import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
 import { defaultExchange } from './exchange/types';
 import { newLogistics } from './logistics/types';
+import { releaseBuilding } from './logistics/release';
+import { refreshMarket } from './logistics/managers';
 import { modelSpec } from './logistics/models';
 import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
@@ -342,6 +344,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   // listed at the scenario's starting money; a game without the Baron delists him at once
   for (const id of ['player', 'rival']) listCompany(state, id);
   if (!rival.active) delist(state, 'rival');
+  refreshMarket(state, state.date.year); // the market's own rng stream, not state.rngState
   return state;
 }
 
@@ -531,6 +534,7 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
   if (!building) return err('No such building');
   if (owner !== undefined && building.ownerId !== owner) return err('Not your building');
   earn(state.companies[building.ownerId], 'demolition', demolitionRefund(state, building), state.date);
+  releaseBuilding(state, id);
   // a strike ends with its works: withdraw the strike card still waiting on it (as strikes.ts strikeOver)
   const strikeUid = building.strike?.cardUid;
   if (strikeUid !== null && strikeUid !== undefined) {

@@ -24,6 +24,7 @@ import { RECIPES } from '../../data/recipes';
 import { buildChain, CHAINS, type ChainId } from '../chainBuilder';
 import { abandonInfrastructure, addCompany, companyIds } from '../companies';
 import { delist, listCompany } from '../exchange/shares';
+import { releaseCompany } from '../logistics/release';
 import { payDividend } from '../exchange/trading';
 import { BANKRUPT_MONTHS, spend } from '../finance';
 import { publishNews } from '../news';
@@ -151,6 +152,7 @@ export function closeFirm(ctx: SimContext, id: OwnerId, news = true): void {
   for (const r of Object.values(state.routes)) if (r.ownerId === id) deleteRoute(ctx, r.id);
   for (const v of Object.values(state.vehicles)) if (v.ownerId === id) sellVehicle(ctx, v.id);
   for (const b of Object.values(state.buildings)) if (b.ownerId === id) demolishBuilding(ctx, b.id, id);
+  releaseCompany(state, id);
   abandonInfrastructure(state, id);
   c.money = 0;
   c.loan = 0;

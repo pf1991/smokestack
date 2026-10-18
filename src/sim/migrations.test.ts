@@ -291,7 +291,7 @@ describe('v6 -> v7: nemesis', () => {
     }
     for (const rt of Object.values(s.routes)) expect(rt.mode).toBe('manual');
     expect(s.logistics.managers).toEqual([]);
-    expect(s.logistics.market).toEqual([]);
+    expect(s.logistics.market.length).toBeGreaterThanOrEqual(4);
     expect(s.logistics.marketYear).toBe(s.date.year);
     expect(checkInvariants(s)).toEqual([]);
     const ctx = testCtx(s);

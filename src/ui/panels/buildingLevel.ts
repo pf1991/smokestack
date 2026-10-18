@@ -8,6 +8,8 @@ import type { Building, SimContext } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import { setText } from './inspect';
+import { assign, managerAt } from '../../sim/logistics/managers';
+import { payText, skillChips } from './managers';
 
 /** One column of the card: the catalogue value times the level's factors, as readable lines. */
 export function levelLines(ctx: SimContext, b: Building, lv: LevelDef): string[] {
@@ -50,7 +52,28 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
       refresh();
     },
   }) as HTMLButtonElement;
-  const el = h('div', { class: 'p-section insp-section insp-level' }, h('div', { class: 'p-head' }, 'Level'), cols, progress, btn, why);
+  const mgrInfo = h('div', { class: 'p-row insp-manager-info' });
+  const mgrSelect = h('select', {
+    class: 'insp-manager-select',
+    'aria-label': 'Assign a manager',
+    onChange: () => {
+      const v = Number(mgrSelect.value);
+      if (!v) return;
+      const r = assign(host.ctx, 'player', v, id);
+      if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+      refresh();
+    },
+  }) as HTMLSelectElement;
+  const mgrUnassign = h('button', {
+    class: 'btn insp-manager-unassign',
+    onClick: () => {
+      const m = managerAt(host.ctx.state, id);
+      if (m) assign(host.ctx, 'player', m.id, null);
+      refresh();
+    },
+  }, 'Unassign') as HTMLButtonElement;
+  const mgrBox = h('div', { class: 'p-section insp-manager' }, h('div', { class: 'p-head' }, 'Manager'), mgrInfo, h('div', { class: 'mgr-acts' }, mgrSelect, mgrUnassign));
+  const el = h('div', { class: 'p-section insp-section insp-level' }, h('div', { class: 'p-head' }, 'Level'), cols, progress, btn, why, mgrBox);
 
   const fill = (col: HTMLElement, title: string, lines: string[]): void => {
     const sig = [title, ...lines].join('|');
@@ -59,6 +82,30 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
     col.replaceChildren(h('div', { class: 'p-row insp-muted' }, title), ...lines.map((l) => h('div', { class: 'p-row' }, l)));
   };
 
+  /** The manager slot: who runs the building, and the staff who could. Rebuilt only when its content changes. */
+  function managerSlot(live: Building): void {
+    const { state } = host.ctx;
+    const mine = live.ownerId === 'player';
+    const m = managerAt(state, id);
+    const idle = mine ? state.logistics.managers.filter((x) => x.employer === 'player' && x.post === null) : [];
+    mgrBox.hidden = !m && idle.length === 0 && !mine;
+    const sig = `${m?.id ?? 0}|${m?.salary ?? 0}|${mine}|${idle.map((x) => x.id).join(',')}`;
+    if (mgrBox.dataset.sig === sig) return;
+    mgrBox.dataset.sig = sig;
+    mgrInfo.replaceChildren(
+      m ? h('span', null, m.name) : h('span', { class: 'insp-muted' }, mine ? 'No manager posted' : 'No manager'),
+      m ? skillChips(m) : '',
+      m ? h('span', null, payText(state, m)) : '',
+    );
+    mgrSelect.replaceChildren(
+      h('option', { value: '' }, idle.length ? 'Assign a manager' : 'No idle managers'),
+      ...idle.map((x) => h('option', { value: x.id }, `${x.name} (L${x.skills.logistics} P${x.skills.production} F${x.skills.frugality})`)),
+    );
+    mgrSelect.hidden = !mine || m !== null;
+    mgrSelect.disabled = idle.length === 0;
+    mgrUnassign.hidden = !mine || !m;
+  }
+
   function refresh(): void {
     const { state } = host.ctx;
     const live = state.buildings[id];
@@ -66,6 +113,7 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
     const lv = levelDef(live);
     el.hidden = !lv;
     if (!lv) return;
+    managerSlot(live);
     const next = nextLevel(live);
     fill(cur, `Level ${live.level}`, levelLines(host.ctx, live, lv));
     fill(nxt, next ? `Level ${next.level}` : 'Top level', next ? levelLines(host.ctx, live, next) : ['Nothing further']);

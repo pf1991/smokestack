@@ -184,7 +184,8 @@ describe('content catalog', () => {
     expect(by('invention').length).toBeGreaterThanOrEqual(2);
     for (const c of CARDS) {
       expect(c.choices.length, c.id).toBeLessThanOrEqual(3);
-      expect(c.years[0], c.id).toBeGreaterThanOrEqual(1901);
+      // the manager raise card can come in 1900: a manager may be hired on the first day
+      expect(c.years[0], c.id).toBeGreaterThanOrEqual(c.trigger === 'manager' ? 1900 : 1901);
       expect(c.years[1], c.id).toBeLessThanOrEqual(2000);
       expect(Number.isInteger(c.defaultChoice) && c.defaultChoice >= 0 && c.defaultChoice < c.choices.length, `${c.id} defaultChoice`).toBe(true);
       // ruling R-Q8: authored in 1900 dollars for a $300k company; the engine scales them
@@ -206,6 +207,15 @@ describe('content catalog', () => {
     for (const f of FACTION_IDS) expect(used.has(f), `no card touches ${f}`).toBe(true);
     const baronCards = CARDS.filter((c) => c.choices.some((ch) => ch.effects.some((e) => e.faction === 'baron')));
     expect(baronCards.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('the manager raise card: triggered by managers, free default, bonus 1,500', () => {
+    const c = CARDS.find((x) => x.id === 'manager_raise')!;
+    expect(c.trigger).toBe('manager');
+    expect(c.years).toEqual([1900, 2000]);
+    expect(c.choices.map((ch) => ch.cost)).toEqual([0, 1500, 0]);
+    expect(c.defaultChoice).toBe(0);
+    expect(c.title).toContain('{manager}');
   });
 
   it('every crash card resolves, in each choice, on a 1929 state', () => {

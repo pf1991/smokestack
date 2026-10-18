@@ -77,6 +77,19 @@ export function attachHostileBidToasts(ctx: SimContext, openExchange: () => void
   });
 }
 
+/** A toast when one of the player's managers retires or quits (sim/logistics/managers.ts), with the panel to replace them. */
+export function attachManagerToasts(ctx: SimContext, openManagers: () => void): () => void {
+  return ctx.bus.on('managerLeft', (e) => {
+    if (e.ownerId !== 'player') return;
+    ctx.bus.emit({
+      type: 'toast',
+      message: e.reason === 'retired' ? `${e.name} has retired` : `${e.name} has quit`,
+      tone: 'bad',
+      action: { label: 'Managers', run: openManagers },
+    });
+  });
+}
+
 /** Routes that stop at `buildingId` (call before demolishing it). */
 export function routesUsing(state: GameState, buildingId: number): Route[] {
   return Object.values(state.routes).filter((r) => r.stops.some((s) => s.buildingId === buildingId));

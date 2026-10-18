@@ -15,6 +15,7 @@ import { newDynasty } from './dynasty/types';
 import { defaultExchange } from './exchange/types';
 import { delist, listCompany } from './exchange/shares';
 import { newLogistics } from './logistics/types';
+import { refreshMarket } from './logistics/managers';
 import { companyIds } from './companies';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -175,7 +176,10 @@ export const MIGRATIONS: Migration[] = [
       });
       each(o.routes, (r) => { r.mode = 'manual'; });
       const year = (o.date as { year?: unknown } | undefined)?.year;
-      o.logistics = newLogistics(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0, typeof year === 'number' ? year : 1900);
+      const y = typeof year === 'number' ? year : 1900;
+      o.logistics = newLogistics(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0, y);
+      refreshMarket(o as unknown as GameState, y); // the market stocks once at load
+
     },
   },
 ];

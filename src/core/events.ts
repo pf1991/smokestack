@@ -9,6 +9,10 @@ export type GameEvent =
   | { type: 'buildingRemoved'; buildingId: number }
   /** an upgrade's works finished (sim/logistics/levels.ts worksDay) */
   | { type: 'buildingUpgraded'; buildingId: number; level: BuildingLevel; ownerId: OwnerId }
+  /** a manager was hired (sim/logistics/managers.ts) */
+  | { type: 'managerHired'; managerId: number; ownerId: OwnerId }
+  /** a manager retired or quit; a fired one does not emit */
+  | { type: 'managerLeft'; managerId: number; name: string; ownerId: OwnerId; reason: 'retired' | 'quit' }
   | { type: 'roadChanged'; tiles: Vec2[] }
   | { type: 'railChanged'; tiles: Vec2[] }
   /** tiles whose terrain changed (trees planted: sim/state.ts plantForest) */

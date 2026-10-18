@@ -137,6 +137,7 @@ tab-rival 55 panel=rival
 tab-exchange 55 panel=exchange
 tab-family 55 panel=family
 tab-legacy 55 panel=legacy
+tab-managers 25 panel=managers
 tab-building 55 inspect2=1
 tab-city 55 inspectcity=1
 tab-vehicle 55 inspectvehicle=1

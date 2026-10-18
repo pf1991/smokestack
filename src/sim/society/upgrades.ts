@@ -11,6 +11,7 @@
 import { err, ok, type Result } from '../../core/result';
 import { BUILDINGS } from '../../data/buildings';
 import { levelUpkeep } from '../logistics/levels';
+import { managerUpkeep } from '../logistics/managers';
 import { PLAYER_ID } from '../companies';
 import { canAfford, spend } from '../finance';
 import type { Building, GameState, SimContext } from '../types';
@@ -77,7 +78,7 @@ export function scrubberUpkeepFactor(b: Building): number {
  * × its age factor (society/aging.ts) × scrubber upkeep.
  */
 export function buildingMaintenance(state: GameState, b: Building): number {
-  return atPrices(state, BUILDINGS[b.typeId].maintenance) * assetUpkeep(state, b) * scrubberUpkeepFactor(b) * levelUpkeep(b);
+  return atPrices(state, BUILDINGS[b.typeId].maintenance) * assetUpkeep(state, b) * scrubberUpkeepFactor(b) * levelUpkeep(b) * managerUpkeep(state, b);
 }
 
 /** True for works that make smoke (only these can be fitted). */

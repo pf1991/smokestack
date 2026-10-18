@@ -53,3 +53,7 @@ PANELS.exchange = exchangePanel;
 import { legacyPanel } from './legacy';
 
 PANELS.legacy = legacyPanel;
+
+import { managersPanel } from './managers';
+
+PANELS.managers = managersPanel;

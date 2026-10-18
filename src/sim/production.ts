@@ -11,6 +11,7 @@ import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { buildingStorage, levelRate } from './logistics/levels';
+import { managerRate } from './logistics/managers';
 import { RECIPES, type RecipeDef } from '../data/recipes';
 import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
@@ -126,7 +127,7 @@ export function productionDay(ctx: SimContext): void {
     const { outs, ins } = keysOf(recipe);
     // staffing and age (society/aging.ts) scale every works' rate alike
     const storage = buildingStorage(b);
-    const rate = levelRate(b) * b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
+    const rate = levelRate(b) * managerRate(state, b) * b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;
