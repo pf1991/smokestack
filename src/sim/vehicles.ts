@@ -474,11 +474,11 @@ function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
 const EPS = 1e-9;
 
 /** Advances `speed` tiles along the path, crossing several nodes if needed; arrival at the last node. */
-function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
+function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef, grace: number): void {
   const { map } = ctx.state;
   // an old vehicle is slower (society/aging.ts); the hot path skips the call while it is young
   const age = ctx.state.date.year - veh.builtYear;
-  let remaining = age > AGING_GRACE ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
+  let remaining = age > grace ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
   let replanned = false;
   for (;;) {
     if (veh.pathIndex >= veh.path.length) {
@@ -516,8 +516,11 @@ function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef):
   }
 }
 
-/** `route` is `state.routes[veh.routeId]` (undefined without a route), looked up by vehiclesTick. */
-function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined): void {
+/**
+ * `route` is `state.routes[veh.routeId]` (undefined without a route), looked up by vehiclesTick, and
+ * `grace` is AGING_GRACE, read once per tick rather than once per vehicle.
+ */
+function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined, grace: number): void {
   const { state } = ctx;
   veh.prevPos.x = veh.pos.x;
   veh.prevPos.y = veh.pos.y;
@@ -558,7 +561,7 @@ function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined): v
     }
     case 'moving': {
       if (veh.path.length === 0 && !plan(ctx, veh, route, def)) return;
-      move(ctx, veh, route, def);
+      move(ctx, veh, route, def, grace);
       return;
     }
   }
@@ -569,9 +572,10 @@ export function vehiclesTick(ctx: SimContext): void {
   const { state } = ctx;
   const c = fleet(state);
   const { list } = c;
+  const grace = AGING_GRACE;
   for (let k = 0; k < list.length; k++) {
     const veh = list[k];
-    tickVehicle(ctx, veh, veh.routeId !== null ? routeOf(state, c, k, veh.routeId) : undefined);
+    tickVehicle(ctx, veh, veh.routeId !== null ? routeOf(state, c, k, veh.routeId) : undefined, grace);
   }
 }
 
