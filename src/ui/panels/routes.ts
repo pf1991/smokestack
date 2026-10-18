@@ -12,6 +12,7 @@ import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
 import { buildingIcon, buildingName, KIND_INFO, type Kind, stopAccess, stopPickSet, stopProblem, stopSummary } from './routeActions';
+import { autoControls } from './routeAuto';
 import './routes.css';
 
 /** The slice of the GameController this panel needs (lets tests use a small stub). */
@@ -318,7 +319,7 @@ class RoutesPanel {
     const state = this.state;
     const routes = Object.values(state.routes).filter((r) => r.ownerId === 'player');
     const parts = routes.map((r) =>
-      [r.id, r.name, r.color, r.kind, JSON.stringify(r.stops), routeTrucks(state, r.id).length, Math.round(routeThroughput(state, r.id)), routeWarnings(state, r).join(';')].join('|'));
+      [r.id, r.name, r.color, r.kind, r.mode, JSON.stringify(r.autoSize ?? null), r.stats?.last, JSON.stringify(r.stops), routeTrucks(state, r.id).length, Math.round(routeThroughput(state, r.id)), routeWarnings(state, r).join(';')].join('|'));
     return [this.selected, this.confirmDelete, this.adding ? `${this.adding.routeId}:${this.adding.after}` : '', ...parts].join('\n');
   }
 
@@ -425,6 +426,7 @@ class RoutesPanel {
           'data-act': 'delete',
           onClick: () => this.deleteClick(route),
         }, confirming ? `Really delete? (+${formatMoney(refund)})` : 'Delete route')),
+      route.kind === 'truck' && autoControls(this.game, route.id).el,
     );
   }
 

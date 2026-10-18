@@ -8,8 +8,11 @@ import { accessTiles, nextId } from './state';
 import { AGING_GRACE, agingEfficiency, assetAge, assetUpkeep, NO_WEAR } from './society/aging';
 import { atPrices } from './society/economy';
 import { hasNewerModel, modelSpec, newestModel } from './logistics/models';
-import type { VehicleModelId } from './logistics/types';
-import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
+import {
+  AUTO_RECHECK_TICKS, autoPickup, autoRoutesChanged, clampMaxTrucks, departAuto, dropAutoJobs, leaveAutoRoute, MIN_LOAD_MAX_WAIT_TICKS, noteDeparture,
+} from './logistics/autoRoutes';
+import type { AutoSize, RouteMode, VehicleModelId } from './logistics/types';
+import type { Building, GameState, GoodId, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
 export interface VehicleSpec {
   cost: number;
@@ -72,11 +75,19 @@ function validateStops(state: GameState, owner: OwnerId, kind: Route['kind'], st
     const bad = def.stopError?.(b);
     if (bad) return err(bad);
     if (def.access(state, b).length === 0) return err(def.noAccessError ?? 'Stop has no road access');
+    if (stop.minLoad !== undefined && !MIN_LOADS.includes(stop.minLoad)) return err('Leave at 0%, 50% or 100% load');
   }
   return ok();
 }
 
-const copyStop = (s: RouteStop): RouteStop => ({ buildingId: s.buildingId, load: [...s.load], unload: [...s.unload] });
+/** A manual stop's smart-wait shares (D10): leave at any load, half full or full. */
+export const MIN_LOADS: readonly number[] = [0, 0.5, 1];
+
+const copyStop = (s: RouteStop): RouteStop => {
+  const c: RouteStop = { buildingId: s.buildingId, load: [...s.load], unload: [...s.unload] };
+  if (s.minLoad) c.minLoad = s.minLoad;
+  return c;
+};
 
 export function createRoute(
   ctx: SimContext,
@@ -106,11 +117,13 @@ export function createRoute(
 /**
  * Stops may drop below two here (the route's vehicles then idle); new stops must be own buildings
  * with access. When stops change, every vehicle re-plans towards its (clamped) current stop index.
+ * `mode` and `autoSize` (spec §6) are for truck routes; the truck cap is clamped to 1–20. A change of
+ * stops or mode drops an auto route's jobs (the next daily rebuild starts afresh).
  */
 export function updateRoute(
   ctx: SimContext,
   routeId: number,
-  patch: Partial<Pick<Route, 'name' | 'stops' | 'color'>>,
+  patch: Partial<Pick<Route, 'name' | 'stops' | 'color'>> & { mode?: RouteMode; autoSize?: AutoSize },
 ): Result {
   const { state } = ctx;
   const route = state.routes[routeId];
@@ -119,11 +132,21 @@ export function updateRoute(
     const v = validateStops(state, route.ownerId, route.kind, patch.stops);
     if (!v.ok) return v;
   }
+  if ((patch.mode === 'auto' || patch.autoSize?.on) && route.kind !== 'truck') return err('Rail lines run as written');
+  if (patch.mode !== undefined && patch.mode !== 'manual' && patch.mode !== 'auto') return err('Unknown route mode');
   if (patch.name !== undefined) route.name = patch.name;
   if (patch.color !== undefined) route.color = patch.color;
+  if (patch.autoSize !== undefined || patch.mode !== undefined) autoRoutesChanged();
+  if (patch.autoSize !== undefined) route.autoSize = { on: patch.autoSize.on === true, maxTrucks: clampMaxTrucks(patch.autoSize.maxTrucks) };
+  if (patch.mode !== undefined && patch.mode !== route.mode) {
+    route.mode = patch.mode;
+    dropAutoJobs(state, route);
+    if (route.mode === 'manual') delete route.jobs;
+  }
   if (patch.stops) {
     const oldStops = route.stops;
     route.stops = patch.stops.map(copyStop);
+    if (route.mode === 'auto') dropAutoJobs(state, route);
     const n = route.stops.length;
     for (const veh of Object.values(state.vehicles)) {
       if (veh.routeId !== routeId) continue;
@@ -174,6 +197,7 @@ export function insertStop(
   const next = base.map(copyStop);
   next.splice(afterIndex + 1, 0, copyStop(stop));
   route.stops = next;
+  if (route.mode === 'auto') dropAutoJobs(state, route);
   const n = next.length;
   for (const veh of Object.values(state.vehicles)) {
     if (veh.routeId !== routeId) continue;
@@ -366,7 +390,10 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
     if (route.ownerId !== veh.ownerId) return err('Not your route');
     if (route.kind !== veh.kind) return err(veh.kind === 'train' ? 'Trains only run on rail lines' : 'Trucks cannot run rail lines');
   }
-  if (veh.routeId !== routeId) veh.cargo = {};
+  if (veh.routeId !== routeId) {
+    veh.cargo = {};
+    leaveAutoRoute(veh);
+  }
   veh.routeId = routeId;
   veh.stopIndex = 0;
   veh.path = [];
@@ -389,14 +416,19 @@ export function vehicleMaintenanceMonth(ctx: SimContext): void {
 // ---------------------------------------------------------------------------
 // state machine
 
+const NO_GOODS: GoodId[] = [];
+
 function cargoTotal(veh: Vehicle): number {
   let n = 0;
   for (const g in veh.cargo) n += veh.cargo[g];
   return n;
 }
 
-/** Unload `stop.unload` goods the building accepts (bounded by storageLeft), then load `stop.load`. */
-function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building): void {
+/**
+ * Unload `stop.unload` goods the building accepts (bounded by storageLeft), then load `stop.load`;
+ * with `onlyGood` (an auto route's pickup) load just that good if the stop loads it, and with null nothing.
+ */
+function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building, onlyGood?: GoodId | null): void {
   let unloaded: string[] | null = null;
   for (const g of stop.unload) {
     const carried = veh.cargo[g] ?? 0;
@@ -416,7 +448,7 @@ function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building):
   }
 
   const src = loadSource(b);
-  const goods = stop.load;
+  const goods = onlyGood === undefined ? stop.load : onlyGood !== null && stop.load.includes(onlyGood) ? [onlyGood] : NO_GOODS;
   const k = goods.length;
   let free = veh.capacity - cargoTotal(veh);
   if (k === 0 || free <= 0) return;
@@ -506,9 +538,48 @@ function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
     plan(ctx, veh, route, def);
     return;
   }
-  transfer(state, veh, stop, b);
+  transfer(state, veh, stop, b, route.mode === 'auto' ? autoPickup(veh) : undefined);
   veh.state = 'loading';
   veh.waitTicks = def.spec.loadTicks;
+}
+
+/** Stays at the current stop for another recheck, retrying the transfer there (smart and auto waits). */
+function waitHere(state: GameState, veh: Vehicle, route: Route): void {
+  const stop = route.stops[veh.stopIndex];
+  const b = stop ? state.buildings[stop.buildingId] : undefined;
+  if (b) transfer(state, veh, stop, b, route.mode === 'auto' ? null : undefined);
+  veh.waitTicks = AUTO_RECHECK_TICKS;
+}
+
+/**
+ * The end of a dwell. An auto route asks departAuto where to go (or to wait); a manual stop with
+ * `minLoad` holds the truck until it is that full or has waited MIN_LOAD_MAX_WAIT_TICKS.
+ */
+function depart(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
+  const { state } = ctx;
+  const n = route.stops.length;
+  // A cleared path means the stops were re-indexed while we dwelt (demolition or edit):
+  // head for the current stop instead of skipping past it.
+  const atStop = veh.path.length > 0;
+  if (route.mode === 'auto' && atStop) {
+    const next = departAuto(state, veh, route);
+    if (next === 'wait') return waitHere(state, veh, route);
+    if (next === veh.stopIndex) return arrive(ctx, veh, route, def); // the job's pickup is here
+    noteDeparture(state, veh, route);
+    veh.stopIndex = next;
+    plan(ctx, veh, route, def);
+    return;
+  }
+  const minLoad = route.mode === 'manual' && atStop ? route.stops[veh.stopIndex].minLoad : undefined;
+  if (minLoad && (veh.dwell ?? 0) < MIN_LOAD_MAX_WAIT_TICKS && cargoTotal(veh) < minLoad * veh.capacity && route.stops[veh.stopIndex].load.length > 0) {
+    waitHere(state, veh, route);
+    veh.dwell = (veh.dwell ?? 0) + AUTO_RECHECK_TICKS;
+    return;
+  }
+  if (veh.dwell) veh.dwell = 0;
+  noteDeparture(state, veh, route);
+  if (atStop) veh.stopIndex = (veh.stopIndex + 1) % n;
+  plan(ctx, veh, route, def);
 }
 
 const EPS = 1e-9;
@@ -588,10 +659,7 @@ function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined, gr
     case 'loading': {
       if (--veh.waitTicks > 0) return;
       veh.waitTicks = 0;
-      // A cleared path means the stops were re-indexed while we dwelt (demolition or edit):
-      // head for the current stop instead of skipping past it.
-      if (veh.path.length > 0) veh.stopIndex = (veh.stopIndex + 1) % n;
-      plan(ctx, veh, route, def);
+      depart(ctx, veh, route, def);
       return;
     }
     case 'stuck': {

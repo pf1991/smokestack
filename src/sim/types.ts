@@ -214,7 +214,7 @@ export interface Vehicle {
   /** the hub warehouse this truck serves, when it is a hub truck */
   hubId?: number | null;
   job?: HubJob | AutoJob | null;
-  /** days spent waiting at an automatic route's stop */
+  /** ticks spent in a smart wait (a manual stop's `minLoad`); reset on departure */
   dwell?: number;
 }
 

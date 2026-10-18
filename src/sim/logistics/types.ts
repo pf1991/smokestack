@@ -29,7 +29,8 @@ export type VehicleModelId = 'steam_lorry' | 'motor_truck' | 'diesel_truck' | 'a
 export type VehicleKits = { body: boolean; engine: boolean };
 export type RouteMode = 'manual' | 'auto';
 export type AutoSize = { on: boolean; maxTrucks: number };
-export type RouteStats = { loaded: number; empty: number; backlogDays: number };
+/** This month's departures and backlog days; `last` is last month's loaded share in percent (absent with no departures). */
+export type RouteStats = { loaded: number; empty: number; backlogDays: number; last?: number };
 
 export interface LogisticsState {
   managers: Manager[]; // employed by some company, ascending id
