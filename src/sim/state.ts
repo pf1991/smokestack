@@ -26,6 +26,7 @@ import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
 import { defaultExchange } from './exchange/types';
 import { newLogistics } from './logistics/types';
+import { modelSpec } from './logistics/models';
 import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
@@ -42,8 +43,6 @@ export const ROAD_UPKEEP = 5;
 export function roadTileCost(state: GameState, water: boolean): number {
   return Math.round(atPrices(state, water ? BRIDGE_COST : ROAD_COST));
 }
-/** Purchase prices used for asset valuation (Task 14/27 own the TRUCK/TRAIN specs). */
-const VEHICLE_COST = { truck: 8000, train: 60000 } as const;
 const RIVAL_NAME = 'Smogsworth Consolidated';
 
 // ---------------------------------------------------------------------------
@@ -723,7 +722,7 @@ export function plantForest(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Res
 export function assetValue(state: GameState, owner: OwnerId): number {
   let v = 0;
   for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += BUILDINGS[b.typeId].cost * 0.5;
-  for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += VEHICLE_COST[veh.kind] * 0.5;
+  for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += modelSpec(veh.model).cost * 0.5;
   return Math.round(atPrices(state, v));
 }
 
@@ -731,7 +730,7 @@ export function assetValue(state: GameState, owner: OwnerId): number {
 export function assetValues(state: GameState): Map<OwnerId, number> {
   const raw = new Map<OwnerId, number>();
   for (const b of Object.values(state.buildings)) raw.set(b.ownerId, (raw.get(b.ownerId) ?? 0) + BUILDINGS[b.typeId].cost * 0.5);
-  for (const veh of Object.values(state.vehicles)) raw.set(veh.ownerId, (raw.get(veh.ownerId) ?? 0) + VEHICLE_COST[veh.kind] * 0.5);
+  for (const veh of Object.values(state.vehicles)) raw.set(veh.ownerId, (raw.get(veh.ownerId) ?? 0) + modelSpec(veh.model).cost * 0.5);
   for (const [k, v] of raw) raw.set(k, Math.round(atPrices(state, v)));
   return raw;
 }

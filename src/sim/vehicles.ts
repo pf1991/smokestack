@@ -7,6 +7,8 @@ import { truckTollsMonth } from './politics/mayorEdicts';
 import { accessTiles, nextId } from './state';
 import { AGING_GRACE, agingEfficiency, assetAge, assetUpkeep, NO_WEAR } from './society/aging';
 import { atPrices } from './society/economy';
+import { hasNewerModel, modelSpec, newestModel } from './logistics/models';
+import type { VehicleModelId } from './logistics/types';
 import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
 export interface VehicleSpec {
@@ -206,7 +208,13 @@ export function deleteRoute(ctx: SimContext, routeId: number): Result {
 // purchases
 
 /** Buys a vehicle of `kind` for a route of the same kind (used by buyTruck and rail.ts's buyTrain). */
-export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kind: Vehicle['kind']): Result<Vehicle> {
+export function buyVehicle(
+  ctx: SimContext,
+  owner: OwnerId,
+  routeId: number,
+  kind: Vehicle['kind'],
+  model: VehicleModelId = kind === 'truck' ? newestModel(ctx.state) : 'train',
+): Result<Vehicle> {
   const { state } = ctx;
   const def = VEHICLE_KINDS[kind];
   if (!def) return err('Unknown vehicle kind');
@@ -218,7 +226,8 @@ export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kin
   const spawn = first ? def.access(state, first)[0] : undefined;
   if (!spawn) return err(def.noAccessError ?? 'Stop has no road access');
   const company = state.companies[owner];
-  const price = vehiclePrice(state, kind);
+  if ((model === 'train') !== (kind === 'train')) return err('Wrong vehicle for this route');
+  const price = vehiclePrice(state, model);
   if (!canAfford(company, price)) return err('Not enough money');
   spend(company, 'vehicles', price, state.date);
   const vehicle: Vehicle = {
@@ -232,13 +241,13 @@ export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kin
     pathIndex: 0,
     stopIndex: 0,
     cargo: {},
-    capacity: def.spec.capacity,
+    capacity: modelSpec(model).capacity,
     state: route.stops.length >= 2 ? 'moving' : 'idle',
     waitTicks: 0,
     stuckNotified: false,
     builtYear: state.date.year,
-    model: kind === 'truck' ? 'steam_lorry' : 'train',
-    speed: def.spec.speed,
+    model,
+    speed: modelSpec(model).speed,
   };
   state.vehicles[vehicle.id] = vehicle;
   return ok(vehicle);
@@ -254,7 +263,7 @@ export function sellVehicle(ctx: SimContext, id: number): Result {
   const { state } = ctx;
   const veh = state.vehicles[id];
   if (!veh) return err('No such vehicle');
-  earn(state.companies[veh.ownerId], 'vehicles', sellRefund(state, veh.kind), state.date);
+  earn(state.companies[veh.ownerId], 'vehicles', sellRefund(state, veh), state.date);
   delete state.vehicles[id];
   fleetRemovals++;
   return ok();
@@ -277,12 +286,12 @@ export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Re
   const def = VEHICLE_KINDS[veh.kind];
   const first = route.stops[0] ? state.buildings[route.stops[0].buildingId] : undefined;
   if (!def || !first || !def.access(state, first)[0]) return err(def?.noAccessError ?? 'Stop has no road access');
-  if (assetAge(state, veh) <= AGING_GRACE) return err(NO_WEAR);
-  if (!canAfford(state.companies[veh.ownerId], replaceCost(state, veh.kind))) return err('Not enough money');
+  if (assetAge(state, veh) <= AGING_GRACE && !hasNewerModel(state, veh.model)) return err(NO_WEAR);
+  if (!canAfford(state.companies[veh.ownerId], replaceCost(state, veh))) return err('Not enough money');
   const { ownerId, kind, stopIndex } = veh;
   const at = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };
   sellVehicle(ctx, id);
-  const bought = buyVehicle(ctx, ownerId, route.id, kind);
+  const bought = buyVehicle(ctx, ownerId, route.id, kind); // the newest model, no kits
   if (!bought.ok) return bought;
   const fresh = bought.value;
   fresh.pos = { ...at };
@@ -293,24 +302,52 @@ export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Re
   return bought;
 }
 
-/** Price of a new vehicle of `kind` at today's prices, rounded. */
-export function vehiclePrice(state: GameState, kind: Vehicle['kind']): number {
-  return Math.round(atPrices(state, VEHICLE_KINDS[kind]?.spec.cost ?? 0));
+/** The model a kind or vehicle stands for when pricing: a kind means the newest of it on sale. */
+function modelFor(state: GameState, x: Vehicle | Vehicle['kind'] | VehicleModelId): VehicleModelId {
+  if (typeof x === 'object') return x.model;
+  return x === 'truck' ? newestModel(state) : x === 'train' ? 'train' : x;
 }
 
-/** What selling a vehicle of `kind` refunds: SELL_REFUND of today's price, rounded. */
-export function sellRefund(state: GameState, kind: Vehicle['kind']): number {
-  return Math.round(vehiclePrice(state, kind) * SELL_REFUND);
+/** Price of a new vehicle at today's prices, rounded; a bare kind prices the newest truck model. */
+export function vehiclePrice(state: GameState, kindOrModel: Vehicle['kind'] | VehicleModelId): number {
+  return Math.round(atPrices(state, modelSpec(modelFor(state, kindOrModel)).cost));
 }
 
-/** Net price of replacing a vehicle of `kind`: a new one less the old one's refund. */
-export function replaceCost(state: GameState, kind: Vehicle['kind']): number {
-  return vehiclePrice(state, kind) - sellRefund(state, kind);
+/** What selling `veh` refunds: SELL_REFUND of its own model's price today, rounded. */
+export function sellRefund(state: GameState, veh: Vehicle | Vehicle['kind']): number {
+  return Math.round(vehiclePrice(state, modelFor(state, veh)) * SELL_REFUND);
 }
 
-/** Monthly upkeep of `veh`: its kind's maintenance at today's prices × its age factor. */
+/** Net price of replacing `veh`: the newest model of its kind less its own refund. */
+export function replaceCost(state: GameState, veh: Vehicle | Vehicle['kind']): number {
+  const kind = typeof veh === 'object' ? veh.kind : veh;
+  return vehiclePrice(state, kind) - sellRefund(state, veh);
+}
+
+/** Monthly upkeep of `veh`: its model's maintenance at today's prices × its age factor. */
 export function vehicleUpkeep(state: GameState, veh: Vehicle): number {
-  return atPrices(state, VEHICLE_KINDS[veh.kind]?.spec.maintenance ?? 0) * assetUpkeep(state, veh);
+  return atPrices(state, modelSpec(veh.model).maintenance) * assetUpkeep(state, veh);
+}
+
+/**
+ * Replaces, in id order, every truck of the route that is older than the newest model, stopping at
+ * the first one `owner` cannot afford.
+ */
+export function upgradeRouteTrucks(ctx: SimContext, routeId: number, owner: OwnerId): Result<{ replaced: number }> {
+  const { state } = ctx;
+  const route = state.routes[routeId];
+  if (!route) return err('No such route');
+  if (route.ownerId !== owner) return err('Not your route');
+  const ids = Object.values(state.vehicles)
+    .filter((v) => v.routeId === routeId && v.kind === 'truck' && hasNewerModel(state, v.model))
+    .map((v) => v.id)
+    .sort((a, b) => a - b);
+  let replaced = 0;
+  for (const id of ids) {
+    if (!replaceVehicle(ctx, id, owner).ok) break;
+    replaced++;
+  }
+  return ok({ replaced });
 }
 
 /**

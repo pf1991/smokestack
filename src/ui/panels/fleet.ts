@@ -2,7 +2,8 @@ import { GOODS } from '../../data/goods';
 import './panels.css';
 import type { GameController } from '../../game/controller';
 import type { GameState, Route, Vehicle } from '../../sim/types';
-import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle, tripsLast30, vehicleUpkeep } from '../../sim/vehicles';
+import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle, tripsLast30, upgradeRouteTrucks, vehicleUpkeep } from '../../sim/vehicles';
+import { hasNewerModel, modelRow, newestModel } from '../../sim/logistics/models';
 import { assetAge, assetEfficiency } from '../../sim/society/aging';
 import type { IconId } from '../../render/icons';
 import { h } from '../dom';
@@ -82,6 +83,7 @@ interface Row {
   select: HTMLSelectElement;
   optSig: string;
   status: HTMLElement;
+  model: HTMLElement;
   cargo: HTMLElement;
   trips: HTMLElement;
   age: HTMLElement;
@@ -98,8 +100,19 @@ export function ageText(state: GameState, v: Vehicle): string {
 class FleetPanel {
   private readonly root = h('div', { class: 'fl' });
   private filter: FleetFilter = 'all';
+  private routeFilter: number | null = null;
   private readonly summary = h('div', { class: 'fl-summary' });
   private readonly filterBar = h('div', { class: 'fl-filters' });
+  private readonly routeSel = h('select', {
+    class: 'fl-route-filter',
+    'aria-label': 'Route filter',
+    onChange: () => {
+      this.routeFilter = this.routeSel.value === '' ? null : Number(this.routeSel.value);
+      this.update();
+    },
+  }) as HTMLSelectElement;
+  private routeSig = '\0';
+  private readonly upgradeBtn = h('button', { class: 'btn fl-btn', 'data-act': 'upgrade-route', onClick: () => this.upgradeRoute() }, 'Upgrade all trucks on this route') as HTMLButtonElement;
   private readonly body = h('div', { class: 'p-section fl-body' });
   private readonly empty = h('p', { class: 'fl-empty' }, 'No vehicles to show.');
   private readonly rows = new Map<number, Row>();
@@ -122,11 +135,11 @@ class FleetPanel {
       );
     }
     this.root.append(
-      h('div', { class: 'p-section' }, this.summary, this.filterBar),
-      h('div', { class: 'fl-head' }, h('span'), h('span', null, 'Route'), h('span', null, 'Status'), h('span', null, 'Cargo'), h('span', { title: 'Completed unloading stops in the last 30 days' }, 'Trips'), h('span', { title: 'Years since bought; old vehicles run slower and cost more to keep' }, 'Age'), h('span')),
+      h('div', { class: 'p-section' }, this.summary, this.filterBar, h('div', { class: 'fl-routebar' }, this.routeSel, this.upgradeBtn)),
+      h('div', { class: 'fl-head' }, h('span'), h('span', null, 'Route'), h('span', null, 'Status'), h('span', null, 'Model'), h('span', null, 'Cargo'), h('span', { title: 'Completed unloading stops in the last 30 days' }, 'Trips'), h('span', { title: 'Years since bought; old vehicles run slower and cost more to keep' }, 'Age'), h('span')),
       this.body,
     );
-    createWindow({ id: 'fleet', title: 'Fleet', content: this.root, width: 660, onClose: () => this.dispose() });
+    createWindow({ id: 'fleet', title: 'Fleet', content: this.root, width: 740, onClose: () => this.dispose() });
     this.timer = window.setInterval(() => this.update(), 1000);
     this.update();
   }
@@ -157,6 +170,7 @@ class FleetPanel {
       },
     }) as HTMLSelectElement;
     const status = h('span', { class: 'fl-status' });
+    const model = h('span', { class: 'fl-model' });
     const cargo = h('span', { class: 'fl-cargo' });
     const trips = h('span', { class: 'fl-trips', title: 'Completed unloading stops in the last 30 days' });
     const age = h('span', { class: 'fl-age' });
@@ -165,6 +179,7 @@ class FleetPanel {
       h('span', { class: 'fl-icon', title: v.kind === 'train' ? 'Train' : 'Truck' }, iconEl(v.kind === 'train' ? 'train' : 'truck', 16, v.kind === 'train' ? 'Train' : 'Truck')),
       select,
       status,
+      model,
       cargo,
       trips,
       age,
@@ -172,7 +187,7 @@ class FleetPanel {
         h('button', { class: 'btn fl-btn', 'data-act': 'locate', title: 'Pan the camera here and select it', onClick: () => this.locate(v.id) }, 'Locate'),
         replace,
         h('button', { class: 'btn fl-btn fl-sell', 'data-act': 'sell', onClick: () => this.sell(v.id) }, 'Sell')));
-    return { vehicle: v, el, select, optSig: '\0', status, cargo, trips, age, replace };
+    return { vehicle: v, el, select, optSig: '\0', status, model, cargo, trips, age, replace };
   }
 
   private locate(id: number): void {
@@ -187,7 +202,7 @@ class FleetPanel {
   private sell(id: number): void {
     const v = this.ctx.state.vehicles[id];
     if (!v) return;
-    const refund = sellRefund(this.ctx.state, v.kind);
+    const refund = sellRefund(this.ctx.state, v);
     const r = sellVehicle(this.ctx, id);
     if (r.ok) this.toast(`Vehicle sold for ${formatMoney(refund)}`, 'good');
     else this.toast(r.error, 'bad');
@@ -198,10 +213,19 @@ class FleetPanel {
   private replace(id: number): void {
     const v = this.ctx.state.vehicles[id];
     if (!v) return;
-    const cost = replaceCost(this.ctx.state, v.kind);
+    const cost = replaceCost(this.ctx.state, v);
     const r = replaceVehicle(this.ctx, id, 'player');
     if (r.ok) this.toast(`${v.kind === 'train' ? 'Train' : 'Truck'} replaced for ${formatMoney(cost)}`, 'good');
     else this.toast(r.error, 'bad');
+    this.update();
+  }
+
+  /** Replaces every older truck on the selected route with the newest model (sim/vehicles.ts upgradeRouteTrucks). */
+  private upgradeRoute(): void {
+    if (this.routeFilter === null) return;
+    const r = upgradeRouteTrucks(this.ctx, this.routeFilter, 'player');
+    if (!r.ok) this.toast(r.error, 'bad');
+    else this.toast(r.value.replaced > 0 ? `${r.value.replaced} ${r.value.replaced === 1 ? 'truck' : 'trucks'} upgraded` : 'No truck could be upgraded', r.value.replaced > 0 ? 'good' : 'info');
     this.update();
   }
 
@@ -209,7 +233,8 @@ class FleetPanel {
   update(): void {
     const state = this.ctx.state;
     const all = playerVehicles(state);
-    const shown = filterVehicles(all, this.filter);
+    this.syncRouteFilter(all);
+    const shown = filterVehicles(all, this.filter).filter((v) => this.routeFilter === null || v.routeId === this.routeFilter);
     const text = (el: HTMLElement, t: string) => {
       if (el.textContent !== t) el.textContent = t;
     };
@@ -238,12 +263,32 @@ class FleetPanel {
         row.cargo.dataset.sig = cargo.sig;
         row.cargo.replaceChildren(...cargo.nodes);
       }
+      text(row.model, modelRow(v.model).name);
       text(row.trips, String(tripsLast30(state, v)));
       text(row.age, ageText(state, v));
-      const tip = `Sell and buy new for this route: ${formatMoney(replaceCost(state, v.kind))} net`;
+      const tip = `Sell and buy new for this route: ${formatMoney(replaceCost(state, v))} net`;
       if (row.replace.title !== tip) row.replace.title = tip;
       this.syncSelect(row, v);
     }
+  }
+
+  /** Route filter options (the player's routes) and the bulk-upgrade button, shown when a route is selected. */
+  private syncRouteFilter(all: Vehicle[]): void {
+    const state = this.ctx.state;
+    const routes = Object.values(state.routes).filter((r) => r.ownerId === 'player').sort((a, b) => a.id - b.id);
+    if (this.routeFilter !== null && !routes.some((r) => r.id === this.routeFilter)) this.routeFilter = null;
+    const sig = routes.map((r) => `${r.id}:${r.name}`).join('|');
+    if (sig !== this.routeSig) {
+      this.routeSig = sig;
+      this.routeSel.replaceChildren(h('option', { value: '' }, 'All routes'), ...routes.map((r) => h('option', { value: String(r.id) }, r.name)));
+    }
+    const want = this.routeFilter === null ? '' : String(this.routeFilter);
+    if (this.routeSel.value !== want) this.routeSel.value = want;
+    const older = this.routeFilter === null ? 0 : all.filter((v) => v.routeId === this.routeFilter && hasNewerModel(state, v.model)).length;
+    const newest = modelRow(newestModel(state)).name;
+    this.upgradeBtn.hidden = this.routeFilter === null;
+    this.upgradeBtn.disabled = older === 0;
+    this.upgradeBtn.title = older === 0 ? `Every truck here is already a ${newest}` : `${older} older ${older === 1 ? 'truck' : 'trucks'} on this route become ${newest}s`;
   }
 
   private syncSelect(row: Row, v: Vehicle): void {

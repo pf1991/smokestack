@@ -115,4 +115,20 @@ describe('fleet panel', () => {
     click('[data-act="locate"]');
     expect(follow).toHaveBeenCalledWith(null);
   });
+
+  it('shows each truck’s model and offers an upgrade for the selected route', () => {
+    const { s, ctx, r1, host } = setup();
+    s.date.year = 1925;
+    const a = must(buyTruck(ctx, 'player', r1.id));
+    PANELS.fleet.open(host);
+    expect(win().querySelector('.fl-model')!.textContent).toBe('Motor Truck');
+    a.model = 'steam_lorry';
+    a.capacity = 20;
+    (host as unknown as { ctx: typeof ctx }).ctx.state.companies.player.money = 1e7;
+    const sel = win().querySelector('.fl-route-filter') as HTMLSelectElement;
+    sel.value = String(r1.id);
+    sel.dispatchEvent(new Event('change'));
+    click('[data-act="upgrade-route"]');
+    expect(Object.values(s.vehicles).map((v) => v.model)).toEqual(['motor_truck']);
+  });
 });

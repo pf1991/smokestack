@@ -11,6 +11,7 @@ import type { Building, City, GameState, GoodId, Route, SimContext, Vec2 } from 
 import { assignVehicle, buyTruck, createRoute, deleteRoute, TRUCK, updateRoute } from '../vehicles';
 import { affordable, centreOf, cityName, rivalChainCount, trucksOn, unwrap } from './projects';
 import { FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
+import { modelSpec, newestModel } from '../logistics/models';
 import { atPrices } from '../society/economy';
 
 /** A leg is worth a railway from this many tiles of road... */
@@ -388,7 +389,7 @@ export function advanceRail(ctx: SimContext): void {
     .sort((x, y) => Number(Object.keys(x.cargo).length > 0) - Number(Object.keys(y.cargo).length > 0) || x.id - y.id);
   const moving = Math.floor(fleet.length / 2);
   for (const v of fleet.slice(0, moving)) assignVehicle(ctx, v.id, feeder.value.id);
-  if (moving === 0 && affordable(state, TRUCK.cost)) buyTruck(ctx, 'rival', feeder.value.id);
+  if (moving === 0 && affordable(state, modelSpec(newestModel(state)).cost)) buyTruck(ctx, 'rival', feeder.value.id);
 
   const city = railCity(state, dest);
   publishNews(

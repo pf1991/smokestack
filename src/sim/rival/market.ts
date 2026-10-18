@@ -5,7 +5,7 @@ import { loadSource } from '../inventory';
 import { monthlyDemand, salePrice, supplyRatio } from '../market';
 import { demandModifier } from '../production';
 import type { Building, City, GameState, GoodId } from '../types';
-import { TRUCK } from '../vehicles';
+import { modelSpec, newestModel } from '../logistics/models';
 import { planChain } from './chains';
 import type { ChainPlan } from './chains';
 import { F_BLOCKED, rivalReserve } from './shared';
@@ -97,14 +97,15 @@ interface Candidate {
 export function chooseProject(state: GameState): Candidate | null {
   const money = state.companies.rival.money;
   const blockedKeys = blocked(state);
+  const newest = modelSpec(newestModel(state));
   const plans = new Map<GoodId, { plan: ChainPlan; cost: number; upkeep: number; capacity: number }>();
   for (const g of tier2Goods(state)) {
     const plan = planChain(g, state);
     if (!plan) continue;
-    const cost = plan.nodes.reduce((s, n) => s + BUILDINGS[n.typeId].cost, 0) + plan.edges.length * TRUCK.cost + ROAD_BUDGET;
+    const cost = plan.nodes.reduce((s, n) => s + BUILDINGS[n.typeId].cost, 0) + plan.edges.length * newest.cost + ROAD_BUDGET;
     const last = RECIPES[plan.nodes[plan.nodes.length - 1].recipeId];
     const upkeep =
-      plan.nodes.reduce((s, n) => s + BUILDINGS[n.typeId].maintenance, 0) + plan.edges.length * 2 * TRUCK.maintenance;
+      plan.nodes.reduce((s, n) => s + BUILDINGS[n.typeId].maintenance, 0) + plan.edges.length * 2 * newest.maintenance;
     plans.set(g, { plan, cost, upkeep, capacity: ((last.outputs[g] ?? 0) / last.days) * 30 });
   }
   const cands: Candidate[] = [];

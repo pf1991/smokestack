@@ -397,7 +397,7 @@ class RoutesPanel {
     const confirming = this.confirmDelete === route.id;
     const info = KIND_INFO[route.kind] ?? KIND_INFO.truck;
     const price = vehiclePrice(this.state, route.kind);
-    const refund = routeTrucks(this.state, route.id).length * sellRefund(this.state, route.kind);
+    const refund = routeTrucks(this.state, route.id).reduce((n, v) => n + sellRefund(this.state, v), 0);
     return h(
       'div',
       { class: 'rt-detail' },

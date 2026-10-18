@@ -162,6 +162,13 @@ describe('single-writer funnels', () => {
     const re = /\bopinion\s*[:=]\s*defaultOpinion\(\)/;
     expect(writers(re)).toEqual(['mapgen.ts', 'migrations.ts', 'testkit.ts']);
   });
+  it('a vehicle\'s model and speed are written only by logistics/models.ts (kits), migrations.ts and vehicles.ts (state.speed, the game speed, is excluded)', () => {
+    const re = /(?<!\bstate)\.(?:model|speed)\s*=(?!=)/;
+    for (const w of ['v.model = "motor_truck";', 'veh.speed=0.69', 'fresh.speed = s.speed * 1.15']) expect(re.test(w), w).toBe(true);
+    for (const w of ['state.speed = 0;', 'ctx.state.speed = 2', 'v.model === "train"', 'v.speed == 1', 'speed: 0.5,']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['logistics/models.ts', 'migrations.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
 });
 
 describe('layering', () => {

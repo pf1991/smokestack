@@ -2,6 +2,7 @@ import { BUILDINGS } from '../../data/buildings';
 import { getGood } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle } from '../../sim/vehicles';
+import { fitKit, hasNewerModel, kitCost, kitRefusal, modelRow, newestModel, type KitId } from '../../sim/logistics/models';
 import { assetAge, assetEfficiency } from '../../sim/society/aging';
 import { routeOptions } from './fleet';
 import { h } from '../dom';
@@ -45,7 +46,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     onClick: () => {
       const veh = host.ctx.state.vehicles[id];
       if (!veh) return;
-      const refund = sellRefund(host.ctx.state, veh.kind);
+      const refund = sellRefund(host.ctx.state, veh);
       const r = sellVehicle(host.ctx, id);
       host.ctx.bus.emit(
         r.ok
@@ -55,6 +56,21 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     },
   });
   const age = h('span');
+  const model = h('span');
+  const kitRows = (['body', 'engine'] as const).map((kit) => {
+    const label = kit === 'body' ? 'Bigger body' : 'Tuned engine';
+    const effect = h('span');
+    const fit = h('button', {
+      class: 'btn insp-fit',
+      'data-kit': kit,
+      onClick: () => {
+        const r = fitKit(host.ctx, id, kit, 'player');
+        if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+        view.update();
+      },
+    }) as HTMLButtonElement;
+    return { kit, label, row: h('div', { class: 'p-row insp-stat insp-kit' }, h('span', { class: 'insp-label' }, label), effect, fit), effect, fit };
+  });
   // sell and rebuy at today's price for the same route (sim/vehicles.ts replaceVehicle); the new vehicle has a new id
   const replace = h('button', {
     class: 'btn insp-replace',
@@ -71,7 +87,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   });
   const view: InspectorView = {
     el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner),
-      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), stat('Age', age)),
+      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), stat('Model', model), ...kitRows.map((k) => k.row), stat('Age', age)),
       h('div', { class: 'p-actions' }, follow, replace, sell)),
     update() {
       const s = host.ctx.state;
@@ -108,10 +124,19 @@ function buildView(host: InspectorHost, id: number): InspectorView {
           : `Empty (0 / ${v.capacity})`,
       );
       sell.hidden = v.ownerId !== 'player';
-      setText(sell, `Sell (+${formatMoney(sellRefund(s, v.kind))})`);
+      setText(sell, `Sell (+${formatMoney(sellRefund(s, v))})`);
+      setText(model, modelRow(v.model).name);
+      for (const k of kitRows) {
+        k.row.hidden = v.kind !== 'truck';
+        const fitted = v.kits?.[k.kit as KitId] === true;
+        setText(k.effect, fitted ? 'Fitted' : k.kit === 'body' ? '+25% capacity' : '+15% speed');
+        k.fit.hidden = fitted || v.ownerId !== 'player';
+        k.fit.disabled = kitRefusal(s, v, k.kit, 'player') !== null;
+        setText(k.fit, `Fit (${formatMoney(kitCost(s, v, k.kit))})`);
+      }
       setText(age, `Bought ${v.builtYear} (age ${assetAge(s, v)}): ${Math.round(assetEfficiency(s, v) * 100)}% speed`);
       replace.hidden = v.ownerId !== 'player';
-      setText(replace, `Replace (${formatMoney(replaceCost(s, v.kind))})`);
+      setText(replace, hasNewerModel(s, v.model) ? `Replace with ${modelRow(newestModel(s)).name} ${formatMoney(replaceCost(s, v))}` : `Replace (${formatMoney(replaceCost(s, v))})`);
       return true;
     },
     dispose: () => {

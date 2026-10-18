@@ -10,7 +10,8 @@ import { connectToRoads, ensureRoadLink } from '../roads';
 import { demolishBuilding, findPlacement, placeBuilding } from '../state';
 import type { Building, City, GameState, GoodId, OwnerId, SimContext, Vec2 } from '../types';
 import { BARON_ID } from '../companies';
-import { buyTruck, createRoute, deleteRoute, replaceCost, replaceVehicle, TRUCK } from '../vehicles';
+import { modelSpec, newestModel } from '../logistics/models';
+import { buyTruck, createRoute, deleteRoute, replaceCost, replaceVehicle, TRUCK, vehiclePrice } from '../vehicles';
 import { assetAge, renewBuilding, renewCost } from '../society/aging';
 import { planChain } from './chains';
 import type { ChainEdge, ChainNode } from './chains';
@@ -264,7 +265,7 @@ export function advanceProject(ctx: SimContext): void {
   }
   const before = routes.map((id) => trucksOn(state, id));
   for (const target of [1, 2]) {
-    for (const id of routes) if (trucksOn(state, id) < target && affordable(state, TRUCK.cost)) buyTruck(ctx, 'rival', id);
+    for (const id of routes) if (trucksOn(state, id) < target && affordable(state, modelSpec(newestModel(state)).cost)) buyTruck(ctx, 'rival', id);
   }
   const allServed = routes.every((id) => trucksOn(state, id) > 0);
   if (allServed) {
@@ -289,7 +290,7 @@ export function topUpTrucks(ctx: SimContext, owner: OwnerId = BARON_ID, reserve 
   for (const route of Object.values(state.routes)) {
     if (route.ownerId !== owner || route.kind !== 'truck') continue;
     const n = trucksOn(state, route.id);
-    if (n >= MAX_TRUCKS_PER_LEG || state.companies[owner].money - atPrices(state, TRUCK.cost) < reserve) continue;
+    if (n >= MAX_TRUCKS_PER_LEG || state.companies[owner].money - vehiclePrice(state, newestModel(state)) < reserve) continue;
     const backedUp = route.stops.some((s) => {
       const b = state.buildings[s.buildingId];
       if (!b || b.ownerId !== owner) return false;
@@ -324,7 +325,7 @@ export function renewOldAssets(ctx: SimContext, owner: OwnerId = BARON_ID, reser
   const b = oldest(Object.values(state.buildings));
   if (b && company.money - renewCost(state, b) >= reserve) renewBuilding(ctx, b.id, owner);
   const v = oldest(Object.values(state.vehicles).filter((x) => x.routeId !== null));
-  if (v && company.money - replaceCost(state, v.kind) >= reserve) replaceVehicle(ctx, v.id, owner);
+  if (v && company.money - replaceCost(state, v) >= reserve) replaceVehicle(ctx, v.id, owner);
 }
 
 /** Borrows a loan step while `owner` (the Baron by default) is short of cash and under the loan cap. */
