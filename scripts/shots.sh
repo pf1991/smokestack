@@ -93,11 +93,13 @@ for size in 1366,768 1920,1080; do
   echo "tickerheadline $w $h ticker=headline"
   echo "tickeroff $w $h ticker=off"
   echo "scale $w $h uiscale=1.3&panel=finance"
+  echo "panelworld $w $h panel=finance&hudmenu=world"
+  echo "panelmore $w $h panel=finance&hudmenu=more"
 done | xargs -P "$JOBS" -L 1 bash -c 'ushot "$@"' _
 
 bad=0
 for size in 1366 1920; do
-  for n in finance menu help flyout tickerheadline tickeroff scale; do
+  for n in finance menu help flyout tickerheadline tickeroff scale panelworld panelmore; do
     f="shots/ui-${size}-${n}.png"
     if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 20480 ]; then echo "BAD: $f" >&2; bad=1; fi
   done
