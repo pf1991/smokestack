@@ -131,6 +131,11 @@ function smogsworthDesk(state: GameState, ym: { year: number; month: number }): 
   return h('section', { class: 'p-section smogsworth-desk' }, h('h4', null, 'From the Smogsworth Desk'), h('h3', null, n.headline), h('p', null, n.body));
 }
 
+/** Entries from older saves carry no resolved title: fill any placeholder rather than show braces. */
+function fallbackTitle(raw: string): string {
+  return raw.replace(/\{(\w+)\}/g, (_m, k: string) => (k === 'city' ? 'the valley' : 'the town'));
+}
+
 function decisions(state: GameState, year: number): HTMLElement | null {
   const rows = state.politics.cards.history.filter((x) => x.year === year && CARDS_BY_ID[x.id]);
   if (rows.length === 0) return null;
@@ -138,7 +143,7 @@ function decisions(state: GameState, year: number): HTMLElement | null {
     h('ul', null, rows.map((x) => {
       const c = CARDS_BY_ID[x.id];
       const ch = x.choice !== undefined ? c.choices[x.choice] : undefined;
-      return h('li', null, h('b', null, c.title), ch ? ` — ${ch.label}` : '');
+      return h('li', null, h('b', null, x.title ?? fallbackTitle(c.title)), ch ? ` — ${ch.label}` : '');
     })));
 }
 

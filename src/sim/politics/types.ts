@@ -27,7 +27,7 @@ export interface CardInstance {
 export interface CardState {
   pending: CardInstance[];
   /** `choice` is the index of the choice taken (absent in entries from older saves) */
-  history: { id: string; year: number; choice?: number }[];
+  history: { id: string; year: number; choice?: number; title?: string }[];
 }
 
 export type MayorEdictId = 'permits_required' | 'smog_limit' | 'truck_tolls' | 'minimum_wage' | 'tax_break';

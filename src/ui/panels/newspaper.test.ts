@@ -4,6 +4,7 @@ import { EventBus } from '../../core/events';
 import type { GameController } from '../../game/controller';
 import { CARDS_BY_ID } from '../../data/cards';
 import { publishNews } from '../../sim/news';
+import { resolveCard } from '../../sim/politics/cards';
 import { stepTick } from '../../sim/simulation';
 import { createGame } from '../../sim/state';
 import { testCtx, testState } from '../../sim/testkit';
@@ -190,5 +191,34 @@ describe('political front page', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].textContent).toContain(card.title);
     expect(rows[0].textContent).toContain(card.choices[0].label);
+  });
+});
+
+describe('Decisions of the Year', () => {
+  afterEach(() => closeAllWindows());
+
+  it('prints the decided card with its town filled in and no braces', () => {
+    const ctx = testCtx(createGame({ seed: 7 }));
+    const game = { state: ctx.state, ctx } as unknown as GameController;
+    ctx.state.date = { year: 1906, month: 4, day: 10, hour: 0 };
+    const city = ctx.state.cities[0];
+    expect(CARDS_BY_ID.founders_parade.title).toContain('{city}');
+    ctx.state.politics.cards.pending.push({ uid: 500, cardId: 'founders_parade', cityId: city.id, openedDay: 0 });
+    expect(resolveCard(ctx, 500, 1).ok).toBe(true);
+    newspaperPanel.open(game);
+    const text = document.querySelector('.decisions li b')?.textContent ?? '';
+    expect(text).toContain(city.name);
+    expect(text).not.toContain('{');
+  });
+
+  it('an entry without a stored title (older save) never shows braces', () => {
+    const ctx = testCtx(createGame({ seed: 7 }));
+    const game = { state: ctx.state, ctx } as unknown as GameController;
+    ctx.state.date = { year: 1906, month: 4, day: 10, hour: 0 };
+    ctx.state.politics.cards.history.push({ id: 'founders_parade', year: 1906, choice: 0 });
+    newspaperPanel.open(game);
+    const text = document.querySelector('.decisions li b')?.textContent ?? '';
+    expect(text).toContain('the valley');
+    expect(text).not.toContain('{');
   });
 });
