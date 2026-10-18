@@ -129,6 +129,7 @@ export const familyPanel: PanelDef = {
     win = createWindow({
       id: 'family',
       title: `The ${familyTitle(game.ctx.state)} Family`,
+      tabTitle: 'Family',
       width: 400,
       content: render(game, refresh),
       onClose: () => {

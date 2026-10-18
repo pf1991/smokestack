@@ -197,6 +197,7 @@ export const exchangePanel: PanelDef = {
     win = createWindow({
       id: 'exchange',
       title: 'The Exchange',
+      tabTitle: 'Exchange',
       width: 420,
       content: first.el,
       onClose: () => {

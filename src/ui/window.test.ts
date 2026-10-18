@@ -70,3 +70,15 @@ describe('window manager (side panel)', () => {
     expect(a.el.style.width).toBe('');
   });
 });
+
+describe('tabTitle', () => {
+  it('the tab shows the short title; the tooltip and aria-label keep the full one', () => {
+    createWindow({ id: 'fam', title: 'The Gilded Family', tabTitle: 'Family', content: h('div') });
+    createWindow({ id: 'plain', title: 'Plain', content: h('div') });
+    const [fam, plain] = tabs();
+    expect(fam.querySelector('.side-panel-tab-title')?.textContent).toBe('Family');
+    expect(fam.title).toBe('The Gilded Family');
+    expect(fam.getAttribute('aria-label')).toBe('The Gilded Family');
+    expect(plain.querySelector('.side-panel-tab-title')?.textContent).toBe('Plain');
+  });
+});

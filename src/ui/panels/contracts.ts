@@ -95,6 +95,7 @@ export const contractsPanel: PanelDef = {
     win = createWindow({
       id: 'contracts',
       title: "Mayor's Contracts",
+      tabTitle: 'Contracts',
       content: buildBoard(game, rerender),
       onClose: () => offs.forEach((f) => f()),
     });

@@ -5,6 +5,8 @@ import { addTab, collapsePanel, focusTab, isTabShown, removeTab } from './sidePa
 export interface WindowOptions {
   id: string;
   title: string;
+  /** Short label for the side-panel tab (the top-bar menu label); the tooltip and aria-label keep `title`. */
+  tabTitle?: string;
   content: HTMLElement;
   onClose?: () => void;
   /** Windows fill the side panel; a width wider than its default widens the panel while this tab is active. */
@@ -79,7 +81,7 @@ export function createWindow(opts: WindowOptions): GameWindow {
   };
 
   open.set(opts.id, win);
-  addTab({ id: opts.id, title: opts.title, el, close: () => win.close(), width: opts.width });
+  addTab({ id: opts.id, title: opts.title, tabTitle: opts.tabTitle, el, close: () => win.close(), width: opts.width });
   return win;
 }
 

@@ -48,6 +48,7 @@ export const goalsPanel: PanelDef = {
     const win = createWindow({
       id: 'goals',
       title: 'Scenario Goals',
+      tabTitle: 'Goals',
       content: buildGoals(game.state),
       width: 360,
       onClose: () => offs.forEach((f) => f()),

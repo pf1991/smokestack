@@ -219,7 +219,7 @@ export const newspaperPanel: PanelDef = {
       }));
     };
     draw();
-    const win = createWindow({ id: 'newspaper', title: 'The Daily Smokestack', content, width: 820 });
+    const win = createWindow({ id: 'newspaper', title: 'The Daily Smokestack', tabTitle: 'Newspaper', content, width: 820 });
     const body = win.el.querySelector('.window-body');
     if (body && !body.contains(content)) {
       // already open (e.g. an earlier auto-open): show the latest edition instead of a stale one

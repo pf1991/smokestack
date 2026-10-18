@@ -30,6 +30,8 @@ const DEFAULT_WIDTH_CSS = 'min(420px, 34vw)';
 export interface TabSpec {
   id: string;
   title: string;
+  /** shown on the tab instead of `title` (which stays in the tooltip and aria-labels) */
+  tabTitle?: string;
   /** the window element (.window); the panel moves it into its body */
   el: HTMLElement;
   /** closes the window (the panel calls this to evict a tab or for the tab's close button) */
@@ -254,6 +256,7 @@ export function addTab(spec: TabSpec): void {
     class: 'side-panel-tab',
     role: 'tab',
     title: spec.title,
+    'aria-label': spec.title,
     onClick: () => focusTab(spec.id),
     onKeyDown: (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -262,7 +265,7 @@ export function addTab(spec: TabSpec): void {
       }
     },
   },
-  h('span', { class: 'side-panel-tab-title' }, spec.title),
+  h('span', { class: 'side-panel-tab-title' }, spec.tabTitle ?? spec.title),
   h('button', {
     class: 'side-panel-tab-close',
     title: `Close ${spec.title}`,

@@ -170,6 +170,7 @@ export const financePanel: PanelDef = {
     const win = createWindow({
       id: 'finance',
       title: 'Finance ledger',
+      tabTitle: 'Finance',
       content: body,
       width: 640,
       onClose: () => clearInterval(timer),

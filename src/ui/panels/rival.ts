@@ -214,6 +214,7 @@ export const rivalPanel: PanelDef = {
     win = createWindow({
       id: 'rival',
       title: 'The Rival',
+      tabTitle: 'Rival',
       width: 380,
       content: render(game, refresh),
       onClose: () => {
