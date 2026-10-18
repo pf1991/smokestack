@@ -390,6 +390,7 @@ describe('hub-to-hub balancing', () => {
     const store = must(placeBuilding(ctx, 'player', 'store', { x: bx, y: 18 }));
     s.cities[0].market.bread = { sold30: 0, demand30: 120, pending: 0 };
     must(openHub(ctx, b.id, 'player'));
+    manage(ctx, b, 1);
     a.input.bread = 300;
     must(buyHubTruck(ctx, 'player', a.id));
     manage(ctx, a, skill);
@@ -426,6 +427,108 @@ describe('hub-to-hub balancing', () => {
     a.input.bread = 150;
     dispatchNow(ctx, a);
     expect(jobs(s)[0].qty).toBeLessThanOrEqual(50);
+  });
+
+  it('never balances to a hub nobody runs or that is under works', () => {
+    const { s, ctx, a, b } = twoHubs(50, 4);
+    b.works = { toLevel: 2, startDay: 0, untilDay: 99999 };
+    dispatchNow(ctx, a);
+    expect(jobs(s)).toEqual([]);
+    delete b.works;
+    const m = ctx.state.logistics.managers.find((x) => x.post === b.id)!;
+    m.post = null;
+    ctx.state.logistics.rev++;
+    dispatchNow(ctx, a);
+    expect(jobs(s)).toEqual([]);
+  });
+
+  it('balance targets only the receiver\'s own consumers: a store in the overlap never pulls goods back and forth', () => {
+    const s = testState({
+      width: 90, height: 30, money: 1e8,
+      cities: [{ x: 40, y: 20, population: 3000, name: 'Midway' }, { x: 52, y: 20, population: 3000, name: 'Ashford' }],
+    });
+    const ctx = testCtx(s);
+    refreshMarket(s, 1900);
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 12 }, { x: 88, y: 12 })));
+    must(buildRoad(ctx, 'player', lPath({ x: 40, y: 12 }, { x: 40, y: 17 })));
+    must(buildRoad(ctx, 'player', lPath({ x: 52, y: 12 }, { x: 52, y: 17 })));
+    const a = must(placeBuilding(ctx, 'player', 'warehouse', { x: 30, y: 9 }));
+    const b = must(placeBuilding(ctx, 'player', 'warehouse', { x: 50, y: 9 }));
+    const mid = must(placeBuilding(ctx, 'player', 'store', { x: 40, y: 18 }));
+    const own = must(placeBuilding(ctx, 'player', 'store', { x: 52, y: 18 }));
+    expect(hubAttached(s, a, 12)).toContain(mid);
+    expect(hubAttached(s, b, 12)).toContain(mid);
+    expect(hubAttached(s, a, 12)).not.toContain(own);
+    for (const c of s.cities) c.market.bread = { sold30: 0, demand30: 120, pending: 0 };
+    must(openHub(ctx, a.id, 'player'));
+    must(openHub(ctx, b.id, 'player'));
+    manage(ctx, a, 5);
+    manage(ctx, b, 5);
+    must(buyHubTruck(ctx, 'player', a.id));
+    must(buyHubTruck(ctx, 'player', b.id));
+    a.input.bread = 900;
+    let balances = 0;
+    for (let day = 0; day < 30; day++) {
+      hubsDay(ctx);
+      for (const v of Object.values(s.vehicles) as Vehicle[]) {
+        const j = v.job as HubJob | null;
+        if (j?.kind === 'balance') {
+          balances++;
+          expect(j.from).toBe(a.id); // never back from the receiver
+        }
+      }
+      tick(ctx, 400);
+      s.date = addDays(s.date, 1);
+    }
+    expect(balances).toBeGreaterThan(0);
+    expect(mid.input.bread ?? 0).toBeGreaterThanOrEqual(0);
+  });
+
+  it('with the only consumer in the overlap, nothing is balanced either way over many days', () => {
+    const s = testState({ width: 90, height: 30, money: 1e8, cities: [{ x: 40, y: 20, population: 3000, name: 'Midway' }] });
+    const ctx = testCtx(s);
+    refreshMarket(s, 1900);
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 12 }, { x: 88, y: 12 })));
+    must(buildRoad(ctx, 'player', lPath({ x: 40, y: 12 }, { x: 40, y: 17 })));
+    const a = must(placeBuilding(ctx, 'player', 'warehouse', { x: 30, y: 9 }));
+    const b = must(placeBuilding(ctx, 'player', 'warehouse', { x: 50, y: 9 }));
+    must(placeBuilding(ctx, 'player', 'store', { x: 40, y: 18 }));
+    s.cities[0].market.bread = { sold30: 0, demand30: 600, pending: 0 };
+    must(openHub(ctx, b.id, 'player'));
+    manage(ctx, a, 5);
+    manage(ctx, b, 5);
+    for (let i = 0; i < 3; i++) {
+      must(buyHubTruck(ctx, 'player', a.id));
+      must(buyHubTruck(ctx, 'player', b.id));
+    }
+    a.input.bread = 600;
+    const p = { pickups: new Map(), hubOut: new Map(), inbound: new Map(), hubIn: new Map() };
+    for (const [from, stock] of [[a, 600], [b, 0]] as const) {
+      from.input.bread = stock;
+      const cands = hubCandidates(s, from, 12, p, SKILL_TIERS[5]);
+      expect(cands.filter((c) => c.kind === 'balance')).toEqual([]);
+    }
+    a.input.bread = 600;
+    for (let day = 0; day < 30; day++) {
+      hubsDay(ctx);
+      for (const v of Object.values(s.vehicles) as Vehicle[]) expect((v.job as HubJob | null)?.kind).not.toBe('balance');
+      tick(ctx, 400);
+      s.date = addDays(s.date, 1);
+    }
+  });
+
+  it('a balance target demolished mid-trip: the truck goes home and its cargo lands in the home hub', () => {
+    const { s, ctx, a, b } = twoHubs(50, 4);
+    dispatchNow(ctx, a);
+    const truck = Object.values(s.vehicles)[0] as Vehicle;
+    const qty = (truck.job as HubJob).qty;
+    until(ctx, () => truck.stopIndex === 1 && (truck.cargo.bread ?? 0) > 0 && truck.state === 'moving');
+    expect(a.input.bread).toBe(300 - qty);
+    must(demolishBuilding(ctx, b.id, 'player'));
+    until(ctx, () => truck.job === null && truck.state === 'idle', 6000);
+    expect(a.input.bread).toBe(300);
+    expect(truck.cargo.bread ?? 0).toBe(0);
+    expect(checkInvariants(s)).toEqual([]);
   });
 
   it('hubs whose ranges do not overlap never balance', () => {

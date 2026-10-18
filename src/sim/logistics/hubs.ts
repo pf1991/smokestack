@@ -352,6 +352,19 @@ function consumerRoom(state: GameState, c: Building, good: GoodId, inbound: numb
   return Math.min(Math.floor(left + ahead * dailyUse(state, c, good, stores)), buildingStorage(c));
 }
 
+/** Work shared by every hub of one day's dispatch: town store counts and each hub's full-range attached list. */
+export interface DayCache {
+  stores: StoreCount | null;
+  attached: Map<number, Building[]>;
+}
+export const newDayCache = (): DayCache => ({ stores: null, attached: new Map() });
+
+function fullAttached(state: GameState, hub: Building, day: DayCache): Building[] {
+  let l = day.attached.get(hub.id);
+  if (!l) day.attached.set(hub.id, (l = hubAttached(state, hub, hubRange(hub))));
+  return l;
+}
+
 interface Tier {
   lookAhead: boolean;
   balance: boolean;
@@ -359,12 +372,12 @@ interface Tier {
 const NO_TIER: Tier = { lookAhead: false, balance: false };
 
 /** Today's candidates of `hub` within `radius`, sorted (spec section 8.2 steps 1-2). */
-export function hubCandidates(state: GameState, hub: Building, radius: number, p: Promises, tier: Tier = NO_TIER): Candidate[] {
+export function hubCandidates(state: GameState, hub: Building, radius: number, p: Promises, tier: Tier = NO_TIER, day: DayCache = newDayCache()): Candidate[] {
   const routed = routedGoods(state, hub.ownerId);
   const out: Candidate[] = [];
-  const attached = hubAttached(state, hub, radius);
+  const attached = fullAttached(state, hub, day).filter((b) => footprintGap(hub, b) <= radius + 1e-9);
   const ahead = tier.lookAhead ? LOOKAHEAD_DAYS : 0;
-  const stores = ahead || tier.balance ? storeCounts(state) : undefined;
+  const stores = ahead || tier.balance ? (day.stores ??= storeCounts(state)) : undefined;
   const hubRoom = (g: GoodId) => storageLeft(hub, g) - (p.hubIn.get(hub.id) ?? 0);
   for (const b of attached) {
     const cat = BUILDINGS[b.typeId].category;
@@ -391,7 +404,7 @@ export function hubCandidates(state: GameState, hub: Building, radius: number, p
       }
     }
   }
-  if (tier.balance) balanceCandidates(state, hub, p, stores!, out);
+  if (tier.balance) balanceCandidates(state, hub, p, stores!, out, day);
   return out.sort(byCandidate);
 }
 
@@ -410,12 +423,17 @@ export function overlappingHubs(state: GameState, hub: Building): Building[] {
 }
 
 /** Spec section 8.2 balance: goods this hub holds 100+ of that another hub's consumers need more of than it holds. */
-function balanceCandidates(state: GameState, hub: Building, p: Promises, stores: StoreCount, out: Candidate[]): void {
+function balanceCandidates(state: GameState, hub: Building, p: Promises, stores: StoreCount, out: Candidate[], day: DayCache): void {
   const others = overlappingHubs(state, hub);
   if (others.length === 0) return;
   const routed = routedGoods(state, hub.ownerId);
+  const mine = new Set(fullAttached(state, hub, day));
   for (const o of others) {
-    const attached = hubAttached(state, o, hubRange(o));
+    // a hub that nobody runs would just sit on the goods
+    if (o.works || !hubTier(state, o)) continue;
+    // only the receiver's own consumers count: those in the overlap are served from here too, and
+    // counting them on both sides would send the same goods back and forth
+    const attached = fullAttached(state, o, day).filter((c) => !mine.has(c));
     const d = distance(hub, o) + DIST_BIAS;
     for (const g in hub.input) {
       const stock = Math.floor(hub.input[g]) - (p.hubOut.get(`${hub.id}:${g}`) ?? 0);
@@ -483,6 +501,7 @@ export function hubsDay(ctx: SimContext): void {
   const hubs = hubList(state);
   if (hubs.length === 0) return;
   const today = dateToDays(state.date);
+  const day = newDayCache();
   let all: Vehicle[] | null = null;
   let byHub: Map<number, Vehicle[]> | null = null;
   let p: Promises | null = null;
@@ -508,7 +527,7 @@ export function hubsDay(ctx: SimContext): void {
     if (today >= h.nextDispatchDay) {
       p ??= promises(all!);
       const idle = trucks.filter((v) => !v.job && v.capacity - cargoTotal(v) >= HUB_MIN_LOAD);
-      const cands = hubCandidates(state, hub, hubRange(hub) * tier.rangeShare, p, tier);
+      const cands = hubCandidates(state, hub, hubRange(hub) * tier.rangeShare, p, tier, day);
       const r = assign(hub, cands, idle, p);
       jobs = r.jobs;
       if (r.backlog) h.month.backlogDays++;

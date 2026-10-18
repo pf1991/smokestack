@@ -332,6 +332,10 @@ and is below its cap and the owner keeps the reserve, and sells its oldest when 
 home, empty and without a job is sold; with none, the sale is skipped that month. When an upgrade
 finishes, the hub's truck cap rises to the new level's only if it equalled the old one.
 
+Balancing is receiver-only: it counts just the consumers attached to the receiving hub and not to the
+sending one (those in the overlap are served from both, so counting them twice would send goods back and
+forth), and never targets a hub with no posted manager or one under works.
+
 Implementation notes: balancing counts a consumer's need over 30 days of its use (capped at its
 storage); look-ahead output ignores terrain efficiency, so extractor forecasts are approximate.
 
