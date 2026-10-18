@@ -10,6 +10,12 @@ export const SHARES_OUTSTANDING = 1000;
 export const FOUNDER_SHARES = 400;
 /** A holding of at least this many of a company's shares controls it (exchange/trading.ts). */
 export const CONTROL_SHARES = 510;
+/**
+ * The player may buy the lot that would give it CONTROL_SHARES of the Baron only once its wealth is at
+ * least this many times his (exchange/trading.ts takeoverRefusal); his hostile_bid needs the same ratio
+ * the other way round (nemesis/retaliation.ts HOSTILE_BID_WORTH_RATIO).
+ */
+export const CONTROL_WEALTH_RATIO = 1.5;
 /** The holder id for shares in the hands of the public. */
 export const PUBLIC_HOLDER: OwnerId = 'public';
 /** Bounds of the sentiment multiplier. */

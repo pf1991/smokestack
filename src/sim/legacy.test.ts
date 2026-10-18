@@ -3,8 +3,7 @@ import { FACTION_IDS } from '../data/factions';
 import { landmarkCreditKey, raiseLandmark } from './landmarks';
 import { legacyScore } from './legacy';
 import { nationalOpinion } from './politics/factions';
-import { netWorth } from './rival/takeover';
-import { createGame } from './state';
+import { createGame, wealth } from './state';
 import { testCtx, testState } from './testkit';
 import type { GameState } from './types';
 
@@ -19,9 +18,9 @@ function fixture(): GameState {
 }
 
 describe('legacyScore', () => {
-  it('fortune is the real net worth over $10,000, rounded, never below 0', () => {
+  it('fortune is the real wealth (net worth plus shares held) over $10,000, rounded, never below 0', () => {
     const s = fixture();
-    const nw = netWorth(s, 'player');
+    const nw = wealth(s, 'player');
     expect(legacyScore(s).fortune).toBe(Math.round(nw / 2 / 10_000));
     s.companies.player.money = -9e9;
     expect(legacyScore(s).fortune).toBe(0);

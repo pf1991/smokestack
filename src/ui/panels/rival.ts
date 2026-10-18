@@ -6,9 +6,9 @@ import { drawBaronPortrait, type BaronMood } from '../../render/portrait';
 import { formatDate } from '../../sim/clock';
 import { baronMood } from '../../sim/nemesis/grudges';
 import { NEMESIS_NEWS_TAG, type Grudge } from '../../sim/nemesis/types';
-import { buyShares, holding, quote } from '../../sim/exchange/trading';
+import { buyShares, CONTROL_WEALTH_RATIO, holding, quote, takeoverRefusal } from '../../sim/exchange/trading';
 import { CONTROL_SHARES, SHARES_OUTSTANDING } from '../../sim/exchange/types';
-import { netWorth } from '../../sim/rival';
+import { wealth } from '../../sim/state';
 import { runDays } from '../../sim/simulation';
 import type { GameState, NewsItem } from '../../sim/types';
 import { h } from '../dom';
@@ -149,8 +149,8 @@ function strikeList(state: GameState): HTMLElement {
 function render(game: GameController, refresh: () => void): HTMLElement {
   const { state } = game.ctx;
   const rival = state.companies.rival;
-  const mine = netWorth(state, 'player');
-  const his = netWorth(state, 'rival');
+  const mine = wealth(state, 'player');
+  const his = wealth(state, 'rival');
   const nem = state.nemesis;
   // an ousted Baron only rages; otherwise his grudges and his last strike set the face
   const mood: BaronMood = rival.active ? baronMood(state) : 'furious';
@@ -177,10 +177,14 @@ function render(game: GameController, refresh: () => void): HTMLElement {
   // the share route (exchange/trading.ts): a majority of his shares takes his company
   const held = holding(state, 'player', 'rival');
   const q = quote(state, 'player', 'rival', BUY_LOT);
+  // the lot that would take control needs 1.5x his wealth (exchange/trading.ts takeoverRefusal)
+  const gate = rival.active ? takeoverRefusal(state, 'player', 'rival', BUY_LOT) : null;
+  const usable = rival.active && !gate;
   const button = h('button', {
     class: 'btn rival-takeover',
-    disabled: !rival.active,
-    style: { width: '100%', marginTop: '12px', opacity: rival.active ? '1' : '0.55' },
+    disabled: !usable,
+    title: gate ?? undefined,
+    style: { width: '100%', marginTop: '12px', opacity: usable ? '1' : '0.55' },
     onClick: () => {
       const r = buyShares(game.ctx, 'player', 'rival', BUY_LOT);
       const message = !r.ok ? r.error : game.ctx.state.flags.takeover ? 'Hostile takeover complete! Smogsworth is ousted.' : `Bought ${BUY_LOT} of his shares`;
@@ -190,7 +194,7 @@ function render(game: GameController, refresh: () => void): HTMLElement {
   }, rival.active ? `Buy his shares · ${BUY_LOT} for ${formatMoney(q.total)}` : 'Takeover complete');
   const hint = rival.active
     ? h('div', { class: 'rival-stake', style: { fontSize: '12px', opacity: '0.8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' } },
-      h('span', null, `You hold ${held} of his ${SHARES_OUTSTANDING} shares; ${CONTROL_SHARES} takes his company.`),
+      h('span', null, gate ?? `You hold ${held} of his ${SHARES_OUTSTANDING} shares; ${CONTROL_SHARES} takes his company (you need ${CONTROL_WEALTH_RATIO}× his wealth to take control).`),
       h('button', { class: 'btn', type: 'button', onClick: () => game.openPanel('exchange') }, 'Exchange'))
     : null;
 
@@ -202,7 +206,7 @@ function render(game: GameController, refresh: () => void): HTMLElement {
     grudgeList(state),
     sectionTitle('His last strikes'),
     strikeList(state),
-    h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', marginTop: '8px' } }, 'Net worth'),
+    h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', marginTop: '8px' }, title: 'Cash minus loans, plus works, vehicles and shares held' }, 'Net worth'),
     worthBar(mine, his, state.companies.player.name),
     storeList,
     button,

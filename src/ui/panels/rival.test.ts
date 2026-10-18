@@ -4,6 +4,7 @@ import { BARON_TRAITS } from '../../data/nemesis';
 import type { GameController } from '../../game/controller';
 import { publishNews } from '../../sim/news';
 import { createGame } from '../../sim/state';
+import { moveShares } from '../../sim/exchange/shares';
 import { EventBus } from '../../core/events';
 import type { SimContext } from '../../sim/types';
 import { PANELS } from './index';
@@ -77,5 +78,20 @@ describe('rival panel', () => {
     expect(panel().querySelector('.rival-strikes')!.textContent).toContain('not struck');
     expect(panel().querySelector('.rival-takeover')).not.toBeNull();
     expect(panel().querySelector('canvas')!.getAttribute('aria-label')).toContain('smug');
+  });
+
+  it('greys "Buy his shares" when the lot would take control below 1.5x his wealth, with the reason', () => {
+    const ctx = rivalCtx();
+    ctx.state.companies.player.money = 1e6;
+    ctx.state.companies.rival.money = 1e8;
+    moveShares(ctx.state, 'rival', 'public', 'player', 470);
+    PANELS.rival.open(game(ctx));
+    const b = panel().querySelector('.rival-takeover') as HTMLButtonElement;
+    expect(b.disabled).toBe(true);
+    expect(b.title).toMatch(/1\.5× his wealth/);
+    expect(panel().querySelector('.rival-stake')!.textContent).toMatch(/1\.5× his wealth/);
+    ctx.state.companies.player.money = 1e11;
+    PANELS.rival.open(game(ctx));
+    expect((panel().querySelector('.rival-takeover') as HTMLButtonElement).disabled).toBe(false);
   });
 });

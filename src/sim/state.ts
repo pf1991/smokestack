@@ -732,3 +732,30 @@ export function assetValues(state: GameState): Map<OwnerId, number> {
   for (const [k, v] of raw) raw.set(k, Math.round(atPrices(state, v)));
   return raw;
 }
+
+/**
+ * Book net worth: cash minus loans plus assetValue (share holdings are not counted; see wealth).
+ * `assets`, when given, is assetValues (a pass valuing every company at once).
+ */
+export function netWorth(state: GameState, owner: OwnerId, assets?: Map<OwnerId, number>): number {
+  const c = state.companies[owner];
+  return c.money - c.loan + (assets ? assets.get(owner) ?? 0 : assetValue(state, owner));
+}
+
+/**
+ * What `owner` is worth with its share holdings: netWorth plus, over every listing, the shares it
+ * holds (its own treasury stock included) at the stored price. Reads stored prices only, so it never
+ * recurses into another company's valuation. The measure for Legacy, the panels, the goals and the
+ * Baron's comparisons (rivalry grudge, hostile bid, the player's takeover gate).
+ */
+export function wealth(state: GameState, owner: OwnerId): number {
+  let v = netWorth(state, owner);
+  const listings = state.exchange?.listings;
+  if (listings) {
+    for (const id in listings) {
+      const n = listings[id].holders[owner];
+      if (n) v += n * listings[id].price;
+    }
+  }
+  return v;
+}

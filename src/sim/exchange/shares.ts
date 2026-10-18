@@ -3,6 +3,7 @@
  * funnels.test.ts); `listCompany` creates a listing and `delist` retires one.
  */
 import { companyIds } from '../companies';
+import { earn, spend } from '../finance';
 import type { GameState, OwnerId } from '../types';
 import { fundamental, listingPrice } from './prices';
 import { FOUNDER_SHARES, PUBLIC_HOLDER, SHARES_OUTSTANDING, type Listing } from './types';
@@ -77,4 +78,39 @@ export function handOverHoldings(state: GameState, from: OwnerId, to: OwnerId): 
     const n = listings[id].holders[from] ?? 0;
     if (n > 0) moveShares(state, id, from, to, n);
   }
+}
+
+/**
+ * Winds up the treasury of `target`, taken over by `buyer` (exchange/trading.ts absorb, rival/takeover.ts
+ * takeover), before its assets pass whole through transferOwnership:
+ * - its cash first settles its loan;
+ * - the net cash left (money − loan, when positive) goes out as a liquidating distribution, booked on
+ *   the target under 'dividends' (outside operating profit): each active company holding its shares,
+ *   the buyer among them, receives its holding / shares part (the buyer under 'shares', a takeover
+ *   settlement; any other holder under 'dividends'), in listing key order; the public's part and the
+ *   target's own treasury part leave the economy;
+ * - debts beyond its cash (money − loan below 0) are assumed by the buyer, who pays them off under
+ *   'shares' (the creditors are paid in full).
+ * The target ends with no money and no loan. Call it before handOverHoldings and delist.
+ */
+export function windUp(state: GameState, target: OwnerId, buyer: OwnerId): void {
+  const t = state.companies[target];
+  const to = state.companies[buyer];
+  const net = t.money - t.loan;
+  if (net > 0) {
+    spend(t, 'dividends', net, state.date);
+    const l = state.exchange.listings[target];
+    if (l) {
+      for (const holder in l.holders) {
+        if (holder === target || holder === PUBLIC_HOLDER) continue;
+        const c = state.companies[holder];
+        if (!c || !c.active) continue;
+        const part = Math.round((net * l.holders[holder]) / l.shares);
+        if (part > 0) earn(c, holder === buyer ? 'shares' : 'dividends', part, state.date);
+      }
+    }
+  } else if (net < 0) spend(to, 'shares', -net, state.date);
+  // the loan is settled (from the cash left after the distribution, or by the buyer)
+  t.money = 0;
+  t.loan = 0;
 }

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { EventBus } from '../../core/events';
 import type { GameController } from '../../game/controller';
 import { buyBackNeed, buyBackQuote, buyShares, CONTROL_SHARES, holding, quote, sellQuote } from '../../sim/exchange/trading';
-import { delist } from '../../sim/exchange/shares';
+import { delist, moveShares } from '../../sim/exchange/shares';
 import { createGame } from '../../sim/state';
 import { must } from '../../sim/testkit';
 import type { SimContext } from '../../sim/types';
@@ -118,5 +118,25 @@ describe('exchange panel', () => {
     b.click();
     expect(holding(state, 'rival', 'player')).toBe(590);
     expect(holding(state, 'player', 'player')).toBe(410);
+  });
+
+  it('greys a Buy that would take control of the Baron below 1.5x his wealth, and says why', () => {
+    const c = ctx();
+    const { state } = c;
+    moveShares(state, 'rival', 'public', 'player', 500);
+    PANELS.exchange.open(game(c));
+    const b = button('rival', 'buy-10');
+    expect(b.disabled).toBe(true);
+    expect(b.title).toMatch(/1\.5× his wealth/);
+    const note = row('rival').querySelector('.exchange-gate') as HTMLElement;
+    expect(note.style.display).not.toBe('none');
+    expect(note.textContent).toMatch(/1\.5× his wealth/);
+    // the player's own row and regional firms have no gate
+    expect((row('player').querySelector('.exchange-gate') as HTMLElement).style.display).toBe('none');
+    // rich enough: the button opens and the note goes
+    state.companies.player.money = 1e11;
+    PANELS.exchange.open(game(c));
+    expect(button('rival', 'buy-10').disabled).toBe(false);
+    expect((row('rival').querySelector('.exchange-gate') as HTMLElement).style.display).toBe('none');
   });
 });

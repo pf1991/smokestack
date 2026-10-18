@@ -5,7 +5,7 @@ import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, loanStep, maxLoan, monthProfit, 
 import { inflationRate, priceIndex } from '../../sim/society/economy';
 import { loanRate } from '../../sim/politics/mayorEdicts';
 import { companyIds } from '../../sim/companies';
-import { assetValue } from '../../sim/state';
+import { wealth } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
 import { barChart, cssColor, lineChart } from '../charts';
 import { h } from '../dom';
@@ -85,7 +85,7 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
  */
 function monthValues(state: GameState, c: Company | undefined, key: number, m: LedgerMonth | undefined) {
   if (key === monthKey(state.date) && c) {
-    return { cash: c.money, net: c.money - c.loan + assetValue(state, c.id) };
+    return { cash: c.money, net: wealth(state, c.id) };
   }
   return { cash: m?.cashEnd ?? Number.NaN, net: m?.netWorthEnd ?? Number.NaN };
 }
@@ -99,7 +99,7 @@ export function companiesTable(state: GameState): HTMLElement {
     h(
       'table',
       { class: 'finance-table finance-companies' },
-      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Company'), h('th', { scope: 'col' }, 'Cash'), h('th', { scope: 'col' }, 'Net worth'))),
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Company'), h('th', { scope: 'col' }, 'Cash'), h('th', { scope: 'col', title: 'Cash minus loans, plus works, vehicles and shares held' }, 'Net worth'))),
       h(
         'tbody',
         null,
@@ -110,7 +110,7 @@ export function companiesTable(state: GameState): HTMLElement {
             null,
             h('th', { scope: 'row' }, c.active ? c.name : `${c.name} (closed)`),
             money(c.money),
-            money(c.money - c.loan + assetValue(state, id)),
+            money(wealth(state, id)),
           );
         }),
       ),

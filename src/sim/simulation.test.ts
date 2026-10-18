@@ -89,7 +89,9 @@ describe('stepTick', () => {
     expect(apr?.expense.maintenance).toBe(BUILDINGS.sawmill.maintenance);
     expect(apr?.cashEnd).toBe(afterBuild - BUILDINGS.sawmill.maintenance);
     // assets are valued at the month-end price index (the economy system steps before finance closes)
-    expect(apr?.netWorthEnd).toBe(apr!.cashEnd + Math.round(BUILDINGS.sawmill.cost * 0.5 * s.economy.priceIndex));
+    // and the company's own treasury shares count at the month-end price (state.ts wealth)
+    const l = s.exchange.listings.player;
+    expect(apr?.netWorthEnd).toBeCloseTo(apr!.cashEnd + Math.round(BUILDINGS.sawmill.cost * 0.5 * s.economy.priceIndex) + l.holders.player * l.history[0], 6);
     expect(s.companies.player.ledger.find((m) => m.month === 5)?.expense.maintenance ?? 0).toBe(0);
   });
 

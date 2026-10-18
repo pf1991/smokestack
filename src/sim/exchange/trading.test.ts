@@ -196,6 +196,8 @@ describe('takeovers', () => {
     must(buyShares(ctx, 'player', 'rival', 500));
     expect(state.companies.rival.active).toBe(true);
     const cash = state.companies.rival.money - state.companies.rival.loan;
+    // the lot that takes control needs 1.5x his wealth
+    state.companies.player.money = 1e10;
     const money = state.companies.player.money;
     const price = quote(state, 'player', 'rival', 10).total;
     must(buyShares(ctx, 'player', 'rival', 10));
@@ -205,8 +207,8 @@ describe('takeovers', () => {
     const l = state.exchange.listings.rival;
     expect(l.listed).toBe(false);
     expect(l.holders).toEqual({ public: SHARES_OUTSTANDING });
-    // the shares were the price: the deal brings his cash net of his loan and charges nothing more
-    expect(state.companies.player.money).toBe(money - price + cash);
+    // the shares were the price: the deal brings the player's 510/1000 of his cash net of his loan
+    expect(state.companies.player.money).toBe(money - price + Math.round((cash * CONTROL_SHARES) / SHARES_OUTSTANDING));
     expect(state.companies.rival.money).toBe(0);
     expect(state.companies.rival.loan).toBe(0);
     expect(seen.some((e) => e.type === 'achievement' && e.id === 'baron_busted')).toBe(true);
@@ -220,6 +222,7 @@ describe('takeovers', () => {
     openBid(ctx);
     expect(state.nemesis.bid).not.toBeNull();
     const his = holding(state, 'rival', 'player');
+    state.companies.player.money = 1e10;
     must(buyShares(ctx, 'player', 'rival', CONTROL_SHARES));
     expect(state.companies.rival.active).toBe(false);
     expect(state.nemesis.bid).toBeNull();

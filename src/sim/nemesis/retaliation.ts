@@ -30,7 +30,8 @@ import { strikeActive } from '../society/strikeState';
 import type { Building, City, GameState, GoodId, SimContext } from '../types';
 import { buyShares, quote, TRADE_LOT } from '../exchange/trading';
 import { PUBLIC_HOLDER, SHARES_OUTSTANDING } from '../exchange/types';
-import { netWorth } from '../rival/takeover';
+import { wealth } from '../state';
+import { CONTROL_WEALTH_RATIO } from '../exchange/types';
 import { bidOpen } from './bid';
 import { addGrudge, grudgeTotal, heaviestGrudge, spendHeaviestGrudge } from './grudges';
 import { NEMESIS_NEWS_TAG, RETALIATE_AT, RETALIATION_KINDS, type GrudgeKind, type RetaliationKind } from './types';
@@ -149,14 +150,14 @@ function hasTarget(state: GameState, kind: RetaliationKind): boolean {
     case 'sabotage':
       return sabotageTargets(state).length > 0;
     case 'hostile_bid':
-      return bidLot(state) > 0 && netWorth(state, BARON_ID) >= HOSTILE_BID_WORTH_RATIO * netWorth(state, PLAYER_ID);
+      return bidLot(state) > 0 && wealth(state, BARON_ID) >= HOSTILE_BID_WORTH_RATIO * wealth(state, PLAYER_ID);
   }
 }
 
 /** a hostile bid buys this many of the player's shares at most */
 export const HOSTILE_BID_SHARES = 100;
-/** he only bids for the player's shares while his net worth is at least this multiple of the player's */
-export const HOSTILE_BID_WORTH_RATIO = 1.5;
+/** he only bids for the player's shares while his wealth (state.ts) is at least this multiple of the player's: the player's takeover gate, mirrored */
+export const HOSTILE_BID_WORTH_RATIO = CONTROL_WEALTH_RATIO;
 
 /**
  * The player's shares a hostile_bid move would buy: HOSTILE_BID_SHARES, or fewer when fewer are on

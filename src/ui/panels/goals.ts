@@ -34,7 +34,7 @@ export function buildGoals(state: GameState): HTMLElement {
         h('div', { class: 'gl-line' }, h('b', null, p.label), h('span', null, `by ${g.byYear}`)),
         h('div', { class: 'gl-bar' }, h('i', { style: { width: `${pct}%` } })),
         h('div', { class: 'gl-line' },
-          g.kind === 'takeover' ? h('span', null, done[i] ? 'Complete' : 'Reach 3x his net worth first') : h('span', null, `${fmt(Math.min(p.value, p.target), money)} / ${fmt(p.target, money)}`),
+          g.kind === 'takeover' ? h('span', null, done[i] ? 'Complete' : 'Buy 510 of his 1000 shares (you need 1.5x his wealth to take control)') : h('span', null, `${fmt(Math.min(p.value, p.target), money)} / ${fmt(p.target, money)}`),
           h('span', null, status)));
     }),
     legacy);

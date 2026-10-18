@@ -216,6 +216,7 @@ export interface LedgerMonth {
   expense: Partial<Record<LedgerCategory, number>>;
   salesByGood: Partial<Record<GoodId, number>>;
   cashEnd: number;
+  /** state.ts wealth at the month's close: net worth plus share holdings at the stored prices */
   netWorthEnd: number;
 }
 

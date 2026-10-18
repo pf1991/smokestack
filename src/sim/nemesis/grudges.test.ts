@@ -4,11 +4,10 @@ import { checkInvariants } from '../invariants';
 import { notePoliticsSale } from '../politics/factions';
 import { recordSale } from '../scenarios';
 import { runDays } from '../simulation';
-import { createGame, placeBuilding } from '../state';
+import { createGame, placeBuilding, wealth } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Contract } from '../types';
 import { RETALIATE_AT } from './retaliation';
-import { netWorth } from '../rival/takeover';
 import { addGrudge, baronMood, RIVALRY_SHARE, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, salesGrudges } from './grudges';
 
 function twoTowns() {
@@ -97,11 +96,14 @@ describe('grudgesYear', () => {
 });
 
 describe('rivalry', () => {
+  // sets each company's cash so its wealth (net worth plus its treasury shares) is the figure given
   const worth = (ctx: ReturnType<typeof twoTowns>, player: number, baron: number) => {
-    ctx.state.companies.player.money = player;
-    ctx.state.companies.rival.money = baron;
-    expect(netWorth(ctx.state, 'player')).toBe(player);
-    expect(netWorth(ctx.state, 'rival')).toBe(baron);
+    for (const [id, w] of [['player', player], ['rival', baron]] as const) {
+      const c = ctx.state.companies[id];
+      c.money = 0;
+      c.money = w - wealth(ctx.state, id);
+      expect(wealth(ctx.state, id)).toBe(w);
+    }
   };
   const rivalries = (ctx: ReturnType<typeof twoTowns>) => ctx.state.nemesis.grudges.filter((g) => g.kind === 'rivalry').map((g) => g.weight);
   it(`December: a player worth at least ${RIVALRY_SHARE} of the Baron adds a rivalry grudge, after the decay`, () => {

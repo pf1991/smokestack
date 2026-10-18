@@ -13,7 +13,8 @@
  *   BROKER_FEE on each side, so a round trip loses a little.
  * - Money moves through spend and earn under 'shares', which stays out of operating profit.
  * - A buyer reaching CONTROL_SHARES of another company takes it: the player buying the Baron completes
- *   rival/takeover.ts `takeover`; anyone buying a regional firm absorbs it (transferOwnership); the
+ *   rival/takeover.ts `takeover` (the lot that reaches control needs CONTROL_WEALTH_RATIO × his wealth,
+ *   takeoverRefusal); anyone buying a regional firm absorbs it (transferOwnership); the
  *   Baron reaching it of the player opens a hostile bid.
  *
  * No randomness. Holdings are written only through exchange/shares.ts moveShares.
@@ -28,8 +29,9 @@ import { takeover } from '../rival/takeover';
 import { priceIndex } from '../society/economy';
 import type { GameState, OwnerId, SimContext } from '../types';
 import { exchangeShock } from './prices';
-import { delist, handOverHoldings, moveShares } from './shares';
-import { CONTROL_SHARES, PUBLIC_HOLDER, SENTIMENT_MAX, SENTIMENT_MIN } from './types';
+import { delist, handOverHoldings, moveShares, windUp } from './shares';
+import { netWorth, wealth } from '../state';
+import { CONTROL_SHARES, CONTROL_WEALTH_RATIO, PUBLIC_HOLDER, SENTIMENT_MAX, SENTIMENT_MIN } from './types';
 
 /** Shares trade in whole lots of this many. */
 export const TRADE_LOT = 10;
@@ -38,7 +40,7 @@ export const IMPACT_BLOCK = 50;
 export const PRICE_IMPACT = 1.02;
 /** The broker's commission on each side of a trade. */
 export const BROKER_FEE = 0.01;
-export { CONTROL_SHARES };
+export { CONTROL_SHARES, CONTROL_WEALTH_RATIO };
 
 const clampSentiment = (s: number): number => (s < SENTIMENT_MIN ? SENTIMENT_MIN : s > SENTIMENT_MAX ? SENTIMENT_MAX : s);
 
@@ -48,7 +50,7 @@ export function holding(state: GameState, holder: OwnerId, target: OwnerId): num
 }
 
 /**
- * The gross value of `n` shares of `target` at the current fundamental and sentiment, priced lot by
+ * The gross value of `n` shares of `target` at the current fundamental (tradeFundamental) and sentiment, priced lot by
  * lot: a buy (dir 1) pays sentiment × PRICE_IMPACT^(shares before / IMPACT_BLOCK) for each lot, a sale
  * (dir -1) gets it at PRICE_IMPACT^-(shares after / IMPACT_BLOCK), so a buy and the same sale cost the
  * same before fees. Each lot's sentiment is clamped like exchangeShock's.
@@ -56,13 +58,26 @@ export function holding(state: GameState, holder: OwnerId, target: OwnerId): num
 function gross(state: GameState, target: OwnerId, n: number, dir: 1 | -1): number {
   const l = state.exchange.listings[target];
   if (!l || !(n > 0)) return 0;
+  const f = tradeFundamental(state, target);
   let sum = 0;
   for (let done = 0; done < n; done += TRADE_LOT) {
     const lot = Math.min(TRADE_LOT, n - done);
     const at = dir > 0 ? done : -(done + lot);
-    sum += lot * l.fundamental * clampSentiment(l.sentiment * PRICE_IMPACT ** (at / IMPACT_BLOCK));
+    sum += lot * f * clampSentiment(l.sentiment * PRICE_IMPACT ** (at / IMPACT_BLOCK));
   }
   return sum;
+}
+
+/**
+ * The fundamental a trade is priced at: the listing's monthly figure, floored at today's book value
+ * per share (prices.ts applies the same floor monthly). The live floor keeps the books between two
+ * monthly refreshes (cash that came in this month, or a save from before the floor) from selling a
+ * company below what a takeover would pay out of it.
+ */
+function tradeFundamental(state: GameState, target: OwnerId): number {
+  const l = state.exchange.listings[target];
+  const book = state.companies[target] ? netWorth(state, target) / l.shares : 0;
+  return Number.isFinite(book) && book > l.fundamental ? book : l.fundamental;
 }
 
 const perShare = (total: number, n: number): number => (n > 0 ? Math.round((total / n) * 100) / 100 : 0);
@@ -95,6 +110,23 @@ function refusal(state: GameState, trader: OwnerId, target: OwnerId, n: number):
   return null;
 }
 
+const dollars = (n: number): string => `$${Math.round(n).toLocaleString('en-US')}`;
+
+/**
+ * Why `buyer` may not buy `n` more shares of `target` under the takeover gate (null when it may): the
+ * player's lot that would bring its holding of the Baron to CONTROL_SHARES or more needs the player's
+ * wealth at least CONTROL_WEALTH_RATIO × his. Lots below control are always allowed, and regional
+ * firms have no gate. The UI shows this text on the disabled Buy button.
+ */
+export function takeoverRefusal(state: GameState, buyer: OwnerId, target: OwnerId, n: number): string | null {
+  if (buyer !== PLAYER_ID || target !== BARON_ID) return null;
+  if (holding(state, buyer, target) + n < CONTROL_SHARES) return null;
+  const mine = wealth(state, PLAYER_ID);
+  const need = CONTROL_WEALTH_RATIO * wealth(state, BARON_ID);
+  if (mine >= need) return null;
+  return `Taking control of Smogsworth needs ${CONTROL_WEALTH_RATIO}× his wealth: ${dollars(need)} (you have ${dollars(mine)})`;
+}
+
 /**
  * Where `buyer`'s shares of `target` come from: the public, except that the player buying back its
  * own shares during the Baron's open bid buys them from him.
@@ -124,6 +156,8 @@ export function buyShares(ctx: SimContext, buyer: OwnerId, target: OwnerId, n: n
   const { state } = ctx;
   const bad = refusal(state, buyer, target, n);
   if (bad) return err(bad);
+  const gate = takeoverRefusal(state, buyer, target, n);
+  if (gate) return err(gate);
   const from = sellerFor(state, buyer, target);
   const have = holding(state, from, target);
   if (have < n) return err(have === 0 ? 'No shares on offer' : `Only ${have} shares on offer`);
@@ -177,18 +211,16 @@ function settle(ctx: SimContext, buyer: OwnerId, target: OwnerId): void {
 }
 
 /**
- * `buyer` absorbs regional firm `target`: its cash net of its loan, its works, routes, vehicles and
- * roads (transferOwnership) and its share holdings pass to the buyer; the firm closes and is delisted.
+ * `buyer` absorbs regional firm `target`: its treasury is wound up (shares.ts windUp: the buyer gets
+ * its holding's share of the net cash and assumes any debts beyond it), its works, routes, vehicles
+ * and roads (transferOwnership) and its share holdings pass to the buyer whole; the firm closes and
+ * is delisted.
  */
 function absorb(ctx: SimContext, target: OwnerId, buyer: OwnerId): void {
   const { state } = ctx;
   const firm = state.companies[target];
   const to = state.companies[buyer];
-  const cash = firm.money - firm.loan;
-  if (cash > 0) earn(to, 'shares', cash, state.date);
-  else if (cash < 0) spend(to, 'shares', -cash, state.date);
-  firm.money = 0;
-  firm.loan = 0;
+  windUp(state, target, buyer);
   transferOwnership(ctx, target, buyer);
   firm.active = false;
   handOverHoldings(state, target, buyer);

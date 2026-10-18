@@ -9,8 +9,8 @@
  */
 import type { GameController } from '../../game/controller';
 import { companyIds } from '../../sim/companies';
-import { buyBack, buyBackNeed, buyBackQuote, buyQuote, buyShares, holding, sellerFor, sellQuote, sellShares } from '../../sim/exchange/trading';
-import { CONTROL_SHARES, PUBLIC_HOLDER } from '../../sim/exchange/types';
+import { buyBack, buyBackNeed, buyBackQuote, buyQuote, buyShares, holding, sellerFor, sellQuote, sellShares, takeoverRefusal } from '../../sim/exchange/trading';
+import { CONTROL_SHARES, CONTROL_WEALTH_RATIO, PUBLIC_HOLDER } from '../../sim/exchange/types';
 import { bidMonthsLeft, bidOpen } from '../../sim/nemesis/bid';
 import type { GameState, OwnerId } from '../../sim/types';
 import { sparkline } from '../charts';
@@ -33,14 +33,19 @@ interface Live {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** The player's trade `action` on `id`: its label (with the quote) and whether it can go through now. */
-function actionState(state: GameState, id: OwnerId, action: Action): { label: string; enabled: boolean } {
+/**
+ * The player's trade `action` on `id`: its label (with the quote), whether it can go through now and,
+ * when the takeover gate blocks it, why (shown as the button's tooltip).
+ */
+function actionState(state: GameState, id: OwnerId, action: Action): { label: string; enabled: boolean; reason?: string } {
   const [side, lot] = action.split('-') as ['buy' | 'sell', string];
   const n = Number(lot);
   if (side === 'buy') {
     // during a bid the player's own shares come from the Baron, at the buy-back price
     const q = buyQuote(state, 'player', id, n);
     const offer = holding(state, sellerFor(state, 'player', id), id);
+    const gate = takeoverRefusal(state, 'player', id, n);
+    if (gate) return { label: `Buy ${n} · ${formatMoney(q.total)}`, enabled: false, reason: gate };
     return { label: `Buy ${n} · ${formatMoney(q.total)}`, enabled: offer >= n && state.companies.player.money >= q.total };
   }
   const q = sellQuote(state, 'player', id, n);
@@ -100,6 +105,20 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
     const canvas = h('canvas', { class: 'exchange-spark', width: 120, height: 28, style: { width: '120px', height: '28px' }, 'aria-label': `${c.name} share price, last ${SPARK_MONTHS} months` }) as HTMLCanvasElement;
     const held = h('div', { class: 'exchange-holdings', style: { fontSize: '12px', opacity: '0.85' } }, holdingsText(state, id));
     const buttons = h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' } });
+    // the Baron's row says why a Buy that would take control is greyed (the takeover gate)
+    const gateText = (): string => {
+      for (const lot of LOTS) {
+        const why = takeoverRefusal(game.ctx.state, 'player', id, lot);
+        if (why) return why;
+      }
+      return '';
+    };
+    const gateNote = h('div', { class: 'exchange-gate', style: { fontSize: '12px', color: '#e88a86', display: gateText() ? '' : 'none' } }, gateText());
+    updates.push(() => {
+      const text = gateText();
+      if (gateNote.textContent !== text) gateNote.textContent = text;
+      gateNote.style.display = text ? '' : 'none';
+    });
     const trade = (action: Action) => {
       const [side, lot] = action.split('-');
       const n = Number(lot);
@@ -112,12 +131,14 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
       for (const lot of LOTS) {
         const action: Action = `${side}-${lot}`;
         const s = actionState(state, id, action);
-        const b = h('button', { class: 'btn', type: 'button', 'data-action': action, disabled: !s.enabled, onClick: () => trade(action) }, s.label) as HTMLButtonElement;
+        const b = h('button', { class: 'btn', type: 'button', 'data-action': action, disabled: !s.enabled, title: s.reason ?? undefined, onClick: () => trade(action) }, s.label) as HTMLButtonElement;
         buttons.appendChild(b);
         updates.push(() => {
           const now = actionState(game.ctx.state, id, action);
           if (b.textContent !== now.label) b.textContent = now.label;
           b.disabled = !now.enabled;
+          if (now.reason) b.title = now.reason;
+          else b.removeAttribute('title');
         });
       }
     }
@@ -134,7 +155,8 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
       h('span', { style: { color, fontFamily: 'var(--font-display)', fontSize: '14px', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.name),
       h('span', { style: { display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto' } }, canvas, price)),
     held,
-    buttons));
+    buttons,
+    gateNote));
     // the month-end prices, then today's
     const spark = [...l.history.slice(-SPARK_MONTHS), l.price];
     // drawn once the canvas is laid out (jsdom has no 2D context: sparkline then draws nothing)
@@ -149,7 +171,7 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
   const el = h('div', { class: 'exchange-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
     bidBanner(game, rerender),
     h('div', { style: { fontSize: '12px', opacity: '0.8' } },
-      `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over.`),
+      `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth.`),
     ...rows);
   return { el, live: { update: () => updates.forEach((u) => u()) } };
 }

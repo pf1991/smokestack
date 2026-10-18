@@ -9,7 +9,7 @@ import { regulationMonth } from './society/regulation';
 import { strikesMonth } from './society/strikes';
 import { economyMonth } from './society/economy';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
-import { assetValue } from './state';
+import { wealth } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
 import { recordBaronEarnings } from './rival/insolvency';
 import { landmarksMonth } from './landmarks';
@@ -46,8 +46,8 @@ const finance: SimSystem = {
       const c = state.companies[id];
       // the player's rate follows Old Money; every other company pays LOAN_RATE
       const { bankrupt } = closeMonth(c, state.date, companyLoanRate(state, id));
-      // after closeMonth so the month's interest is included
-      currentLedger(c, state.date).netWorthEnd = c.money - c.loan + assetValue(state, id);
+      // after closeMonth so the month's interest is included; shares held count (state.ts wealth)
+      currentLedger(c, state.date).netWorthEnd = wealth(state, id);
       // fire once, on the month that crosses the threshold
       if (id === 'player' && bankrupt && c.monthsInRed === BANKRUPT_MONTHS) {
         bus.emit({ type: 'gameOver', reason: 'Bankrupt' });

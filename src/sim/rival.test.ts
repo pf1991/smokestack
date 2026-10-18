@@ -245,7 +245,7 @@ describe('rivalTaunt', () => {
 });
 
 describe('takeover', () => {
-  it('takeover (the completion of a share majority) transfers ownership and charges nothing more', () => {
+  it('takeover (the completion of a share majority) transfers ownership, settles his loan and pays the player only its share of his cash', () => {
     const ctx = rivalGame(7);
     runDays(ctx, 360);
     const { state } = ctx;
@@ -263,8 +263,10 @@ describe('takeover', () => {
     const playerRoads = state.companies.player.roadTiles;
     must(takeover(ctx));
 
-    // receives his cash net of his loan; the shares were the price
-    expect(state.companies.player.money).toBe(playerMoney + rivalCash);
+    // receives its holding's share of his cash net of his loan (none here: a direct call, no shares); the shares were the price
+    expect(state.exchange.listings.rival.holders.player ?? 0).toBe(0);
+    expect(rivalCash).toBeGreaterThan(0);
+    expect(state.companies.player.money).toBe(playerMoney);
     expect(state.companies.rival.money).toBe(0);
     expect(state.companies.rival.loan).toBe(0);
     for (const id of rivalBuildings) expect(state.buildings[id].ownerId).toBe('player');

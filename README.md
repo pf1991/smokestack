@@ -10,7 +10,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Living world:** day/night cycle with lit windows and street lamps, seasons (snowy winters; farms fallow in winter and bumper in summer), and chimney smoke that follows real production.
 - **Houses evolve by era:** wooden cottages, brick rowhouses, art-deco blocks, then modern towers.
 - **The Daily Smokestack:** a monthly newspaper plus a scrolling headline ticker covering historic events (the 1914 war boom, the 1929 crash, the 1969 moon landing toy craze, the 1973 oil crisis) and random ones (strikes, fires, festivals, gold rushes, visiting inventors).
-- **Rival AI:** Baron Smogsworth builds his own chains, undercuts your markets and taunts you in print. Reach 3× his net worth to launch a **Hostile Takeover**.
+- **Rival AI:** Baron Smogsworth builds his own chains, undercuts your markets and taunts you in print. Buy 510 of his 1000 shares on the exchange for a **Hostile Takeover** (you need 1.5× his wealth to take control).
 - **Mayor's Contracts:** time-limited delivery contracts paid in cash and population growth.
 - **Product lifecycle:** inventions arrive by year (automobiles and oil 1910, radios 1925, plastic 1935, television 1950, computers 1980); radios fade after 1965 and the newspaper warns you first.
 - **Fleet and routes:** trucks on routes, trains on rail, a Fleet window to manage vehicles, and route editing that is easier to build and change.
@@ -55,7 +55,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Regional firms:** three independent companies are founded in 1905, 1920 and 1935, each in a town where nobody yet sells its goods. They build their own chains, compete for customers and close if they go broke.
 - **The stock exchange:** every company is listed with 1,000 shares and a daily price that follows its fundamentals and the market mood. Buy and sell in lots of 10 in the Exchange window. Holding 510 shares of a company takes it over.
 - **Hostile bids:** if the Baron gets 510 of your shares, he bids for your company. You have six months to buy back enough shares at their fair price, and a loan covers any shortfall. If he still holds a majority at the deadline, the company is his and the game is over.
-- **The 1929 crash:** in October 1929 the exchange collapses and demand falls for a year and a half. Crash cards ask whether to buy back your shares, sell assets cheaply, ask for a bailout or ride out a run on the bank.
+- **The 1929 crash:** in October 1929 the exchange collapses and demand falls for a year and a half. Crash cards ask whether to buy back your shares, outbid the Baron at a fire sale of bankrupt works (or hire their sacked men), take a bailout or ride out a run on the bank.
 - **Legacy score:** the end screen and the Legacy window total your fortune (in 1900 dollars), landmarks raised where you lead the retail trade, your reputation with the factions, and your dynasty's prestige and generations.
 
 ## Scenarios
