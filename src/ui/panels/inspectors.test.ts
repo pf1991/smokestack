@@ -449,6 +449,21 @@ describe('warehouse hub section', () => {
     auto.checked = false;
     auto.dispatchEvent(new Event('change'));
     expect(wh.hub!.autoSize).toBe(false);
+    const cap = sec.querySelector<HTMLInputElement>('input[data-act="hub-cap"]')!;
+    expect(cap.value).toBe('4');
+    cap.value = '2';
+    cap.dispatchEvent(new Event('change'));
+    expect(wh.hub!.maxTrucks).toBe(2);
+    cap.value = '9';
+    cap.dispatchEvent(new Event('change'));
+    expect(wh.hub!.maxTrucks).toBe(4);
+    const balancing = sec.querySelector<HTMLElement>('.insp-hub-balance')!;
+    expect(balancing.hidden).toBe(true);
+    const other = place(ctx, 'warehouse', 20, 10);
+    const truck = Object.values(ctx.state.vehicles)[0];
+    truck.job = { kind: 'balance', from: wh.id, to: other.id, good: 'bread', qty: 20 };
+    vi.advanceTimersByTime(600);
+    expect(balancing.textContent).toBe('Balancing with Warehouse at 20,10');
   });
 
   it('is absent for anything but a warehouse', () => {

@@ -8,10 +8,15 @@ import type { Building, GameState, SimContext, Vehicle } from '../types';
 import { assignVehicle, createRoute, replaceVehicle, vehiclesTick } from '../vehicles';
 import { renewOldAssets } from '../rival/projects';
 import {
-  buyHubTruck, byCandidate, footprintGap, hubAttached, hubCandidates, hubsDay, routedGoods, SKILL_TIERS,
+  buyHubTruck, byCandidate, dailyOutput, dailyUse, footprintGap, hubAttached, hubAutoSizeMonth, hubCandidates, hubsDay, openHub,
+  routedGoods, SKILL_TIERS,
   STALL_PRIORITY, STORE_PRIORITY,
 } from './hubs';
+import { worksDay } from './levels';
 import { assign, hire, refreshMarket } from './managers';
+import { atPrices } from '../society/economy';
+import { vehiclePrice } from '../vehicles';
+import { newestModel } from './models';
 import type { HubJob, Skill } from './types';
 
 /** Warehouse W (30,9) 3x3, a road along y=12 under every building; a town at (44,20) for stores. */
@@ -79,6 +84,7 @@ describe('hub dispatch', () => {
       const far = place(ctx, 'sawmill', 40);
       expect(footprintGap(hub, near)).toBe(3);
       expect(footprintGap(hub, far)).toBe(8);
+      near.staffing = far.staffing = 0; // no look-ahead top-up at skill 5
       near.output.lumber = 15; // under one truck load each
       far.output.lumber = 15;
       must(buyHubTruck(ctx, 'player', hub.id));
@@ -337,5 +343,204 @@ describe('hub trips', () => {
     expect(trucks).toHaveLength(1);
     expect(trucks[0].id).not.toBe(truck.id);
     expect(trucks[0].hubId).toBe(hub.id);
+  });
+});
+
+describe('look-ahead', () => {
+  it('a mill holding 8 and making 2 a day is collected at skill 3 (8 + 3 x 2 = 14) and not at skill 2', () => {
+    for (const [skill, want] of [[2, 0], [3, 1]] as const) {
+      const { s, ctx, hub } = setup();
+      const mill = place(ctx, 'sawmill', 35);
+      mill.staffing = 0.4; // r_lumber: 5 a day x 0.4
+      mill.output.lumber = 8;
+      expect(dailyOutput(s, mill, 'lumber')).toBeCloseTo(2);
+      must(buyHubTruck(ctx, 'player', hub.id));
+      manage(ctx, hub, skill);
+      dispatchNow(ctx, hub);
+      expect(jobs(s)).toHaveLength(want);
+      if (want) expect(jobs(s)[0]).toMatchObject({ kind: 'collect', good: 'lumber', qty: 14 });
+    }
+  });
+
+  it('output and use are 0 while the building is upgrading or halted, and a store uses its share of the town demand', () => {
+    const { s, ctx } = setup();
+    const mill = place(ctx, 'sawmill', 35);
+    const store = place(ctx, 'store', 42, 18);
+    expect(dailyUse(s, mill, 'wood')).toBeCloseTo(10);
+    mill.status = 'halted';
+    expect(dailyOutput(s, mill, 'lumber')).toBe(0);
+    expect(dailyUse(s, mill, 'wood')).toBe(0);
+    mill.status = 'ok';
+    mill.works = { toLevel: 2, startDay: 0, untilDay: 99999 };
+    expect(dailyOutput(s, mill, 'lumber')).toBe(0);
+    s.cities[0].market.bread = { sold30: 0, demand30: 60, pending: 0 };
+    expect(dailyUse(s, store, 'bread')).toBeCloseTo(2);
+  });
+});
+
+describe('hub-to-hub balancing', () => {
+  /** Hub A (30,9) holding 300 bread; hub B at x = bx whose store (bx, 18) needs 120 bread a month. */
+  function twoHubs(bx: number, skill: Skill) {
+    const s = testState({ width: 90, height: 30, money: 1e8, cities: [{ x: bx + 2, y: 20, population: 3000, name: 'Ashford' }] });
+    const ctx = testCtx(s);
+    refreshMarket(s, 1900);
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 12 }, { x: 88, y: 12 })));
+    const a = must(placeBuilding(ctx, 'player', 'warehouse', { x: 30, y: 9 }));
+    const b = must(placeBuilding(ctx, 'player', 'warehouse', { x: bx, y: 9 }));
+    const store = must(placeBuilding(ctx, 'player', 'store', { x: bx, y: 18 }));
+    s.cities[0].market.bread = { sold30: 0, demand30: 120, pending: 0 };
+    must(openHub(ctx, b.id, 'player'));
+    a.input.bread = 300;
+    must(buyHubTruck(ctx, 'player', a.id));
+    manage(ctx, a, skill);
+    return { s, ctx, a, b, store };
+  }
+
+  it('skill 4 sends a balance job to the overlapping hub whose store needs bread; skill 3 does not', () => {
+    for (const [skill, want] of [[3, 0], [4, 1]] as const) {
+      const { s, ctx, a, b } = twoHubs(50, skill);
+      expect(footprintGap(a, b)).toBeGreaterThan(12);
+      dispatchNow(ctx, a);
+      const js = jobs(s);
+      expect(js).toHaveLength(want);
+      if (want) {
+        expect(js[0]).toMatchObject({ kind: 'balance', from: a.id, to: b.id, good: 'bread' });
+        expect(js[0].qty).toBeGreaterThanOrEqual(10);
+      }
+    }
+  });
+
+  it('a balance trip ends with the bread in the other hub and the truck back home', () => {
+    const { s, ctx, a, b } = twoHubs(50, 4);
+    dispatchNow(ctx, a);
+    const truck = Object.values(s.vehicles)[0] as Vehicle;
+    const qty = (truck.job as HubJob).qty;
+    until(ctx, () => truck.job === null && truck.state === 'idle', 6000);
+    expect(b.input.bread).toBe(qty);
+    expect(a.input.bread).toBe(300 - qty);
+    expect(checkInvariants(s)).toEqual([]);
+  });
+
+  it('keeps 100 and never sends more than the other hub is short', () => {
+    const { s, ctx, a } = twoHubs(50, 4);
+    a.input.bread = 150;
+    dispatchNow(ctx, a);
+    expect(jobs(s)[0].qty).toBeLessThanOrEqual(50);
+  });
+
+  it('hubs whose ranges do not overlap never balance', () => {
+    const { s, ctx, a } = twoHubs(60, 5);
+    dispatchNow(ctx, a);
+    expect(jobs(s)).toEqual([]);
+  });
+});
+
+describe('hub auto-sizing', () => {
+  function sized(trucks = 1) {
+    const { s, ctx, hub } = setup();
+    for (let i = 0; i < trucks; i++) must(buyHubTruck(ctx, 'player', hub.id));
+    return { s, ctx, hub, count: () => Object.values(s.vehicles).filter((v) => v.hubId === hub.id).length };
+  }
+  const price = (s: GameState) => vehiclePrice(s, newestModel(s));
+
+  it('buys one truck at 12 backlog days, then resets the month', () => {
+    const { ctx, hub, count } = sized();
+    hub.hub!.month.backlogDays = 12;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(2);
+    expect(hub.hub!.month).toEqual({ jobs: 0, idleTruckDays: 0, backlogDays: 0 });
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(2);
+  });
+
+  it('does not buy under 10 backlog days or with auto-sizing off', () => {
+    const { ctx, hub, count } = sized();
+    hub.hub!.month.backlogDays = 9;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(1);
+    hub.hub!.month.backlogDays = 12;
+    hub.hub!.autoSize = false;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(1);
+  });
+
+  it('never buys above the cap (maxTrucks or the level)', () => {
+    const { ctx, hub, count } = sized(2);
+    hub.hub!.maxTrucks = 2;
+    hub.hub!.month.backlogDays = 12;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(2);
+    hub.hub!.maxTrucks = 99;
+    hub.hub!.month.backlogDays = 12;
+    hubAutoSizeMonth(ctx);
+    hub.hub!.month.backlogDays = 12;
+    hubAutoSizeMonth(ctx);
+    hub.hub!.month.backlogDays = 12;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(4); // level 1 allows 4
+  });
+
+  it('never buys below the reserve, and buys at exactly the reserve', () => {
+    const { s, ctx, hub, count } = sized();
+    const need = price(s) + atPrices(s, 20000);
+    s.companies.player.money = need - 1;
+    hub.hub!.month.backlogDays = 12;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(1);
+    hub.hub!.month.backlogDays = 12;
+    s.companies.player.money = need;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(2);
+  });
+
+  it('a company in the red buys nothing', () => {
+    const { s, ctx, hub, count } = sized();
+    s.companies.player.money = -5000;
+    hub.hub!.month.backlogDays = 30;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(1);
+  });
+
+  it('sells the oldest truck at 2.0 idle per day, never the last, and not at 1.4', () => {
+    const { s, ctx, hub, count } = sized(2);
+    const [first, second] = Object.values(s.vehicles) as Vehicle[];
+    second.builtYear = first.builtYear - 5;
+    hub.hub!.month.idleTruckDays = 42; // 1.4 a day
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(2);
+    hub.hub!.month.idleTruckDays = 60;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(1);
+    expect(s.vehicles[second.id]).toBeUndefined();
+    hub.hub!.month.idleTruckDays = 90;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(1);
+  });
+
+  it('makes one change a month even when both signals fire', () => {
+    const { ctx, hub, count } = sized(2);
+    hub.hub!.month.backlogDays = 12;
+    hub.hub!.month.idleTruckDays = 90;
+    hubAutoSizeMonth(ctx);
+    expect(count()).toBe(3);
+  });
+
+  it('is free with no hubs', () => {
+    const { s, ctx } = setup();
+    hubAutoSizeMonth(ctx);
+    expect(Object.keys(s.vehicles)).toHaveLength(0);
+  });
+});
+
+describe('hub cap after an upgrade', () => {
+  it('follows the level table when the works finish', () => {
+    const { s, ctx, hub } = setup();
+    must(buyHubTruck(ctx, 'player', hub.id));
+    expect(hub.hub!.maxTrucks).toBe(4);
+    const today = dateToDays(s.date);
+    hub.works = { toLevel: 2, startDay: today - 30, untilDay: today + 1 };
+    worksDay(ctx);
+    expect(hub.level).toBe(2);
+    expect(hub.hub!.maxTrucks).toBe(6);
   });
 });

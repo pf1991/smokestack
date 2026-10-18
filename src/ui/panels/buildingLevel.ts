@@ -10,7 +10,7 @@ import { formatMoney, formatNumber } from '../format';
 import { setText } from './inspect';
 import { assign, managerAt } from '../../sim/logistics/managers';
 import { payText, skillChips } from './managers';
-import { buyHubTruck, hubAttached, hubCap, hubTier, hubTruckRefusal, hubTrucks, setHubAutoSize } from '../../sim/logistics/hubs';
+import { buyHubTruck, hubAttached, hubCap, hubTier, hubTruckRefusal, hubTrucks, balancingWith, setHubAutoSize, setHubMaxTrucks } from '../../sim/logistics/hubs';
 import { hubRange } from '../../sim/logistics/levels';
 import { newestModel } from '../../sim/logistics/models';
 import { vehiclePrice } from '../../sim/vehicles';
@@ -41,10 +41,23 @@ export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLEle
       refresh();
     },
   }) as HTMLInputElement;
-  const autoRow = h('div', { class: 'p-row insp-hub-auto' }, h('label', { title: 'Buy a truck when work waits, sell one when trucks idle (monthly)' }, auto, ' Auto-size the hub fleet'));
+  const cap = h('input', {
+    type: 'number',
+    min: '1',
+    class: 'insp-hub-cap',
+    'data-act': 'hub-cap',
+    title: 'Most trucks auto-sizing may run',
+    onChange: () => {
+      const r = setHubMaxTrucks(host.ctx, id, 'player', Number(cap.value));
+      if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+      refresh();
+    },
+  }) as HTMLInputElement;
+  const autoRow = h('div', { class: 'p-row insp-hub-auto' }, h('label', { title: 'Buy a truck when work waits, sell one when trucks idle (monthly)' }, auto, ' Auto-size the hub fleet, up to '), cap);
+  const balancing = h('div', { class: 'p-row insp-muted insp-hub-balance' });
   const yesterday = h('div', { class: 'p-row insp-muted insp-hub-yesterday' });
   const warn = h('div', { class: 'insp-warn insp-hub-warn' }, iconEl('warning', 14), ' Hire a manager to run this hub');
-  const el = h('div', { class: 'p-section insp-hub' }, h('div', { class: 'p-head' }, iconEl('hub', 14), ' Hub'), range, trucks, buy, autoRow, yesterday, warn);
+  const el = h('div', { class: 'p-section insp-hub' }, h('div', { class: 'p-head' }, iconEl('hub', 14), ' Hub'), range, trucks, buy, autoRow, yesterday, balancing, warn);
 
   function refresh(): void {
     const { state } = host.ctx;
@@ -68,6 +81,14 @@ export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLEle
     autoRow.hidden = !b.hub;
     auto.disabled = !mine;
     if (b.hub && auto.checked !== b.hub.autoSize) auto.checked = b.hub.autoSize;
+    cap.disabled = !mine;
+    if (b.hub) {
+      cap.max = String(hubCap(b));
+      if (document.activeElement !== cap && cap.value !== String(b.hub.maxTrucks)) cap.value = String(b.hub.maxTrucks);
+    }
+    const partners = b.hub ? balancingWith(state, b) : [];
+    balancing.hidden = partners.length === 0;
+    if (partners.length) setText(balancing, `Balancing with ${partners.map((o) => `Warehouse at ${o.pos.x},${o.pos.y}`).join(', ')}`);
     yesterday.hidden = !b.hub;
     if (b.hub) {
       const y = b.hub.yesterday;

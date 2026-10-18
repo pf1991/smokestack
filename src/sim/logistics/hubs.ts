@@ -8,16 +8,17 @@ import { acceptsGood, handlesCargo, storageLeft } from '../inventory';
 import { buildingList, buildingsNear } from '../spatial';
 import { accessTiles } from '../state';
 import type { Building, GameState, GoodId, OwnerId, SimContext, Vehicle } from '../types';
-import { newVehicle, vehiclePrice } from '../vehicles';
-import { buildingStorage, hubRange, levelDef } from './levels';
-import { managerAt } from './managers';
+import { newVehicle, sellVehicle, vehiclePrice } from '../vehicles';
+import { atPrices } from '../society/economy';
+import { buildingStorage, hubRange, levelDef, levelRate } from './levels';
+import { managerAt, managerRate } from './managers';
 import { newestModel } from './models';
 import type { HubJob, HubJobKind, HubState, Skill } from './types';
 
 /**
  * Warehouse hubs (spec §8): a warehouse with its own trucks, dispatched daily (greedily, Manhattan
- * distances, no pathfinding) by the manager posted there. Look-ahead, balancing and hub auto-sizing
- * come with Task 7.
+ * distances, no pathfinding) by the manager posted there. Skill 3+ looks ahead, 4+ balances with
+ * overlapping hubs, and hubAutoSizeMonth keeps the fleet to the work.
  */
 
 /** A candidate (and a truck's share of one) must be at least this many units. */
@@ -27,6 +28,17 @@ export const HUB_FULL_RATIO = 0.8;
 export const STORE_PRIORITY = 2;
 export const STALL_PRIORITY = 1.5;
 export const FULL_BONUS = 1.5;
+/** Look-ahead (skills 3-5): this many days of output and use are added to what a candidate moves. */
+export const LOOKAHEAD_DAYS = 3;
+/** A hub keeps this much of a good before it balances any to another hub (skills 4-5). */
+export const BALANCE_MIN_STOCK = 100;
+export const BALANCE_FACTOR = 0.5;
+/** Days of a consumer's use that count as its need when balancing. */
+const BALANCE_NEED_DAYS = 30;
+/** Hub auto-sizing (spec section 8.4): backlog days to buy, idle trucks per day to sell, money kept (1900 $). */
+export const HUB_BACKLOG_DAYS = 10;
+export const HUB_IDLE_PER_DAY = 1.5;
+export const HUB_RESERVE = 20_000;
 /** Added to every distance, so short hops do not dominate. */
 const DIST_BIAS = 8;
 
@@ -124,6 +136,25 @@ export function setHubAutoSize(ctx: SimContext, warehouseId: number, owner: Owne
   if (b.ownerId !== owner) return err('Not your building');
   b.hub.autoSize = on;
   return ok();
+}
+
+/** Sets the most trucks hub auto-sizing may run (1 up to the level cap). */
+export function setHubMaxTrucks(ctx: SimContext, warehouseId: number, owner: OwnerId, n: number): Result {
+  const b = ctx.state.buildings[warehouseId];
+  if (!b || !b.hub) return err('No such hub');
+  if (b.ownerId !== owner) return err('Not your building');
+  b.hub.maxTrucks = Math.max(1, Math.min(hubCap(b), Math.floor(n) || 1));
+  return ok();
+}
+
+/** The hubs this hub's trucks are carrying goods to right now (balance jobs), in id order. */
+export function balancingWith(state: GameState, hub: Building): Building[] {
+  const ids = new Set<number>();
+  for (const v of hubTrucks(state, hub.id)) {
+    const j = v.job as HubJob | null | undefined;
+    if (j && j.kind === 'balance') ids.add(j.to);
+  }
+  return [...ids].sort((a, b) => a - b).map((id) => state.buildings[id]).filter((b) => b !== undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -280,11 +311,60 @@ function deliveryPriority(state: GameState, c: Building, good: GoodId): number {
   return need !== undefined && (c.input[good] ?? 0) < need ? STALL_PRIORITY : 1;
 }
 
-/** Today's candidates of `hub` within `radius`, sorted (spec §8.2 steps 1-2). */
-export function hubCandidates(state: GameState, hub: Building, radius: number, p: Promises): Candidate[] {
+/** True when `b` makes nothing today: upgrading, on strike or halted. */
+const stopped = (b: Building): boolean => b.works !== undefined || b.status === 'halted' || b.status === 'upgrading';
+
+/** What a works makes (or uses) of `good` per day at its level, manager and staffing; 0 while it is stopped. */
+function worksPerDay(state: GameState, b: Building, good: GoodId, side: 'outputs' | 'inputs'): number {
+  if (stopped(b)) return 0;
+  const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
+  const n = recipe?.[side][good];
+  return recipe && n ? ((n / recipe.days) * levelRate(b) * managerRate(state, b) * b.staffing) : 0;
+}
+
+/** Expected output of `good` per day at `b` (spec section 8.2 look-ahead). */
+export function dailyOutput(state: GameState, b: Building, good: GoodId): number {
+  const cat = BUILDINGS[b.typeId].category;
+  return cat === 'extractor' || cat === 'factory' ? worksPerDay(state, b, good, 'outputs') : 0;
+}
+
+/** Stores per town, built once per dispatch (a store's demand is its town's split evenly). */
+type StoreCount = Map<number, number>;
+function storeCounts(state: GameState): StoreCount {
+  const m: StoreCount = new Map();
+  for (const b of buildingList(state)) if (b.cityId !== null && BUILDINGS[b.typeId].category === 'retail') add(m, b.cityId, 1);
+  return m;
+}
+
+/** Expected use of `good` per day at `b`: a factory's inputs, or a store's share of its town's demand30 / 30. */
+export function dailyUse(state: GameState, b: Building, good: GoodId, stores?: StoreCount): number {
+  const cat = BUILDINGS[b.typeId].category;
+  if (cat === 'factory') return worksPerDay(state, b, good, 'inputs');
+  if (cat !== 'retail' || b.cityId === null) return 0;
+  const demand = state.cities[b.cityId]?.market[good]?.demand30 ?? 0;
+  return demand / 30 / ((stores ?? storeCounts(state)).get(b.cityId) || 1);
+}
+
+/** Whole units a consumer can still take of `good`, counting `ahead` days of its own use as room (never above its storage). */
+function consumerRoom(state: GameState, c: Building, good: GoodId, inbound: number, ahead: number, stores?: StoreCount): number {
+  const left = storageLeft(c, good) - inbound;
+  if (ahead === 0) return left;
+  return Math.min(Math.floor(left + ahead * dailyUse(state, c, good, stores)), buildingStorage(c));
+}
+
+interface Tier {
+  lookAhead: boolean;
+  balance: boolean;
+}
+const NO_TIER: Tier = { lookAhead: false, balance: false };
+
+/** Today's candidates of `hub` within `radius`, sorted (spec section 8.2 steps 1-2). */
+export function hubCandidates(state: GameState, hub: Building, radius: number, p: Promises, tier: Tier = NO_TIER): Candidate[] {
   const routed = routedGoods(state, hub.ownerId);
   const out: Candidate[] = [];
   const attached = hubAttached(state, hub, radius);
+  const ahead = tier.lookAhead ? LOOKAHEAD_DAYS : 0;
+  const stores = ahead || tier.balance ? storeCounts(state) : undefined;
   const hubRoom = (g: GoodId) => storageLeft(hub, g) - (p.hubIn.get(hub.id) ?? 0);
   for (const b of attached) {
     const cat = BUILDINGS[b.typeId].category;
@@ -293,7 +373,8 @@ export function hubCandidates(state: GameState, hub: Building, radius: number, p
       for (const g in b.output) {
         if (routed.loads.has(`${b.id}:${g}`)) continue;
         const stock = b.output[g];
-        const amt = Math.floor(stock) - (p.pickups.get(`${b.id}:${g}`) ?? 0);
+        const soon = ahead ? Math.min(stock + ahead * dailyOutput(state, b, g), buildingStorage(b)) : stock;
+        const amt = Math.floor(soon) - (p.pickups.get(`${b.id}:${g}`) ?? 0);
         if (amt < HUB_MIN_LOAD || hubRoom(g) < HUB_MIN_LOAD) continue;
         const full = stock >= HUB_FULL_RATIO * buildingStorage(b) ? FULL_BONUS : 1;
         out.push({ kind: 'collect', from: b.id, to: hub.id, building: b.id, good: g, left: amt, score: ((amt * GOODS[g].basePrice) / d) * full });
@@ -303,14 +384,55 @@ export function hubCandidates(state: GameState, hub: Building, radius: number, p
       for (const g in hub.input) {
         if (!acceptsGood(b, g) || routed.unloads.has(`${b.id}:${g}`)) continue;
         const stock = Math.floor(hub.input[g]) - (p.hubOut.get(`${hub.id}:${g}`) ?? 0);
-        const room = storageLeft(b, g) - (p.inbound.get(`${b.id}:${g}`) ?? 0);
+        const room = consumerRoom(state, b, g, p.inbound.get(`${b.id}:${g}`) ?? 0, ahead, stores);
         const qty = Math.min(stock, room);
         if (qty < HUB_MIN_LOAD) continue;
         out.push({ kind: 'deliver', from: hub.id, to: b.id, building: b.id, good: g, left: qty, score: ((qty * GOODS[g].basePrice) / d) * deliveryPriority(state, b, g) });
       }
     }
   }
+  if (tier.balance) balanceCandidates(state, hub, p, stores!, out);
   return out.sort(byCandidate);
+}
+
+/** Centre of a building's footprint. */
+const centre = (b: Building) => ({ x: b.pos.x + BUILDINGS[b.typeId].size.w / 2, y: b.pos.y + BUILDINGS[b.typeId].size.h / 2 });
+
+/** The owner's other hubs whose full range overlaps `hub`'s (centres within the sum of both ranges), in id order. */
+export function overlappingHubs(state: GameState, hub: Building): Building[] {
+  const a = centre(hub);
+  const ra = hubRange(hub);
+  return hubList(state).filter((o) => {
+    if (o === hub || o.ownerId !== hub.ownerId || state.buildings[o.id] !== o || !o.hub) return false;
+    const c = centre(o);
+    return Math.max(Math.abs(a.x - c.x), Math.abs(a.y - c.y)) <= ra + hubRange(o);
+  });
+}
+
+/** Spec section 8.2 balance: goods this hub holds 100+ of that another hub's consumers need more of than it holds. */
+function balanceCandidates(state: GameState, hub: Building, p: Promises, stores: StoreCount, out: Candidate[]): void {
+  const others = overlappingHubs(state, hub);
+  if (others.length === 0) return;
+  const routed = routedGoods(state, hub.ownerId);
+  for (const o of others) {
+    const attached = hubAttached(state, o, hubRange(o));
+    const d = distance(hub, o) + DIST_BIAS;
+    for (const g in hub.input) {
+      const stock = Math.floor(hub.input[g]) - (p.hubOut.get(`${hub.id}:${g}`) ?? 0);
+      if (stock < BALANCE_MIN_STOCK) continue;
+      let need = 0;
+      for (const c of attached) {
+        const cat = BUILDINGS[c.typeId].category;
+        if ((cat !== 'factory' && cat !== 'retail') || !acceptsGood(c, g) || routed.unloads.has(`${c.id}:${g}`)) continue;
+        const want = Math.min(BALANCE_NEED_DAYS * dailyUse(state, c, g, stores), buildingStorage(c)) - (c.input[g] ?? 0);
+        if (want > 0) need += want;
+      }
+      const there = Math.floor(o.input[g] ?? 0) + (p.inbound.get(`${o.id}:${g}`) ?? 0);
+      const qty = Math.floor(Math.min(stock - BALANCE_MIN_STOCK, need - there, storageLeft(o, g) - (p.inbound.get(`${o.id}:${g}`) ?? 0)));
+      if (qty < HUB_MIN_LOAD) continue;
+      out.push({ kind: 'balance', from: hub.id, to: o.id, building: o.id, good: g, left: qty, score: ((qty * GOODS[g].basePrice) / d) * BALANCE_FACTOR });
+    }
+  }
 }
 
 /**
@@ -386,7 +508,7 @@ export function hubsDay(ctx: SimContext): void {
     if (today >= h.nextDispatchDay) {
       p ??= promises(all!);
       const idle = trucks.filter((v) => !v.job && v.capacity - cargoTotal(v) >= HUB_MIN_LOAD);
-      const cands = hubCandidates(state, hub, hubRange(hub) * tier.rangeShare, p);
+      const cands = hubCandidates(state, hub, hubRange(hub) * tier.rangeShare, p, tier);
       const r = assign(hub, cands, idle, p);
       jobs = r.jobs;
       if (r.backlog) h.month.backlogDays++;
@@ -402,5 +524,35 @@ export function hubsDay(ctx: SimContext): void {
     h.month.jobs += jobs;
     h.month.idleTruckDays += idleNow;
     h.yesterday = { jobs, idle: idleNow };
+  }
+}
+
+/**
+ * Monthly, hubs in id order (spec section 8.4): a hub with auto-sizing on buys one truck after 10+ backlog days
+ * (below its cap, keeping the reserve), else sells its oldest when its trucks idled 1.5+ a day (never the
+ * last one); its month counters then reset. Free when nobody runs a hub.
+ */
+export function hubAutoSizeMonth(ctx: SimContext): void {
+  const { state } = ctx;
+  for (const hub of hubList(state)) {
+    const h = hub.hub;
+    if (!h || state.buildings[hub.id] !== hub) continue;
+    if (h.autoSize) {
+      const trucks = hubTrucks(state, hub.id);
+      const company = state.companies[hub.ownerId];
+      if (h.month.backlogDays >= HUB_BACKLOG_DAYS) {
+        if (
+          company && company.money > 0 && trucks.length < Math.min(h.maxTrucks, hubCap(hub)) &&
+          company.money - vehiclePrice(state, newestModel(state)) >= atPrices(state, HUB_RESERVE)
+        ) {
+          buyHubTruck(ctx, hub.ownerId, hub.id);
+        }
+      } else if (h.month.idleTruckDays / 30 >= HUB_IDLE_PER_DAY && trucks.length > 1) {
+        let oldest = trucks[0];
+        for (const v of trucks) if (v.builtYear < oldest.builtYear) oldest = v; // ids ascend: ties keep the lowest
+        sellVehicle(ctx, oldest.id);
+      }
+    }
+    h.month = { jobs: 0, idleTruckDays: 0, backlogDays: 0 };
   }
 }

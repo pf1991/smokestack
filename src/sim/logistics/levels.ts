@@ -112,6 +112,7 @@ export function worksDay(ctx: SimContext): void {
     if (!w || today + 1 < w.untilDay) continue;
     b.level = w.toLevel;
     delete b.works;
+    if (b.hub) b.hub.maxTrucks = levelDef(b)?.hubTrucks ?? 0; // the hub cap follows the level table
     markRenewed(state, b);
     b.status = 'idle';
     ctx.bus.emit({ type: 'buildingUpgraded', buildingId: b.id, level: b.level, ownerId: b.ownerId });
