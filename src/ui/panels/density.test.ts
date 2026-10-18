@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 // panels that have several titled blocks must say so
-const MIN_SECTIONS: Record<string, number> = { finance: 5, politics: 5, building: 3, city: 3, contracts: 3, rival: 6 };
+const MIN_SECTIONS: Record<string, number> = { finance: 5, politics: 5, building: 3, city: 3, contracts: 3, rival: 6, family: 3, exchange: 2 };
 
 const INLINE_FONT_EXEMPT = new Set<string>([]);
 
@@ -50,6 +50,9 @@ describe('panel density classes', () => {
     ['newspaper', () => undefined],
     ['rival', () => undefined],
     ['goals', () => undefined],
+    ['exchange', () => undefined],
+    ['family', () => undefined],
+    ['legacy', () => undefined],
     ['building', (t) => t.a.id],
     ['city', () => 0],
     ['vehicle', (t) => t.vehicleId],

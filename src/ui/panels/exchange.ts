@@ -15,6 +15,7 @@ import { bidMonthsLeft, bidOpen } from '../../sim/nemesis/bid';
 import type { GameState, OwnerId } from '../../sim/types';
 import { sparkline } from '../charts';
 import { h } from '../dom';
+import './panels.css';
 import { formatMoney } from '../format';
 import { createWindow, type GameWindow } from '../window';
 import type { PanelDef } from './index';
@@ -84,13 +85,9 @@ function bidBanner(game: GameController, rerender: () => void): HTMLElement | nu
       rerender();
     },
   }, `Buy back ${need} · ${formatMoney(q.total)}`);
-  return h('div', {
-    class: 'exchange-bid',
-    role: 'alert',
-    style: { background: '#7a1f1c', border: '1px solid #e88a86', color: '#fff2e6', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px' },
-  },
-  h('div', { style: { fontFamily: 'var(--font-display)', fontSize: '15px' } }, `Hostile bid: ${plural(months, 'month')} left`),
-  h('div', { style: { fontSize: '13px', lineHeight: '1.35' } },
+  return h('div', { class: 'p-section exchange-bid', role: 'alert' },
+  h('div', { class: 'exchange-bid-title' }, `Hostile bid: ${plural(months, 'month')} left`),
+  h('div', { class: 'exchange-bid-text' },
     `Smogsworth holds ${his} of your shares (${CONTROL_SHARES} is control). Buy back ${need} from him at the fair price of ${formatMoney(q.price)} a share before the deadline, or lose the company. A loan covers any shortfall.`),
   btn);
 }
@@ -104,10 +101,10 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
     const c = state.companies[id];
     if (!l?.listed || !c?.active) continue;
     const color = COLORS[id] ?? FIRM_COLOR;
-    const price = h('span', { class: 'exchange-price', style: { fontWeight: 'bold' } }, formatMoney(l.price));
+    const price = h('span', { class: 'exchange-price' }, formatMoney(l.price));
     const canvas = h('canvas', { class: 'exchange-spark', width: 120, height: 28, style: { width: '120px', height: '28px' }, 'aria-label': `${c.name} share price, last ${SPARK_MONTHS} months` }) as HTMLCanvasElement;
-    const held = h('div', { class: 'exchange-holdings', style: { fontSize: '12px', opacity: '0.85' } }, holdingsText(state, id));
-    const buttons = h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' } });
+    const held = h('div', { class: 'exchange-holdings' }, holdingsText(state, id));
+    const buttons = h('div', { class: 'exchange-buttons' });
     // the Baron's row says why a Buy that would take control is greyed (the takeover gate)
     const gateText = (): string => {
       for (const lot of LOTS) {
@@ -116,7 +113,7 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
       }
       return '';
     };
-    const gateNote = h('div', { class: 'exchange-gate', style: { fontSize: '12px', color: '#e88a86', display: gateText() ? '' : 'none' } }, gateText());
+    const gateNote = h('div', { class: 'exchange-gate', style: { display: gateText() ? '' : 'none' } }, gateText());
     updates.push(() => {
       const text = gateText();
       if (gateNote.textContent !== text) gateNote.textContent = text;
@@ -149,14 +146,10 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
       const text = formatMoney(game.ctx.state.exchange.listings[id].price);
       if (price.textContent !== text) price.textContent = text;
     });
-    rows.push(h('div', {
-      class: 'exchange-row',
-      'data-company': id,
-      style: { borderTop: '1px solid rgba(138,109,23,0.5)', padding: '6px 0' },
-    },
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' } },
-      h('span', { style: { color, fontFamily: 'var(--font-display)', fontSize: '14px', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.name),
-      h('span', { style: { display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto' } }, canvas, price)),
+    rows.push(h('div', { class: 'exchange-row', 'data-company': id },
+    h('div', { class: 'p-row' },
+      h('span', { class: 'exchange-name', style: { color } }, c.name),
+      h('span', { class: 'exchange-quote' }, canvas, price)),
     held,
     buttons,
     gateNote));
@@ -171,11 +164,13 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
       }
     });
   }
-  const el = h('div', { class: 'exchange-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+  const el = h('div', { class: 'exchange-panel' },
     bidBanner(game, rerender),
-    h('div', { style: { fontSize: '12px', opacity: '0.8' } },
-      `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes it costs a control premium as large again as 510 of its shares.`),
-    ...rows);
+    h('div', { class: 'p-section' },
+      h('div', { class: 'p-head' }, 'Listed companies'),
+      ...rows),
+    h('div', { class: 'p-section exchange-note' },
+      `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes it costs a control premium as large again as 510 of its shares.`));
   return { el, live: { update: () => updates.forEach((u) => u()) } };
 }
 
