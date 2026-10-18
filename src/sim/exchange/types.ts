@@ -36,8 +36,17 @@ export interface Listing {
 export interface ExchangeState {
   /** keyed by company id, in companyIds order (exchange/shares.ts listCompany keeps it so) */
   listings: Record<OwnerId, Listing>;
+  /**
+   * The exchange's own rng stream (sim/rng.ts mulberry32 state; `random(state.exchange)`), so share
+   * price noise never draws from the game's rng and never changes the game's course.
+   */
+  rngState: number;
 }
 
-export function defaultExchange(): ExchangeState {
-  return { listings: {} };
+/** Mixed into the game seed to start the exchange's rng stream. */
+const EXCHANGE_SEED_SALT = 0x5eed_c0de;
+
+/** An empty exchange whose rng stream is seeded from the game seed. */
+export function defaultExchange(seed: number): ExchangeState {
+  return { listings: {}, rngState: (seed ^ EXCHANGE_SEED_SALT) | 0 };
 }

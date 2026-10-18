@@ -129,7 +129,10 @@ export const EXPENSE_CATEGORIES: LedgerCategory[] = ['construction', 'maintenanc
 
 /** Income minus expense for one ledger month. */
 export function monthProfit(m: Pick<LedgerMonth, 'income' | 'expense'>): number {
-  const sum = (rec: Partial<Record<LedgerCategory, number>>, cats: LedgerCategory[]) =>
-    cats.reduce((t, c) => t + (rec[c] ?? 0), 0);
-  return sum(m.income, INCOME_CATEGORIES) - sum(m.expense, EXPENSE_CATEGORIES);
+  // plain loops: the exchange sums 12 months per company every month (ledger amounts are whole
+  // dollars, so the order of the sums cannot change the result)
+  let p = 0;
+  for (let i = 0; i < INCOME_CATEGORIES.length; i++) p += m.income[INCOME_CATEGORIES[i]] ?? 0;
+  for (let i = 0; i < EXPENSE_CATEGORIES.length; i++) p -= m.expense[EXPENSE_CATEGORIES[i]] ?? 0;
+  return p;
 }

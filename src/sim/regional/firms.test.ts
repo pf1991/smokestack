@@ -107,6 +107,7 @@ describe('regional firms', () => {
     const before = stateHash(state);
     regionalMonth(ctx);
     expect(state.companies.regional_1).toBeUndefined();
+    expect(state.exchange.listings.regional_1).toBeUndefined();
     expect(stateHash(state)).toBe(before);
     for (const i of forest) state.map.tiles[i].terrain = 'forest';
     january(ctx, 1906);

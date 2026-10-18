@@ -117,7 +117,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     // rolled from a throwaway copy of the seed, so the state's own rng is untouched
     nemesis: newNemesis({ rngState: opts.seed ?? 1 }),
     dynasty: newDynasty({ rngState: opts.seed ?? 1 }, 'Test Co.', year),
-    exchange: defaultExchange(),
+    exchange: defaultExchange(opts.seed ?? 1),
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

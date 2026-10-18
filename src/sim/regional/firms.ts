@@ -110,10 +110,12 @@ function tryFound(ctx: SimContext, def: RegionalFirmDef): boolean {
   const trialCity = trial.state.cities.find((c) => c.id === city.id)!;
   if (!buildChain(trial, def.id, trialCity, def.chain, FOUNDING_TRUCKS).ok) return false;
   addCompany(state, firm);
-  listCompany(state, def.id);
   // the sim is deterministic, so the real build repeats the trial; should it ever fail, the firm
-  // closes at once (and, existing, is not founded again)
-  if (!buildChain(ctx, def.id, city, def.chain, FOUNDING_TRUCKS).ok) {
+  // closes at once (and, existing, is not founded again). Listed after the build, so its opening
+  // price counts the works it built (a firm that exists is always listed; closeFirm delists it)
+  const built = buildChain(ctx, def.id, city, def.chain, FOUNDING_TRUCKS).ok;
+  listCompany(state, def.id);
+  if (!built) {
     closeFirm(ctx, def.id, false);
     return false;
   }

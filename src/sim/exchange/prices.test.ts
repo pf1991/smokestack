@@ -13,7 +13,7 @@ import { assetValue, createGame } from '../state';
 import type { SimContext } from '../types';
 import { exchangeDay, exchangeMonth, exchangeShock, fundamental } from './prices';
 import { delist, moveShares } from './shares';
-import { PUBLIC_HOLDER, SENTIMENT_MAX, SENTIMENT_MIN, SHARES_OUTSTANDING } from './types';
+import { defaultExchange, PUBLIC_HOLDER, SENTIMENT_MAX, SENTIMENT_MIN, SHARES_OUTSTANDING } from './types';
 
 const fresh = (seed = 42): SimContext => ({ state: createGame({ seed }), bus: new EventBus() });
 
@@ -105,6 +105,20 @@ describe('share prices', () => {
     expect(checkInvariants(state)).toEqual([]);
   });
 
+  it('draws only from its own rng stream, seeded from the game seed: the game rng is untouched', () => {
+    const ctx = fresh();
+    const { state } = ctx;
+    const game = state.rngState;
+    const own = state.exchange.rngState;
+    expect(own).toBe(fresh().state.exchange.rngState);
+    expect(own).not.toBe(fresh(43).state.exchange.rngState);
+    for (let d = 0; d < 1000; d++) exchangeDay(ctx);
+    for (let m = 0; m < 12; m++) exchangeMonth(ctx);
+    exchangeShock(state, '*', 0.9);
+    expect(state.rngState).toBe(game);
+    expect(state.exchange.rngState).not.toBe(own);
+  });
+
   it('shocks multiply sentiment, clamped; "*" shocks every listed company', () => {
     const ctx = fresh();
     const { state } = ctx;
@@ -131,15 +145,15 @@ describe('share prices', () => {
     expect(l.holders).toEqual({ public: SHARES_OUTSTANDING });
     const frozen = JSON.stringify(l);
     // only the player's listing draws now
-    const rng = state.rngState;
+    const rng = state.exchange.rngState;
     exchangeDay(ctx);
     exchangeMonth(ctx);
     exchangeShock(state, '*', 0.5);
     expect(JSON.stringify(l)).toBe(frozen);
     const twoDraws = fresh();
     exchangeDay(twoDraws);
-    expect(state.rngState).not.toBe(rng);
-    expect(state.rngState).not.toBe(twoDraws.state.rngState);
+    expect(state.exchange.rngState).not.toBe(rng);
+    expect(state.exchange.rngState).not.toBe(twoDraws.state.exchange.rngState);
     expect(checkInvariants(state)).toEqual([]);
   });
 
@@ -161,6 +175,10 @@ describe('share prices', () => {
     expect(state.companies.regional_1).toBeDefined();
     const l = state.exchange.listings.regional_1;
     expect(l.listed).toBe(true);
+    // listed after its chain was built: the opening price counts the built works
+    expect(assetValue(state, 'regional_1')).toBeGreaterThan(0);
+    expect(l.fundamental).toBe(fundamental(state, 'regional_1'));
+    expect(l.price).toBe(Math.round(l.fundamental * 100) / 100);
     expect(l.holders).toEqual({ regional_1: 400, public: 600 });
     expect(Object.keys(state.exchange.listings)).toEqual(companyIds(state));
     expect(checkInvariants(state)).toEqual([]);
@@ -203,6 +221,8 @@ describe('share prices', () => {
     if (!r.ok) return;
     const state = r.value;
     expect(Object.keys(state.exchange.listings)).toEqual(companyIds(state));
+    // the exchange's rng stream is seeded from the save's seed, as in a new game
+    expect(state.exchange.rngState).toBe(defaultExchange(state.seed).rngState);
     for (const id of companyIds(state)) {
       const l = state.exchange.listings[id];
       expect(l.listed).toBe(state.companies[id].active);

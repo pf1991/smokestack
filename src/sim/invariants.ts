@@ -117,6 +117,8 @@ function exchangeProblems(state: GameState): string[] {
   const listings = state.exchange?.listings;
   if (!listings || typeof listings !== 'object') return ['exchange: listings missing'];
   const out: string[] = [];
+  const r = state.exchange.rngState;
+  if (typeof r !== 'number' || !Number.isInteger(r)) out.push(`exchange: rngState ${r} is not an integer`);
   for (const id of companyIds(state)) if (!listings[id]) out.push(`exchange: company ${id} has no listing`);
   for (const [id, l] of Object.entries(listings)) {
     if (!state.companies[id]) out.push(`exchange: listing ${id} has no company`);

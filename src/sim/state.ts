@@ -321,7 +321,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     economy: defaultEconomy(),
     nemesis,
     dynasty,
-    exchange: defaultExchange(),
+    exchange: defaultExchange(opts.seed),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {

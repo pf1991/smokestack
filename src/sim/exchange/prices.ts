@@ -51,7 +51,8 @@ export function quote(l: Listing): number {
 /**
  * Daily: each listed company's sentiment takes a random step, reverts 1% towards 1 and is clamped;
  * the price follows. Iterates the listings in key order, which listCompany keeps in companyIds
- * order (no allocation per day); delisted listings draw nothing.
+ * order (no allocation per day); delisted listings draw nothing. Draws only from the exchange's own
+ * rng stream, never the game's.
  */
 export function exchangeDay(ctx: SimContext): void {
   const { state } = ctx;
@@ -59,7 +60,7 @@ export function exchangeDay(ctx: SimContext): void {
   for (const id in listings) {
     const l = listings[id];
     if (!l.listed) continue;
-    let s = l.sentiment * Math.exp(DAILY_VOLATILITY * (random(state) - 0.5) * 2);
+    let s = l.sentiment * Math.exp(DAILY_VOLATILITY * (random(state.exchange) - 0.5) * 2);
     s += MEAN_REVERSION * (1 - s);
     l.sentiment = clampSentiment(s);
     l.price = quote(l);

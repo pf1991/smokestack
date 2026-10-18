@@ -145,8 +145,9 @@ export const MIGRATIONS: Migration[] = [
       if (typeof date?.year !== 'number') throw new Error('bad date');
       o.dynasty = newDynasty(rng, name, date.year);
       o.rngState = rng.rngState;
-      // stock exchange (Task 7): listings are made in afterLoad, which values the companies' assets
-      o.exchange = defaultExchange();
+      // stock exchange (Task 7): listings are made in afterLoad, which values the companies' assets;
+      // the exchange's rng stream is seeded from the game seed, as in createGame
+      o.exchange = defaultExchange(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0);
     },
     afterLoad(state) {
       // every company is listed at its fundamental (40% family, 60% public); an inactive one is delisted
