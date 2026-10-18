@@ -69,6 +69,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 
 | Key | Action |
 |---|---|
+| W A S D / arrows | Pan the map |
 | Space | Pause or resume |
 | 1, 2, 3, 4 | Normal, fast, faster, fastest speed |
 | R / V / F / N / C | Routes / Fleet / Finance / Newspaper / Contracts |
