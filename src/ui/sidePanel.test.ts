@@ -207,6 +207,13 @@ describe('side panel width', () => {
     expect(panel()!.style.width).toBe('380px');
   });
 
+  it('an open panel follows a width reset from the settings screen', () => {
+    saveSettings({ ...DEFAULT_SETTINGS, panelWidth: 380 });
+    open('a');
+    saveSettings({ ...loadSettings(), panelWidth: null });
+    expect(panel()!.style.width).toBe('min(420px, 34vw)');
+  });
+
   it('loadSettings rejects a malformed panelWidth', () => {
     localStorage.setItem('smokestack:settings', JSON.stringify({ panelWidth: 'wide' }));
     expect(loadSettings().panelWidth).toBeNull();

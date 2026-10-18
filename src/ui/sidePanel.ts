@@ -1,6 +1,6 @@
 import { h } from './dom';
 import { iconEl } from './icon';
-import { loadSettings, saveSettings } from '../game/settings';
+import { loadSettings, onSettingsSaved, saveSettings } from '../game/settings';
 import { currentUiScale } from './scale';
 import './sidePanel.css';
 
@@ -211,9 +211,17 @@ export function sidePanelEl(): HTMLElement {
   const onResize = () => layout();
   window.addEventListener('resize', onResize);
   window.addEventListener('uiscalechange', onResize);
+  // Settings can reset the saved width: follow it (other settings saves leave the width alone)
+  let lastWidth = savedWidth();
+  const offSettings = onSettingsSaved((st) => {
+    if (st.panelWidth === lastWidth) return;
+    lastWidth = st.panelWidth;
+    layout();
+  });
   unlisten = () => {
     window.removeEventListener('resize', onResize);
     window.removeEventListener('uiscalechange', onResize);
+    offSettings();
   };
   return root;
 }

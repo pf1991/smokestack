@@ -133,6 +133,18 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
   // the health check may resolve while the screen is open; stop listening once it leaves the page
   const off = onAiStatus(() => (status.isConnected ? showStatus() : off()));
   smart.addEventListener('change', showStatus);
+  // the side panel's width is set by dragging its edge; here it can only be shown and reset
+  const widthText = () => (s.panelWidth === null ? 'Default' : `${Math.round(s.panelWidth)} px`);
+  const widthValue = h('span', { class: 'mn-width-value' }, widthText());
+  const widthReset = h('button', {
+    class: 'btn', type: 'button', disabled: s.panelWidth === null,
+    onClick: () => {
+      s.panelWidth = null;
+      apply();
+      widthValue.textContent = widthText();
+      (widthReset as HTMLButtonElement).disabled = true;
+    },
+  }, 'Reset');
   return h('div', { class: 'mn-form' },
     h('label', { class: 'mn-row' }, h('span', null, 'Master volume'), vol),
     h('label', { class: 'mn-row' }, h('span', null, 'Mute all sound'), mute),
@@ -140,6 +152,7 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
     h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro),
     h('label', { class: 'mn-row' }, h('span', null, 'News ticker'), ticker),
     h('label', { class: 'mn-row' }, h('span', null, 'Interface scale'), scale),
+    h('div', { class: 'mn-row' }, h('span', null, 'Side panel width'), h('span', { class: 'mn-width' }, widthValue, widthReset)),
     h('label', { class: 'mn-row' }, h('span', null, 'Smart events (JEV)'), smart),
     status);
 }
