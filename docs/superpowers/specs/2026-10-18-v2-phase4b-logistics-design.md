@@ -328,7 +328,12 @@ days, bounded by storage. Dispatch days are staggered by hub id so hubs do not a
 
 With hub auto-sizing on (the default for new hubs), a hub buys one truck when it had 10+ backlog days
 and is below its cap and the owner keeps the reserve, and sells its oldest when its trucks averaged
-1.5+ idle per day and it has more than one. At most one change per hub per month.
+1.5+ idle per day and it has more than one. At most one change per hub per month. Only a truck at
+home, empty and without a job is sold; with none, the sale is skipped that month. When an upgrade
+finishes, the hub's truck cap rises to the new level's only if it equalled the old one.
+
+Implementation notes: balancing counts a consumer's need over 30 days of its use (capped at its
+storage); look-ahead output ignores terrain efficiency, so extractor forecasts are approximate.
 
 ### 8.5 Rendering and UI
 

@@ -110,9 +110,11 @@ export function worksDay(ctx: SimContext): void {
   for (const b of buildingList(state)) {
     const w = b.works;
     if (!w || today + 1 < w.untilDay) continue;
+    const oldCap = levelDef(b)?.hubTrucks ?? 0;
     b.level = w.toLevel;
     delete b.works;
-    if (b.hub) b.hub.maxTrucks = levelDef(b)?.hubTrucks ?? 0; // the hub cap follows the level table
+    // the hub cap follows the level table, unless the player set it lower
+    if (b.hub && b.hub.maxTrucks === oldCap) b.hub.maxTrucks = levelDef(b)?.hubTrucks ?? 0;
     markRenewed(state, b);
     b.status = 'idle';
     ctx.bus.emit({ type: 'buildingUpgraded', buildingId: b.id, level: b.level, ownerId: b.ownerId });

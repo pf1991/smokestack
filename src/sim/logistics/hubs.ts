@@ -548,9 +548,13 @@ export function hubAutoSizeMonth(ctx: SimContext): void {
           buyHubTruck(ctx, hub.ownerId, hub.id);
         }
       } else if (h.month.idleTruckDays / 30 >= HUB_IDLE_PER_DAY && trucks.length > 1) {
-        let oldest = trucks[0];
-        for (const v of trucks) if (v.builtYear < oldest.builtYear) oldest = v; // ids ascend: ties keep the lowest
-        sellVehicle(ctx, oldest.id);
+        // only a truck at home, empty and without a job is sold, so no cargo is ever lost
+        let oldest: Vehicle | undefined;
+        for (const v of trucks) {
+          if (v.job || v.state !== 'idle' || cargoTotal(v) > 0) continue;
+          if (!oldest || v.builtYear < oldest.builtYear) oldest = v; // ids ascend: ties keep the lowest
+        }
+        if (oldest) sellVehicle(ctx, oldest.id);
       }
     }
     h.month = { jobs: 0, idleTruckDays: 0, backlogDays: 0 };

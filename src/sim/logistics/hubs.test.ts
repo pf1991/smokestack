@@ -517,6 +517,23 @@ describe('hub auto-sizing', () => {
     expect(count()).toBe(1);
   });
 
+  it('sells only a truck that is idle, empty and jobless; with none, it skips the sale', () => {
+    const { s, ctx, hub, count } = sized(2);
+    const [first, second] = Object.values(s.vehicles) as Vehicle[];
+    second.builtYear = first.builtYear - 5; // the oldest is busy
+    second.job = { kind: 'collect', from: 1, to: hub.id, good: 'lumber', qty: 12 };
+    hub.hub!.month.idleTruckDays = 60;
+    hubAutoSizeMonth(ctx);
+    expect(s.vehicles[second.id]).toBeDefined();
+    expect(s.vehicles[first.id]).toBeUndefined();
+    expect(count()).toBe(1);
+    const { s: s2, ctx: c2, hub: h2, count: n2 } = sized(2);
+    for (const v of Object.values(s2.vehicles) as Vehicle[]) v.cargo = { lumber: 5 };
+    h2.hub!.month.idleTruckDays = 60;
+    hubAutoSizeMonth(c2);
+    expect(n2()).toBe(2);
+  });
+
   it('makes one change a month even when both signals fire', () => {
     const { ctx, hub, count } = sized(2);
     hub.hub!.month.backlogDays = 12;
@@ -542,5 +559,15 @@ describe('hub cap after an upgrade', () => {
     worksDay(ctx);
     expect(hub.level).toBe(2);
     expect(hub.hub!.maxTrucks).toBe(6);
+  });
+
+  it('leaves a lower cap the player set as it is', () => {
+    const { s, ctx, hub } = setup();
+    must(buyHubTruck(ctx, 'player', hub.id));
+    hub.hub!.maxTrucks = 2;
+    const today = dateToDays(s.date);
+    hub.works = { toLevel: 2, startDay: today - 30, untilDay: today + 1 };
+    worksDay(ctx);
+    expect(hub.hub!.maxTrucks).toBe(2);
   });
 });
