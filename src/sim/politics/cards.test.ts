@@ -578,6 +578,15 @@ describe('spring card dealer asks JEV', () => {
     expect(ctx.state.ai!.pending.length).toBe(0);
   });
 
+  it('fills a card\'s vars and towns in the labels it sends JEV (marriage, 1906)', () => {
+    const ctx = spring(3, 1906);
+    at(ctx, 1906, 3, 1);
+    cardsDayHook(ctx);
+    const opts = ctx.state.ai!.pending[0].options;
+    expect(opts.map((o) => o.key)).toContain('marriage');
+    for (const o of opts) expect(o.label).not.toMatch(/\{\w+\}/);
+  });
+
   it('a one-hot answer lifts the pick rate to 0.55-0.6 over 2000 draws, never past the cap', () => {
     let hits = 0;
     for (let i = 0; i < 2000; i++) {

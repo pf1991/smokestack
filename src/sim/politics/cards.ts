@@ -126,7 +126,11 @@ export function postSpringRequest(state: GameState): void {
   postDecision(state, {
     id,
     question: SPRING_QUESTION,
-    options: list.map((e) => ({ key: e.card.id, label: `${e.card.title} ${e.card.body.slice(0, 120)}` })),
+    // filled as the player would read it ({city}, {faction} and a card's own vars, e.g. marriage's {banker})
+    options: list.map((e) => {
+      const t = cardText(state, { uid: 0, cardId: e.card.id, cityId: e.cityId, openedDay: 0 });
+      return { key: e.card.id, label: `${t.title} ${t.body.slice(0, 120)}` };
+    }),
     context: cardContext(state),
     dueDay: dateToDays({ ...state.date, month: SPRING_MONTH, day: SPRING_DAY }),
   });
