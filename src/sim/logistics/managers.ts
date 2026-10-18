@@ -5,6 +5,7 @@ import { spend } from '../finance';
 import { chance, pick, randInt, random } from '../rng';
 import { atPrices } from '../society/economy';
 import type { Building, GameState, OwnerId, SimContext } from '../types';
+import { clearRaise } from './release';
 import type { Manager, ManagerSkills, Skill } from './types';
 
 /** Phase 4b managers (spec section 7): the market, employment, effects, retirement and raises. */
@@ -102,6 +103,7 @@ function dismiss(state: GameState, m: Manager): void {
   const L = state.logistics;
   m.post = null;
   m.employer = null;
+  clearRaise(state, m.id);
   L.managers = L.managers.filter((x) => x !== m);
   L.rev++;
 }
@@ -188,7 +190,7 @@ export function retireYear(ctx: SimContext): void {
   for (const m of [...L.managers]) {
     const age = managerAge(m, state.date.year);
     if (age < RETIRE_FROM) continue;
-    if (age < RETIRE_AT && !chance(state, (age - (RETIRE_FROM - 1)) / (RETIRE_AT - RETIRE_FROM + 1))) continue;
+    if (age < RETIRE_AT && !chance(state, (age - (RETIRE_FROM - 1)) / (RETIRE_AT - RETIRE_FROM))) continue;
     const owner = m.employer as OwnerId;
     dismiss(state, m);
     L.stats.retirements++;
@@ -226,7 +228,6 @@ export function answerRaise(ctx: SimContext, answer: 'grant' | 'bonus' | 'refuse
   if (answer === 'grant') {
     m.salary = Math.round(m.salary * RAISE_FACTOR * 100) / 100;
     m.lastRaiseYear = state.date.year;
-    state.logistics.rev++;
   } else if (answer === 'bonus') {
     m.lastRaiseYear = state.date.year;
   } else if (chance(state, QUIT_CHANCE)) {

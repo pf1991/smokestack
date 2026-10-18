@@ -13,6 +13,7 @@ import { must, testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
 import { closeFirm } from '../regional/firms';
 import { logisticsYear } from './index';
+import { RAISE_CARD_ID } from './release';
 import {
   assign, fire, hire, managerAt, managerRate, managerSalary, managerUpkeep, refreshMarket, retireYear, salariesMonth,
   SKILL_WEIGHTS,
@@ -244,17 +245,31 @@ describe('retirement', () => {
     expect(ctx.state.rngState).toBe(before); // 59 is below the roll band and 70 is certain
   });
 
-  it('at 65 the chance is 0.6 (state rng, id order)', () => {
-    let retired = 0;
-    for (let seed = 1; seed <= 300; seed++) {
+  it('the chance is exactly (age - 59) / 10: 0.1 at 60, 0.6 at 65, 1 at 69', () => {
+    // a state rng whose next draw is r; the manager retires iff r < p
+    const seedFor = (r: number): number => {
+      for (let st = 1; ; st++) {
+        const probe = { rngState: st };
+        const v = random(probe);
+        if (Math.abs(v - r) < 0.004) return st;
+      }
+    };
+    const retires = (age: number, draw: number): boolean => {
       const ctx = setup();
-      ctx.state.rngState = seed * 104729;
-      custom(ctx, [1, 1, 1], 1900 - 65);
+      custom(ctx, [1, 1, 1], 1900 - age);
+      ctx.state.date.year = 1900;
+      ctx.state.rngState = seedFor(draw);
       retireYear(ctx);
-      if (ctx.state.logistics.managers.length === 0) retired++;
-    }
-    expect(retired / 300).toBeGreaterThan(0.5);
-    expect(retired / 300).toBeLessThan(0.7);
+      return ctx.state.logistics.managers.length === 0;
+    };
+    // just inside and just outside each threshold
+    expect(retires(60, 0.096)).toBe(true);
+    expect(retires(60, 0.104)).toBe(false);
+    expect(retires(65, 0.596)).toBe(true);
+    expect(retires(65, 0.604)).toBe(false);
+    expect(retires(69, 0.996)).toBe(true);
+    expect(retires(69, 0.5)).toBe(true);
+    expect(retires(70, 0.999)).toBe(true);
   });
 
   it('with no managers it draws nothing from the state rng', () => {
@@ -325,18 +340,57 @@ describe('the raise card', () => {
     expect(outcome(false).stays).toBe(true);
   });
 
-  it('answered after the manager retired it does nothing', () => {
+  it('firing while the card is pending withdraws it: no card, no ask, no money spent', () => {
+    const ctx = setup();
+    const m = custom(ctx, [2, 2, 2]);
+    ask(ctx, m);
+    must(fire(ctx, 'player', m.id));
+    expect(ctx.state.politics.cards.pending).toEqual([]);
+    expect(ctx.state.logistics.raiseAsk).toBeNull();
+    const money = ctx.state.companies.player.money;
+    expect(money).toBeGreaterThan(0);
+    // a retirement withdraws it too
+    const m2 = hireFirst(ctx);
+    m2.born = 1830;
+    ask(ctx, m2);
+    ctx.state.date.year = 1900;
+    retireYear(ctx);
+    expect(ctx.state.politics.cards.pending).toEqual([]);
+    expect(ctx.state.logistics.raiseAsk).toBeNull();
+    expect(ctx.state.companies.player.money).toBe(money);
+  });
+
+  it('a card answered after the manager left cannot be answered; a stale one has no effect', () => {
     const ctx = setup();
     const m = custom(ctx, [2, 2, 2]);
     const uid = ask(ctx, m);
-    m.born = 1900 - 70;
-    ctx.state.date.year = 1900;
-    retireYear(ctx);
+    // a stale card as a save might hold: manager gone but the card re-pushed
+    must(fire(ctx, 'player', m.id));
+    // the bonus can no longer be answered, so it cannot charge
+    const money = ctx.state.companies.player.money;
+    expect(resolveCard(ctx, uid, 1)).toEqual({ ok: false, error: 'No such card' });
+    expect(ctx.state.companies.player.money).toBe(money);
+    ctx.state.politics.cards.pending.push({ uid, cardId: 'manager_raise', cityId: null, openedDay: 0 });
     const rng = ctx.state.rngState;
-    must(resolveCard(ctx, uid, 2));
-    expect(ctx.state.logistics.raiseAsk).toBeNull();
+    const salary = m.salary;
+    must(resolveCard(ctx, uid, 1));
     expect(ctx.state.logistics.managers).toEqual([]);
     expect(ctx.state.rngState).toBe(rng);
+    expect(m.salary).toBe(salary);
+    expect(ctx.state.logistics.raiseAsk).toBeNull();
+  });
+
+  it('transferOwnership and closeFirm withdraw the card of a manager who moves or goes', () => {
+    const ctx = setup();
+    const m = custom(ctx, [2, 2, 2]);
+    ask(ctx, m);
+    transferOwnership(ctx, 'player', 'rival');
+    expect(ctx.state.politics.cards.pending).toEqual([]);
+    expect(ctx.state.logistics.raiseAsk).toBeNull();
+  });
+
+  it('the release leaf names the raise card by its real id', () => {
+    expect(CARDS_BY_ID[RAISE_CARD_ID]?.trigger).toBe('manager');
   });
 
   it('raiseYear asks only after four years, only for the player, and opens the card', () => {

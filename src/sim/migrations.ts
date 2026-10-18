@@ -179,7 +179,6 @@ export const MIGRATIONS: Migration[] = [
       const y = typeof year === 'number' ? year : 1900;
       o.logistics = newLogistics(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0, y);
       refreshMarket(o as unknown as GameState, y); // the market stocks once at load
-
     },
   },
 ];

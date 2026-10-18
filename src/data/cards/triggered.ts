@@ -413,7 +413,7 @@ export const MANAGER_CARDS: readonly CardDef[] = [
     choices: [
       { label: 'Grant the raise', cost: 0, effects: [], apply: (ctx) => answerRaise(ctx, 'grant'), note: 'Salary up by a fifth' },
       { label: 'Pay a one-off bonus', cost: 1500, effects: [], apply: (ctx) => answerRaise(ctx, 'bonus'), note: 'No raise; the clock restarts' },
-      { label: 'Refuse', cost: 0, effects: [], apply: (ctx) => answerRaise(ctx, 'refuse'), note: 'He may quit' },
+      { label: 'Refuse', cost: 0, effects: [], apply: (ctx) => answerRaise(ctx, 'refuse'), note: 'They may quit' },
     ],
     defaultChoice: 0,
   },
