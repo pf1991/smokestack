@@ -8,6 +8,7 @@ import { classesValid } from './society/classes';
 import { GRUDGE_CAP } from './nemesis/grudges';
 import { HEIR_MIN_AGE, HEIR_TRAITS, MAX_CHILDREN, successor } from './dynasty/types';
 import { PRICE_HISTORY_MONTHS, SENTIMENT_MAX, SENTIMENT_MIN } from './exchange/types';
+import { MAX_LOG, MAX_PENDING } from './ai/mailbox';
 import type { GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
@@ -112,6 +113,19 @@ export function checkInvariants(state: GameState): string[] {
 
   out.push(...dynastyProblems(state));
   out.push(...exchangeProblems(state));
+
+  const ai = state.ai;
+  if (ai) {
+    if (ai.pending.length > MAX_PENDING) out.push(`ai: ${ai.pending.length} pending requests, cap is ${MAX_PENDING}`);
+    const nAnswers = Object.keys(ai.answers).length;
+    if (nAnswers > MAX_PENDING) out.push(`ai: ${nAnswers} stored answers, cap is ${MAX_PENDING}`);
+    for (const [id, a] of Object.entries(ai.answers)) {
+      for (const [k, v] of Object.entries(a.probabilities)) {
+        if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) out.push(`ai: answer ${id} probability ${k} is ${v}`);
+      }
+    }
+    if (ai.log.length > MAX_LOG) out.push(`ai: log has ${ai.log.length} entries, cap is ${MAX_LOG}`);
+  }
 
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {

@@ -353,6 +353,25 @@ export interface GameState {
   dynasty: DynastyState;
   /** Phase 4 the stock exchange: a listing per company (sim/exchange); added by the v7 migration */
   exchange: ExchangeState;
+  /** JEV decision mailbox (sim/ai/mailbox.ts); created lazily, absent in older saves and until a decision is posted */
+  ai?: AiMailbox;
+}
+
+export interface AiOption { key: string; label: string }
+export interface AiRequest {
+  id: string;
+  question: string;
+  options: AiOption[];
+  context: Record<string, unknown>;
+  /** dateToDays when the sim will decide */
+  dueDay: number;
+}
+export interface AiAnswer { probabilities: Record<string, number> }
+export interface AiMailbox {
+  pending: AiRequest[];
+  answers: Record<string, AiAnswer>;
+  /** the last 20 decisions taken, oldest first, for the UI */
+  log: { id: string; picked: string; usedAi: boolean }[];
 }
 
 /** The price level (sim/society/economy.ts). */

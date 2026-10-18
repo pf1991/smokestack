@@ -14,6 +14,8 @@
 import { err, ok, type Result } from '../../core/result';
 import { CARDS, CARDS_BY_ID, type CardChoice, type CardDef, type CardTrigger } from '../../data/cards';
 import { FACTION_IDS, factionName, type FactionId } from '../../data/factions';
+import { cardContext } from '../ai/context';
+import { postDecision, takeDecision } from '../ai/mailbox';
 import { dateToDays } from '../clock';
 import { PLAYER_ID } from '../companies';
 import { canAfford, earn, spend } from '../finance';
@@ -102,19 +104,53 @@ export function eligibleCards(
   return out;
 }
 
+/** The most any one spring card may hold of the odds once JEV's answer is blended in. */
+export const SPRING_MAX_SHARE = 0.6;
+/** Most cards offered to JEV in one request. */
+export const SPRING_OPTION_CAP = 32;
+export const springDecisionId = (year: number) => `card:${year}`;
+export const SPRING_QUESTION =
+  'Pick the event card that would make the most interesting, fitting story for this company right now. Prefer cards that react to what is happening in the towns.';
+
+/**
+ * 1 March: asks JEV which of the cards eligible for the coming 1 April to deal (once a year, the
+ * request is not re-posted if its answer is already waiting). Eligibility is rechecked on 1 April.
+ */
+export function postSpringRequest(state: GameState): void {
+  const year = state.date.year;
+  if (year < FIRST_CARD_YEAR || year < state.politics.nextCardYear) return;
+  const id = springDecisionId(year);
+  if (state.ai?.answers[id]) return;
+  const list = eligibleCards(state, 'spring', null).slice(0, SPRING_OPTION_CAP);
+  if (list.length === 0) return;
+  postDecision(state, {
+    id,
+    question: SPRING_QUESTION,
+    options: list.map((e) => ({ key: e.card.id, label: `${e.card.title} ${e.card.body.slice(0, 120)}` })),
+    context: cardContext(state),
+    dueDay: dateToDays({ ...state.date, month: SPRING_MONTH, day: SPRING_DAY }),
+  });
+}
+
 /** Opens one card for `trigger`, picked by weight with one rng draw; nothing when none is eligible. */
 function openCard(ctx: SimContext, trigger: CardTrigger, cityId: number | null): void {
   const { state } = ctx;
   const list = eligibleCards(state, trigger, cityId);
   if (list.length === 0) return;
-  const total = list.reduce((s, e) => s + Math.max(0, e.card.weight), 0);
-  let r = random(state) * total;
   let chosen = list[list.length - 1];
-  for (const e of list) {
-    r -= Math.max(0, e.card.weight);
-    if (r < 0) {
-      chosen = e;
-      break;
+  if (trigger === 'spring') {
+    // JEV may nudge the spring card (never past SPRING_MAX_SHARE of the odds); no answer: the authored odds
+    const key = takeDecision(state, springDecisionId(state.date.year), list.map((e) => ({ key: e.card.id, weight: e.card.weight })), 0.5, SPRING_MAX_SHARE);
+    chosen = list.find((e) => e.card.id === key) ?? chosen;
+  } else {
+    const total = list.reduce((s, e) => s + Math.max(0, e.card.weight), 0);
+    let r = random(state) * total;
+    for (const e of list) {
+      r -= Math.max(0, e.card.weight);
+      if (r < 0) {
+        chosen = e;
+        break;
+      }
     }
   }
   const inst: CardInstance = { uid: nextId(state), cardId: chosen.card.id, cityId: chosen.cityId, openedDay: dateToDays(state.date) };
@@ -273,6 +309,7 @@ export function forceCard(ctx: SimContext, cardId: string): boolean {
 /** The politics system's daily hook: the spring draw on 1 April, then auto-resolve. */
 export function cardsDayHook(ctx: SimContext): void {
   const d = ctx.state.date;
+  if (d.month === SPRING_MONTH - 1 && d.day === 1) postSpringRequest(ctx.state);
   if (d.month === SPRING_MONTH && d.day === SPRING_DAY) drawSpringCard(ctx);
   cardsDay(ctx);
 }
