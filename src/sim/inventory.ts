@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
+import { buildingStorage } from './logistics/levels';
 import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
 import type { Building, GoodId, Inventory } from './types';
@@ -49,7 +50,7 @@ export function loadSource(b: Building): Inventory {
 /** Units of `goodId` this building can still receive into `input`. */
 export function storageLeft(b: Building, goodId: GoodId): number {
   if (!acceptsGood(b, goodId)) return 0;
-  const cap = BUILDINGS[b.typeId].storage;
+  const cap = buildingStorage(b);
   let used = 0;
   if (sharesStorage(b)) {
     // the pool's total, summed in Object.values order without building the list

@@ -477,8 +477,8 @@ describe('assignVehicle', () => {
     const { s, ctx, camp, mill } = world();
     const a = woodRoute(ctx, camp, mill);
     const v = must(buyTruck(ctx, 'player', a.id));
-    s.routes[900] = { id: 900, ownerId: 'rival', name: 'x', color: '#000', stops: [], kind: 'truck' };
-    s.routes[901] = { id: 901, ownerId: 'player', name: 'line', color: '#000', stops: [], kind: 'train' };
+    s.routes[900] = { id: 900, ownerId: 'rival', name: 'x', color: '#000', stops: [], kind: 'truck', mode: 'manual' };
+    s.routes[901] = { id: 901, ownerId: 'player', name: 'line', color: '#000', stops: [], kind: 'train', mode: 'manual' };
     expect(assignVehicle(ctx, 999, a.id)).toEqual({ ok: false, error: 'No such vehicle' });
     expect(assignVehicle(ctx, v.id, 12345)).toEqual({ ok: false, error: 'No such route' });
     expect(assignVehicle(ctx, v.id, 900)).toEqual({ ok: false, error: 'Not your route' });

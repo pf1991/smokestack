@@ -1,4 +1,5 @@
 import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
+import { buildingStorage } from '../../sim/logistics/levels';
 import { getGood } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { addDays, dateToDays, formatDate, isWinter } from '../../sim/clock';
@@ -40,6 +41,7 @@ const STATUS_LABEL: Record<Building['status'], string> = {
   output_full: 'Full',
   halted: 'Halted',
   idle: 'Idle',
+  upgrading: 'Upgrading',
 };
 
 const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name}`];
@@ -380,13 +382,14 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       inList.sync(inKeys);
       outList.sync(outKeys);
       if (shared && inKeys.length === 0) setText(inBox, 'Nothing in stock');
+      const cap = buildingStorage(b);
       for (const [g, row] of inList.items) {
         const q = b.input[g] ?? 0;
-        row.bar.set(q / def.storage, `${formatNumber(q)} / ${def.storage}`);
+        row.bar.set(q / cap, `${formatNumber(q)} / ${cap}`);
       }
       for (const [g, row] of outList.items) {
         const q = b.output[g] ?? 0;
-        row.bar.set(q / def.storage, `${formatNumber(q)} / ${def.storage}`);
+        row.bar.set(q / cap, `${formatNumber(q)} / ${cap}`);
       }
       const made = Object.entries(b.producedThisMonth).filter(([, q]) => q > 0);
       produced.hidden = shared;

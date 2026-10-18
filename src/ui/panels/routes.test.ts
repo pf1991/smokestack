@@ -113,7 +113,7 @@ describe('routes panel', () => {
       { buildingId: camp.id, load: ['wood'], unload: [] },
       { buildingId: mill.id, load: [], unload: ['wood'] },
     ]));
-    s.routes[999] = { id: 999, ownerId: 'rival', name: 'Rival run', color: '#000', stops: [], kind: 'truck' };
+    s.routes[999] = { id: 999, ownerId: 'rival', name: 'Rival run', color: '#000', stops: [], kind: 'truck', mode: 'manual' };
     for (let x = 6; x <= 8; x++) s.map.tiles[10 * s.map.width + x].road = false;
     PANELS.routes.open(host);
     const names = [...win().querySelectorAll<HTMLInputElement>('.rt-name')].map((i) => i.value);

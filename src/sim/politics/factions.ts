@@ -4,6 +4,7 @@
  * (ruling R-Q3), never from bus listeners, so the sim stays deterministic and save-safe.
  */
 import { BUILDINGS, HOUSING_OPINION } from '../../data/buildings';
+import { buildingWorkers } from '../logistics/levels';
 import { FACTION_IDS, type FactionId } from '../../data/factions';
 import { BARON_ID, PLAYER_ID } from '../companies';
 import { buildingsNear } from '../spatial';
@@ -87,7 +88,7 @@ function nearIds(state: GameState, cityId: number): number[] {
   const c = state.cities.find((x) => x.id === cityId)!;
   // only buildings that employ anyone: company housing brings homes, not jobs, and its demolition no layoffs
   return buildingsNear(state, c.center, c.urbanRadius + NEAR_MARGIN, PLAYER_ID)
-    .filter((b) => BUILDINGS[b.typeId].workers > 0)
+    .filter((b) => buildingWorkers(b) > 0)
     .map((b) => b.id);
 }
 

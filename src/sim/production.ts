@@ -10,6 +10,7 @@ import { strikeOver } from './society/strikes';
 import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
+import { buildingStorage, levelRate } from './logistics/levels';
 import { RECIPES, type RecipeDef } from '../data/recipes';
 import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
@@ -119,18 +120,19 @@ export function productionDay(ctx: SimContext): void {
     }
     const { outs, ins } = keysOf(recipe);
     // staffing and age (society/aging.ts) scale every works' rate alike
-    const rate = b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
+    const storage = buildingStorage(b);
+    const rate = levelRate(b) * b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;
-      for (const g of outs) addOutput(b, g, recipe.outputs[g] * eff, def.storage);
+      for (const g of outs) addOutput(b, g, recipe.outputs[g] * eff, storage);
       let full = false;
-      for (const g of outs) if ((b.output[g] ?? 0) >= def.storage) full = true;
+      for (const g of outs) if ((b.output[g] ?? 0) >= storage) full = true;
       b.status = full ? 'output_full' : 'ok';
       continue;
     }
     let full = false;
-    for (const g of outs) if ((b.output[g] ?? 0) + recipe.outputs[g] > def.storage) full = true;
+    for (const g of outs) if ((b.output[g] ?? 0) + recipe.outputs[g] > storage) full = true;
     if (full) {
       b.status = 'output_full';
       continue;
@@ -145,7 +147,7 @@ export function productionDay(ctx: SimContext): void {
     b.progress += rate / recipe.days;
     if (b.progress >= 1 - 1e-9) {
       for (const g of ins) b.input[g] -= recipe.inputs[g];
-      for (const g of outs) addOutput(b, g, recipe.outputs[g], def.storage);
+      for (const g of outs) addOutput(b, g, recipe.outputs[g], storage);
       b.progress = Math.max(0, b.progress - 1);
     }
   }

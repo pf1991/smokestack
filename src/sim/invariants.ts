@@ -9,7 +9,9 @@ import { GRUDGE_CAP } from './nemesis/grudges';
 import { HEIR_MIN_AGE, HEIR_TRAITS, MAX_CHILDREN, successor } from './dynasty/types';
 import { PRICE_HISTORY_MONTHS, SENTIMENT_MAX, SENTIMENT_MIN } from './exchange/types';
 import { MAX_LOG, MAX_PENDING } from './ai/mailbox';
-import type { GameState } from './types';
+import { WAREHOUSE_LEVELS, WORKS_LEVELS } from '../data/levels';
+import { BUILDINGS } from '../data/buildings';
+import type { Building, GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
 export function checkInvariants(state: GameState): string[] {
@@ -41,9 +43,11 @@ export function checkInvariants(state: GameState): string[] {
   for (const v of Object.values(state.vehicles)) {
     if (v.routeId !== null && !state.routes[v.routeId]) out.push(`vehicle ${v.id}: route ${v.routeId} does not exist`);
     if (!Number.isInteger(v.builtYear) || v.builtYear > state.date.year) out.push(`vehicle ${v.id}: builtYear ${v.builtYear} is not a past year`);
+    if (typeof v.speed !== 'number' || !Number.isFinite(v.speed) || v.speed <= 0) out.push(`vehicle ${v.id}: speed ${v.speed} is not a finite number > 0`);
   }
 
   for (const r of Object.values(state.routes)) {
+    if (r.mode !== 'manual' && r.mode !== 'auto') out.push(`route ${r.id}: bad mode ${r.mode}`);
     for (const s of r.stops) {
       if (!state.buildings[s.buildingId]) out.push(`route ${r.id}: stop building ${s.buildingId} does not exist`);
     }
@@ -69,6 +73,7 @@ export function checkInvariants(state: GameState): string[] {
         strikeCards.set(k.cardUid, b.id);
       }
     }
+    out.push(...levelProblems(b));
     for (const t of footprint(b)) {
       if (t.x < 0 || t.y < 0 || t.x >= map.width || t.y >= map.height) {
         out.push(`building ${b.id}: footprint tile (${t.x},${t.y}) out of bounds`);
@@ -113,6 +118,7 @@ export function checkInvariants(state: GameState): string[] {
 
   out.push(...dynastyProblems(state));
   out.push(...exchangeProblems(state));
+  out.push(...managerProblems(state));
 
   const ai = state.ai;
   if (ai) {
@@ -184,6 +190,45 @@ function dynastyProblems(state: GameState): string[] {
     // only a line that ended may have a dead head: an adult successor would have taken the chair
     const heir = successor(d);
     if (heir && state.date.year - heir.born >= HEIR_MIN_AGE) out.push(`dynasty: ${d.head.name} is dead but ${heir.name} never took the chair`);
+  }
+  return out;
+}
+
+/** A building's level lies within its table; works in progress aim one level up and end after they start. */
+function levelProblems(b: Building): string[] {
+  const out: string[] = [];
+  const cat = BUILDINGS[b.typeId]?.category;
+  const table = b.typeId === 'warehouse' ? WAREHOUSE_LEVELS : cat === 'extractor' || cat === 'factory' ? WORKS_LEVELS : null;
+  const max = table ? table.length : 1;
+  if (!Number.isInteger(b.level) || b.level < 1 || b.level > max) out.push(`building ${b.id}: level ${b.level} outside [1, ${max}]`);
+  const w = b.works;
+  if (w && !(Number.isInteger(w.startDay) && Number.isInteger(w.untilDay) && w.untilDay > w.startDay && w.toLevel === b.level + 1)) {
+    out.push(`building ${b.id}: bad works ${JSON.stringify(w)}`);
+  }
+  return out;
+}
+
+/** Managers (sim/logistics): unique ids, employed ones belong to a company and post at its own building, one per post. */
+function managerProblems(state: GameState): string[] {
+  const lg = state.logistics;
+  if (!lg || !Array.isArray(lg.managers) || !Array.isArray(lg.market)) return ['logistics: state missing'];
+  const out: string[] = [];
+  const seen = new Set<number>();
+  const posts = new Set<number>();
+  for (const m of [...lg.managers, ...lg.market]) {
+    if (seen.has(m.id)) out.push(`manager ${m.id}: duplicate id`);
+    seen.add(m.id);
+  }
+  for (const m of lg.managers) {
+    if (m.employer === null || !state.companies[m.employer]) {
+      out.push(`manager ${m.id}: employer ${m.employer} is not a company`);
+      continue;
+    }
+    if (m.post === null) continue;
+    const b = state.buildings[m.post];
+    if (!b || b.ownerId !== m.employer) out.push(`manager ${m.id}: post ${m.post} is not a building of ${m.employer}`);
+    if (posts.has(m.post)) out.push(`manager ${m.id}: post ${m.post} is held by another manager`);
+    posts.add(m.post);
   }
   return out;
 }

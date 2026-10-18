@@ -289,12 +289,12 @@ describe('truck tolls', () => {
   function addTruck(state: GameState, owner: 'player' | 'rival', stopIds: number[]): Vehicle {
     const routeId = state.nextId++;
     state.routes[routeId] = {
-      id: routeId, ownerId: owner, name: 'r', color: '#000', kind: 'truck',
+      id: routeId, ownerId: owner, name: 'r', color: '#000', kind: 'truck', mode: 'manual',
       stops: stopIds.map((buildingId) => ({ buildingId, load: [], unload: [] })),
     };
     const v: Vehicle = {
       id: state.nextId++, kind: 'truck', ownerId: owner, routeId, pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 },
-      path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900,
+      path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900, model: 'steam_lorry', speed: 0.5,
     };
     state.vehicles[v.id] = v;
     return v;

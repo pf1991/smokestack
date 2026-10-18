@@ -25,6 +25,7 @@ import { pick } from './rng';
 import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
 import { defaultExchange } from './exchange/types';
+import { newLogistics } from './logistics/types';
 import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
@@ -322,6 +323,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     nemesis,
     dynasty,
     exchange: defaultExchange(opts.seed),
+    logistics: newLogistics(opts.seed, START_DATE.year),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
@@ -456,6 +458,7 @@ export function placeBuilding(
     staffing: 1,
     strike: null,
     builtYear: state.date.year,
+    level: 1,
   };
   state.buildings[building.id] = building;
   invalidateSpatial(state);

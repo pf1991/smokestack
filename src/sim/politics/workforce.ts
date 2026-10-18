@@ -6,6 +6,7 @@
  * factory's town. Reads `opinion.workers` only; never writes opinion.
  */
 import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
+import { buildingWorkers } from '../logistics/levels';
 import { buildingsNear, citiesNear } from '../spatial';
 import type { Building, BuildingTypeId, City, GameState, OwnerId, Vec2 } from '../types';
 import { healthFactor } from '../society/tiers';
@@ -111,7 +112,7 @@ export function workforceMonth(state: GameState): void {
     const list = assigned.get(city.id);
     if (!list) continue;
     let need = 0;
-    for (const b of list) need += BUILDINGS[b.typeId].workers;
+    for (const b of list) need += buildingWorkers(b);
     const pool = laborPool(city) + (housed.get(city.id) ?? 0);
     const ratio = need === 0 ? 1 : Math.min(1, pool / need);
     const staffing = Math.max(MIN_STAFFING, ratio);

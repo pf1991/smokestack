@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../../data/buildings';
+import { buildingStorage } from '../logistics/levels';
 import { GOODS } from '../../data/goods';
 import { loadSource, storageLeft } from '../inventory';
 import { publishNews } from '../news';
@@ -121,7 +122,7 @@ function railCandidates(state: GameState): { leg: Leg; length: number }[] {
     if (blockedLegs.includes(`${source.id}>${dest.id}`)) continue;
     // a full source only counts when the destination could take a truckload (haulage is the bottleneck)
     const full =
-      (loadSource(source)[good] ?? 0) >= FULL_RATIO * BUILDINGS[source.typeId].storage &&
+      (loadSource(source)[good] ?? 0) >= FULL_RATIO * buildingStorage(source) &&
       storageLeft(dest, good) >= TRUCK.capacity;
     if (!full && trucksOn(state, route.id) < RAIL_BUSY_TRUCKS) continue;
     const length = legLength(state, source, dest);

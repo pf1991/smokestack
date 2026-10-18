@@ -201,12 +201,12 @@ describe('v5 -> v6: smog and society', () => {
 
 describe('v6 -> v7: nemesis', () => {
   it('is the current version', () => {
-    expect(SAVE_VERSION).toBe(7);
+    expect(SAVE_VERSION).toBe(8);
   });
   it('rolls the old Baron 2 distinct traits from the save rng, with no grudges', () => {
     const o: Record<string, unknown> = { version: 6, rngState: 42, date: { year: 1930, month: 1 }, cities: [] };
     expect(migrateSave(o).ok).toBe(true);
-    expect(o.version).toBe(7);
+    expect(o.version).toBe(SAVE_VERSION);
     const n = o.nemesis as GameState['nemesis'];
     expect(n.head).toEqual({ name: 'Baron Cornelius Smogsworth', born: 1852, generation: 1 });
     expect(n.traits).toHaveLength(2);
@@ -248,7 +248,7 @@ describe('v6 -> v7: nemesis', () => {
     expect(raw.version).toBe(6);
     const r = unpackState(phase3);
     if (!r.ok) throw new Error(r.error);
-    expect(r.value.version).toBe(7);
+    expect(r.value.version).toBe(SAVE_VERSION);
     expect(r.value.nemesis.traits).toHaveLength(2);
     expect(r.value.nemesis.grudges).toEqual([]);
     expect(r.value.dynasty.head.name.startsWith('Josiah ')).toBe(true);
@@ -260,7 +260,7 @@ describe('v6 -> v7: nemesis', () => {
   });
   it('phase4.save.json (1950: Junior, a second generation, a live exchange) loads, holds invariants and plays a year', () => {
     const raw = JSON.parse(phase4) as { version: number };
-    expect(raw.version).toBe(SAVE_VERSION);
+    expect(raw.version).toBe(7);
     const r = unpackState(phase4);
     if (!r.ok) throw new Error(r.error);
     const s = r.value;
@@ -274,5 +274,39 @@ describe('v6 -> v7: nemesis', () => {
     const ctx = testCtx(s);
     runDays(ctx, 360);
     expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+  it('phase4.save.json (v7) migrates to v8: level 1, steam lorries at 0.5, manual routes, logistics state', () => {
+    const raw = JSON.parse(phase4) as { version: number; logistics?: unknown };
+    expect(raw.version).toBe(7);
+    expect(raw.logistics).toBeUndefined();
+    const r = unpackState(phase4);
+    if (!r.ok) throw new Error(r.error);
+    const s = r.value;
+    expect(s.version).toBe(8);
+    expect(Object.keys(s.buildings).length).toBeGreaterThan(0);
+    for (const b of Object.values(s.buildings)) expect(b.level).toBe(1);
+    for (const v of Object.values(s.vehicles)) {
+      expect(v.model).toBe(v.kind === 'train' ? 'train' : 'steam_lorry');
+      expect(v.speed).toBe(v.kind === 'train' ? 1 : 0.5);
+    }
+    for (const rt of Object.values(s.routes)) expect(rt.mode).toBe('manual');
+    expect(s.logistics.managers).toEqual([]);
+    expect(s.logistics.market).toEqual([]);
+    expect(s.logistics.marketYear).toBe(s.date.year);
+    expect(checkInvariants(s)).toEqual([]);
+    const ctx = testCtx(s);
+    runDays(ctx, 360);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+  it('every fixture phase0 to phase4 loads at the current version, holds invariants and plays a year', () => {
+    for (const [name, raw] of Object.entries({ phase0, phase1, phase2, phase3, phase4 })) {
+      const r = unpackState(raw);
+      if (!r.ok) throw new Error(`${name}: ${r.error}`);
+      expect(r.value.version, name).toBe(SAVE_VERSION);
+      expect(checkInvariants(r.value), name).toEqual([]);
+      const ctx = testCtx(r.value);
+      runDays(ctx, 360);
+      expect(checkInvariants(ctx.state), name).toEqual([]);
+    }
   });
 });

@@ -62,7 +62,7 @@ describe('checkInvariants', () => {
       capacity: 10,
       state: 'idle',
       waitTicks: 0,
-      stuckNotified: false, builtYear: 1900,
+      stuckNotified: false, builtYear: 1900, model: 'steam_lorry', speed: 0.5,
     };
     state.vehicles[v.id] = v;
     const msgs = checkInvariants(state);

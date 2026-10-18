@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
+import { buildingStorage } from './logistics/levels';
 import { getGood } from '../data/goods';
 import { RECIPES, recipeEra } from '../data/recipes';
 import { addDays, compareDates, dateToDays } from './clock';
@@ -139,7 +140,7 @@ export const RANDOM_EVENTS: RandomEvent[] = [
       if (farms.length === 0) return null;
       for (const b of farms) {
         const good = b.recipeId ? Object.keys(RECIPES[b.recipeId]?.outputs ?? {})[0] ?? 'grain' : 'grain';
-        const cap = BUILDINGS[b.typeId].storage;
+        const cap = buildingStorage(b);
         b.output[good] = Math.min(cap, (b.output[good] ?? 0) + 30);
       }
       return publishNews(ctx, 'random', `LOCAL BAKER'S DOUGH RISES TO OCCASION`,

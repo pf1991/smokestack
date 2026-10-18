@@ -21,6 +21,7 @@ import { dynastyMonth, dynastyYear } from './dynasty/family';
 import { companyIds } from './companies';
 import { regionalMonth } from './regional/firms';
 import { exchangeDay, exchangeMonth } from './exchange/prices';
+import { logisticsDay, logisticsMonth, logisticsYear } from './logistics';
 import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
@@ -122,4 +123,6 @@ export const SYSTEMS: SimSystem[] = [
   // Phase 4 share prices: sentiment daily; the fundamental monthly, after every system that books
   // this month's income and spending (finance, always last, adds only the month's interest)
   { id: 'exchange', onDay: exchangeDay, onMonth: exchangeMonth },
+  // Phase 4b logistics (hubs, automatic routes, managers); each hook early-outs when no company uses the feature
+  { id: 'logistics', onDay: logisticsDay, onMonth: logisticsMonth, onYear: logisticsYear },
 ];

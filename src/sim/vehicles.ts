@@ -95,6 +95,7 @@ export function createRoute(
     color: ROUTE_COLORS[id % ROUTE_COLORS.length],
     stops: stops.map(copyStop),
     kind,
+    mode: 'manual',
   };
   state.routes[id] = route;
   return ok(route);
@@ -236,6 +237,8 @@ export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kin
     waitTicks: 0,
     stuckNotified: false,
     builtYear: state.date.year,
+    model: kind === 'truck' ? 'steam_lorry' : 'train',
+    speed: def.spec.speed,
   };
   state.vehicles[vehicle.id] = vehicle;
   return ok(vehicle);
@@ -478,7 +481,7 @@ function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef, 
   const { map } = ctx.state;
   // an old vehicle is slower (society/aging.ts); the hot path skips the call while it is young
   const age = ctx.state.date.year - veh.builtYear;
-  let remaining = age > grace ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
+  let remaining = age > grace ? veh.speed * agingEfficiency(age) : veh.speed;
   let replanned = false;
   for (;;) {
     if (veh.pathIndex >= veh.path.length) {

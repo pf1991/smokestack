@@ -1,5 +1,6 @@
 import type { Result } from '../../core/result';
 import { BUILDINGS } from '../../data/buildings';
+import { buildingStorage } from '../logistics/levels';
 import { GOODS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { loanStep, repayLoan, repayStep, takeLoan } from '../finance';
@@ -292,7 +293,7 @@ export function topUpTrucks(ctx: SimContext, owner: OwnerId = BARON_ID, reserve 
     const backedUp = route.stops.some((s) => {
       const b = state.buildings[s.buildingId];
       if (!b || b.ownerId !== owner) return false;
-      const cap = BUILDINGS[b.typeId].storage;
+      const cap = buildingStorage(b);
       return s.load.some((g) => {
         if ((loadSource(b)[g] ?? 0) < FULL_RATIO * cap) return false;
         return route.stops.some((d) => {

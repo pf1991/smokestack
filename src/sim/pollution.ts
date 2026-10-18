@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
+import { levelSmoke } from './logistics/levels';
 import { publishNews } from './news';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { terrainEpoch } from './terrainEpoch';
@@ -31,7 +32,7 @@ const CLEAN = 0.01;
  * smogDay multiplies every source's daily emission by it.
  */
 export function emissionFactor(_state: GameState, b: Building): number {
-  return scrubberEmission(b);
+  return scrubberEmission(b) * levelSmoke(b);
 }
 
 /**
