@@ -7,6 +7,7 @@ import { STRIKE_MAX_DAYS } from './society/strikeState';
 import { classesValid } from './society/classes';
 import { GRUDGE_CAP } from './nemesis/grudges';
 import { HEIR_MIN_AGE, HEIR_TRAITS, MAX_CHILDREN, successor } from './dynasty/types';
+import { PRICE_HISTORY_MONTHS, SENTIMENT_MAX, SENTIMENT_MIN } from './exchange/types';
 import type { GameState } from './types';
 
 /** Messages for every violated state invariant; empty when the state is healthy. */
@@ -102,10 +103,35 @@ export function checkInvariants(state: GameState): string[] {
   }
 
   out.push(...dynastyProblems(state));
+  out.push(...exchangeProblems(state));
 
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {
     if (l.length !== n) out.push(`layer ${id}: length ${l.length}, expected ${n}`);
+  }
+  return out;
+}
+
+/** The stock exchange (sim/exchange): a listing per company, whole holdings, finite positive prices. */
+function exchangeProblems(state: GameState): string[] {
+  const listings = state.exchange?.listings;
+  if (!listings || typeof listings !== 'object') return ['exchange: listings missing'];
+  const out: string[] = [];
+  for (const id of companyIds(state)) if (!listings[id]) out.push(`exchange: company ${id} has no listing`);
+  for (const [id, l] of Object.entries(listings)) {
+    if (!state.companies[id]) out.push(`exchange: listing ${id} has no company`);
+    let sum = 0;
+    let whole = true;
+    for (const n of Object.values(l.holders ?? {})) {
+      sum += n;
+      if (!Number.isInteger(n) || n <= 0) whole = false;
+    }
+    if (!whole || sum !== l.shares) out.push(`exchange: ${id} holders ${JSON.stringify(l.holders)} do not sum to ${l.shares} whole shares`);
+    if (typeof l.price !== 'number' || !Number.isFinite(l.price) || l.price <= 0) out.push(`exchange: ${id} price ${l.price} is not a finite number > 0`);
+    if (typeof l.fundamental !== 'number' || !Number.isFinite(l.fundamental) || l.fundamental <= 0) out.push(`exchange: ${id} fundamental ${l.fundamental} is not a finite number > 0`);
+    if (typeof l.sentiment !== 'number' || !(l.sentiment >= SENTIMENT_MIN && l.sentiment <= SENTIMENT_MAX)) out.push(`exchange: ${id} sentiment ${l.sentiment} outside [${SENTIMENT_MIN}, ${SENTIMENT_MAX}]`);
+    if (!Array.isArray(l.history) || l.history.length > PRICE_HISTORY_MONTHS) out.push(`exchange: ${id} bad price history`);
+    if (l.listed && state.companies[id] && !state.companies[id].active) out.push(`exchange: ${id} is inactive but still listed`);
   }
   return out;
 }

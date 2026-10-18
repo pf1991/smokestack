@@ -1,5 +1,6 @@
 import type { NemesisState } from './nemesis/types';
 import type { DynastyState } from './dynasty/types';
+import type { ExchangeState } from './exchange/types';
 import type { SocietyState } from '../data/laws';
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
@@ -342,6 +343,8 @@ export interface GameState {
   nemesis: NemesisState;
   /** Phase 4 the player's family: head, spouse, children, heir (sim/dynasty); added by the v7 migration */
   dynasty: DynastyState;
+  /** Phase 4 the stock exchange: a listing per company (sim/exchange); added by the v7 migration */
+  exchange: ExchangeState;
 }
 
 /** The price level (sim/society/economy.ts). */

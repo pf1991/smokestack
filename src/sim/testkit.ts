@@ -19,6 +19,8 @@ import type { Building, BuildingTypeId, City, GameMap, GameState, SimContext, Te
 import { buyTruck, createRoute } from './vehicles';
 import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
+import { defaultExchange } from './exchange/types';
+import { listCompany } from './exchange/shares';
 
 /** A w×h map filled with one terrain, no deposits, roads or buildings. */
 export function flatMap(w: number, h: number, terrain: Terrain = 'grass'): GameMap {
@@ -115,9 +117,12 @@ export function testState(opts: TestStateOpts = {}): GameState {
     // rolled from a throwaway copy of the seed, so the state's own rng is untouched
     nemesis: newNemesis({ rngState: opts.seed ?? 1 }),
     dynasty: newDynasty({ rngState: opts.seed ?? 1 }, 'Test Co.', year),
+    exchange: defaultExchange(),
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);
+  listCompany(state, 'player');
+  listCompany(state, 'rival');
   return state;
 }
 

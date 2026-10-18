@@ -20,6 +20,7 @@ import { grudgesYear, nemesisDay, nemesisMonth } from './nemesis/grudges';
 import { dynastyMonth, dynastyYear } from './dynasty/family';
 import { companyIds } from './companies';
 import { regionalMonth } from './regional/firms';
+import { exchangeDay, exchangeMonth } from './exchange/prices';
 import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
@@ -118,4 +119,7 @@ export const SYSTEMS: SimSystem[] = [
   { id: 'dynasty', onMonth: dynastyMonth, onYear: dynastyYear },
   // Phase 4 regional firms: founded in January on schedule; trucks, renewals and loans monthly; closed after 6 months in the red
   { id: 'regional', onMonth: regionalMonth },
+  // Phase 4 share prices: sentiment daily; the fundamental monthly, after every system that books
+  // this month's income and spending (finance, always last, adds only the month's interest)
+  { id: 'exchange', onDay: exchangeDay, onMonth: exchangeMonth },
 ];

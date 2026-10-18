@@ -24,6 +24,8 @@ import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
 import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
+import { defaultExchange } from './exchange/types';
+import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
 import { TREE_COST } from './society/upgrades';
@@ -319,6 +321,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     economy: defaultEconomy(),
     nemesis,
     dynasty,
+    exchange: defaultExchange(),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
@@ -334,6 +337,9 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     c.politics.edicts = chooseMayorEdicts(c);
   });
   refreshUrbanTiles(state);
+  // listed at the scenario's starting money; a game without the Baron delists him at once
+  for (const id of ['player', 'rival']) listCompany(state, id);
+  if (!rival.active) delist(state, 'rival');
   return state;
 }
 
@@ -716,4 +722,13 @@ export function assetValue(state: GameState, owner: OwnerId): number {
   for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += BUILDINGS[b.typeId].cost * 0.5;
   for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += VEHICLE_COST[veh.kind] * 0.5;
   return Math.round(atPrices(state, v));
+}
+
+/** assetValue of every owner at once (one pass over buildings and vehicles); owners with no assets are absent. */
+export function assetValues(state: GameState): Map<OwnerId, number> {
+  const raw = new Map<OwnerId, number>();
+  for (const b of Object.values(state.buildings)) raw.set(b.ownerId, (raw.get(b.ownerId) ?? 0) + BUILDINGS[b.typeId].cost * 0.5);
+  for (const veh of Object.values(state.vehicles)) raw.set(veh.ownerId, (raw.get(veh.ownerId) ?? 0) + VEHICLE_COST[veh.kind] * 0.5);
+  for (const [k, v] of raw) raw.set(k, Math.round(atPrices(state, v)));
+  return raw;
 }

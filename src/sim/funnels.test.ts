@@ -101,6 +101,15 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['nemesis/grudges.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
+  it('share holdings are written only by exchange/shares.ts (moveShares, listing creation)', () => {
+    // element writes (`.holders[k] = `, `+=`, `++`), deletes, whole-map assignment, Object.assign, and
+    // `holders:` initialisers other than the type annotation
+    const re = /\.holders(?:\[[^\]]*\]|\.\w+)?\s*(?:[-+*/]?=(?!=)|\+\+|--)|delete\s+[\w.$\[\]]*\.holders\b|Object\.assign\(\s*[\w.$\[\]]*\.holders\b|\bholders\s*:(?!\s*Record\b)/;
+    for (const w of ['l.holders[to] = n;', 'l.holders.public -= 5', 'l.holders[id]++', 'delete l.holders[from];', 'l.holders = {}', 'holders: { public: 600 },', 'Object.assign(l.holders, x)']) expect(re.test(w), w).toBe(true);
+    for (const w of ['holders: Record<OwnerId, number>;', 'const n = l.holders[from] ?? 0;', 'l.holders.public === 600', 'for (const k in l.holders)']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['exchange/shares.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
   it('faction opinion is written only by politics/factions.ts', () => {
     // element/field writes (`.opinion[f] = `, `+=`, `++`, `.opinion.workers = `), `Object.assign(x.opinion, …)`,
     // and whole-map `.opinion = …` unless the right-hand side is exactly `defaultOpinion()` (initialisers)

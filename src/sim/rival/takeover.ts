@@ -2,6 +2,7 @@ import type { Result } from '../../core/result';
 import { err, ok } from '../../core/result';
 import { transferOwnership } from '../companies';
 import { earn, spend } from '../finance';
+import { delist } from '../exchange/shares';
 import { publishNews } from '../news';
 import { assetValue } from '../state';
 import { atPrices } from '../society/economy';
@@ -45,6 +46,7 @@ export function takeover(ctx: SimContext): Result<{ price: number }> {
   rival.loan = 0;
   transferOwnership(ctx, 'rival', 'player');
   rival.active = false;
+  delist(state, 'rival');
   state.rivalProject = null;
   state.rivalRail = null;
   clearProjectFlags(state);

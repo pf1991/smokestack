@@ -12,6 +12,9 @@ import { defaultEconomy } from './society/economy';
 import { layCityStreets, refreshUrbanTiles } from './state';
 import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
+import { defaultExchange } from './exchange/types';
+import { delist, listCompany } from './exchange/shares';
+import { companyIds } from './companies';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
 
@@ -142,6 +145,15 @@ export const MIGRATIONS: Migration[] = [
       if (typeof date?.year !== 'number') throw new Error('bad date');
       o.dynasty = newDynasty(rng, name, date.year);
       o.rngState = rng.rngState;
+      // stock exchange (Task 7): listings are made in afterLoad, which values the companies' assets
+      o.exchange = defaultExchange();
+    },
+    afterLoad(state) {
+      // every company is listed at its fundamental (40% family, 60% public); an inactive one is delisted
+      for (const id of companyIds(state)) {
+        listCompany(state, id);
+        if (!state.companies[id].active) delist(state, id);
+      }
     },
   },
 ];

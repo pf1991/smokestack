@@ -22,6 +22,7 @@ import { BUILDINGS } from '../../data/buildings';
 import { RECIPES } from '../../data/recipes';
 import { buildChain, CHAINS, type ChainId } from '../chainBuilder';
 import { abandonInfrastructure, addCompany, companyIds } from '../companies';
+import { delist, listCompany } from '../exchange/shares';
 import { BANKRUPT_MONTHS, spend } from '../finance';
 import { publishNews } from '../news';
 import { manageLoans, renewOldAssets, repayLoans, topUpTrucks } from '../rival/projects';
@@ -109,6 +110,7 @@ function tryFound(ctx: SimContext, def: RegionalFirmDef): boolean {
   const trialCity = trial.state.cities.find((c) => c.id === city.id)!;
   if (!buildChain(trial, def.id, trialCity, def.chain, FOUNDING_TRUCKS).ok) return false;
   addCompany(state, firm);
+  listCompany(state, def.id);
   // the sim is deterministic, so the real build repeats the trial; should it ever fail, the firm
   // closes at once (and, existing, is not founded again)
   if (!buildChain(ctx, def.id, city, def.chain, FOUNDING_TRUCKS).ok) {
@@ -149,6 +151,7 @@ export function closeFirm(ctx: SimContext, id: OwnerId, news = true): void {
   c.money = 0;
   c.loan = 0;
   c.active = false;
+  delist(state, id);
   if (!news) return;
   const town = state.cities.find((x) => x.id === c.homeCityId)?.name ?? 'the provinces';
   publishNews(ctx, 'market', `${c.name} closes its doors`, `After ${BANKRUPT_MONTHS} months in the red, ${c.name} of ${town} has sold off its works and shut up shop.`);
