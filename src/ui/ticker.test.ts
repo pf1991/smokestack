@@ -71,6 +71,16 @@ describe('Ticker', () => {
     expect(open).toHaveBeenCalledTimes(2);
   });
 
+  it('Space on the focused ticker opens the paper without reaching the window shortcuts (no pause toggle)', () => {
+    const { el, open } = setup('headline');
+    const reached = vi.fn();
+    window.addEventListener('keydown', reached);
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    window.removeEventListener('keydown', reached);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(reached).not.toHaveBeenCalled();
+  });
+
   it('the scroll strip is not a button', () => {
     const { el, open } = setup('scroll');
     expect(el.getAttribute('role')).toBeNull();

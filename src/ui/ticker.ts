@@ -49,6 +49,7 @@ export const Ticker = {
     const key = (e: KeyboardEvent) => {
       if (mode === 'headline' && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
+        e.stopPropagation(); // keep Space from reaching the window-level pause shortcut
         onOpen?.();
       }
     };
