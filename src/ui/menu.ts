@@ -1,3 +1,4 @@
+import { aiStatus, onAiStatus } from '../ai/client';
 import { COMPANY_NAMES } from '../data/names';
 import { ACHIEVEMENTS, loadUnlocked } from '../game/achievements';
 import type { GameController, NewGameOpts } from '../game/controller';
@@ -10,6 +11,7 @@ import { iconEl } from './icon';
 import { formatMoney } from './format';
 import './menu.css';
 import { MenuBackdrop } from './menuBackdrop';
+import { buildLegacy } from './panels/legacy';
 
 /** What the menus need from the application shell. */
 export interface MenuHost {
@@ -116,13 +118,30 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
     },
   }, h('option', { value: 'auto', selected: s.uiScale === 'auto' }, 'Auto'),
   ...UI_SCALES.map((n) => h('option', { value: String(n), selected: s.uiScale === n }, `${Math.round(n * 100)}%`))) as HTMLSelectElement;
+  const smart = h('input', {
+    type: 'checkbox', checked: s.smartEvents,
+    onChange: (e: Event) => {
+      s.smartEvents = (e.target as HTMLInputElement).checked;
+      apply();
+    },
+  });
+  const status = h('p', { class: 'mn-note mn-ai-status' });
+  const showStatus = () => {
+    status.textContent = `JEV: ${s.smartEvents ? (aiStatus() === 'unknown' ? 'not checked yet' : aiStatus()) : 'off'}`;
+  };
+  showStatus();
+  // the health check may resolve while the screen is open; stop listening once it leaves the page
+  const off = onAiStatus(() => (status.isConnected ? showStatus() : off()));
+  smart.addEventListener('change', showStatus);
   return h('div', { class: 'mn-form' },
     h('label', { class: 'mn-row' }, h('span', null, 'Master volume'), vol),
     h('label', { class: 'mn-row' }, h('span', null, 'Mute all sound'), mute),
     h('label', { class: 'mn-row' }, h('span', null, 'Open the newspaper automatically'), news),
     h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro),
     h('label', { class: 'mn-row' }, h('span', null, 'News ticker'), ticker),
-    h('label', { class: 'mn-row' }, h('span', null, 'Interface scale'), scale));
+    h('label', { class: 'mn-row' }, h('span', null, 'Interface scale'), scale),
+    h('label', { class: 'mn-row' }, h('span', null, 'Smart events (JEV)'), smart),
+    status);
 }
 
 function achievementsView(): HTMLElement {
@@ -409,11 +428,12 @@ export function openPauseMenu(game: GameController, host: PauseHost, screen?: Pa
 }
 
 /** Victory / game-over card. */
-export function showEndScreen(kind: 'victory' | 'gameOver', reason: string, host: { quitToMenu(): void }, onKeepLooking: () => void): void {
+export function showEndScreen(kind: 'victory' | 'gameOver', reason: string, host: { quitToMenu(): void }, onKeepLooking: () => void, state?: GameState): void {
   if (current?.kind === 'end') return; // victory and bankruptcy can land in the same tick: first one wins
   const m: ModalHandle = modal('end', [
     h('h2', { class: kind === 'victory' ? 'mn-won' : 'mn-lost' }, kind === 'victory' ? 'Victory!' : 'Game Over'),
     h('p', { class: 'mn-reason' }, reason),
+    ...(state ? [buildLegacy(state)] : []),
     h('div', { class: 'mn-actions' },
       button('Look around', () => {
         m.close();

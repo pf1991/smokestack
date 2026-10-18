@@ -10,6 +10,11 @@ import { newCitySmog } from './society/tiers';
 import { newCityClasses } from './society/classes';
 import { defaultEconomy } from './society/economy';
 import { layCityStreets, refreshUrbanTiles } from './state';
+import { newNemesis } from './nemesis/types';
+import { newDynasty } from './dynasty/types';
+import { defaultExchange } from './exchange/types';
+import { delist, listCompany } from './exchange/shares';
+import { companyIds } from './companies';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
 
@@ -116,6 +121,40 @@ export const MIGRATIONS: Migration[] = [
       // inflation (Task 8): the index starts at 1 at load, whatever the year (past inflation is
       // unknown), so a late-year old save keeps its 1900 prices and inflates from here
       o.economy = defaultEconomy();
+    },
+  },
+  {
+    // v7: Phase 4 nemesis and dynasty. The founding Baron rolls his 2 traits from the save's rng and
+    // holds no grudges yet; contracts the save already finished count as seen, so they never become
+    // grudges. The player's family starts with a single founder (Task 5). Later Phase 4 tasks extend
+    // this entry until the phase merges.
+    from: 6,
+    migrate(o) {
+      const rng = { rngState: typeof o.rngState === 'number' && Number.isFinite(o.rngState) ? o.rngState | 0 : 0 };
+      const seen: number[] = [];
+      if (Array.isArray(o.contracts)) {
+        for (const c of o.contracts as Record<string, unknown>[]) {
+          if ((c.status === 'done' || c.status === 'failed') && typeof c.id === 'number') seen.push(c.id);
+        }
+      }
+      o.nemesis = newNemesis(rng, seen);
+      // dynasty (Task 5): the founder Josiah, single and childless, aged FOUNDER_AGE at load, 1 rolled trait
+      const companies = o.companies as Record<string, { name?: unknown }> | undefined;
+      const name = typeof companies?.player?.name === 'string' ? companies.player.name : 'Smith';
+      const date = o.date as { year?: unknown } | undefined;
+      if (typeof date?.year !== 'number') throw new Error('bad date');
+      o.dynasty = newDynasty(rng, name, date.year);
+      o.rngState = rng.rngState;
+      // stock exchange (Task 7): listings are made in afterLoad, which values the companies' assets;
+      // the exchange's rng stream is seeded from the game seed, as in createGame
+      o.exchange = defaultExchange(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0);
+    },
+    afterLoad(state) {
+      // every company is listed at its fundamental (40% family, 60% public); an inactive one is delisted
+      for (const id of companyIds(state)) {
+        listCompany(state, id);
+        if (!state.companies[id].active) delist(state, id);
+      }
     },
   },
 ];

@@ -197,6 +197,7 @@ export function deleteRoute(ctx: SimContext, routeId: number): Result {
   if (!state.routes[routeId]) return err('No such route');
   for (const veh of Object.values(state.vehicles)) if (veh.routeId === routeId) sellVehicle(ctx, veh.id);
   delete state.routes[routeId];
+  routeRemovals++;
   return ok();
 }
 
@@ -473,11 +474,11 @@ function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
 const EPS = 1e-9;
 
 /** Advances `speed` tiles along the path, crossing several nodes if needed; arrival at the last node. */
-function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
+function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef, grace: number): void {
   const { map } = ctx.state;
   // an old vehicle is slower (society/aging.ts); the hot path skips the call while it is young
   const age = ctx.state.date.year - veh.builtYear;
-  let remaining = age > AGING_GRACE ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
+  let remaining = age > grace ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
   let replanned = false;
   for (;;) {
     if (veh.pathIndex >= veh.path.length) {
@@ -515,14 +516,17 @@ function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef):
   }
 }
 
-function tickVehicle(ctx: SimContext, veh: Vehicle): void {
+/**
+ * `route` is `state.routes[veh.routeId]` (undefined without a route), looked up by vehiclesTick, and
+ * `grace` is AGING_GRACE, read once per tick rather than once per vehicle.
+ */
+function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined, grace: number): void {
   const { state } = ctx;
   veh.prevPos.x = veh.pos.x;
   veh.prevPos.y = veh.pos.y;
   const def = VEHICLE_KINDS[veh.kind];
   if (!def) return;
   if (def.halted?.(state)) return;
-  const route = veh.routeId !== null ? state.routes[veh.routeId] : undefined;
   const n = route ? route.stops.length : 0;
   if (!route || n < 2) {
     veh.state = 'idle';
@@ -557,7 +561,7 @@ function tickVehicle(ctx: SimContext, veh: Vehicle): void {
     }
     case 'moving': {
       if (veh.path.length === 0 && !plan(ctx, veh, route, def)) return;
-      move(ctx, veh, route, def);
+      move(ctx, veh, route, def, grace);
       return;
     }
   }
@@ -565,7 +569,41 @@ function tickVehicle(ctx: SimContext, veh: Vehicle): void {
 
 /** The vehicle state machine: moving → loading → moving, with stuck/idle side states. Ids ascending. */
 export function vehiclesTick(ctx: SimContext): void {
-  for (const veh of fleet(ctx.state)) tickVehicle(ctx, veh);
+  const { state } = ctx;
+  const c = fleet(state);
+  const { list } = c;
+  const grace = AGING_GRACE;
+  for (let k = 0; k < list.length; k++) {
+    const veh = list[k];
+    tickVehicle(ctx, veh, veh.routeId !== null ? routeOf(state, c, k, veh.routeId) : undefined, grace);
+  }
+}
+
+/**
+ * Removals from `state.routes` (bumped by deleteRoute, the only code that deletes a route). With the
+ * fleet cache's `nextId` (createRoute takes a new id), it tells when a remembered route may be stale.
+ */
+let routeRemovals = 0;
+
+/**
+ * `state.routes[routeId]` for the fleet's vehicle at index k. The routes record is a sparse-id
+ * dictionary, and a hash lookup per vehicle per hour was a large share of the vehicle tick, so the
+ * route found last time is reused while the vehicle keeps its route id and the record is the same
+ * object with no route deleted since. A miss (no such route) is never remembered.
+ */
+function routeOf(state: GameState, c: FleetCache, k: number, routeId: number): Route | undefined {
+  if (c.routesRecord !== state.routes || c.routeRemovals !== routeRemovals) {
+    c.routesRecord = state.routes;
+    c.routeRemovals = routeRemovals;
+    c.routes.fill(undefined);
+  }
+  let route = c.routes[k];
+  if (route === undefined || c.routeIds[k] !== routeId) {
+    route = state.routes[routeId];
+    c.routes[k] = route;
+    c.routeIds[k] = routeId;
+  }
+  return route;
 }
 
 /**
@@ -576,13 +614,34 @@ export function vehiclesTick(ctx: SimContext): void {
  * vehicles). A new or loaded GameState has a new `vehicles` object and so starts a fresh cache.
  */
 let fleetRemovals = 0;
-const fleetCache = new WeakMap<Record<number, Vehicle>, { nextId: number; removals: number; list: Vehicle[] }>();
 
-function fleet(state: GameState): Vehicle[] {
+interface FleetCache {
+  nextId: number;
+  removals: number;
+  list: Vehicle[];
+  /** routeOf's memo, by index into `list`: the route found and the route id it was found for */
+  routes: (Route | undefined)[];
+  routeIds: number[];
+  routesRecord: GameState['routes'] | null;
+  routeRemovals: number;
+}
+
+const fleetCache = new WeakMap<Record<number, Vehicle>, FleetCache>();
+
+function fleet(state: GameState): FleetCache {
   const { vehicles } = state;
   const c = fleetCache.get(vehicles);
-  if (c && c.nextId === state.nextId && c.removals === fleetRemovals) return c.list;
+  if (c && c.nextId === state.nextId && c.removals === fleetRemovals) return c;
   const list = Object.values(vehicles);
-  fleetCache.set(vehicles, { nextId: state.nextId, removals: fleetRemovals, list });
-  return list;
+  const fresh: FleetCache = {
+    nextId: state.nextId,
+    removals: fleetRemovals,
+    list,
+    routes: new Array<Route | undefined>(list.length).fill(undefined),
+    routeIds: new Array<number>(list.length).fill(-1),
+    routesRecord: state.routes,
+    routeRemovals,
+  };
+  fleetCache.set(vehicles, fresh);
+  return fresh;
 }

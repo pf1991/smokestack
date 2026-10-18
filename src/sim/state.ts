@@ -22,6 +22,10 @@ import { LANDMARK_BLOCKED, LANDMARK_LAYER } from './landmarkTiles';
 import { layerAt } from './layers';
 import { invalidateSpatial } from './spatial';
 import { pick } from './rng';
+import { newNemesis } from './nemesis/types';
+import { newDynasty } from './dynasty/types';
+import { defaultExchange } from './exchange/types';
+import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
 import { TREE_COST } from './society/upgrades';
@@ -285,6 +289,9 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   const playerName = opts.companyName ?? pick(rng, COMPANY_NAMES);
   const rival = createCompany('rival', RIVAL_NAME);
   rival.active = opts.rival ?? true;
+  const nemesis = newNemesis(rng);
+  // the founder's age is fixed at the start, whatever the scenario's year (draws 1 trait from the rng)
+  const dynasty = newDynasty(rng, playerName, SCENARIOS[opts.scenarioId ?? 'sandbox']?.startYear ?? START_DATE.year);
   const state: GameState = {
     version: SAVE_VERSION,
     seed: opts.seed,
@@ -312,6 +319,9 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     weather: defaultWeather(START_DATE.month),
     society: defaultSociety(),
     economy: defaultEconomy(),
+    nemesis,
+    dynasty,
+    exchange: defaultExchange(opts.seed),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
@@ -327,6 +337,9 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     c.politics.edicts = chooseMayorEdicts(c);
   });
   refreshUrbanTiles(state);
+  // listed at the scenario's starting money; a game without the Baron delists him at once
+  for (const id of ['player', 'rival']) listCompany(state, id);
+  if (!rival.active) delist(state, 'rival');
   return state;
 }
 
@@ -709,4 +722,40 @@ export function assetValue(state: GameState, owner: OwnerId): number {
   for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += BUILDINGS[b.typeId].cost * 0.5;
   for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += VEHICLE_COST[veh.kind] * 0.5;
   return Math.round(atPrices(state, v));
+}
+
+/** assetValue of every owner at once (one pass over buildings and vehicles); owners with no assets are absent. */
+export function assetValues(state: GameState): Map<OwnerId, number> {
+  const raw = new Map<OwnerId, number>();
+  for (const b of Object.values(state.buildings)) raw.set(b.ownerId, (raw.get(b.ownerId) ?? 0) + BUILDINGS[b.typeId].cost * 0.5);
+  for (const veh of Object.values(state.vehicles)) raw.set(veh.ownerId, (raw.get(veh.ownerId) ?? 0) + VEHICLE_COST[veh.kind] * 0.5);
+  for (const [k, v] of raw) raw.set(k, Math.round(atPrices(state, v)));
+  return raw;
+}
+
+/**
+ * Book net worth: cash minus loans plus assetValue (share holdings are not counted; see wealth).
+ * `assets`, when given, is assetValues (a pass valuing every company at once).
+ */
+export function netWorth(state: GameState, owner: OwnerId, assets?: Map<OwnerId, number>): number {
+  const c = state.companies[owner];
+  return c.money - c.loan + (assets ? assets.get(owner) ?? 0 : assetValue(state, owner));
+}
+
+/**
+ * What `owner` is worth with its share holdings: netWorth plus, over every listing, the shares it
+ * holds (its own treasury stock included) at the stored price. Reads stored prices only, so it never
+ * recurses into another company's valuation. The measure for Legacy, the panels, the goals and the
+ * Baron's comparisons (rivalry grudge, hostile bid, the player's takeover gate).
+ */
+export function wealth(state: GameState, owner: OwnerId): number {
+  let v = netWorth(state, owner);
+  const listings = state.exchange?.listings;
+  if (listings) {
+    for (const id in listings) {
+      const n = listings[id].holders[owner];
+      if (n) v += n * listings[id].price;
+    }
+  }
+  return v;
 }

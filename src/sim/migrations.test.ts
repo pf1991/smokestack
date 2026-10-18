@@ -6,12 +6,15 @@ import { urbanRadius } from './market';
 import { migrateSave, runAfterLoad, SAVE_VERSION, type Migration } from './migrations';
 import { runDays } from './simulation';
 import { testCtx, testState } from './testkit';
+import type { GameState } from './types';
 import { defaultWeather } from './weather';
 
 const fixtures = import.meta.glob('./__fixtures__/phase*.save.json', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const phase0 = fixtures['./__fixtures__/phase0.save.json'];
 const phase1 = fixtures['./__fixtures__/phase1.save.json'];
 const phase2 = fixtures['./__fixtures__/phase2.save.json'];
+const phase3 = fixtures['./__fixtures__/phase3.save.json'];
+const phase4 = fixtures['./__fixtures__/phase4.save.json'];
 
 describe('migrateSave', () => {
   it('rejects a SMOKESTACK I save', () => {
@@ -164,22 +167,19 @@ describe('v4 -> v5: politics', () => {
 });
 
 describe('v5 -> v6: smog and society', () => {
-  it('is the current version', () => {
-    expect(SAVE_VERSION).toBe(6);
-  });
   it('gives a raw v5 save the prevailing weather of its month', () => {
     const o: Record<string, unknown> = { version: 5, date: { year: 1930, month: 1 }, cities: [] };
     expect(migrateSave(o).ok).toBe(true);
-    expect(o.version).toBe(6);
+    expect(o.version).toBe(SAVE_VERSION);
     expect(o.weather).toEqual(defaultWeather(1));
   });
-  it('phase2.save.json migrates to v6 with a default weather and holds invariants', () => {
+  it('phase2.save.json migrates with a default weather and holds invariants', () => {
     expect(phase2).toBeDefined();
     const raw = JSON.parse(phase2) as { version: number; date: { month: number } };
     expect(raw.version).toBe(5);
     const r = unpackState(phase2);
     if (!r.ok) throw new Error(r.error);
-    expect(r.value.version).toBe(6);
+    expect(r.value.version).toBe(SAVE_VERSION);
     expect(r.value.weather).toEqual(defaultWeather(raw.date.month));
     expect(checkInvariants(r.value)).toEqual([]);
     const ctx = testCtx(r.value);
@@ -197,4 +197,82 @@ describe('v5 -> v6: smog and society', () => {
       expect(ctx.state.map.tiles.some((t) => t.pollution > 0)).toBe(true);
     });
   }
+});
+
+describe('v6 -> v7: nemesis', () => {
+  it('is the current version', () => {
+    expect(SAVE_VERSION).toBe(7);
+  });
+  it('rolls the old Baron 2 distinct traits from the save rng, with no grudges', () => {
+    const o: Record<string, unknown> = { version: 6, rngState: 42, date: { year: 1930, month: 1 }, cities: [] };
+    expect(migrateSave(o).ok).toBe(true);
+    expect(o.version).toBe(7);
+    const n = o.nemesis as GameState['nemesis'];
+    expect(n.head).toEqual({ name: 'Baron Cornelius Smogsworth', born: 1852, generation: 1 });
+    expect(n.traits).toHaveLength(2);
+    expect(new Set(n.traits).size).toBe(2);
+    expect(n.grudges).toEqual([]);
+    expect(n.lastAction).toBeNull();
+    expect(n.actionsThisYear).toBe(0);
+    expect(n.effects).toEqual([]);
+    expect(n.track.poached).toEqual({});
+    expect(n.succession).toEqual({ done: false, year: null });
+    // the draws advance the save's rng
+    expect(o.rngState).not.toBe(42);
+    const again: Record<string, unknown> = { version: 6, rngState: 42, date: { year: 1930, month: 1 }, cities: [] };
+    migrateSave(again);
+    expect((again.nemesis as GameState['nemesis']).traits).toEqual(n.traits);
+  });
+  it('counts contracts already finished as seen, so they never become grudges', () => {
+    const base = { goodId: 'coal', qty: 1, delivered: 1, deadline: { year: 1931, month: 1, day: 1, hour: 0 }, reward: 1 };
+    const o: Record<string, unknown> = {
+      version: 6, rngState: 1, date: { year: 1930, month: 1 }, cities: [],
+      contracts: [{ ...base, id: 3, cityId: 0, status: 'done' }, { ...base, id: 4, cityId: 0, status: 'active' }, { ...base, id: 5, cityId: 0, status: 'failed' }],
+    };
+    expect(migrateSave(o).ok).toBe(true);
+    expect((o.nemesis as GameState['nemesis']).track.contractsSeen).toEqual([3, 5]);
+  });
+  it('starts the player family with a single founder Josiah, aged 28 at load, named after the company', () => {
+    const o: Record<string, unknown> = {
+      version: 6, rngState: 42, date: { year: 1930, month: 1 }, cities: [],
+      companies: { player: { name: 'Bellows & Daughters' } },
+    };
+    expect(migrateSave(o).ok).toBe(true);
+    const d = o.dynasty as GameState['dynasty'];
+    expect(d.head).toMatchObject({ id: 1, name: 'Josiah Bellows', born: 1902, alive: true });
+    expect(d.head.traits).toHaveLength(1);
+    expect(d).toMatchObject({ spouse: null, children: [], heirId: null, generation: 1, prestige: 0, nextPersonId: 2 });
+  });
+  it('phase3.save.json migrates with nemesis set, holds invariants and plays a year', () => {
+    const raw = JSON.parse(phase3) as { version: number };
+    expect(raw.version).toBe(6);
+    const r = unpackState(phase3);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.value.version).toBe(7);
+    expect(r.value.nemesis.traits).toHaveLength(2);
+    expect(r.value.nemesis.grudges).toEqual([]);
+    expect(r.value.dynasty.head.name.startsWith('Josiah ')).toBe(true);
+    expect(r.value.dynasty.generation).toBe(1);
+    expect(checkInvariants(r.value)).toEqual([]);
+    const ctx = testCtx(r.value);
+    runDays(ctx, 360);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+  it('phase4.save.json (1950: Junior, a second generation, a live exchange) loads, holds invariants and plays a year', () => {
+    const raw = JSON.parse(phase4) as { version: number };
+    expect(raw.version).toBe(SAVE_VERSION);
+    const r = unpackState(phase4);
+    if (!r.ok) throw new Error(r.error);
+    const s = r.value;
+    expect(s.date.year).toBe(1950);
+    expect(s.nemesis.succession.done).toBe(true);
+    expect(s.nemesis.head.generation).toBe(2);
+    expect(s.dynasty.generation).toBeGreaterThanOrEqual(2);
+    expect(Object.values(s.companies).filter((c) => c.kind === 'regional' && c.active).length).toBeGreaterThanOrEqual(2);
+    for (const l of Object.values(s.exchange.listings)) expect(Number.isFinite(l.price) && l.price > 0).toBe(true);
+    expect(checkInvariants(s)).toEqual([]);
+    const ctx = testCtx(s);
+    runDays(ctx, 360);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
 });

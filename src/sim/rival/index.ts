@@ -38,7 +38,7 @@ export function rivalMonth(ctx: SimContext): void {
 
 
 export { chainFor } from './chains';
-export { canTakeover, netWorth, takeover, takeoverPrice } from './takeover';
+export { netWorth, takeover } from './takeover';
 export { rivalSupply, chooseProject } from './market';
 export { maxRivalChains, rivalChainCount } from './projects';
 export { MAX_STALL_MONTHS, RIVAL_RESERVE } from './shared';

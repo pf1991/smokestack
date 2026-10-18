@@ -5,10 +5,11 @@ import { PLAYER_ID } from '../companies';
 import { dateToDays } from '../clock';
 import { migrateSave } from '../migrations';
 import { runDays } from '../simulation';
+import { answerDecision } from '../ai/mailbox';
 import { createGame } from '../state';
 import { testCtx, testState } from '../testkit';
 import type { SimContext } from '../types';
-import { AUTO_RESOLVE_DAYS, autoResolve, canAffordChoice, cardCity, cardScale, cardsDay, cardText, choiceCost, drawSpringCard, eligibleCards, forceCard, HISTORY_CAP, resolveCard, triggerCard } from './cards';
+import { AUTO_RESOLVE_DAYS, autoResolve, canAffordChoice, cardCity, cardScale, cardsDay, cardText, choiceCost, cardsDayHook, drawSpringCard, eligibleCards, forceCard, HISTORY_CAP, resolveCard, triggerCard } from './cards';
 import { netWorth } from '../rival/takeover';
 import { holdElection, playerHiresFrom } from './elections';
 import { placeBuilding } from '../state';
@@ -16,6 +17,7 @@ import { must } from '../testkit';
 import { runAutoplay } from '../../game/autoplay';
 import { checkInvariants } from '../invariants';
 import { stateHash } from '../hash';
+import { random } from '../rng';
 
 const town = (year = 1905, seed = 3) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
 /** Sets the price index (society/economy.ts), which drives card money since Task 8. */
@@ -430,7 +432,12 @@ describe('card content (Task 8)', () => {
   // `new_mayor` (Task 7 seed) is the one card whose apply moves opinion: it targets the mayor's faction
   const applied = CARDS.flatMap((c) => c.choices.filter((ch) => ch.apply).map((ch) => ({ c, ch }))).filter(({ c }) => c.id !== 'new_mayor');
 
-  it('apply hooks exist, move no opinion, keep invariants and are deterministic', () => {
+  /**
+   * Choices whose opinion effect applies only if their action succeeds (final review Minor 5): the
+   * effect cannot sit in `effects`, which the engine applies before `apply` runs.
+   */
+  const OPINION_ON_SUCCESS: Record<string, string> = { exchange_panic: 'Buy back your shares' };
+  it('apply hooks exist, move no opinion (bar OPINION_ON_SUCCESS), keep invariants and are deterministic', () => {
     expect(applied.length).toBeGreaterThanOrEqual(10);
     for (const { c, ch } of applied) {
       const run = () => {
@@ -439,8 +446,17 @@ describe('card content (Task 8)', () => {
         at(ctx, Math.max(c.years[0], 1901), 4, 1);
         const cityId = c.needsCity ? cardCity(ctx.state, c) : null;
         const before = JSON.stringify(ctx.state.cities.map((x) => x.opinion));
+        const conditional = OPINION_ON_SUCCESS[c.id] === ch.label;
+        // the success case: the purse for the action, so its opinion effect must land
+        if (conditional) ctx.state.companies.player.money += 1e9;
+        const logged = ctx.state.politics.log.length;
         ch.apply!(ctx, cityId);
-        expect(JSON.stringify(ctx.state.cities.map((x) => x.opinion)), `${c.id}: ${ch.label} moved opinion`).toBe(before);
+        if (conditional) {
+          // its opinion effect hangs on its action succeeding, so apply moves it, through adjustOpinion only
+          const added = ctx.state.politics.log.slice(logged);
+          expect(added.length, `${c.id}: ${ch.label} logged nothing`).toBeGreaterThan(0);
+          expect(added.every((e) => e.reason === c.title), `${c.id}: ${ch.label}`).toBe(true);
+        } else expect(JSON.stringify(ctx.state.cities.map((x) => x.opinion)), `${c.id}: ${ch.label} moved opinion`).toBe(before);
         expect(checkInvariants(ctx.state), `${c.id}: ${ch.label}`).toEqual([]);
         return stateHash(ctx.state);
       };
@@ -510,5 +526,101 @@ describe('election cards only when it matters (R-Q10b)', () => {
     forceCard(ctx, 'letter_to_editor');
     expect(resolveCard(ctx, pending(ctx)[0].uid, 1).ok).toBe(true);
     expect(seen).toEqual(['letter_to_editor']);
+  });
+});
+
+describe('spring card dealer asks JEV', () => {
+  // what the reference pick below gives for seeds 1-20 on 1 April 1935 (re-derived when Phase 4 added
+  // market_rumour and bull_market to the spring deck); pinned so a change to the deck shows up here
+  const SNAPSHOT = ['dust_bowl', 'baron_envelope', 'baron_smear', 'prize_marrow', 'baron_smear', 'company_hour', 'letter_to_editor', 'founders_parade', 'works_dance', 'company_hour', 'company_hour', 'hard_times', 'dust_bowl', 'soup_kitchen', 'works_dance', 'dust_bowl', 'baron_smear', 'soup_kitchen', 'letter_to_editor', 'baron_envelope'];
+  const spring = (seed: number, year = 1935) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
+  /** The pre-JEV spring pick, on a copy: one random draw × total weight walked over the eligible cards in table order. */
+  const referencePick = (ctx: SimContext): string => {
+    const copy = structuredClone(ctx.state);
+    const list = eligibleCards(copy, 'spring', null);
+    const total = list.reduce((s, e) => s + Math.max(0, e.card.weight), 0);
+    let r = random(copy) * total;
+    for (const e of list) {
+      r -= Math.max(0, e.card.weight);
+      if (r < 0) return e.card.id;
+    }
+    return list[list.length - 1].card.id;
+  };
+
+  it('without an answer draws exactly as the pre-JEV weighted pick (seeds 1-20)', () => {
+    const picked: string[] = [];
+    const reference: string[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const ctx = spring(seed);
+      reference.push(referencePick(ctx));
+      drawSpringCard(ctx);
+      picked.push(pending(ctx)[0].cardId);
+    }
+    expect(picked).toEqual(reference);
+    expect(reference).toEqual(SNAPSHOT);
+  });
+
+  it('posts card:<year> on 1 March with the eligible card ids, once', () => {
+    const ctx = spring(3);
+    at(ctx, 1935, 3, 1);
+    cardsDayHook(ctx);
+    cardsDayHook(ctx);
+    const box = ctx.state.ai!;
+    expect(box.pending.length).toBe(1);
+    const r = box.pending[0];
+    expect(r.id).toBe('card:1935');
+    expect(r.options.map((o) => o.key)).toEqual(eligibleCards(ctx.state, 'spring', null).slice(0, 32).map((e) => e.card.id));
+    expect(r.options[0].label.startsWith(CARDS_BY_ID[r.options[0].key].title)).toBe(true);
+    expect(r.dueDay).toBe(dateToDays({ ...ctx.state.date, month: 4, day: 1 }));
+    // an answered request is not posted again before the draw
+    answerDecision(ctx.state, 'card:1935', { probabilities: { hard_times: 1 } });
+    cardsDayHook(ctx);
+    expect(ctx.state.ai!.pending.length).toBe(0);
+  });
+
+  it('fills a card\'s vars and towns in the labels it sends JEV (marriage, 1906)', () => {
+    const ctx = spring(3, 1906);
+    at(ctx, 1906, 3, 1);
+    cardsDayHook(ctx);
+    const opts = ctx.state.ai!.pending[0].options;
+    expect(opts.map((o) => o.key)).toContain('marriage');
+    for (const o of opts) expect(o.label).not.toMatch(/\{\w+\}/);
+  });
+
+  it('a one-hot answer lifts the pick rate to 0.55-0.6 over 2000 draws, never past the cap', () => {
+    let hits = 0;
+    for (let i = 0; i < 2000; i++) {
+      const ctx = spring(1);
+      ctx.state.rngState = i * 2654435761;
+      at(ctx, 1935, 3, 1);
+      cardsDayHook(ctx);
+      answerDecision(ctx.state, 'card:1935', { probabilities: { hard_times: 1 } });
+      at(ctx, 1935, 4, 1);
+      drawSpringCard(ctx);
+      if (pending(ctx)[0].cardId === 'hard_times') hits++;
+      expect(ctx.state.ai!.answers['card:1935']).toBeUndefined();
+    }
+    expect(hits / 2000).toBeGreaterThanOrEqual(0.55);
+    expect(hits / 2000).toBeLessThanOrEqual(0.6);
+  });
+
+  it('ignores an answer for a card that is not eligible', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const ctx = spring(seed);
+      at(ctx, 1935, 3, 1);
+      cardsDayHook(ctx);
+      answerDecision(ctx.state, 'card:1935', { probabilities: { not_a_card: 1, hard_times_gone: 1 } });
+      at(ctx, 1935, 4, 1);
+      // neither answered id is a card, so neither can be eligible
+      const eligible = eligibleCards(ctx.state, 'spring', null).map((e) => e.card.id);
+      for (const id of ['not_a_card', 'hard_times_gone']) {
+        expect(CARDS_BY_ID[id]).toBeUndefined();
+        expect(eligible).not.toContain(id);
+      }
+      const expected = referencePick(ctx);
+      drawSpringCard(ctx);
+      expect(pending(ctx)[0].cardId).toBe(expected);
+      expect(expected).toBe(SNAPSHOT[seed - 1]);
+    }
   });
 });

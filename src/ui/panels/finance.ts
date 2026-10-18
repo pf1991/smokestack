@@ -5,7 +5,8 @@ import { GOODS } from '../../data/goods';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, loanStep, maxLoan, monthProfit, repayLoan, repayStep, takeLoan } from '../../sim/finance';
 import { inflationRate, priceIndex } from '../../sim/society/economy';
 import { loanRate } from '../../sim/politics/mayorEdicts';
-import { assetValue } from '../../sim/state';
+import { companyIds } from '../../sim/companies';
+import { wealth } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
 import { barChart, cssColor, lineChart } from '../charts';
 import { h } from '../dom';
@@ -26,12 +27,16 @@ const LABELS: Record<LedgerCategory, string> = {
   vehicles: 'Vehicles',
   interest: 'Interest',
   fines: 'Smoke fines',
+  dividends: 'Dividends',
+  shares: 'Share trades',
 };
 // rows come from the sim's category lists, so the statement and monthProfit cannot drift apart
 const INCOME_CATS = INCOME_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
 // spending under 'events' is philanthropy and takeover deals, not windfalls: its own label on the expense side
 const EXPENSE_LABELS: Partial<Record<LedgerCategory, string>> = { events: 'Gifts & deals' };
 const EXPENSE_CATS = EXPENSE_CATEGORIES.map((cat) => ({ cat, label: EXPENSE_LABELS[cat] ?? LABELS[cat] }));
+/** Capital flows shown under the profit line (net of both sides), only in months that had any. */
+const CAPITAL_CATS: LedgerCategory[] = ['shares', 'dividends'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const monthKey = (m: { year: number; month: number }) => m.year * 12 + m.month;
@@ -67,6 +72,9 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
           h('th', { scope: 'row' }, 'Profit'),
           profit.map((v) => h('td', { class: v < 0 ? 'neg' : 'pos' }, formatMoney(v))),
         ),
+        // capital flows below the line: share trades and dividends never count as profit
+        CAPITAL_CATS.filter((cat) => months.some((m) => (m.income[cat] ?? 0) !== 0 || (m.expense[cat] ?? 0) !== 0)).map((cat) =>
+          row(LABELS[cat], months.map((m) => (m.income[cat] ?? 0) - (m.expense[cat] ?? 0)))),
       ),
     ),
   );
@@ -78,9 +86,37 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
  */
 function monthValues(state: GameState, c: Company | undefined, key: number, m: LedgerMonth | undefined) {
   if (key === monthKey(state.date) && c) {
-    return { cash: c.money, net: c.money - c.loan + assetValue(state, c.id) };
+    return { cash: c.money, net: wealth(state, c.id) };
   }
   return { cash: m?.cashEnd ?? Number.NaN, net: m?.netWorthEnd ?? Number.NaN };
+}
+
+/** Every company (player, Baron, regional firms in companyIds order): name, cash and net worth today. */
+export function companiesTable(state: GameState): HTMLElement {
+  const money = (v: number) => h('td', { class: v < 0 ? 'neg' : '' }, formatMoney(v));
+  return h(
+    'div',
+    { class: 'finance-scroll' },
+    h(
+      'table',
+      { class: 'finance-table finance-companies' },
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Company'), h('th', { scope: 'col' }, 'Cash'), h('th', { scope: 'col', title: 'Cash minus loans, plus works, vehicles and shares held' }, 'Net worth'))),
+      h(
+        'tbody',
+        null,
+        companyIds(state).map((id) => {
+          const c = state.companies[id];
+          return h(
+            'tr',
+            null,
+            h('th', { scope: 'row' }, c.active ? c.name : `${c.name} (closed)`),
+            money(c.money),
+            money(wealth(state, id)),
+          );
+        }),
+      ),
+    ),
+  );
 }
 
 /** Windows that already have a refresh timer running (so a second open just re-raises them). */
@@ -95,6 +131,7 @@ export const financePanel: PanelDef = {
   id: 'finance',
   open(game: GameController) {
     const statementBox = h('div');
+    const companiesBox = h('div');
     const emptyCharts = h('p', { class: 'finance-empty' }, 'No history yet');
     const cashCanvas = h('canvas', { class: 'finance-chart' }) as HTMLCanvasElement;
     const legend = h('div', { class: 'finance-legend' });
@@ -120,6 +157,7 @@ export const financePanel: PanelDef = {
       'div',
       { class: 'finance' },
       section('Income statement (last 12 months)', statementBox),
+      section('Companies', companiesBox),
       section('Cash and net worth', emptyCharts, chartsBox),
       section('Sales this year', goodsEmpty, goodsCanvas),
       section('Prices', indexInfo, indexCanvas),
@@ -147,6 +185,7 @@ export const financePanel: PanelDef = {
       const rivalActive = Boolean(rival?.active);
 
       statementBox.replaceChildren(statement(player.ledger));
+      companiesBox.replaceChildren(companiesTable(state));
 
       // Cash and net worth: union of both companies' months (plus the open month), aligned on year/month.
       const keys = new Set<number>();

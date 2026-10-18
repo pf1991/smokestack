@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_ACTIONS_PER_YEAR } from '../nemesis/retaliation';
 import { BUILDINGS } from '../../data/buildings';
+import { CARDS_BY_ID } from '../../data/cards';
 import { LANDMARKS } from '../../data/landmarks';
 import { LANDMARK_LAYER, landmarksMonth } from '../landmarks';
 import { layerAt } from '../layers';
@@ -169,9 +171,15 @@ describe('company edicts', () => {
       ctx.state.politics.edicts = { ...edicts };
       for (let y = 0; y < 30; y++) {
         // this test is about edicts, not smog: keep every town's smog escalation clean (Phase 3
-        // tiers, ruling R-S4) by zeroing the smog level at every month end
+        // tiers, ruling R-S4) by zeroing the smog level at every month end, and keep the Baron's
+        // retaliation (Phase 4, nemesis/retaliation.ts: poaching, smears) out by spending his year's moves,
+        // and the head of the family's opinion drift (Phase 4 dynasty traits) out by clearing them
         for (let m = 0; m < 12; m++) {
+          ctx.state.nemesis.actionsThisYear = MAX_ACTIONS_PER_YEAR;
+          ctx.state.dynasty.head.traits = [];
           runDays(ctx, 30);
+          // and the 1929 crash cards (Phase 4 Task 9; their default answers cut workers' opinion) unanswered
+          ctx.state.politics.cards.pending = ctx.state.politics.cards.pending.filter((p) => CARDS_BY_ID[p.cardId]?.trigger !== 'crash');
           for (const c of ctx.state.cities) c.smog = newCitySmog();
         }
         for (const c of ctx.state.cities) {

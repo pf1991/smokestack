@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Screenshot matrix: sizes x skipYears x zoom, via headless Chrome against the vite dev server.
 # Usage: scripts/shots.sh [port]   (default 5199). Exits non-zero if any shot is missing or < 50 KB.
+# After the matrix, Phase 4 showcase shots (1366x768, seed 7, autoplay) are written as
+# shots/showcase-<name>.png: the rival panel with Smogsworth Jr. furious (y55, baron=furious), the family
+# panel (y55), the exchange panel with the hostile bid banner (y55, bid=1) and the victory end screen's
+# Legacy table (y101, end=1). See src/main.ts for those debug parameters.
 # A shot under 2 KB (Chrome sometimes writes a blank PNG under parallel load) is retried up to 2 times.
 #
 # The URL uses speed=0 (deviation from the original brief's speed=1, approved): the game starts
@@ -52,26 +56,50 @@ shot() {
   # crop the empty strip below the viewport
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
-# ui shot: name, w, h, extra query params (skipYears=0, zoom=1)
-ushot() {
-  local name="$1" w="$2" h="$3" extra="$4"
-  local f="shots/ui-${w}-${name}.png"
+# showcase <name> <skipYears> <extra query>: one 1366x768 shot of a scene, shots/showcase-<name>.png
+showcase() {
+  local name="$1" skip="$2" extra="$3" w=1366 h=768
+  local f="shots/showcase-${name}.png"
   local udd attempt
   for attempt in 1 2 3; do
     udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
     rm -f "$f"
-    timeout 180 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+    timeout 300 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
       --user-data-dir="$udd" --virtual-time-budget=10000 \
       --window-size="$w,$((h + CHROME_H_OFFSET))" \
       --screenshot="$f" \
-      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=25&zoom=1&hour=16&cards=0&$extra" >/dev/null 2>&1
+      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=1&hour=16&cards=0&$extra" >/dev/null 2>&1
     rm -rf "$udd"
     if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
     echo "blank or missing shot $f (attempt $attempt)" >&2
   done
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
-export -f shot ushot
+# ui shot: name, w, h, skipYears, extra query params (zoom=1), shots/ui-<w>-<name>.png. The Phase 4
+# tabs start at skipYears 55 (a family, listed firms, grudges); the Legacy end screen at 101.
+ushot() {
+  local name="$1" w="$2" h="$3" skip="$4" extra="$5"
+  local f="shots/ui-${w}-${name}.png"
+  local udd attempt
+  for attempt in 1 2 3; do
+    udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
+    rm -f "$f"
+    timeout 300 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+      --user-data-dir="$udd" --virtual-time-budget=10000 \
+      --window-size="$w,$((h + CHROME_H_OFFSET))" \
+      --screenshot="$f" \
+      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=1&hour=16&cards=0&$extra" >/dev/null 2>&1
+    rm -rf "$udd"
+    if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
+    echo "blank or missing shot $f (attempt $attempt)" >&2
+  done
+  convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
+}
+export -f shot showcase ushot
+SHOWCASE="rival-furious 55 baron=furious&panel=rival
+family 55 panel=family
+exchange-bid 55 bid=1&panel=exchange
+end-legacy 101 end=1"
 MIN_SHOT_BYTES="${MIN_SHOT_BYTES:-2048}"
 export PORT CHROME_H_OFFSET MIN_SHOT_BYTES
 
@@ -82,27 +110,48 @@ for size in 1366,768 1920,1080; do
     done
   done
 done | xargs -P "$JOBS" -L 1 bash -c 'shot "$@"' _
+echo "$SHOWCASE" | xargs -P "$JOBS" -L 1 bash -c 'showcase "$@"' _
 
-# UI matrix (DEV params): one panel, a menu, help, a flyout, ticker modes, scaled UI
+# UI matrix (DEV params): every side-panel tab, menus, help, settings, a flyout, ticker modes,
+# scaled UI, open panels under open dropdowns and the Legacy end screen. Name, skipYears, query.
+UI_SHOTS="menu 25 hudmenu=company
+help 25 help=1
+settings 25 settings=1
+flyout 25 buildtab=manufacture
+tickerheadline 25 ticker=headline
+tickeroff 25 ticker=off
+scale 25 uiscale=1.3&panel=finance
+panelworld 25 panel=finance&hudmenu=world
+panelmore 25 panel=finance&hudmenu=more
+panelcompany 55 panel=exchange&hudmenu=company
+finance 25 panel=finance
+tab-routes 55 panel=routes
+tab-fleet 55 panel=fleet
+tab-finance 55 panel=finance
+tab-newspaper 55 panel=newspaper
+tab-contracts 55 panel=contracts
+tab-goals 55 panel=goals
+tab-politics 55 panel=politics
+tab-rival 55 panel=rival
+tab-exchange 55 panel=exchange
+tab-family 55 panel=family
+tab-legacy 55 panel=legacy
+tab-building 55 inspect2=1
+tab-city 55 inspectcity=1
+tab-vehicle 55 inspectvehicle=1
+exchangebid 55 bid=1&panel=exchange
+end 101 end=1"
 for size in 1366,768 1920,1080; do
   w="${size%,*}"; h="${size#*,}"
-  echo "finance $w $h panel=finance"
-  echo "menu $w $h hudmenu=company"
-  echo "help $w $h help=1"
-  echo "flyout $w $h buildtab=manufacture"
-  echo "tickerheadline $w $h ticker=headline"
-  echo "tickeroff $w $h ticker=off"
-  echo "scale $w $h uiscale=1.3&panel=finance"
-  echo "panelworld $w $h panel=finance&hudmenu=world"
-  echo "panelmore $w $h panel=finance&hudmenu=more"
+  while read -r name skip extra; do echo "$name $w $h $skip $extra"; done <<<"$UI_SHOTS"
 done | xargs -P "$JOBS" -L 1 bash -c 'ushot "$@"' _
 
 bad=0
 for size in 1366 1920; do
-  for n in finance menu help flyout tickerheadline tickeroff scale panelworld panelmore; do
+  while read -r n _; do
     f="shots/ui-${size}-${n}.png"
     if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 20480 ]; then echo "BAD: $f" >&2; bad=1; fi
-  done
+  done <<<"$UI_SHOTS"
 done
 for size in 1366 1920; do
   for skip in 0 25 55 85; do
@@ -112,5 +161,9 @@ for size in 1366 1920; do
     done
   done
 done
+while read -r name _; do
+  f="shots/showcase-${name}.png"
+  if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 51200 ]; then echo "BAD: $f" >&2; bad=1; fi
+done <<<"$SHOWCASE"
 echo "$(ls shots/*.png 2>/dev/null | wc -l) screenshots written"
 [ "$bad" = 0 ] || { echo "some shots missing or too small; vite log: $VLOG" >&2; exit 1; }

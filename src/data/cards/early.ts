@@ -1,6 +1,7 @@
 /** Spring cards of 1901-1924: suffrage, unions, temperance, the first motorcars, the Great War home front. */
 import { city, DAYS_PER_MONTH, demand, hasWorksNear, nation } from './helpers';
 import { cityOf, type CardDef } from './types';
+import { canMarry, isFemale, marry } from '../../sim/dynasty/types';
 
 export const EARLY_CARDS: readonly CardDef[] = [
   {
@@ -167,5 +168,29 @@ export const EARLY_CARDS: readonly CardDef[] = [
       { label: 'Keep the lines running', cost: 0, effects: [nation('workers', -5), nation('church', -3)] },
     ],
     defaultChoice: 2,
+  },
+  {
+    // Phase 4 dynasty (sim/dynasty): also opened at the end of each April for any single head of the
+    // family under 50 (dynastyMonth), so every head is asked; ids are save data
+    id: 'marriage',
+    title: 'A Match for the Family',
+    body: 'Your mother has drawn up a list. On it: {banker}, and {viscount} with a pedigree longer than your railway. The family needs an heir, she reminds you, and you are not getting any younger.',
+    // the matches suit the head of the family (sim/dynasty/types.ts isFemale reads the given name)
+    vars: (state) =>
+      isFemale(state.dynasty.head)
+        ? { banker: "a banker's son with prospects the size of a gasworks", viscount: "a viscount's nephew" }
+        : { banker: "a banker's daughter with a dowry the size of a gasworks", viscount: "a viscount's niece" },
+    trigger: 'spring',
+    years: [1905, 1910],
+    weight: 6,
+    cooldownYears: 0,
+    needsCity: false,
+    condition: (state) => canMarry(state.dynasty, state.date.year),
+    choices: [
+      { label: 'Marry for money', cost: -20000, effects: [], apply: (ctx) => marry(ctx.state), note: 'A wedding: heirs may follow, prestige +5' },
+      { label: 'Marry for standing', cost: 0, effects: [nation('oldmoney', 8)], apply: (ctx) => marry(ctx.state), note: 'A wedding: heirs may follow, prestige +5' },
+      { label: 'Stay single', cost: 0, effects: [], note: 'No heirs this year; the family will ask again next spring' },
+    ],
+    defaultChoice: 0,
   },
 ];

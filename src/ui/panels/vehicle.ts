@@ -7,7 +7,7 @@ import { routeOptions } from './fleet';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
-import { openInspector, setText, type InspectorHost, type InspectorView } from './inspect';
+import { openInspector, setOwnerBadge, setText, type InspectorHost, type InspectorView } from './inspect';
 import type { PanelDef } from './index';
 
 const STATE_LABEL = { moving: 'Driving', loading: 'Loading / unloading', stuck: 'Stuck — no path', idle: 'Idle' } as const;
@@ -80,8 +80,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const route = v.routeId !== null ? s.routes[v.routeId] : undefined;
       const stop = route?.stops[v.stopIndex];
       const target = stop ? s.buildings[stop.buildingId] : undefined;
-      setText(owner, v.ownerId === 'player' ? s.companies.player.name : s.companies.rival.name);
-      owner.className = `insp-badge ${v.ownerId === 'player' ? 'owner-player' : 'owner-rival'}`;
+      setOwnerBadge(owner, s, v.ownerId);
       const opts = routeOptions(s, v);
       const sig = opts.map((o) => `${o.value}:${o.label}`).join('|');
       const focused = document.activeElement === routeSel;

@@ -17,13 +17,17 @@ export interface Settings {
   ticker: TickerMode;
   /** interface scale (ui/scale.ts); 'auto' picks by viewport width */
   uiScale: UiScale;
+  /** let JEV (the local decision proxy) weigh in on event-card choices */
+  smartEvents: boolean;
 }
 
 const KEY = 'smokestack:settings';
 /** Same key the newspaper panel reads ('off' disables auto-open). */
 const AUTO_NEWS_KEY = 'smokestack:autoNews';
 
-export const DEFAULT_SETTINGS: Settings = { volume: 0.6, muted: false, autoNews: true, skipIntro: false, panelWidth: null, ticker: 'headline', uiScale: 'auto' };
+export const DEFAULT_SETTINGS: Settings = {
+  volume: 0.6, muted: false, autoNews: true, skipIntro: false, panelWidth: null, ticker: 'headline', uiScale: 'auto', smartEvents: true,
+};
 
 export function loadSettings(): Settings {
   const out = { ...DEFAULT_SETTINGS };
@@ -37,6 +41,7 @@ export function loadSettings(): Settings {
       if (typeof p.panelWidth === 'number' && Number.isFinite(p.panelWidth) && p.panelWidth > 0) out.panelWidth = p.panelWidth;
       if (p.ticker === 'scroll' || p.ticker === 'headline' || p.ticker === 'off') out.ticker = p.ticker;
       if (p.uiScale === 'auto' || UI_SCALES.includes(p.uiScale as number)) out.uiScale = p.uiScale as UiScale;
+      if (typeof p.smartEvents === 'boolean') out.smartEvents = p.smartEvents;
     }
     out.autoNews = localStorage.getItem(AUTO_NEWS_KEY) !== 'off';
   } catch {
@@ -47,7 +52,10 @@ export function loadSettings(): Settings {
 
 export function saveSettings(s: Settings): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ volume: s.volume, muted: s.muted, skipIntro: s.skipIntro, panelWidth: s.panelWidth, ticker: s.ticker, uiScale: s.uiScale }));
+    localStorage.setItem(KEY, JSON.stringify({
+      volume: s.volume, muted: s.muted, skipIntro: s.skipIntro,
+      panelWidth: s.panelWidth, ticker: s.ticker, uiScale: s.uiScale, smartEvents: s.smartEvents,
+    }));
     localStorage.setItem(AUTO_NEWS_KEY, s.autoNews ? 'on' : 'off');
   } catch {
     /* quota or blocked storage: settings last for this session only */

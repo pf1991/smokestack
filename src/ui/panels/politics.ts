@@ -6,7 +6,7 @@
 import type { GameController } from '../../game/controller';
 import { FACTION_IDS, FACTIONS, factionName, type FactionId } from '../../data/factions';
 import { PLAYER_ID } from '../../sim/companies';
-import { EDICT_KEYS, EDICTS, MAX_EDICT_DRIVE, maintenanceFactor, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
+import { companyEdictFactor, EDICT_KEYS, EDICTS, MAX_EDICT_DRIVE, setEdict, type EdictDef, type EdictOption } from '../../sim/politics/edicts';
 import { playerBuildingUpkeep } from '../../sim/politics/mayorEdicts';
 import { buildingMaintenance } from '../../sim/society/upgrades';
 import { nationalOpinion, opinionTrend } from '../../sim/politics/factions';
@@ -53,7 +53,7 @@ export function upkeepWith<K extends keyof CompanyEdicts>(state: GameState, key:
 
 /** What mayors' minimum wage adds to the player's building upkeep this month (0 when no town has one). */
 export function minimumWageSurcharge(state: GameState): number {
-  return playerBuildingUpkeep(state) - baseUpkeep(state) * maintenanceFactor(state.politics.edicts);
+  return playerBuildingUpkeep(state) - baseUpkeep(state) * companyEdictFactor(state);
 }
 
 /**

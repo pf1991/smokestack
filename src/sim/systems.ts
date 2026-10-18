@@ -9,14 +9,18 @@ import { regulationMonth } from './society/regulation';
 import { strikesMonth } from './society/strikes';
 import { economyMonth } from './society/economy';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
-import { assetValue } from './state';
+import { wealth } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
 import { recordBaronEarnings } from './rival/insolvency';
 import { landmarksMonth } from './landmarks';
 import { politicsSystem } from './politics';
 import { companyLoanRate } from './politics/mayorEdicts';
 import { goalsMonth } from './scenarios';
+import { grudgesYear, nemesisDay, nemesisMonth } from './nemesis/grudges';
+import { dynastyMonth, dynastyYear } from './dynasty/family';
 import { companyIds } from './companies';
+import { regionalMonth } from './regional/firms';
+import { exchangeDay, exchangeMonth } from './exchange/prices';
 import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
@@ -42,8 +46,8 @@ const finance: SimSystem = {
       const c = state.companies[id];
       // the player's rate follows Old Money; every other company pays LOAN_RATE
       const { bankrupt } = closeMonth(c, state.date, companyLoanRate(state, id));
-      // after closeMonth so the month's interest is included
-      currentLedger(c, state.date).netWorthEnd = c.money - c.loan + assetValue(state, id);
+      // after closeMonth so the month's interest is included; shares held count (state.ts wealth)
+      currentLedger(c, state.date).netWorthEnd = wealth(state, id);
       // fire once, on the month that crosses the threshold
       if (id === 'player' && bankrupt && c.monthsInRed === BANKRUPT_MONTHS) {
         bus.emit({ type: 'gameOver', reason: 'Bankrupt' });
@@ -108,4 +112,14 @@ export const SYSTEMS: SimSystem[] = [
   // Phase 3 inflation: last, so every price charged this month used the month's index; finance (always
   // run last) then values the month-end net worth at the new index that next month's prices use
   { id: 'economy', onMonth: economyMonth },
+  // Phase 4 the Baron's grudge ledger. onDay reads the month's sales on its last day (goalsMonth and
+  // factionsMonth clear them during onMonth); onMonth adds contract grudges, then retaliates
+  { id: 'nemesis', onDay: nemesisDay, onMonth: nemesisMonth, onYear: grudgesYear },
+  // Phase 4 the player's family: opinion drift and the marriage card monthly; births and deaths each December
+  { id: 'dynasty', onMonth: dynastyMonth, onYear: dynastyYear },
+  // Phase 4 regional firms: founded in January on schedule; trucks, renewals and loans monthly; closed after 6 months in the red
+  { id: 'regional', onMonth: regionalMonth },
+  // Phase 4 share prices: sentiment daily; the fundamental monthly, after every system that books
+  // this month's income and spending (finance, always last, adds only the month's interest)
+  { id: 'exchange', onDay: exchangeDay, onMonth: exchangeMonth },
 ];

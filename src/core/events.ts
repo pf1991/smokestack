@@ -1,5 +1,6 @@
 import type { FactionId } from '../data/factions';
 import type { LandmarkId } from '../data/landmarks';
+import type { RetaliationKind } from '../sim/nemesis/types';
 import type { Building, GameDate, GoodId, NewsItem, OwnerId, Vec2 } from '../sim/types';
 
 export type GameEvent =
@@ -27,7 +28,11 @@ export type GameEvent =
   | { type: 'scandal'; cityId: number }
   /** a strike began at the player's works `buildingId` (sim/society/strikes.ts) */
   | { type: 'strike'; buildingId: number; cityId: number }
+  /** the Baron retaliated (sim/nemesis/retaliation.ts); `cityId` is the town it hit, if any */
+  | { type: 'baronStrike'; kind: RetaliationKind; cityId: number | null }
   | { type: 'gameOver'; reason: string }
+  /** the Baron's bid for a majority of the player's shares (sim/nemesis/bid.ts) */
+  | { type: 'hostileBid'; stage: 'started' | 'repelled' | 'lost' }
   | { type: 'victory'; reason: string };
 
 export type GameEventType = GameEvent['type'];

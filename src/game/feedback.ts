@@ -2,6 +2,7 @@
 import type { GameState, Route, SimContext } from '../sim/types';
 import { ACHIEVEMENTS } from './achievements';
 import { BUILDINGS } from '../data/buildings';
+import { RETALIATION_LABELS } from '../data/nemesis';
 import { formatMoney } from '../ui/format';
 import { crossedMilestone, showStamp } from '../ui/juice';
 
@@ -47,6 +48,32 @@ export function attachStrikeToasts(ctx: SimContext, inspect?: (buildingId: numbe
       tone: 'bad',
       ...(inspect ? { action: { label: 'Inspect', run: () => inspect(e.buildingId) } } : {}),
     });
+  });
+}
+
+/**
+ * A 'bad' toast when the Baron strikes back (sim/nemesis/retaliation.ts): "Smogsworth strikes: <move>",
+ * with a "Rival" action that runs `openRival` (the rival panel). Returns an unsubscribe.
+ */
+export function attachBaronStrikeToasts(ctx: SimContext, openRival: () => void): () => void {
+  return ctx.bus.on('baronStrike', (e) => {
+    ctx.bus.emit({
+      type: 'toast',
+      message: `Smogsworth strikes: ${RETALIATION_LABELS[e.kind]}`,
+      tone: 'bad',
+      action: { label: 'Rival', run: openRival },
+    });
+  });
+}
+
+/** Toasts the Baron's hostile bid opening (with the exchange to answer it) and its repulse. */
+export function attachHostileBidToasts(ctx: SimContext, openExchange: () => void): () => void {
+  return ctx.bus.on('hostileBid', (e) => {
+    if (e.stage === 'started') {
+      ctx.bus.emit({ type: 'toast', message: 'Smogsworth holds a majority of your shares!', tone: 'bad', action: { label: 'Exchange', run: openExchange } });
+    } else if (e.stage === 'repelled') {
+      ctx.bus.emit({ type: 'toast', message: "Smogsworth's bid is repelled", tone: 'good' });
+    }
   });
 }
 

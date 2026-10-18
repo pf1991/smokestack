@@ -30,7 +30,7 @@ import { type Child, h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
-import { bar, type Bar, KeyedList, openInspector, setClass, setText, type InspectorHost, type InspectorView } from './inspect';
+import { bar, type Bar, KeyedList, openInspector, setClass, setOwnerBadge, setText, type InspectorHost, type InspectorView } from './inspect';
 import type { PanelDef } from './index';
 import { startSendGoods } from './routeActions';
 
@@ -336,8 +336,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       if (!b) return false;
       const def = BUILDINGS[b.typeId];
       const mine = b.ownerId === 'player';
-      setText(owner, mine ? state.companies.player.name : state.companies.rival.name);
-      setClass(owner, `insp-badge ${mine ? 'owner-player' : 'owner-rival'}`);
+      setOwnerBadge(owner, state, b.ownerId);
       const striking = strikeActive(b.strike, dateToDays(state.date));
       setText(statusBadge, striking ? 'On strike' : STATUS_LABEL[b.status]);
       setClass(statusBadge, `insp-badge status-${b.status}`);

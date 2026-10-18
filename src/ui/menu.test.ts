@@ -142,3 +142,19 @@ describe('pause menu: opening straight onto a screen', () => {
     closeModal();
   });
 });
+
+describe('settings: Smart events', () => {
+  it('defaults on and is stored with the other settings', async () => {
+    const { loadSettings, saveSettings } = await import('../game/settings');
+    expect(loadSettings().smartEvents).toBe(true);
+    saveSettings({ ...loadSettings(), smartEvents: false });
+    expect(loadSettings().smartEvents).toBe(false);
+    localStorage.clear();
+  });
+
+  it('shows "not checked yet" before any health check has run', () => {
+    const { ui, menu } = mount();
+    menu.show('settings');
+    expect(ui.querySelector('.mn-ai-status')?.textContent).toBe('JEV: not checked yet');
+  });
+});

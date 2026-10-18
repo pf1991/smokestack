@@ -10,7 +10,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Living world:** day/night cycle with lit windows and street lamps, seasons (snowy winters; farms fallow in winter and bumper in summer), and chimney smoke that follows real production.
 - **Houses evolve by era:** wooden cottages, brick rowhouses, art-deco blocks, then modern towers.
 - **The Daily Smokestack:** a monthly newspaper plus a scrolling headline ticker covering historic events (the 1914 war boom, the 1929 crash, the 1969 moon landing toy craze, the 1973 oil crisis) and random ones (strikes, fires, festivals, gold rushes, visiting inventors).
-- **Rival AI:** Baron Smogsworth builds his own chains, undercuts your markets and taunts you in print. Reach 3× his net worth to launch a **Hostile Takeover**.
+- **Rival AI:** Baron Smogsworth builds his own chains, undercuts your markets and taunts you in print. Buy 510 of his 1000 shares on the exchange for a **Hostile Takeover**: you need 1.5× his wealth to take control, and the lot that takes it costs a control premium as large again as 510 shares at its price.
 - **Mayor's Contracts:** time-limited delivery contracts paid in cash and population growth.
 - **Product lifecycle:** inventions arrive by year (automobiles and oil 1910, radios 1925, plastic 1935, television 1950, computers 1980); radios fade after 1965 and the newspaper warns you first.
 - **Fleet and routes:** trucks on routes, trains on rail, a Fleet window to manage vehicles, and route editing that is easier to build and change.
@@ -46,6 +46,17 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Scrubbers, tall chimneys and trees:** buy scrubbers and tall chimneys for your plants, or plant trees, to cut and spread your smoke and keep the fines and the protesters away.
 - **Social classes, demand and villas:** each town splits into working, middle and upper classes. Their wealth changes what they buy, and prosperous, clean towns grow villas and semis.
 - **Inflation, aging, renew and replace:** prices rise across the century and your buildings age and wear. Renew an old building to restore it, or replace it with something new.
+
+## What's new in SMOKESTACK II (Phase 4)
+
+- **The Baron as a nemesis:** Smogsworth keeps a ledger of grudges against you (undercutting him, taking his towns and contracts, a fortune that rivals his). Once they weigh enough he strikes back with smear campaigns, sabotage, poached workers, money for your opponents' candidates, price wars and share raids. The Rival window shows his character traits, his grudges, his last strikes and his mood: smug, scheming, gloating or furious.
+- **Smogsworth Jr.:** the old Baron dies in the 1940s. His son Reginald inherits the firm, part of the grudge ledger and a temper of his own.
+- **Your dynasty:** your company is a family. The head has traits that change how they do business, marries, has children and grows old. Name an heir in the Family window. When the head dies, the heir takes the chair. If the line ends with no heir, so does the game. Prestige and generations count towards your Legacy.
+- **Regional firms:** three independent companies are founded in 1905, 1920 and 1935, each in a town where nobody yet sells its goods. They build their own chains, compete for customers and close if they go broke.
+- **The stock exchange:** every company is listed with 1,000 shares and a daily price that follows its fundamentals and the market mood. Buy and sell in lots of 10 in the Exchange window. Holding 510 shares of a company takes it over.
+- **Hostile bids:** if the Baron gets 510 of your shares, he bids for your company. You have six months to buy back enough shares at their fair price, and a loan covers any shortfall. If he still holds a majority at the deadline, the company is his and the game is over.
+- **The 1929 crash:** in October 1929 the exchange collapses and demand falls for a year and a half. Crash cards ask whether to buy back your shares, outbid the Baron at a fire sale of bankrupt works (or hire their sacked men), take a bailout or ride out a run on the bank.
+- **Legacy score:** the end screen and the Legacy window total your fortune (in 1900 dollars), landmarks raised where you lead the retail trade, your reputation with the factions, and your dynasty's prestige and generations.
 
 ## Scenarios
 
@@ -106,7 +117,7 @@ Development URL parameters skip the main menu and start a game directly:
 - `autoplay=1` script a furniture chain by the biggest city and fast-forward 20 days at speed 8
 - `hour=<0-23>` advance the clock to that hour on load
 - `speed=<0|1|2|4|8>` starting speed
-- `panel=<id>` open a panel on load (e.g. `routes`, `finance`, `newspaper`, `fleet`, `rival`)
+- `panel=<id>` open a panel on load (e.g. `routes`, `finance`, `newspaper`, `fleet`, `rival`, `family`, `exchange`, `legacy`)
 - `tutorial=1` show the tutorial card
 - `menu=1` force the main menu even when other parameters are present
 
@@ -125,6 +136,19 @@ docker compose up -d --build
 ```
 
 Then open http://localhost:8080. The image is built in two stages: `node:18-alpine` runs `npm ci && npm run build`, and `nginx:1.27-alpine` serves `dist/` with gzip for text assets, a one-year immutable cache for `/assets/`, `no-cache` for `index.html`, and an SPA fallback. Stop it with `docker compose down`.
+
+## Smart events (JEV)
+
+Optional. Each spring, JEV (TypeSafe's decision model) is asked which of the eligible event cards fits the moment best. The game blends its preference with the authored card weights and never lets one card hold more than 60% of the odds, so the dealing stays varied and deterministic for a given answer.
+
+Enable it (needs Docker Compose 2.24 or newer, for the optional `env_file`):
+
+1. Create a `.env` file at the repo root (it is git-ignored) containing `TYPESAFE_API_KEY=<your key>`.
+2. Run `docker compose up -d --build`.
+3. Check `curl localhost:8080/api/health`, which should return `{"enabled":true}`.
+4. Optionally run one live check: `TYPESAFE_API_KEY=<your key> npm run jev-smoke` (it prints the chosen card, the probabilities, the latency and the token usage; without a key it skips).
+
+The key stays in the `ai-proxy` container and never reaches the browser bundle. Turn it off any time under Settings, Smart events. The game works identically without it: with no key, no proxy or no answer in time, the authored weights decide.
 
 ## Architecture
 

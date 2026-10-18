@@ -50,8 +50,8 @@ export interface HudGroup {
 }
 
 /**
- * The bar's panel groups, left to right. Data only: a new panel (Family, Exchange) is one more
- * item here. Routes stays a direct button: the tutorial points at it.
+ * The bar's panel groups, left to right. Data only: a new panel is one more item here (and one
+ * more SHORTCUTS entry, or an exemption in menuDrift.test.ts). Routes stays a direct button: the tutorial points at it.
  */
 export const GROUPS: HudGroup[] = [
   {
@@ -61,6 +61,9 @@ export const GROUPS: HudGroup[] = [
     items: [
       { panel: 'finance', label: 'Finance', icon: 'money' },
       { panel: 'goals', label: 'Goals', icon: 'star' },
+      { panel: 'exchange', label: 'Exchange', icon: 'bell' },
+      { panel: 'family', label: 'Family', icon: 'crown' },
+      { panel: 'legacy', label: 'Legacy', icon: 'scroll' },
     ],
   },
   {

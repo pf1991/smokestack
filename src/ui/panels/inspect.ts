@@ -1,5 +1,6 @@
 import type { Selection } from '../../render/world';
-import type { SimContext } from '../../sim/types';
+import { isThirdOwner, ownerColor } from '../../render/ownerColors';
+import type { GameState, OwnerId, SimContext } from '../../sim/types';
 import { h } from '../dom';
 import { createWindow } from '../window';
 
@@ -62,6 +63,20 @@ export function setText(el: HTMLElement, text: string): void {
 
 export function setClass(el: HTMLElement, cls: string): void {
   if (el.className !== cls) el.className = cls;
+}
+
+/**
+ * An owner badge: the owning company's name, `owner-player` / `owner-rival` for the player and the
+ * Baron, `owner-regional` plus the firm's own colour (render/ownerColors.ts) for a regional firm.
+ */
+export function setOwnerBadge(el: HTMLElement, state: GameState, ownerId: OwnerId): void {
+  setText(el, state.companies[ownerId]?.name ?? ownerId);
+  setClass(el, `insp-badge ${ownerId === 'player' ? 'owner-player' : ownerId === 'rival' ? 'owner-rival' : 'owner-regional'}`);
+  const color = isThirdOwner(ownerId) ? ownerColor(ownerId) : '';
+  if (el.dataset.ownerColor !== color) {
+    el.dataset.ownerColor = color;
+    el.style.background = color;
+  }
 }
 
 export interface Bar {

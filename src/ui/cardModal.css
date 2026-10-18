@@ -234,3 +234,5 @@
   .card-shadow { animation: none; }
   .card-choice { transition: none; }
 }
+
+.card-why { margin: 8px 0 0; font-size: 12px; font-style: italic; opacity: 0.7; }
