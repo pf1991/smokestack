@@ -1,5 +1,4 @@
 import { BUILDINGS } from '../data/buildings';
-import { footprint } from './state';
 import { publishNews } from './news';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { terrainEpoch } from './terrainEpoch';
@@ -96,13 +95,16 @@ export function smogDay(ctx: SimContext): void {
     if (b.status !== 'ok') continue;
     const amount = BUILDINGS[b.typeId].pollution * SOURCE_FACTOR * emissionFactor(state, b);
     if (amount <= 0) continue;
-    const fp = footprint(b);
-    const c = fp[Math.floor(fp.length / 2)];
-    if (c.x < 0 || c.y < 0 || c.x >= width || c.y >= height) continue;
-    const i = c.y * width + c.x;
+    // the middle entry of footprint(b) (row-major), without building the list
+    const { w, h } = BUILDINGS[b.typeId].size;
+    const k = Math.floor((w * h) / 2);
+    const cx = b.pos.x + (k % w);
+    const cy = b.pos.y + Math.floor(k / w);
+    if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
+    const i = cy * width + cx;
     if (hasTallChimney(b) && (weather.windX !== 0 || weather.windY !== 0)) {
-      const near = downwindTile(map, weather.windX, weather.windY, c.x, c.y, TALL_CHIMNEY_REACH);
-      const far = downwindTile(map, weather.windX, weather.windY, c.x, c.y, TALL_CHIMNEY_REACH + 1);
+      const near = downwindTile(map, weather.windX, weather.windY, cx, cy, TALL_CHIMNEY_REACH);
+      const far = downwindTile(map, weather.windX, weather.windY, cx, cy, TALL_CHIMNEY_REACH + 1);
       if (near !== null) emitCross(tiles, dirty, width, height, near, amount * (1 - TALL_CHIMNEY_ADVECT));
       if (far !== null) emitCross(tiles, dirty, width, height, far, amount * TALL_CHIMNEY_ADVECT);
       continue;
