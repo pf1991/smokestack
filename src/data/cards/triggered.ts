@@ -1,8 +1,9 @@
 /**
  * Cards opened by sim events rather than the spring draw. Election and scandal cards fire now
- * (sim/politics/elections.ts), strike cards since Phase 3 (sim/society/strikes.ts). Disaster, crash and
+ * (sim/politics/elections.ts), strike cards since Phase 3 (sim/society/strikes.ts). Disaster and
  * invention cards stay dormant until a later phase calls `triggerCard` with their trigger: city cards
- * need the town passed in, so a disaster with no town (cityId null) skips them.
+ * need the town passed in, so a disaster with no town (cityId null) skips them. The crash cards live
+ * in crash.ts.
  */
 import { city, DAYS_PER_MONTH, demand, haltNearestWorks, mayorIs, nation, strikeResolution } from './helpers';
 import { FOUNDER } from '../../sim/nemesis/types';
@@ -264,81 +265,6 @@ export const DISASTER_CARDS: readonly CardDef[] = [
   },
 ];
 
-/** Dormant until a later phase triggers 'crash' (national: no town needed). */
-export const CRASH_CARDS: readonly CardDef[] = [
-  {
-    id: 'run_on_bank',
-    title: 'Run on the Bank',
-    body: 'Depositors are queueing round the block at the County Savings Bank, and your payroll is in its vault. So, for safety, is the manager.',
-    trigger: 'crash',
-    years: ANY,
-    weight: 1,
-    cooldownYears: 0,
-    needsCity: false,
-    choices: [
-      { label: 'Prop the bank up', cost: 30000, effects: [nation('oldmoney', 8), nation('workers', 6), nation('church', 3)] },
-      { label: 'Pull your money out first', cost: -10000, effects: [nation('oldmoney', -6), nation('workers', -8), nation('church', -4)] },
-      { label: 'Pay wages in company scrip', cost: 0, effects: [nation('workers', -10), nation('oldmoney', 3)] },
-    ],
-    defaultChoice: 2,
-  },
-  {
-    id: 'exchange_panic',
-    title: 'Panic on the Exchange',
-    body: 'Your shares fell forty percent before luncheon and the brokers are taking the stairs to save time. The shareholders want reassurance, or blood.',
-    trigger: 'crash',
-    years: ANY,
-    weight: 1,
-    cooldownYears: 0,
-    needsCity: false,
-    choices: [
-      { label: 'Buy back your shares', cost: 25000, effects: [nation('oldmoney', 10)] },
-      { label: 'Slash the payroll', cost: -8000, effects: [nation('oldmoney', 6), nation('workers', -12)] },
-      { label: 'Issue a calm statement', cost: 0, effects: [nation('oldmoney', -4)] },
-    ],
-    defaultChoice: 2,
-  },
-  {
-    id: 'bailout',
-    title: 'Bailout or Bust',
-    body: 'The government will lend to struggling firms on two conditions: they hire the jobless, and they stop paying bonuses to anyone named Rupert. The purists are already calling it a handout.',
-    trigger: 'crash',
-    years: ANY,
-    weight: 1,
-    cooldownYears: 0,
-    needsCity: false,
-    choices: [
-      {
-        label: 'Take the bailout',
-        cost: -15000,
-        effects: [nation('workers', 6), nation('oldmoney', -6), nation('reformers', -6)],
-        apply: (ctx) => {
-          for (const c of ctx.state.cities) c.politics.scandalRisk += 0.05;
-        },
-        note: 'Scandal risk rises in every town',
-      },
-      { label: 'Refuse the strings', cost: 0, effects: [nation('oldmoney', 5), nation('workers', -4)] },
-    ],
-    defaultChoice: 1,
-  },
-  {
-    id: 'fire_sale',
-    title: 'Fire Sale',
-    body: "Rival firms are going under and their works are going for a song, and a sad one at that. The Baron is already at the auction with his cheque book.",
-    trigger: 'crash',
-    years: ANY,
-    weight: 1,
-    cooldownYears: 0,
-    needsCity: false,
-    choices: [
-      { label: 'Outbid the Baron', cost: 40000, effects: [nation('baron', -10), nation('oldmoney', 6), nation('workers', 4)] },
-      { label: 'Hire their sacked men', cost: 5000, effects: [nation('workers', 8), nation('church', 3)] },
-      { label: 'Sit on your cash', cost: 0, effects: [nation('baron', 4)] },
-    ],
-    defaultChoice: 2,
-  },
-];
-
 /**
  * Opened by sim/society/strikes.ts when a works strikes, with the struck works' town. Each card
  * resolves the town's oldest open strike (`strikeResolution`, cards/helpers.ts): Concede ends it now,
@@ -474,7 +400,6 @@ export const TRIGGERED_CARDS: readonly CardDef[] = [
   ...ELECTION_CARDS,
   ...SCANDAL_CARDS,
   ...DISASTER_CARDS,
-  ...CRASH_CARDS,
   ...STRIKE_CARDS,
   ...INVENTION_CARDS,
   ...DYNASTY_CARDS,

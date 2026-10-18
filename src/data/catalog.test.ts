@@ -6,6 +6,8 @@ import { LANDMARK_IDS, LANDMARKS } from './landmarks';
 import { defaultOpinion, FACTION_IDS, FACTIONS, factionName } from './factions';
 import { ICON_IDS } from '../render/icons';
 import { CARDS } from './cards';
+import { resolveCard } from '../sim/politics/cards';
+import { testCtx, testState } from '../sim/testkit';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
 import { BARON_TRAITS, GRUDGE_WEIGHTS } from './nemesis';
 import { BARON_TRAIT_IDS, RETALIATION_KINDS } from '../sim/nemesis/types';
@@ -204,6 +206,21 @@ describe('content catalog', () => {
     for (const f of FACTION_IDS) expect(used.has(f), `no card touches ${f}`).toBe(true);
     const baronCards = CARDS.filter((c) => c.choices.some((ch) => ch.effects.some((e) => e.faction === 'baron')));
     expect(baronCards.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('every crash card resolves, in each choice, on a 1929 state', () => {
+    const crash = CARDS.filter((c) => c.trigger === 'crash');
+    expect(crash.length).toBeGreaterThanOrEqual(4);
+    for (const c of crash) {
+      c.choices.forEach((ch, i) => {
+        const state = testState({ cities: [{ x: 10, y: 10 }], year: 1929, seed: 3, money: 1e9 });
+        const ctx = testCtx(state);
+        state.politics.cards.pending.push({ uid: 1, cardId: c.id, cityId: null, openedDay: 0 });
+        const r = resolveCard(ctx, 1, i);
+        expect(r.ok, `${c.id}: ${ch.label}`).toBe(true);
+        expect(state.politics.cards.pending).toHaveLength(0);
+      });
+    }
   });
 
   it('every Baron trait has a label, a blurb and action weights of 1 to 3 over known retaliations', () => {

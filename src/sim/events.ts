@@ -4,7 +4,9 @@ import { RECIPES, recipeEra } from '../data/recipes';
 import { addDays, compareDates, dateToDays } from './clock';
 import { currentLedger } from './finance';
 import { publishNews } from './news';
+import { exchangeShock } from './exchange/prices';
 import { pushModifier } from './modifiers';
+import { triggerCard } from './politics/cards';
 import { chance, pick, random } from './rng';
 import type { Building, GoodId, NewsItem, SimContext } from './types';
 
@@ -39,7 +41,13 @@ export const HISTORIC_EVENTS: HistoricEvent[] = [
     id: 'crash1929', year: 1929, month: 10,
     headline: 'WALL STREET IN WRECKAGE! FORTUNES VANISH BEFORE LUNCH',
     body: 'Ticker tapes ran out of paper and brokers ran out of windows at ground level. Shoppers are tightening their belts; the wise are tightening theirs one notch further.',
-    apply(ctx) { pushModifier(ctx, 'crash', '*', null, 0.6, 18 * DAYS_PER_MONTH); },
+    apply(ctx) {
+      pushModifier(ctx, 'crash', '*', null, 0.6, 18 * DAYS_PER_MONTH);
+      // the exchange falls with it: sentiment recovers by its own mean reversion
+      exchangeShock(ctx.state, '*', 0.45);
+      ctx.state.flags.crashYear = 1929;
+      triggerCard(ctx, 'crash', null);
+    },
   },
   {
     id: 'postwar1945', year: 1945, month: 9,

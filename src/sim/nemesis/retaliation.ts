@@ -17,6 +17,7 @@ import { GOODS } from '../../data/goods';
 import { BARON_TRAITS } from '../../data/nemesis';
 import { addDays, compareDates, DAYS_PER_MONTH, MONTHS_PER_YEAR, dateToDays } from '../clock';
 import { BARON_ID, PLAYER_ID } from '../companies';
+import { exchangeShock } from '../exchange/prices';
 import { spend } from '../finance';
 import type { PriceWar } from '../market';
 import { publishNews } from '../news';
@@ -171,6 +172,9 @@ function bidLot(state: GameState): number {
 /** he keeps this many rivalReserves after any move, so his project money is never spent on spite */
 export const RESERVE_MULTIPLE = 3;
 
+/** a smear multiplies the player's share sentiment by this */
+const SMEAR_SENTIMENT = 0.9;
+
 /** the factions a smear can target: never the workers (that would be an all-town poach) nor his own circle */
 export const SMEAR_FACTIONS: readonly FactionId[] = FACTION_IDS.filter((f) => f !== 'workers' && f !== 'baron');
 
@@ -272,6 +276,8 @@ function apply(ctx: SimContext, kind: RetaliationKind): Strike {
       let faction: FactionId = SMEAR_FACTIONS[0];
       for (const f of SMEAR_FACTIONS) if (nationalOpinion(state, f) > nationalOpinion(state, faction)) faction = f;
       adjustOpinion(state, faction, 'national', SMEAR_DELTA, 'Smogsworth smears your name');
+      // the slur reaches the exchange too
+      exchangeShock(state, PLAYER_ID, SMEAR_SENTIMENT);
       return {
         cityId: null,
         headline: `SMEAR CAMPAIGN AGAINST ${firm.toUpperCase()}`,

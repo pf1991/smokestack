@@ -100,6 +100,15 @@ describe('retaliateMonth gates', () => {
     expect(checkInvariants(ctx.state)).toEqual([]);
   });
 
+  it('a smear also shocks the player\'s share sentiment by 0.9', () => {
+    const ctx = setup();
+    addGrudge(ctx.state, 'undercut', 0);
+    const l = ctx.state.exchange.listings.player;
+    const before = l.sentiment;
+    expect(retaliate(ctx, 'smear')).toBe(true);
+    expect(l.sentiment).toBeCloseTo(before * 0.9);
+  });
+
   it('spends the heaviest grudge (its weight halves) and names its cause', () => {
     const ctx = setup();
     addGrudge(ctx.state, 'undercut', 0);
