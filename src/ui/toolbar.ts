@@ -7,20 +7,23 @@ import { RAIL_COST } from '../sim/rail';
 import { TREE_COST } from '../sim/society/upgrades';
 import { priceIndex } from '../sim/society/economy';
 import type { GameState, Inventory } from '../sim/types';
+import type { IconId } from '../render/icons';
 import { type Child, h } from './dom';
 import { iconEl } from './icon';
+import { shortcutFor, withShortcut } from './shortcuts';
 import { formatMoney } from './format';
 import type { ToolSpec } from './tools';
+import { currentUiScale } from './scale';
 import './hud.css';
 
 type TabId = 'extract' | 'refine' | 'manufacture' | 'retail' | 'transport';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'extract', label: 'Extract' },
-  { id: 'refine', label: 'Refine' },
-  { id: 'manufacture', label: 'Manufacture' },
-  { id: 'retail', label: 'Retail & Logistics' },
-  { id: 'transport', label: 'Transport' },
+const TABS: { id: TabId; label: string; icon: IconId }[] = [
+  { id: 'extract', label: 'Extract', icon: 'pick' },
+  { id: 'refine', label: 'Refine', icon: 'factory' },
+  { id: 'manufacture', label: 'Manufacture', icon: 'tools' },
+  { id: 'retail', label: 'Retail', icon: 'shop' },
+  { id: 'transport', label: 'Transport', icon: 'truck' },
 ];
 
 function tabOf(def: BuildingDef): TabId | null {
@@ -64,6 +67,7 @@ interface Card {
 export class Toolbar {
   private readonly root: HTMLElement;
   private readonly bar: HTMLElement;
+  private readonly body: HTMLElement;
   private readonly tabButtons = new Map<TabId, HTMLElement>();
   private readonly panels = new Map<TabId, HTMLElement>();
   private readonly cards: Card[] = [];
@@ -77,9 +81,17 @@ export class Toolbar {
   constructor(root: HTMLElement, private readonly onSelect: (t: ToolSpec) => void) {
     this.root = root;
     const tabsRow = h('div', { class: 'tb-tabs' });
-    const body = h('div', { class: 'tb-body' });
+    const body = h('div', { class: 'tb-flyout' });
+    this.body = body;
+    body.hidden = true;
     for (const t of TABS) {
-      const btn = h('button', { class: 'tb-tab', 'data-tab': t.id, onClick: () => this.openTab(t.id) }, t.label);
+      const btn = h('button', {
+        class: 'tb-tab',
+        'data-tab': t.id,
+        title: t.id === 'retail' ? 'Retail & Logistics' : t.label,
+        'aria-expanded': 'false',
+        onClick: () => this.openTab(t.id),
+      }, iconEl(t.icon, 18), h('span', { class: 'tb-label' }, t.label));
       this.tabButtons.set(t.id, btn);
       tabsRow.appendChild(btn);
       const panel = h('div', { class: 'tb-panel', 'data-panel-tab': t.id });
@@ -90,9 +102,9 @@ export class Toolbar {
     const inspect = h('button', {
       class: 'tb-tab tb-inspect',
       'data-tool': 'inspect',
-      title: 'Inspect (Esc)',
+      title: withShortcut('Inspect', 'escape'),
       onClick: () => this.select({ kind: 'inspect' }),
-    }, 'Inspect');
+    }, iconEl('star', 18), h('span', { class: 'tb-label' }, 'Inspect'), h('kbd', { class: 'tb-key' }, shortcutFor('escape') ?? ''));
     this.toolButtons.set('inspect', inspect);
     tabsRow.appendChild(inspect);
 
@@ -142,9 +154,9 @@ export class Toolbar {
     toolCard('road', 'Road', 'Drag to lay roads (bridges over water)', perTile(formatMoney(ROAD_COST)), { kind: 'road' }, { base: ROAD_COST, text: perTile });
     toolCard('rail', 'Rail', 'Drag to lay track (level crossings over roads, never water)', perTile(formatMoney(RAIL_COST)), { kind: 'rail' }, { base: RAIL_COST, text: perTile });
     toolCard('trees', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', perTile(formatMoney(TREE_COST)), { kind: 'trees' }, { base: TREE_COST, text: perTile });
-    toolCard('bulldoze', 'Bulldoze', 'Demolish for a 25% refund (Del)', 'Click a building, road or rail', { kind: 'bulldoze' });
+    toolCard('bulldoze', 'Bulldoze', `Demolish for a 25% refund (${shortcutFor('bulldoze') ?? 'Del'})`, 'Click a building, road or rail', { kind: 'bulldoze' });
 
-    this.bar = h('div', { class: 'toolbar' }, tabsRow, body);
+    this.bar = h('div', { class: 'toolbar' }, body, tabsRow);
     root.appendChild(this.bar);
     this.root.classList.add('tb-root');
   }
@@ -152,8 +164,45 @@ export class Toolbar {
   private openTab(id: TabId): void {
     this.activeTab = this.activeTab === id ? null : id;
     for (const [tid, panel] of this.panels) panel.hidden = tid !== this.activeTab;
-    for (const [tid, btn] of this.tabButtons) btn.classList.toggle('active', tid === this.activeTab);
+    this.body.hidden = this.activeTab === null;
+    if (this.activeTab !== null) {
+      this.placeFlyout();
+      window.addEventListener('pointerdown', this.onOutside, true);
+      window.addEventListener('resize', this.onResize);
+      window.addEventListener('uiscalechange', this.onResize);
+    } else {
+      window.removeEventListener('pointerdown', this.onOutside, true);
+      window.removeEventListener('resize', this.onResize);
+      window.removeEventListener('uiscalechange', this.onResize);
+    }
+    for (const [tid, btn] of this.tabButtons) {
+      btn.classList.toggle('active', tid === this.activeTab);
+      btn.setAttribute('aria-expanded', String(tid === this.activeTab));
+    }
     this.bar.classList.toggle('open', this.activeTab !== null);
+  }
+
+  private readonly onResize = (): void => this.placeFlyout();
+
+  /** A press outside the bar closes the flyout and does not reach the map. */
+  private readonly onOutside = (e: Event): void => {
+    if (this.activeTab === null || this.bar.contains(e.target as Node)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.closeDrawer();
+  };
+
+  /** Centres the flyout on the bar, then keeps it on the map left of the side panel (>= 8 px from the left edge). */
+  private placeFlyout(): void {
+    const bar = this.bar.getBoundingClientRect();
+    const panel = parseFloat(document.documentElement.style.getPropertyValue('--side-panel-w')) || 0;
+    const max = window.innerWidth - panel - 16;
+    // rects, innerWidth and --side-panel-w are screen px; style.left is in zoomed px (#ui is zoomed), so divide by the scale
+    const s = currentUiScale();
+    this.body.style.maxWidth = `${max / s}px`; // the stylesheet's vw-based cap is not reliable under zoom
+    const w = Math.min(this.body.getBoundingClientRect().width || this.body.offsetWidth * s, max);
+    const left = Math.max(8, Math.min(bar.left + bar.width / 2 - w / 2, window.innerWidth - panel - 8 - w));
+    this.body.style.left = `${Math.round((left - bar.left - 2 * s) / s)}px`; // 2 px: the bar's border
   }
 
   private static keyOf(t: ToolSpec): string {
@@ -161,6 +210,7 @@ export class Toolbar {
   }
 
   select(t: ToolSpec): void {
+    this.closeDrawer();
     this.selectedKey = Toolbar.keyOf(t);
     for (const c of this.cards) c.el.classList.toggle('selected', `build:${c.def.id}` === this.selectedKey);
     for (const [k, el] of this.toolButtons) el.classList.toggle('selected', k === this.selectedKey);
@@ -169,7 +219,6 @@ export class Toolbar {
 
   /** Esc: back to inspecting, closing any open build drawer. */
   cancel(): void {
-    this.closeDrawer();
     this.select({ kind: 'inspect' });
   }
 
@@ -190,6 +239,7 @@ export class Toolbar {
 
   /** B: show or hide the toolbar. */
   toggle(): void {
+    this.closeDrawer();
     this.bar.classList.toggle('collapsed');
   }
 

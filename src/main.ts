@@ -1,3 +1,6 @@
+import { loadSettings, saveSettings, UI_SCALES } from './game/settings';
+import { startUiScale } from './ui/scale';
+import { openHelp } from './ui/help';
 import './ui/theme.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
@@ -27,9 +30,12 @@ import { startStrike } from './sim/society/strikes';
  *  - `panel=<id>`      open a panel (e.g. `routes`) on load
  *  - `openroute=1` (dev) open the routes window on the first player route
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
- *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the dock)
+ *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
+ *  - `inspectcity=1` / `inspectvehicle=1` (dev) open the first city / vehicle inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
+ *  - `hudmenu=<id>` (dev) open a top-bar dropdown: company, operations, world, more
  *  - `scenario=<id>`   start a scenario
+ *  - `buildtab=<extract|refine|manufacture|retail|transport>` (dev) open a build bar flyout; `ticker=scroll|headline|off` (dev) set the news strip
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
  *  - `pause=1` (dev, with a debug start) open the pause menu
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
@@ -57,6 +63,10 @@ import { startStrike } from './sim/society/strikes';
 const canvas = document.getElementById('world') as HTMLCanvasElement;
 const ui = document.getElementById('ui') as HTMLElement;
 const params = new URLSearchParams(location.search);
+// `uiscale=0.8|0.9|1|1.15|1.3` (dev) sets the interface scale (screenshots)
+const uiScaleParam = Number(params.get('uiscale'));
+if (import.meta.env.DEV && UI_SCALES.includes(uiScaleParam)) saveSettings({ ...loadSettings(), uiScale: uiScaleParam as 0.8 });
+startUiScale();
 const app = new App(canvas, ui);
 
 // inspect2 does nothing outside DEV, so only there does it start a debug game
@@ -223,6 +233,17 @@ if (debugStart) {
     if (import.meta.env.DEV && at?.length === 2 && at.every(Number.isFinite)) g.centerOn({ x: at[0], y: at[1] });
     if (import.meta.env.DEV && params.get('tiltshift') === '1') g.renderer.forceTiltShift = true;
     if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
+    // `hudmenu=<group id|more|factions>` opens a top-bar dropdown (screenshots of the menus)
+    const hudMenu = params.get('hudmenu');
+    if (import.meta.env.DEV && hudMenu) {
+      const sel = hudMenu === 'more' ? '.hud-more-btn' : hudMenu === 'factions' ? '.hud-factions-mode-btn' : `.hud-group-btn[data-group="${CSS.escape(hudMenu)}"]`;
+      document.querySelector<HTMLElement>(sel)?.click();
+    }
+    // `buildtab=<category id>` opens a build bar flyout; `ticker=scroll|headline|off` sets the news strip (screenshots)
+    const buildTab = params.get('buildtab');
+    if (import.meta.env.DEV && buildTab) document.querySelector<HTMLElement>(`.toolbar [data-tab="${CSS.escape(buildTab)}"]`)?.click();
+    const tickerParam = params.get('ticker');
+    if (import.meta.env.DEV && (tickerParam === 'scroll' || tickerParam === 'headline' || tickerParam === 'off')) saveSettings({ ...loadSettings(), ticker: tickerParam });
     if (import.meta.env.DEV && params.get('openroute') === '1') {
       const r = Object.values(g.ctx.state.routes).find((x) => x.ownerId === 'player');
       if (r) g.openPanel('routes', r.id);
@@ -230,6 +251,11 @@ if (debugStart) {
     if (import.meta.env.DEV && upgradedId !== null && params.get('inspectup') === '1') g.openPanel('building', upgradedId);
     if (import.meta.env.DEV && params.get('inspect2') === '1') {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
+    }
+    if (import.meta.env.DEV && params.get('inspectcity') === '1') g.openPanel('city', 0);
+    if (import.meta.env.DEV && params.get('inspectvehicle') === '1') {
+      const v = Object.values(g.ctx.state.vehicles)[0];
+      if (v) g.openPanel('vehicle', v.id);
     }
     if (import.meta.env.DEV && params.get('send') === '1') {
       window.setTimeout(() => document.querySelector<HTMLElement>('[data-act="send-goods"]')?.click(), 5500);
@@ -239,6 +265,9 @@ if (debugStart) {
     else if (tutorial) app.showTutorial(g);
     if (notice) g.ctx.bus.emit({ type: 'toast', ...notice });
     if (import.meta.env.DEV && params.get('pause') === '1') g.onPause?.();
+    // `help=1` opens the help overlay, `settings=1` the pause menu's Settings screen (dev, screenshots)
+    if (import.meta.env.DEV && params.get('help') === '1') openHelp();
+    if (import.meta.env.DEV && params.get('settings') === '1') g.onPause?.('settings');
     if (import.meta.env.DEV && params.get('end') === '1') g.ctx.bus.emit({ type: 'victory', reason: 'The century is over' });
   });
 } else {

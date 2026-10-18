@@ -1,7 +1,9 @@
-import { clampCamera, screenToTile, screenToWorld, zoomAt } from '../render/camera';
+import { clampCamera, screenToTile, screenToWorld, setZoomTarget, stepZoom } from '../render/camera';
 import type { Camera } from '../render/constants';
 import type { GameMap, Speed, Vec2 } from '../sim/types';
 import type { ToolSpec } from '../ui/tools';
+import { closeHelp, isHelpOpen, toggleHelp } from '../ui/help';
+import { shortcutForEvent } from '../ui/shortcuts';
 
 /** What the input layer drives (implemented by GameController). */
 export interface InputHost {
@@ -24,6 +26,8 @@ export interface InputHost {
   escape?(): void;
   /** P: toggles photo mode */
   togglePhotoMode?(): void;
+  /** M / K: flips a map overlay and keeps its HUD button in sync */
+  toggleOverlay?(id: 'pollution' | 'factions'): void;
   /** opens a registered panel; returns false when none is registered under `id` */
   tryOpenPanel(id: string): boolean;
   /** the player panned by hand (cancels camera follow) */
@@ -47,11 +51,11 @@ const PAN_KEYS: Record<string, Vec2> = {
   d: { x: 1, y: 0 },
   arrowright: { x: 1, y: 0 },
 };
-const SPEED_KEYS: Record<string, Speed> = { '1': 1, '2': 2, '3': 4, '4': 8 };
-const PANEL_KEYS: Record<string, string> = { r: 'routes', f: 'finance', n: 'newspaper', v: 'fleet' };
 /** screen pixels per millisecond for keyboard panning */
 const KEY_PAN_SPEED = 0.9;
 const WHEEL_STEP = 1.15;
+/** Manhattan screen px a left press must travel in Inspect before it becomes a pan. */
+export const DRAG_THRESHOLD_PX = 6;
 
 /** True when keyboard focus is in a text field, where game shortcuts must not fire. */
 export function isTyping(target: EventTarget | null): boolean {
@@ -63,12 +67,14 @@ export function isTyping(target: EventTarget | null): boolean {
 /**
  * Mouse, wheel and keyboard handling per Game Design → Controls. Left button → current tool;
  * right/middle drag pans; wheel zooms at the cursor; WASD/arrows pan; Space pauses; 1–4 set speeds;
- * Esc cancels the tool; B toggles the toolbar; Delete picks the bulldozer; R/F/N open panels.
+ * Esc cancels the tool; B toggles the toolbar; Delete picks the bulldozer; panel, overlay and help keys come from ui/shortcuts.
  * In photo mode (`host.photoActive`) the left button pans too and only Esc, P and the pan keys act.
  */
 export class Input {
   private held = new Set<string>();
   private pan: { x: number; y: number; id: number; moved: boolean } | null = null;
+  /** an Inspect left press that has not yet moved far enough to be a pan */
+  private pending: { x: number; y: number; id: number; world: Vec2; tile: Vec2 } | null = null;
   private toolPointer: number | null = null;
   private readonly offs: (() => void)[] = [];
 
@@ -123,10 +129,35 @@ export class Input {
     }
   }
 
+  private inspecting(): boolean {
+    return this.host.activeToolKind === 'inspect' && !this.host.photoActive;
+  }
+
+  private setCursor(c: string): void {
+    this.canvas.style.cursor = c;
+  }
+
+  private startPan(x: number, y: number, id: number, moved = false): void {
+    this.pan = { x, y, id, moved };
+    this.setCursor('grabbing');
+  }
+
   private down(e: PointerEvent): void {
+    if (e.button === 0 && this.inspecting()) {
+      const p = this.local(e);
+      this.pending = {
+        x: e.clientX,
+        y: e.clientY,
+        id: e.pointerId,
+        world: screenToWorld(this.host.camera, p.x, p.y),
+        tile: this.tileOf(e),
+      };
+      this.capture(e.pointerId);
+      return;
+    }
     if (e.button === 1 || e.button === 2 || (e.button === 0 && this.host.photoActive)) {
       e.preventDefault();
-      this.pan = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+      this.startPan(e.clientX, e.clientY, e.pointerId);
       this.capture(e.pointerId);
       return;
     }
@@ -138,6 +169,12 @@ export class Input {
   }
 
   private move(e: PointerEvent): void {
+    if (this.pending && e.pointerId === this.pending.id) {
+      const pd = this.pending;
+      if (Math.abs(e.clientX - pd.x) + Math.abs(e.clientY - pd.y) < DRAG_THRESHOLD_PX) return;
+      this.pending = null;
+      this.startPan(pd.x, pd.y, pd.id, true);
+    }
     if (this.pan && e.pointerId === this.pan.id) {
       const cam = this.host.camera;
       if (Math.abs(e.clientX - this.pan.x) + Math.abs(e.clientY - this.pan.y) > 0) this.pan.moved = true;
@@ -149,15 +186,25 @@ export class Input {
       clampCamera(cam, this.host.map);
       return;
     }
+    this.setCursor(this.inspecting() || this.host.photoActive ? 'grab' : '');
     if (this.host.photoActive) return;
     const p = this.local(e);
     this.host.tools.pointerMove(this.tileOf(e), screenToWorld(this.host.camera, p.x, p.y));
   }
 
   private up(e: PointerEvent): void {
+    if (this.pending && e.pointerId === this.pending.id) {
+      const pd = this.pending;
+      this.pending = null;
+      if (e.type === 'pointercancel') return;
+      this.host.tools.pointerDown(pd.tile, pd.world);
+      this.host.tools.pointerUp(pd.tile);
+      return;
+    }
     if (this.pan && e.pointerId === this.pan.id) {
       const click = !this.pan.moved && e.button === 2;
       this.pan = null;
+      this.setCursor(this.inspecting() || this.host.photoActive ? 'grab' : '');
       if (click && this.host.activeToolKind === 'pickStop') this.host.tools.cancel();
       return;
     }
@@ -170,8 +217,8 @@ export class Input {
     e.preventDefault();
     if (e.deltaY === 0) return;
     const p = this.local(e);
-    zoomAt(this.host.camera, p.x, p.y, e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP);
-    clampCamera(this.host.camera, this.host.map);
+    const factor = e.ctrlKey ? Math.exp(-e.deltaY * 0.01) : e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP;
+    setZoomTarget(this.host.camera, p.x, p.y, factor);
   }
 
   private keyDown(e: KeyboardEvent): void {
@@ -183,32 +230,61 @@ export class Input {
       return;
     }
     if (e.repeat) return;
-    if (this.host.photoActive && key !== 'escape' && key !== 'p') return;
-    if (key === ' ') {
-      e.preventDefault();
-      this.host.togglePause();
-    } else if (key in SPEED_KEYS) {
-      this.host.setSpeed(SPEED_KEYS[key]);
-    } else if (key === 'escape') {
-      if (this.host.escape) {
-        this.host.escape();
-      } else {
-        this.host.tools.cancel();
-        this.host.closeDrawer();
+    if (isHelpOpen()) {
+      // the help overlay is modal: Esc, ? and H close it, everything else waits
+      if (key === 'escape' || key === '?' || key === 'h') {
+        e.preventDefault();
+        closeHelp();
       }
-    } else if (key === 'p') {
-      this.host.togglePhotoMode?.();
-    } else if (key === 'b') {
-      this.host.toggleToolbar();
-    } else if (key === 'delete') {
-      this.host.setTool({ kind: 'bulldoze' });
-    } else if (key in PANEL_KEYS) {
-      this.host.tryOpenPanel(PANEL_KEYS[key]);
+      return;
+    }
+    const sc = shortcutForEvent(e.key);
+    if (!sc) return;
+    const a = sc.action;
+    if (this.host.photoActive && a.kind !== 'escape' && a.kind !== 'photo') return;
+    switch (a.kind) {
+      case 'pause':
+        e.preventDefault();
+        this.host.togglePause();
+        break;
+      case 'speed':
+        this.host.setSpeed(a.speed);
+        break;
+      case 'escape':
+        if (this.host.escape) {
+          this.host.escape();
+        } else {
+          this.host.tools.cancel();
+          this.host.closeDrawer();
+        }
+        break;
+      case 'photo':
+        this.host.togglePhotoMode?.();
+        break;
+      case 'toolbar':
+        this.host.toggleToolbar();
+        break;
+      case 'bulldoze':
+        this.host.setTool({ kind: 'bulldoze' });
+        break;
+      case 'panel':
+        this.host.tryOpenPanel(a.id);
+        break;
+      case 'overlay':
+        this.host.toggleOverlay?.(a.id);
+        break;
+      case 'help':
+        toggleHelp();
+        break;
     }
   }
 
   /** Applies held pan keys; call once per frame with the real elapsed milliseconds. */
   update(dtMs: number): void {
+    if (this.host.camera.zoomTarget !== undefined) {
+      stepZoom(this.host.camera, dtMs);
+      clampCamera(this.host.camera, this.host.map);
+    }
     if (this.held.size === 0) return;
     let dx = 0;
     let dy = 0;
@@ -232,5 +308,6 @@ export class Input {
     for (const off of this.offs) off();
     this.offs.length = 0;
     this.held.clear();
+    closeHelp();
   }
 }

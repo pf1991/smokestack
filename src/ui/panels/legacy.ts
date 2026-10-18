@@ -4,8 +4,14 @@ import type { GameState } from '../../sim/types';
 import { h } from '../dom';
 import { formatNumber } from '../format';
 import '../menu.css';
+import './panels.css';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
+
+/** The Legacy window's content: the table under the shared section header. */
+function legacySection(state: GameState): HTMLElement {
+  return h('div', { class: 'p-section legacy-panel' }, h('div', { class: 'p-head' }, 'Your legacy so far'), buildLegacy(state));
+}
 
 /** The four Legacy parts, one line of explanation each, and the total. Shared with the end screen. */
 export function buildLegacy(state: GameState): HTMLElement {
@@ -25,10 +31,10 @@ export const legacyPanel: PanelDef = {
     const win = createWindow({
       id: 'legacy',
       title: 'Legacy',
-      content: buildLegacy(game.state),
+      content: legacySection(game.state),
       width: 380,
       onClose: () => offs.forEach((f) => f()),
     });
-    offs.push(game.ctx.bus.on('dayStart', () => win.setContent(buildLegacy(game.state))));
+    offs.push(game.ctx.bus.on('dayStart', () => win.setContent(legacySection(game.state))));
   },
 };

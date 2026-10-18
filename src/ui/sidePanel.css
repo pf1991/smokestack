@@ -1,0 +1,212 @@
+/* The one side panel (sidePanel.ts): tabbed windows on the right edge, between the HUD bar and the build bar. */
+.side-panel {
+  position: fixed;
+  /* top, bottom and width are written in zoomed px (sidePanel.ts divides screen px by the scale) */
+  zoom: var(--ui-scale, 1);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  pointer-events: auto;
+  background: var(--walnut-light);
+  border: 3px solid var(--brass);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  box-shadow:
+    inset 0 0 0 1px var(--brass-dark),
+    -6px 0 18px rgba(0, 0, 0, 0.5);
+  color: var(--paper);
+}
+
+.side-panel[hidden] {
+  display: none;
+}
+
+.side-panel.resizing {
+  user-select: none;
+}
+
+.side-panel-grip {
+  position: absolute;
+  left: -5px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.side-panel-grip:hover,
+.side-panel.resizing .side-panel-grip {
+  background: linear-gradient(90deg, transparent, var(--brass-light), transparent);
+}
+
+.side-panel-head {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px 4px 0;
+  background: var(--walnut);
+  border-bottom: 2px solid var(--brass-dark);
+}
+
+.side-panel-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brass-dark) transparent;
+}
+
+.side-panel-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.side-panel-tabs::-webkit-scrollbar-thumb {
+  background: var(--brass-dark);
+}
+
+.side-panel-tab {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+  max-width: 140px;
+  min-width: 0;
+  padding: 4px 4px 4px 8px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--paper-shade);
+  background: var(--walnut-light);
+  border: 1px solid var(--brass-dark);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+}
+
+.side-panel-tab:hover {
+  color: var(--paper);
+  border-color: var(--brass);
+}
+
+.side-panel-tab.active {
+  color: var(--walnut);
+  background: linear-gradient(180deg, var(--brass-light), var(--brass));
+  border-color: var(--brass);
+}
+
+.side-panel-tab:focus-visible,
+.side-panel-collapse:focus-visible,
+.side-panel-rail:focus-visible {
+  outline: 2px solid var(--brass-light);
+  outline-offset: 1px;
+}
+
+.side-panel-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-panel-tab-close,
+.side-panel-collapse {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--paper);
+  background: var(--walnut);
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+}
+
+.side-panel-collapse {
+  align-self: center;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 4px;
+}
+
+.side-panel-tab-close:hover {
+  background: var(--rival);
+}
+
+.side-panel-collapse:hover {
+  border-color: var(--brass);
+}
+
+.side-panel-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Windows inside the panel fill it: no floating frame, no drag, no own height cap. */
+.side-panel .window {
+  position: static;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The tab carries the title and close button: the window's own title bar stays in the DOM, hidden. */
+.side-panel .window-title {
+  display: none;
+}
+
+.side-panel .window-body {
+  max-height: none;
+  overflow: auto;
+  padding: 8px 10px;
+  font-size: 13px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brass-dark) transparent;
+}
+
+.side-panel-rail {
+  display: none;
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 8px 0 0;
+  align-items: flex-start;
+  justify-content: center;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--brass-light);
+  background: var(--walnut-light);
+  border: none;
+}
+
+.side-panel-rail:hover {
+  background: var(--walnut);
+}
+
+.side-panel.collapsed .side-panel-head,
+.side-panel.collapsed .side-panel-body,
+.side-panel.collapsed .side-panel-grip {
+  display: none;
+}
+
+.side-panel.collapsed .side-panel-rail {
+  display: flex;
+}
+
+/* The newspaper and others keep their themed frames, minus the floating chrome. */
+.side-panel .news-window .window-body {
+  max-height: none;
+}

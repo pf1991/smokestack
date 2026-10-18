@@ -80,7 +80,7 @@ interface EdictControl {
 function edictControl(ctx: SimContext, key: keyof CompanyEdicts, refresh: () => void): EdictControl {
   const def = EDICTS[key] as EdictDef<string>;
   const buttons = new Map<string, HTMLElement>();
-  const seg = h('div', { class: 'pol-seg', role: 'group', 'aria-label': def.title, 'data-edict': key });
+  const seg = h('div', { class: 'p-chips pol-seg', role: 'group', 'aria-label': def.title, 'data-edict': key });
   for (const v of def.values) {
     const btn = h('button', {
       'data-value': v,
@@ -97,7 +97,7 @@ function edictControl(ctx: SimContext, key: keyof CompanyEdicts, refresh: () => 
   const cost = h('span', { class: 'pol-cost' });
   const effects = h('div', { class: 'pol-effects' });
   const el = h('div', { class: 'pol-edict' },
-    h('div', { class: 'pol-edict-head' }, h('span', { class: 'pol-edict-title' }, def.title), cost),
+    h('div', { class: 'p-row pol-edict-head' }, h('span', { class: 'pol-edict-title' }, def.title), cost),
     seg,
     effects);
   return { key, el, buttons, cost, effects };
@@ -115,7 +115,7 @@ function opinionRow(f: FactionId): OpinionRow {
   const label = h('span');
   const b = bar(FACTIONS[f].color);
   const trend = h('span', { class: 'pol-trend' });
-  const el = h('div', { class: 'pol-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el, trend);
+  const el = h('div', { class: 'p-row p-grid pol-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el, trend);
   return { f, el, label, bar: b, trend };
 }
 
@@ -205,14 +205,14 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   const log = h('ul', { class: 'pol-log' });
   const blackLung = h('span', { class: 'pol-blacklung-count' });
   const el = h('div', { class: 'pol' },
-    h('div', { class: 'pol-section pol-edicts' }, h('div', { class: 'insp-label' }, 'Company edicts'), ...controls.map((c) => c.el),
+    h('div', { class: 'p-section pol-edicts' }, h('div', { class: 'p-head' }, 'Company edicts'), ...controls.map((c) => c.el),
       h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)),
-    h('div', { class: 'pol-section pol-national' }, h('div', { class: 'insp-label' }, 'National opinion'), ...rows.map((r) => r.el)),
-    h('div', { class: 'pol-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
-      h('div', { class: 'insp-label' }, 'Black Lung toll'), blackLung),
-    h('div', { class: 'pol-section pol-laws' }, h('div', { class: 'insp-label' }, 'Law of the land'),
+    h('div', { class: 'p-section pol-national' }, h('div', { class: 'p-head' }, 'National opinion'), ...rows.map((r) => r.el)),
+    h('div', { class: 'p-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
+      h('div', { class: 'p-head' }, 'Black Lung toll'), blackLung),
+    h('div', { class: 'p-section pol-laws' }, h('div', { class: 'p-head' }, 'Law of the land'),
       ...lawRows.map((r) => h('div', { class: 'pol-law', 'data-law': r.id }, h('strong', null, LAWS[r.id].title), ' ', r.status, h('div', null, r.detail)))),
-    h('div', { class: 'pol-section pol-news' }, h('div', { class: 'insp-label' }, 'Recent political news'), log));
+    h('div', { class: 'p-section pol-news' }, h('div', { class: 'p-head' }, 'Recent political news'), log));
   update();
   return { el, update };
 }

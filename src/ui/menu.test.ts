@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { SAVE_VERSION } from '../sim/migrations';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveTo } from '../game/saves';
 import { createGame } from '../sim/state';
-import { closeModal, MainMenu, showEndScreen } from './menu';
+import { closeModal, MainMenu, openPauseMenu, showEndScreen } from './menu';
 import { buildGoals } from './panels/goals';
 import { testState } from '../sim/testkit';
 
@@ -127,6 +127,22 @@ describe('settings: Skip intro', () => {
   });
 });
 
+describe('pause menu: opening straight onto a screen', () => {
+  const fakeGame = () => ({ state: { speed: 2 }, setSpeed: vi.fn(), sfx: { setVolume: vi.fn(), setMuted: vi.fn() } });
+  const host = { startNew: vi.fn(), startLoaded: vi.fn(), quitToMenu: vi.fn() };
+  it.each([['settings', 'Settings'], ['save', 'Save Game'], ['load', 'Load Game']] as const)('%s opens the %s screen', (screen, title) => {
+    closeModal();
+    const game = fakeGame();
+    openPauseMenu(game as never, host, screen);
+    expect(document.querySelector('.mn-modal h2')?.textContent).toBe(title);
+    expect(game.setSpeed).toHaveBeenCalledWith(0);
+    // Back still leads to the pause home
+    btn(document.body, 'Back').click();
+    expect(document.querySelector('.mn-modal h2')?.textContent).toBe('Paused');
+    closeModal();
+  });
+});
+
 describe('settings: Smart events', () => {
   it('defaults on and is stored with the other settings', async () => {
     const { loadSettings, saveSettings } = await import('../game/settings');
@@ -140,5 +156,37 @@ describe('settings: Smart events', () => {
     const { ui, menu } = mount();
     menu.show('settings');
     expect(ui.querySelector('.mn-ai-status')?.textContent).toBe('JEV: not checked yet');
+  });
+});
+
+describe('settings: both branches\' fields', () => {
+  afterEach(() => localStorage.clear());
+
+  it('the screen shows every setting, including JEV and the side panel width', () => {
+    const { ui, menu } = mount();
+    menu.show('settings');
+    const labels = [...ui.querySelectorAll('.mn-row > span:first-child')].map((s) => s.textContent);
+    expect(labels).toEqual(['Master volume', 'Mute all sound', 'Open the newspaper automatically', 'Skip intro',
+      'News ticker', 'Interface scale', 'Side panel width', 'Smart events (JEV)']);
+  });
+
+  it('Reset forgets a dragged side panel width', async () => {
+    const { loadSettings, saveSettings } = await import('../game/settings');
+    saveSettings({ ...loadSettings(), panelWidth: 512 });
+    const { ui, menu } = mount();
+    menu.show('settings');
+    expect(ui.querySelector('.mn-width-value')?.textContent).toBe('512 px');
+    btn(ui, 'Reset').click();
+    expect(loadSettings().panelWidth).toBeNull();
+    expect(ui.querySelector('.mn-width-value')?.textContent).toBe('Default');
+  });
+
+  it.each([
+    ['main (JEV)', { volume: 0.3, muted: true, skipIntro: true, smartEvents: false }],
+    ['v2/ux', { volume: 0.3, muted: true, skipIntro: true, panelWidth: 500, ticker: 'off', uiScale: 1.15 }],
+  ])('loads a settings file saved by %s', async (_name, saved) => {
+    const { DEFAULT_SETTINGS, loadSettings } = await import('../game/settings');
+    localStorage.setItem('smokestack:settings', JSON.stringify(saved));
+    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, autoNews: true, ...saved });
   });
 });

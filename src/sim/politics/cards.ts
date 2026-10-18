@@ -258,7 +258,7 @@ export function resolveCard(ctx: SimContext, uid: number, choice: number, defs: 
   // apply may already have withdrawn the card (withdrawCard)
   const at = cards.pending.indexOf(inst);
   if (at >= 0) cards.pending.splice(at, 1);
-  cards.history.push({ id: card.id, year: state.date.year, choice });
+  cards.history.push({ id: card.id, year: state.date.year, choice, title });
   if (cards.history.length > HISTORY_CAP) cards.history.splice(0, cards.history.length - HISTORY_CAP);
   publishNews(ctx, 'politics', title.toUpperCase(), `${player.name} chose: ${c.label}.`);
   ctx.bus.emit({ type: 'cardResolved', cardId: card.id, uid });

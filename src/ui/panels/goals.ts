@@ -1,4 +1,5 @@
 import type { GameController } from '../../game/controller';
+import './panels.css';
 import { dateToDays } from '../../sim/clock';
 import { legacyScore } from '../../sim/legacy';
 import { evaluateGoals, goalProgress, scenarioOf } from '../../sim/scenarios';
@@ -17,12 +18,12 @@ export function buildGoals(state: GameState): HTMLElement {
   const sc = scenarioOf(state);
   const legacy = h('div', { class: 'gl-line gl-legacy' }, h('b', null, 'Legacy'), h('span', null, formatNumber(legacyScore(state).total)));
   if (sc.goals.length === 0) {
-    return h('div', { class: 'gl-list' },
+    return h('div', { class: 'p-section gl-list' },
       h('div', { class: 'gl-note' }, `${sc.name}: no goals, no deadlines. Build whatever you like until the century ends.`),
       legacy);
   }
   const { done, failed } = evaluateGoals(state);
-  return h('div', { class: 'gl-list' },
+  return h('div', { class: 'p-section gl-list' },
     h('div', { class: 'gl-note' }, `${sc.name} - ${sc.blurb}`),
     ...sc.goals.map((g, i) => {
       const p = goalProgress(state, g);
@@ -47,6 +48,7 @@ export const goalsPanel: PanelDef = {
     const win = createWindow({
       id: 'goals',
       title: 'Scenario Goals',
+      tabTitle: 'Goals',
       content: buildGoals(game.state),
       width: 360,
       onClose: () => offs.forEach((f) => f()),

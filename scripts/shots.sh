@@ -56,8 +56,6 @@ shot() {
   # crop the empty strip below the viewport
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
-export -f shot
-
 # showcase <name> <skipYears> <extra query>: one 1366x768 shot of a scene, shots/showcase-<name>.png
 showcase() {
   local name="$1" skip="$2" extra="$3" w=1366 h=768
@@ -77,7 +75,27 @@ showcase() {
   done
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
-export -f showcase
+# ui shot: name, w, h, skipYears, extra query params (zoom=1), shots/ui-<w>-<name>.png. The Phase 4
+# tabs start at skipYears 55 (a family, listed firms, grudges); the Legacy end screen at 101.
+ushot() {
+  local name="$1" w="$2" h="$3" skip="$4" extra="$5"
+  local f="shots/ui-${w}-${name}.png"
+  local udd attempt
+  for attempt in 1 2 3; do
+    udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
+    rm -f "$f"
+    timeout 300 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+      --user-data-dir="$udd" --virtual-time-budget=10000 \
+      --window-size="$w,$((h + CHROME_H_OFFSET))" \
+      --screenshot="$f" \
+      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=1&hour=16&cards=0&$extra" >/dev/null 2>&1
+    rm -rf "$udd"
+    if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
+    echo "blank or missing shot $f (attempt $attempt)" >&2
+  done
+  convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
+}
+export -f shot showcase ushot
 SHOWCASE="rival-furious 55 baron=furious&panel=rival
 family 55 panel=family
 exchange-bid 55 bid=1&panel=exchange
@@ -94,7 +112,47 @@ for size in 1366,768 1920,1080; do
 done | xargs -P "$JOBS" -L 1 bash -c 'shot "$@"' _
 echo "$SHOWCASE" | xargs -P "$JOBS" -L 1 bash -c 'showcase "$@"' _
 
+# UI matrix (DEV params): every side-panel tab, menus, help, settings, a flyout, ticker modes,
+# scaled UI, open panels under open dropdowns and the Legacy end screen. Name, skipYears, query.
+UI_SHOTS="menu 25 hudmenu=company
+help 25 help=1
+settings 25 settings=1
+flyout 25 buildtab=manufacture
+tickerheadline 25 ticker=headline
+tickeroff 25 ticker=off
+scale 25 uiscale=1.3&panel=finance
+panelworld 25 panel=finance&hudmenu=world
+panelmore 25 panel=finance&hudmenu=more
+panelcompany 55 panel=exchange&hudmenu=company
+finance 25 panel=finance
+tab-routes 55 panel=routes
+tab-fleet 55 panel=fleet
+tab-finance 55 panel=finance
+tab-newspaper 55 panel=newspaper
+tab-contracts 55 panel=contracts
+tab-goals 55 panel=goals
+tab-politics 55 panel=politics
+tab-rival 55 panel=rival
+tab-exchange 55 panel=exchange
+tab-family 55 panel=family
+tab-legacy 55 panel=legacy
+tab-building 55 inspect2=1
+tab-city 55 inspectcity=1
+tab-vehicle 55 inspectvehicle=1
+exchangebid 55 bid=1&panel=exchange
+end 101 end=1"
+for size in 1366,768 1920,1080; do
+  w="${size%,*}"; h="${size#*,}"
+  while read -r name skip extra; do echo "$name $w $h $skip $extra"; done <<<"$UI_SHOTS"
+done | xargs -P "$JOBS" -L 1 bash -c 'ushot "$@"' _
+
 bad=0
+for size in 1366 1920; do
+  while read -r n _; do
+    f="shots/ui-${size}-${n}.png"
+    if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 20480 ]; then echo "BAD: $f" >&2; bad=1; fi
+  done <<<"$UI_SHOTS"
+done
 for size in 1366 1920; do
   for skip in 0 25 55 85; do
     for zoom in 0.5 1 2; do

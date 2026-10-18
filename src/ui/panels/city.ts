@@ -189,7 +189,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const smogTierLevel = h('span', { class: 'insp-smog-level' });
   const smogTierTrend = h('span', { class: 'insp-trend' });
   const smogTierHint = h('small', { class: 'insp-smog-hint' });
-  const smogTierRow = h('div', { class: 'insp-stat insp-smog' },
+  const smogTierRow = h('div', { class: 'p-row insp-stat insp-smog' },
     h('span', { class: 'insp-label' }, 'Smog tier'),
     h('span', null, smogTierName, ' ', smogTierLevel, ' ', smogTierTrend, h('br'), smogTierHint));
   const classParts = CLASS_LABELS.map((key) => {
@@ -197,7 +197,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     const el = h('div', { class: 'insp-class-seg', 'data-class': key, style: { background: CLASS_COLORS[key], width: '0%' } }, text);
     return { key, el, text };
   });
-  const classRow = h('div', { class: 'insp-stat insp-classes' },
+  const classRow = h('div', { class: 'p-row insp-stat insp-classes' },
     h('span', { class: 'insp-label' }, 'Classes'),
     h('div', { class: 'insp-class-bar', role: 'img' }, ...classParts.map((p) => p.el)));
   const landmarks = h('ul', { class: 'insp-landmarks' });
@@ -207,7 +207,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   const opinion = FACTION_IDS.map((f: FactionId) => {
     const label = h('span', { class: 'insp-label' });
     const b = bar(FACTIONS[f].color);
-    const el = h('div', { class: 'insp-stat insp-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el);
+    const el = h('div', { class: 'p-row insp-stat insp-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el);
     return { f, label, bar: b, el };
   });
   const gifts = PHILANTHROPY_IDS.map((id: PhilanthropyId) => {
@@ -257,31 +257,31 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     },
   }, 'Slush') as HTMLButtonElement;
   const slushInfo = h('span', { class: 'insp-slush-info' });
-  const endorseRow = h('div', { class: 'insp-stat insp-endorse' }, h('span', { class: 'insp-label' }, 'Endorse'), h('span', null, endorseSel, ' ', endorseBtn, ' ', slushBtn, ' ', slushInfo));
+  const endorseRow = h('div', { class: 'p-row insp-stat insp-endorse' }, h('span', { class: 'insp-label' }, 'Endorse'), h('span', null, endorseSel, ' ', endorseBtn, ' ', slushBtn, ' ', slushInfo));
   const tbody = h('tbody');
   const rows = new KeyedList<GoodRow>(tbody, makeRow);
   const el = h(
     'div',
     { class: 'insp' },
-    h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Population'), h('span', null, pop, ' ', trend)),
-    h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
-    h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
+    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Population'), h('span', null, pop, ' ', trend)),
+    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
+    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
     smogTierRow,
     classRow,
-    h('div', { class: 'insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
-    h('div', { class: 'insp-stat insp-mayor' }, h('span', { class: 'insp-label' }, 'Mayor'), h('span', null, mayorName, ' ', mayorChip)),
-    h('div', { class: 'insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
-    h('div', { class: 'insp-stat insp-election' }, h('span', { class: 'insp-label' }, 'Next election'), electionRow),
+    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
+    h('div', { class: 'p-row insp-stat insp-mayor' }, h('span', { class: 'insp-label' }, 'Mayor'), h('span', null, mayorName, ' ', mayorChip)),
+    h('div', { class: 'p-row insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
+    h('div', { class: 'p-row insp-stat insp-election' }, h('span', { class: 'insp-label' }, 'Next election'), electionRow),
     endorseRow,
-    h('div', { class: 'insp-section insp-mayor-edicts' },
-      h('div', { class: 'insp-label' }, 'Edicts'),
+    h('div', { class: 'p-section insp-section insp-mayor-edicts' },
+      h('div', { class: 'p-head' }, 'Edicts'),
       h('small', { class: 'insp-edict-reach' }, EDICT_REACH),
       edictList),
-    h('div', { class: 'insp-section insp-opinions' }, h('div', { class: 'insp-label' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
-    h('div', { class: 'insp-section insp-philanthropy' }, h('div', { class: 'insp-label' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
+    h('div', { class: 'p-section insp-section insp-opinions' }, h('div', { class: 'p-head' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
+    h('div', { class: 'p-section insp-section insp-philanthropy' }, h('div', { class: 'p-head' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
     h(
       'table',
-      { class: 'insp-table' },
+      { class: 'p-table insp-table' },
       h('thead', null, h('tr', null, h('th', null, 'Good'), h('th', null, 'Demand/mo'), h('th', null, 'Supplied'), h('th', null, 'Price'), h('th', null, 'Stores'))),
       tbody,
     ),

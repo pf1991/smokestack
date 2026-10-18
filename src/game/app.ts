@@ -86,9 +86,9 @@ export class App implements PauseHost {
     this.teardown();
     const game = new GameController(this.canvas, this.ui);
     this.game = game;
-    game.onPause = () => openPauseMenu(game, this);
+    game.onPause = (screen) => openPauseMenu(game, this, screen);
     game.load(state);
-    Ticker.attach(document.getElementById('ticker')!, game.ctx.bus, game.state.news);
+    game.addDisposer(Ticker.attach(document.getElementById('ticker')!, game.ctx.bus, game.state.news, () => game.openPanel('newspaper')));
     attachNewspaper(game);
     game.ctx.bus.on('victory', (e) => showEndScreen('victory', e.reason, this, () => {}, game.state));
     game.ctx.bus.on('gameOver', (e) => showEndScreen('gameOver', e.reason, this, () => {}, game.state));

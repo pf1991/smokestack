@@ -3,7 +3,7 @@ import { COMPANY_NAMES } from '../data/names';
 import { ACHIEVEMENTS, loadUnlocked } from '../game/achievements';
 import type { GameController, NewGameOpts } from '../game/controller';
 import { listSaves, loadFrom, saveTo, SLOTS, unreadableSlots, type SaveInfo, type SaveSlot } from '../game/saves';
-import { loadSettings, saveSettings } from '../game/settings';
+import { loadSettings, saveSettings, UI_SCALES, type Settings } from '../game/settings';
 import { goalProgress, SCENARIOS, type Goal } from '../sim/scenarios';
 import type { GameState } from '../sim/types';
 import { h } from './dom';
@@ -101,6 +101,23 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
       apply();
     },
   });
+  const ticker = h('select', {
+    'aria-label': 'News ticker',
+    onChange: (e: Event) => {
+      s.ticker = (e.target as HTMLSelectElement).value as Settings['ticker'];
+      apply();
+    },
+  }, ...(['headline', 'scroll', 'off'] as const).map((m) =>
+    h('option', { value: m, selected: s.ticker === m }, { headline: 'Latest headline', scroll: 'Scrolling', off: 'Hidden' }[m]))) as HTMLSelectElement;
+  const scale = h('select', {
+    'aria-label': 'Interface scale',
+    onChange: (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      s.uiScale = v === 'auto' ? 'auto' : (Number(v) as Settings['uiScale']);
+      apply();
+    },
+  }, h('option', { value: 'auto', selected: s.uiScale === 'auto' }, 'Auto'),
+  ...UI_SCALES.map((n) => h('option', { value: String(n), selected: s.uiScale === n }, `${Math.round(n * 100)}%`))) as HTMLSelectElement;
   const smart = h('input', {
     type: 'checkbox', checked: s.smartEvents,
     onChange: (e: Event) => {
@@ -116,11 +133,26 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
   // the health check may resolve while the screen is open; stop listening once it leaves the page
   const off = onAiStatus(() => (status.isConnected ? showStatus() : off()));
   smart.addEventListener('change', showStatus);
+  // the side panel's width is set by dragging its edge; here it can only be shown and reset
+  const widthText = () => (s.panelWidth === null ? 'Default' : `${Math.round(s.panelWidth)} px`);
+  const widthValue = h('span', { class: 'mn-width-value' }, widthText());
+  const widthReset = h('button', {
+    class: 'btn', type: 'button', disabled: s.panelWidth === null,
+    onClick: () => {
+      s.panelWidth = null;
+      apply();
+      widthValue.textContent = widthText();
+      (widthReset as HTMLButtonElement).disabled = true;
+    },
+  }, 'Reset');
   return h('div', { class: 'mn-form' },
     h('label', { class: 'mn-row' }, h('span', null, 'Master volume'), vol),
     h('label', { class: 'mn-row' }, h('span', null, 'Mute all sound'), mute),
     h('label', { class: 'mn-row' }, h('span', null, 'Open the newspaper automatically'), news),
     h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro),
+    h('label', { class: 'mn-row' }, h('span', null, 'News ticker'), ticker),
+    h('label', { class: 'mn-row' }, h('span', null, 'Interface scale'), scale),
+    h('div', { class: 'mn-row' }, h('span', null, 'Side panel width'), h('span', { class: 'mn-width' }, widthValue, widthReset)),
     h('label', { class: 'mn-row' }, h('span', null, 'Smart events (JEV)'), smart),
     status);
 }
@@ -345,8 +377,14 @@ function modal(kind: string, content: HTMLElement[], onEsc: (() => void) | null)
   return handle;
 }
 
-/** Esc menu: Resume, Save to slot, Load, Settings, Quit to menu. Pauses the game while open. */
-export function openPauseMenu(game: GameController, host: PauseHost): void {
+/** A pause-menu screen the HUD's More menu can open directly. */
+export type PauseScreen = 'save' | 'load' | 'settings';
+
+/**
+ * Esc menu: Resume, Save to slot, Load, Settings, Quit to menu. Pauses the game while open.
+ * `screen` opens straight onto Save, Load or Settings (Back still leads to the home screen).
+ */
+export function openPauseMenu(game: GameController, host: PauseHost, screen?: PauseScreen): void {
   if (current) return;
   const resumeSpeed = game.state.speed;
   game.setSpeed(0);
@@ -357,25 +395,30 @@ export function openPauseMenu(game: GameController, host: PauseHost): void {
     if (resumeSpeed > 0) game.setSpeed(resumeSpeed);
   };
   const body = h('div', { class: 'mn-pause' });
+  const screens: Record<PauseScreen, () => void> = {
+    save: () => sub('Save Game', slotList('save', (slot) => {
+      const r = saveTo(slot, game.state);
+      return r.ok ? `Saved to ${SLOT_LABEL[slot]}.` : `Could not save: ${r.error}`;
+    })),
+    load: () => sub('Load Game', slotList('load', (slot) => {
+      const r = loadFrom(slot);
+      if (!r.ok) return r.error;
+      close();
+      host.startLoaded(r.value);
+    })),
+    settings: () => sub('Settings', settingsView((s) => {
+      game.sfx.setVolume(s.volume);
+      game.sfx.setMuted(s.muted);
+    })),
+  };
   const home = () => {
     body.replaceChildren(
       h('h2', null, 'Paused'),
       h('div', { class: 'mn-home' },
         button('Resume', resume, { cls: 'mn-primary' }),
-        button('Save to slot', () => sub('Save Game', slotList('save', (slot) => {
-          const r = saveTo(slot, game.state);
-          return r.ok ? `Saved to ${SLOT_LABEL[slot]}.` : `Could not save: ${r.error}`;
-        }))),
-        button('Load', () => sub('Load Game', slotList('load', (slot) => {
-          const r = loadFrom(slot);
-          if (!r.ok) return r.error;
-          close();
-          host.startLoaded(r.value);
-        }))),
-        button('Settings', () => sub('Settings', settingsView((s) => {
-          game.sfx.setVolume(s.volume);
-          game.sfx.setMuted(s.muted);
-        }))),
+        button('Save to slot', screens.save),
+        button('Load', screens.load),
+        button('Settings', screens.settings),
         quitButton()));
   };
   const sub = (title: string, view: HTMLElement) =>
@@ -392,7 +435,8 @@ export function openPauseMenu(game: GameController, host: PauseHost): void {
     }, { cls: 'mn-danger' });
     return b;
   };
-  home();
+  if (screen) screens[screen]();
+  else home();
   m = modal('pause', [body], resume);
 }
 

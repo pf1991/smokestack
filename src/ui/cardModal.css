@@ -1,5 +1,6 @@
 /* Event card modal (ui/cardModal.ts): a clipping cut from The Daily Smokestack over a dimmed valley. */
 .card-modal {
+  zoom: var(--ui-scale, 1);
   position: fixed;
   inset: 0;
   /* above windows (z from 100 up), toasts and the cold open; below the pause menu (5000) */
@@ -24,7 +25,7 @@
     54% 99%, 48% 99.8%, 42% 99.1%, 36% 100%, 30% 99.2%, 24% 99.9%, 18% 99%, 12% 99.8%, 6% 99.1%, 0% 99.8%,
     0.4% 50%
   );
-  max-height: calc(100vh - 40px);
+  max-height: calc((100 * var(--uvh)) - 40px);
   overflow-y: auto;
   padding: 22px 28px 24px;
   color: #231d15;
@@ -71,7 +72,7 @@
   margin: 12px 0 8px;
   color: #231d15;
   font-family: var(--font-display);
-  font-size: clamp(22px, 4.2vw, 30px);
+  font-size: clamp(22px, (4.2 * var(--uvw)), 30px);
   font-weight: 900;
   line-height: 1.08;
   letter-spacing: -0.005em;

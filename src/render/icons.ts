@@ -512,6 +512,11 @@ const UI_PAINTERS: Record<string, Painter> = {
     poly(g, [1.5, 3, 8, 8, 1.5, 13], C.brassLight);
     poly(g, [8, 3, 14.5, 8, 8, 13], C.brassLight);
   },
+  // HUD: the More menu (three brass studs) and Help (the brass "?" disc unknown ids fall back to)
+  more: (g) => {
+    for (const x of [3, 8, 13]) circ(g, x, 8, 1.9, C.brassLight);
+  },
+  help: (g) => unknown(g),
   // building categories (route stop rows) and decorative glyphs
   gear: (g) => {
     const pts: number[] = [];

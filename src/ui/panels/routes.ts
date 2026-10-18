@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../../data/buildings';
+import './panels.css';
 import { GOODS } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import { isTyping } from '../../game/input';
@@ -327,7 +328,7 @@ class RoutesPanel {
     return h(
       'div',
       null,
-      h('div', { class: 'rt-top' },
+      h('div', { class: 'p-section rt-top' },
         h('button', { class: 'btn', 'data-act': 'new', onClick: () => this.startDraft('truck') }, '+ New route'),
         ' ',
         h('button', {
@@ -338,7 +339,7 @@ class RoutesPanel {
         }, '+ New rail line')),
       routes.length === 0 && h('p', { class: 'rt-empty' },
         'No routes yet. Press New route, then click your buildings on the map in the order trucks should visit them. Rail lines link train stations joined by track.'),
-      routes.map((r) => this.routeCard(r)),
+      h('div', { class: 'p-section' }, routes.map((r) => this.routeCard(r))),
     );
   }
 
@@ -441,13 +442,13 @@ class RoutesPanel {
     return h(
       'div',
       null,
-      h('p', { class: 'rt-hint' },
+      h('p', { class: 'p-section rt-hint' },
         d.stops.length === 0
           ? d.kind === 'train'
             ? 'Click your train stations on the map in the order the train should visit them. Each needs track alongside.'
             : 'Click your buildings on the map in the order trucks should visit them.'
           : `Keep clicking ${d.kind === 'train' ? 'stations' : 'buildings'} to add stops. Enter saves, Esc cancels.`),
-      h('div', { class: 'rt-draft-name' }, 'Name ', nameInput),
+      h('div', { class: 'p-section rt-draft-name' }, 'Name ', nameInput),
       d.stops.map((s, i) =>
         this.stopRow(s, i, d.stops.length, (next) => {
           d.stops = next;
@@ -464,7 +465,7 @@ class RoutesPanel {
           },
         }),
         ` Buy first ${KIND_INFO[d.kind].one} (${formatMoney(vehiclePrice(this.state, d.kind))})`),
-      h('div', { class: 'rt-actions' },
+      h('div', { class: 'rt-actions p-actions' },
         h('button', { class: 'btn', 'data-act': 'done', onClick: () => this.saveDraft() }, 'Done'),
         h('button', { class: 'btn rt-cancel', 'data-act': 'cancel', onClick: () => this.endDraft(true) }, 'Cancel')),
     );

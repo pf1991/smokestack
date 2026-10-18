@@ -220,12 +220,12 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       view.update();
     },
   }) as HTMLSelectElement;
-  const recipeBox = h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Recipe'), recipeSel);
-  const routesSection = h('div', { class: 'insp-section' });
+  const recipeBox = h('div', { class: 'p-section insp-section' }, h('div', { class: 'p-head' }, 'Recipe'), recipeSel);
+  const routesSection = h('div', { class: 'p-section insp-section' });
   const inBox = h('div', { class: 'insp-list' });
   const outBox = h('div', { class: 'insp-list' });
-  const inSection = h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Inputs'), inBox);
-  const outSection = h('div', { class: 'insp-section' }, h('div', { class: 'insp-label' }, 'Output'), outBox);
+  const inSection = h('div', { class: 'p-section insp-section' }, h('div', { class: 'p-head' }, 'Inputs'), inBox);
+  const outSection = h('div', { class: 'p-section insp-section' }, h('div', { class: 'p-head' }, 'Output'), outBox);
   const produced = h('div', { class: 'insp-muted' });
   const routeBox = h('div', { class: 'insp-routes' });
   const send = h('button', {
@@ -251,8 +251,8 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const lawBox = h('div', { class: 'insp-laws' });
   const upgradesSection = h(
     'div',
-    { class: 'insp-section insp-upgrades' },
-    h('div', { class: 'insp-label' }, iconEl('scrubber', 14), ' Upgrades'),
+    { class: 'p-section insp-section insp-upgrades' },
+    h('div', { class: 'p-head' }, iconEl('scrubber', 14), ' Upgrades'),
     scrubLine,
     scrubBtn,
     scrubWhy,
@@ -276,7 +276,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       view.update();
     },
   }) as HTMLButtonElement;
-  const ageSection = h('div', { class: 'insp-section insp-age' }, h('div', { class: 'insp-label' }, 'Age'), ageText, renew);
+  const ageSection = h('div', { class: 'p-section insp-section insp-age' }, h('div', { class: 'p-head' }, 'Age'), ageText, renew);
 
   let confirming = false;
   let confirmTimer = 0;
@@ -324,7 +324,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     demolish,
   );
 
-  routesSection.append(h('div', { class: 'insp-label' }, 'Routes'), routeBox, send);
+  routesSection.append(h('div', { class: 'p-head' }, 'Routes'), routeBox, send);
   let recipeSig = '';
   let routeSig = '\0';
   const view: InspectorView = {

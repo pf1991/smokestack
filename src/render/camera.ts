@@ -30,6 +30,36 @@ export function zoomAt(cam: Camera, sx: number, sy: number, factor: number): voi
   cam.y = before.y - sy / cam.zoom;
 }
 
+/** Time constant of the eased wheel zoom, ms. */
+export const ZOOM_TAU_MS = 80;
+
+/** Multiplies the pending (or current) zoom goal by `factor`, anchored at screen point (sx, sy). */
+export function setZoomTarget(cam: Camera, sx: number, sy: number, factor: number): void {
+  const live = cam.zoomTarget !== undefined && cam.zoomSeen === cam.zoom;
+  const base = live ? cam.zoomTarget! : cam.zoom;
+  cam.zoomTarget = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, base * factor));
+  cam.zoomAnchor = { x: sx, y: sy };
+  cam.zoomSeen = cam.zoom;
+}
+
+/** Eases the zoom toward its target (exp, tau 80 ms), keeping the world point under the anchor fixed. */
+export function stepZoom(cam: Camera, dtMs: number): void {
+  if (cam.zoomTarget === undefined) return;
+  if (cam.zoomSeen !== cam.zoom) {
+    cam.zoomTarget = undefined;
+    return;
+  }
+  const a = cam.zoomAnchor ?? { x: cam.viewW / 2, y: cam.viewH / 2 };
+  const diff = cam.zoomTarget - cam.zoom;
+  const next = Math.abs(diff) < 1e-4 ? cam.zoomTarget : cam.zoom + diff * (1 - Math.exp(-dtMs / ZOOM_TAU_MS));
+  const before = screenToWorld(cam, a.x, a.y);
+  cam.zoom = next;
+  cam.x = before.x - a.x / cam.zoom;
+  cam.y = before.y - a.y / cam.zoom;
+  cam.zoomSeen = cam.zoom;
+  if (next === cam.zoomTarget) cam.zoomTarget = undefined;
+}
+
 function clampAxis(pos: number, view: number, mapSize: number): number {
   if (mapSize <= view) return (mapSize - view) / 2;
   return Math.min(Math.max(pos, 0), mapSize - view);

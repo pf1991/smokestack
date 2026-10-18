@@ -6,6 +6,8 @@ import {
   screenToTile,
   tileToScreen,
   zoomAt,
+  setZoomTarget,
+  stepZoom,
   clampCamera,
   visibleTileRange,
 } from './camera';
@@ -76,5 +78,28 @@ describe('camera', () => {
     // non-tile-aligned camera
     const r4 = visibleTileRange(cam({ x: 10, y: 10 }), m);
     expect(r4).toEqual({ x0: 0, y0: 0, x1: 25, y1: 19 });
+  });
+
+  it('eased zoom reaches its target and keeps the cursor world point fixed', () => {
+    const c = cam({ x: 300, y: 200 });
+    const before = screenToWorld(c, 250, 180);
+    setZoomTarget(c, 250, 180, 1.5);
+    stepZoom(c, 16);
+    expect(c.zoom).toBeGreaterThan(1);
+    expect(c.zoom).toBeLessThan(1.5);
+    for (let t = 16; t < 500; t += 16) stepZoom(c, 16);
+    stepZoom(c, 500 - 31 * 16);
+    expect(Math.abs(c.zoom - 1.5)).toBeLessThan(1e-3);
+    const after = screenToWorld(c, 250, 180);
+    expect(Math.abs(after.x - before.x) / TILE).toBeLessThan(0.01);
+    expect(Math.abs(after.y - before.y) / TILE).toBeLessThan(0.01);
+  });
+
+  it('zoom target clamps to the bounds', () => {
+    const c = cam();
+    setZoomTarget(c, 0, 0, 100);
+    for (let i = 0; i < 100; i++) stepZoom(c, 16);
+    expect(c.zoom).toBeLessThanOrEqual(3);
+    expect(c.zoom).toBeGreaterThan(2.99);
   });
 });

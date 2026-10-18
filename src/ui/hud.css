@@ -6,11 +6,14 @@
   left: 0;
   right: 0;
   z-index: 50;
+  box-sizing: border-box;
+  /* one row, 48 px at scale 1 (border included); it wraps only on narrow screens */
+  min-height: calc(48px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px 22px;
-  padding: calc(env(safe-area-inset-top, 0px) + 6px) 16px 6px;
+  gap: 4px 10px;
+  padding: env(safe-area-inset-top, 0px) 10px 0;
   color: var(--paper);
   background:
     repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 7px),
@@ -23,12 +26,17 @@
 .hud-brand {
   display: flex;
   flex-direction: column;
-  min-width: 140px;
+  justify-content: center;
+  max-width: 180px;
+  line-height: 1.15;
 }
 
 .hud-company {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 14px;
   font-weight: bold;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -42,27 +50,13 @@
   color: var(--paper-shade);
 }
 
-.hud-cash,
-.hud-clock {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.hud-label {
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--brass);
-}
-
 /* Brass odometer box. */
 .hud-money {
-  min-width: 150px;
-  padding: 3px 12px;
+  min-width: 120px;
+  padding: 2px 8px;
   text-align: right;
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 19px;
   font-weight: bold;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.08em;
@@ -79,19 +73,19 @@
   text-shadow: 0 0 6px rgba(255, 70, 50, 0.6);
 }
 
-.hud-date {
-  font-family: var(--font-display);
-  font-size: 19px;
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
-  color: var(--paper);
-  min-width: 118px;
-}
-
-.hud-date-row {
+.hud-clock {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.hud-date {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--paper);
+  white-space: nowrap;
 }
 
 /* Weather vane: a brass arrow turned to the wind, a rain cloud beside it on wet days. */
@@ -108,15 +102,15 @@
 
 .hud-speeds {
   display: flex;
-  gap: 3px;
-  padding: 3px;
+  gap: 2px;
+  padding: 2px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--brass-dark);
   border-radius: 4px;
 }
 
 .hud-speed,
-.hud-panel-btn,
+.hud-btn,
 .tb-tab {
   font-family: var(--font-display);
   cursor: pointer;
@@ -128,21 +122,35 @@
 }
 
 .hud-speed {
-  min-width: 34px;
-  padding: 4px 6px;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 4px;
+}
+
+/* faster speeds: the triangles overlap into one chevron run */
+.hud-speed .icon + .icon {
+  margin-left: -5px;
 }
 
 .hud-speed:hover,
-.hud-panel-btn:hover,
+.hud-btn:hover,
 .tb-tab:hover {
   border-color: var(--brass-light);
   color: var(--brass-light);
 }
 
+.hud-speed:focus-visible,
+.hud-btn:focus-visible,
+.hud-menu-item:focus-visible {
+  outline: 2px solid var(--brass-light);
+  outline-offset: 1px;
+}
+
 .hud-speed.active,
-.hud-smog.active,
-.hud-factions.active,
+.hud-toggle.active,
 .tb-tab.active {
   color: var(--walnut);
   background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
@@ -150,17 +158,196 @@
   box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.35);
 }
 
-.hud-panels {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
+.hud-spacer {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-.hud-panel-btn {
-  padding: 6px 12px;
+.hud-groups,
+.hud-layers,
+.hud-group-set,
+.hud-split {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hud-split,
+.hud-group-set {
+  gap: 1px;
+}
+
+/* Icon buttons: icon-only below 1600 px (title and aria-label name them), icon and label above. */
+.hud-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  min-width: 34px;
+  padding: 0 7px;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.hud-btn[hidden] {
+  display: none;
+}
+
+.hud-btn .icon {
+  flex: none;
+}
+
+.hud-btn-label {
+  display: none;
+}
+
+/* the panel groups and Routes are named from 1280 px: a crate alone does not say "Fleet" */
+@media (min-width: 1280px) {
+  .hud-labelled .hud-btn-label {
+    display: inline;
+  }
+
+  .hud-labelled.hud-btn {
+    gap: 5px;
+    padding: 0 6px;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* the map toggles and More get theirs from 1600 px */
+@media (min-width: 1600px) {
+  .hud-btn-label {
+    display: inline;
+  }
+
+  .hud-btn,
+  .hud-labelled.hud-btn {
+    gap: 6px;
+    padding: 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+}
+
+.hud-dropdown.open > .hud-btn {
+  border-color: var(--brass-light);
+  color: var(--brass-light);
+  background: linear-gradient(180deg, #2f2016, #4d3626);
+}
+
+/* small brass chevron on dropdown buttons */
+.hud-caret {
+  width: 0;
+  height: 0;
+  margin-left: -2px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--brass);
+}
+
+.hud-dropdown {
+  position: relative;
+}
+
+.hud-menu {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 0;
+  z-index: 60;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  background: linear-gradient(180deg, #3d2a1d, #24170f);
+  border: 2px solid var(--brass-dark);
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--brass), 0 8px 18px rgba(0, 0, 0, 0.6);
+}
+
+.hud-menu[hidden] {
+  display: none;
+}
+
+.hud-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--paper);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.hud-menu-item:hover,
+.hud-menu-item:focus-visible {
+  color: var(--brass-light);
+  background: rgba(232, 199, 90, 0.12);
+  border-color: var(--brass-dark);
+}
+
+.hud-menu-label {
+  flex: 1;
+}
+
+.hud-menu-key {
+  min-width: 18px;
+  padding: 0 4px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  text-align: center;
+  color: var(--paper-shade);
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+}
+
+.hud-menu-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--paper-shade);
+}
+
+/* Newspaper unread count: a red disc on the World button and beside the Newspaper item. */
+.hud-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 14px;
+  letter-spacing: 0;
+  text-align: center;
+  color: var(--paper);
+  background: var(--bad);
+  border: 1px solid var(--paper);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.hud-menu-item .hud-badge {
+  position: static;
+}
+
+.hud-badge[hidden] {
+  display: none;
 }
 
 /* Bottom news band. */
@@ -170,7 +357,7 @@
   right: 0;
   bottom: 0;
   z-index: 50;
-  height: calc(28px + env(safe-area-inset-bottom, 0px));
+  height: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px));
   padding: 0 16px env(safe-area-inset-bottom, 0px);
   display: flex;
   align-items: center;
@@ -185,16 +372,36 @@
   box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.5);
 }
 
-/* Toolbar sits above the ticker. */
+/* Headline mode: one static line, click opens the newspaper. */
+.hud-ticker[hidden] {
+  display: none;
+}
+.hud-ticker.headline {
+  font-size: 13px;
+  text-overflow: ellipsis;
+  border-top-width: 2px;
+  cursor: pointer;
+}
+.hud-ticker.headline .ticker-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-ticker.headline .ticker-item b {
+  font-style: italic;
+  font-weight: normal;
+}
+.hud-ticker.headline:hover {
+  color: var(--walnut);
+}
+
+/* Build bar: one 40 px row, centred and only as wide as its content; cards open as a flyout above it. */
 .toolbar {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(28px + env(safe-area-inset-bottom, 0px) + 6px);
+  bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 6px);
   z-index: 49;
-  width: min(1080px, calc(100vw - 32px));
-  display: flex;
-  flex-direction: column-reverse;
+  max-width: calc((100 * var(--uvw)) - 32px);
   background: linear-gradient(180deg, #3d2a1d, #24170f);
   border: 2px solid var(--brass-dark);
   border-radius: 6px;
@@ -208,20 +415,41 @@
 
 .tb-tabs {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
-  padding: 6px;
+  height: 40px;
+  padding: 0 6px;
+  overflow-x: auto;
 }
 
 .tb-tab {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
   font-size: 12px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tb-tab.active {
+  border-color: var(--brass-light);
+  color: var(--brass-light);
+}
+
+.tb-key {
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0;
+  padding: 0 4px;
+  border: 1px solid var(--brass-dark);
+  border-radius: 3px;
+  color: var(--brass-light);
 }
 
 .tb-inspect {
-  margin-left: auto;
+  margin-left: 8px;
 }
 
 .tb-tab.tb-inspect.selected {
@@ -229,18 +457,37 @@
   color: var(--brass-light);
 }
 
-.tb-body {
-  border-bottom: 1px solid var(--brass-dark);
+@media (max-width: 720px) {
+  .tb-label {
+    display: none;
+  }
+}
+
+/* Overlays the map just above the bar, so the bar itself (and the side panel above it) never moves. */
+.tb-flyout {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0; /* toolbar.ts places it (placeFlyout): centred on the bar, clamped to the map left of the side panel */
+  width: max-content;
+  max-width: calc((100 * var(--uvw)) - var(--side-panel-w, 0px) / var(--ui-scale, 1) - 16px);
+  background: linear-gradient(180deg, #3d2a1d, #24170f);
+  border: 2px solid var(--brass-dark);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--brass), 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+.tb-flyout[hidden] {
+  display: none;
 }
 
 .tb-panel {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
   padding: 8px;
-  max-height: 40vh;
-  overflow-x: hidden;
-  overflow-y: auto;
+  max-height: 132px;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .tb-panel[hidden] {
@@ -248,11 +495,12 @@
 }
 
 .tool-card {
-  flex: 0 0 168px;
+  flex: 0 0 112px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: 3px;
+  padding: 6px 7px;
+  overflow: hidden;
   text-align: left;
   font-family: var(--font-body);
   color: var(--ink);
@@ -285,12 +533,15 @@
 .tc-name {
   font-family: var(--font-display);
   font-weight: bold;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .tc-flow {
-  min-height: 2.6em;
-  font-size: 13px;
+  min-height: 18px;
+  max-height: 3.9em;
+  overflow: hidden;
+  font-size: 11px;
   line-height: 1.3;
 }
 .tc-flow .icon + .icon {
@@ -302,7 +553,7 @@
   flex-wrap: wrap; /* "base $X" and "base +$Y/mo" stack when they do not fit side by side */
   justify-content: space-between;
   gap: 0 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -322,12 +573,6 @@
 
 .tc-lock[hidden] {
   display: none;
-}
-
-@media (max-width: 760px) {
-  .hud-panels {
-    margin-left: 0;
-  }
 }
 
 .hud-faction-mode {
