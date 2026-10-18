@@ -22,6 +22,7 @@ import { assetEfficiency } from './society/aging';
 import { atPrices, priceIndex } from './society/economy';
 import { buildingMaintenance } from './society/upgrades';
 import type { Building, City, GameState, GoodId, SimContext, Vec2 } from './types';
+import { buildingList } from './spatial';
 
 /** demandModifier and averageSatisfaction live in market.ts (a leaf for society/classes.ts); re-exported for existing importers. */
 export { averageSatisfaction, demandModifier } from './market';
@@ -58,7 +59,7 @@ export function productionDay(ctx: SimContext): void {
   // a go-slow (workers' opinion below 30) in the town a works hires from (society/strikeState.ts)
   const slowed = slowedBuildings(state);
   const today = dateToDays(state.date);
-  for (const b of Object.values(state.buildings)) {
+  for (const b of buildingList(state)) {
     const def = BUILDINGS[b.typeId];
     // a striking works produces nothing; on the day it ends the strike is cleared and an unanswered
     // strike card withdrawn (society/strikes.ts)
@@ -115,7 +116,7 @@ export function retailDay(ctx: SimContext): void {
   const goodIds = Object.keys(DEMAND_PER_1000);
   // stores grouped by city in one pass (id order, as a per-city filter would give)
   const storesByCity = new Map<number, Building[]>();
-  for (const b of Object.values(state.buildings)) {
+  for (const b of buildingList(state)) {
     if (b.cityId === null || BUILDINGS[b.typeId].category !== 'retail') continue;
     const list = storesByCity.get(b.cityId);
     if (list) list.push(b);

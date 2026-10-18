@@ -6,6 +6,7 @@ import { terrainEpoch } from './terrainEpoch';
 import { weatherDay } from './weather';
 import { hasTallChimney, scrubberEmission, TALL_CHIMNEY_ADVECT, TALL_CHIMNEY_REACH } from './society/upgrades';
 import type { Building, GameMap, GameState, SimContext } from './types';
+import { buildingList } from './spatial';
 
 export const POLLUTION_DECAY = 0.97;
 export const POLLUTION_CAP = 100;
@@ -85,13 +86,13 @@ for (let code = 0; code < 32; code++) {
  */
 export function smogDay(ctx: SimContext): void {
   const { state } = ctx;
-  const { map, buildings, weather } = state;
+  const { map, weather } = state;
   const { width, height, tiles } = map;
   const dirty = dirtyTiles(map);
   const { list, member } = dirty;
 
   // 1. emission
-  for (const b of Object.values(buildings)) {
+  for (const b of buildingList(state)) {
     if (b.status !== 'ok') continue;
     const amount = BUILDINGS[b.typeId].pollution * SOURCE_FACTOR * emissionFactor(state, b);
     if (amount <= 0) continue;
