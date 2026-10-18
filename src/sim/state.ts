@@ -31,6 +31,7 @@ import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
 import { TREE_COST } from './society/upgrades';
+import { dropAutoJobs } from './logistics/autoRoutes';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
 
 export const ROAD_COST = 500;
@@ -549,6 +550,7 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
     if (removed.length === 0) continue;
     const kept = route.stops.filter((s) => s.buildingId !== id);
     route.stops = kept;
+    if (route.mode === 'auto') dropAutoJobs(state, route); // the stop indices in its jobs moved
     for (const v of Object.values(state.vehicles)) {
       if (v.routeId !== route.id) continue;
       const targetRemoved = removed.includes(v.stopIndex);

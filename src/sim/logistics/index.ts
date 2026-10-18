@@ -1,5 +1,6 @@
 import type { SimContext } from '../types';
-import { autoRoutesDay, autoSizeRoutesMonth } from './autoRoutes';
+import { autoRoutesDay } from './autoRoutes';
+import { autoSizeRoutesMonth } from './autoSize';
 import { worksDay } from './levels';
 
 /** Phase 4b logistics system hooks (each early-outs when no company uses the feature). */

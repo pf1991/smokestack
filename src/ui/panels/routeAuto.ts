@@ -11,7 +11,7 @@ const pct = (share: number) => `${Math.round(share * 100)}%`;
 /**
  * The route window's automation section (spec §6.5): the Manual / Auto switch, the auto-sizing row
  * (on or off, maximum trucks, last month's loaded share) and, on a manual route, a "Leave at"
- * select per stop. Every change goes through updateRoute.
+ * select per stop that loads something. Every change goes through updateRoute.
  */
 export function autoControls(host: { ctx: SimContext }, routeId: number): { el: HTMLElement; refresh(): void } {
   const el = h('div', { class: 'p-section rt-auto' });
@@ -67,6 +67,7 @@ export function autoControls(host: { ctx: SimContext }, routeId: number): { el: 
     ];
     if (!auto) {
       r.stops.forEach((stop, i) => {
+        if (stop.load.length === 0) return; // nothing to wait for where nothing is loaded
         rows.push(h('div', { class: 'p-row' },
           h('span', null, `Leave ${buildingName(host.ctx.state.buildings[stop.buildingId])} at`),
           h('select', {

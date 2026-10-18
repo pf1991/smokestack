@@ -141,6 +141,7 @@ export function updateRoute(
   if (patch.mode !== undefined && patch.mode !== route.mode) {
     route.mode = patch.mode;
     dropAutoJobs(state, route);
+    for (const v of Object.values(state.vehicles)) if (v.routeId === routeId && v.dwell) v.dwell = 0; // a smart wait starts afresh
     if (route.mode === 'manual') delete route.jobs;
   }
   if (patch.stops) {
@@ -394,6 +395,7 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
     veh.cargo = {};
     leaveAutoRoute(veh);
   }
+  if (veh.dwell) veh.dwell = 0;
   veh.routeId = routeId;
   veh.stopIndex = 0;
   veh.path = [];
@@ -565,7 +567,7 @@ function depart(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
     const next = departAuto(state, veh, route);
     if (next === 'wait') return waitHere(state, veh, route);
     if (next === veh.stopIndex) return arrive(ctx, veh, route, def); // the job's pickup is here
-    noteDeparture(state, veh, route);
+    noteDeparture(state, veh, route, route.stops[veh.stopIndex]);
     veh.stopIndex = next;
     plan(ctx, veh, route, def);
     return;
@@ -577,7 +579,7 @@ function depart(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
     return;
   }
   if (veh.dwell) veh.dwell = 0;
-  noteDeparture(state, veh, route);
+  noteDeparture(state, veh, route, atStop ? route.stops[veh.stopIndex] : undefined);
   if (atStop) veh.stopIndex = (veh.stopIndex + 1) % n;
   plan(ctx, veh, route, def);
 }

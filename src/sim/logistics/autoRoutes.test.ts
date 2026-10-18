@@ -5,14 +5,15 @@ import { GOODS } from '../../data/goods';
 import { stateHash } from '../hash';
 import { deserialize, runDays, runTicks, serialize } from '../simulation';
 import { atPrices } from '../society/economy';
-import { buildRoad, lPath, placeBuilding } from '../state';
+import { buildRoad, demolishBuilding, lPath, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Building, GameState, RouteStop, SimContext, Vehicle } from '../types';
 import { assignVehicle, buyTruck, createRoute, updateRoute, vehiclePrice, vehiclesTick } from '../vehicles';
 import {
-  AUTO_BACKLOG_DAYS, AUTO_JOB_CAP, AUTO_MIN_JOB, AUTO_RESERVE, autoRoutesDay, autoSizeRoutesMonth, departAuto, DIST_BIAS,
+  AUTO_BACKLOG_DAYS, AUTO_JOB_CAP, AUTO_MIN_JOB, AUTO_RESERVE, autoRoutesDay, departAuto, DIST_BIAS,
   MIN_LOAD_MAX_WAIT_TICKS,
 } from './autoRoutes';
+import { autoSizeRoutesMonth } from './autoSize';
 
 const forest = (s: GameState, x: number, y: number) => {
   for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) s.map.tiles[(y + dy) * s.map.width + x + dx].terrain = 'forest';
@@ -118,8 +119,9 @@ describe('the job board (spec §6.2)', () => {
     const stops: RouteStop[] = [];
     for (let i = 0; i < 9; i++) {
       const w = must(placeBuilding(ctx, 'player', 'warehouse', { x: 1 + i * 6, y: 7 }));
-      w.input.wood = 10;
-      stops.push({ buildingId: w.id, load: ['wood'], unload: ['wood'] });
+      w.input.wood = i % 2 === 0 ? 10 : 0;
+      // 5 sources × 4 drops (pool-to-pool jobs are never made)
+      stops.push({ buildingId: w.id, load: i % 2 === 0 ? ['wood'] : [], unload: i % 2 === 0 ? [] : ['wood'] });
     }
     const route = must(createRoute(ctx, 'player', 'Pool', stops));
     must(updateRoute(ctx, route.id, { mode: 'auto' }));
@@ -181,7 +183,7 @@ describe('picking a job (spec §6.3)', () => {
     expect(v.cargo).toEqual({ lumber: v.capacity });
     expect(store.input.wood).toBe(50);
     expect(s.routes[route.id].jobs![0].qty).toBe(50 - v.capacity);
-    expect(v.job ?? null).toBeNull(); // the pickup is done: no longer promised
+    expect(v.job).toEqual({ kind: 'deliver', from: 0, to: 2, good: 'lumber', qty: v.capacity }); // no longer promised
     // and it carries the lumber to the factory
     until(ctx, () => (factory.input.lumber ?? 0) > 0);
     expect(factory.input.lumber).toBe(v.capacity);
@@ -250,6 +252,7 @@ describe('picking a job (spec §6.3)', () => {
     const trucks = trucksOf(s, route.id);
     let loaded = 0;
     let empty = 0;
+    let autoLoaded = 0;
     for (let day = 0; day < 360; day++) {
       camp.output.wood = (camp.output.wood ?? 0) + 30;
       const w = Math.floor(mill.input.wood ?? 0);
@@ -257,13 +260,16 @@ describe('picking a job (spec §6.3)', () => {
       mill.output.lumber = (mill.output.lumber ?? 0) + w / 2;
       factory.input.lumber = 0;
       for (let t = 0; t < 24; t++) {
-        const before = trucks.map((v) => v.state);
+        const before = trucks.map((v) => [v.state, v.stopIndex] as const);
         tick(ctx);
         trucks.forEach((v, k) => {
-          if (before[k] !== 'loading' || v.state === 'loading') return;
-          if (cargo(v) > 0) loaded++;
+          if (before[k][0] !== 'loading' || v.state === 'loading') return;
+          if (cargo(v) > 0) autoLoaded++;
+          // utilisation counts departures from stops that load something
+          const counts = s.routes[route.id].stops[before[k][1]].load.length > 0;
+          if (cargo(v) > 0) loaded += counts ? 1 : 0;
           else {
-            empty++;
+            empty += counts ? 1 : 0;
             expect(v.job, 'an empty departure carries a job').toBeTruthy();
             expect(v.job!.from).toBe(v.stopIndex);
           }
@@ -274,7 +280,7 @@ describe('picking a job (spec §6.3)', () => {
     expect(loaded).toBeGreaterThan(100);
     expect(empty).toBeGreaterThan(0);
     expect(s.routes[route.id].stats).toMatchObject({ loaded, empty });
-    expect(s.logistics.stats.autoLoaded.player).toBe(loaded);
+    expect(s.logistics.stats.autoLoaded.player).toBe(autoLoaded);
   });
 
   it('removing a stop mid-job drops its jobs at the next rebuild without throwing', () => {
@@ -321,6 +327,83 @@ describe('picking a job (spec §6.3)', () => {
     expect(s.routes[route.id].jobs).toBeUndefined();
     autoSizeRoutesMonth(ctx);
     expect(s.routes[route.id].stats).toBeUndefined();
+  });
+
+  it('a stop that loads and unloads the same good (a pool) is not a drop for what was just loaded there', () => {
+    const s = testState();
+    const ctx = testCtx(s);
+    const store = must(placeBuilding(ctx, 'player', 'warehouse', { x: 2, y: 7 }));
+    const mill = must(placeBuilding(ctx, 'player', 'sawmill', { x: 12, y: 7 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 10 }, { x: 16, y: 10 })));
+    const route = must(createRoute(ctx, 'player', 'Pool', [
+      { buildingId: store.id, load: ['wood'], unload: ['wood'] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    must(updateRoute(ctx, route.id, { mode: 'auto' }));
+    store.input.wood = 50;
+    must(buyTruck(ctx, 'player', route.id));
+    for (let d = 0; d < 10; d++) {
+      tick(ctx, 24);
+      autoRoutesDay(ctx);
+    }
+    expect(mill.input.wood ?? 0).toBeGreaterThanOrEqual(40);
+    expect(store.input.wood).toBeLessThanOrEqual(10);
+    expect(s.routes[route.id].stats!.loaded).toBeGreaterThan(0);
+  });
+
+  it('two pool warehouses never pass goods between them', () => {
+    const s = testState();
+    const ctx = testCtx(s);
+    const w1 = must(placeBuilding(ctx, 'player', 'warehouse', { x: 2, y: 7 }));
+    const w2 = must(placeBuilding(ctx, 'player', 'warehouse', { x: 8, y: 7 }));
+    const mill = must(placeBuilding(ctx, 'player', 'sawmill', { x: 20, y: 7 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 10 }, { x: 24, y: 10 })));
+    const route = must(createRoute(ctx, 'player', 'Pools', [
+      { buildingId: w1.id, load: ['wood'], unload: ['wood'] },
+      { buildingId: w2.id, load: ['wood'], unload: ['wood'] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    must(updateRoute(ctx, route.id, { mode: 'auto' }));
+    w1.input.wood = 50;
+    w2.input.wood = 50;
+    for (let i = 0; i < 2; i++) must(buyTruck(ctx, 'player', route.id));
+    let prev = [50, 50];
+    for (let d = 0; d < 20; d++) {
+      for (let t = 0; t < 24; t++) {
+        tick(ctx);
+        const now = [w1.input.wood ?? 0, w2.input.wood ?? 0];
+        expect(now[0]).toBeLessThanOrEqual(prev[0]); // a pool only ever gives
+        expect(now[1]).toBeLessThanOrEqual(prev[1]);
+        prev = now;
+      }
+      mill.input.wood = 0; // the mill saws it all
+      autoRoutesDay(ctx);
+      for (const j of s.routes[route.id].jobs!) expect(j.to).toBe(2);
+    }
+    expect(prev[0] + prev[1]).toBeLessThan(100);
+  });
+
+  it('demolishing a stop mid-job drops the route\'s jobs and runs on', () => {
+    const { s, ctx, camp, mill, route } = chain();
+    camp.output.wood = 60;
+    mill.output.lumber = 60;
+    const a = must(buyTruck(ctx, 'player', route.id));
+    const b = must(buyTruck(ctx, 'player', route.id));
+    autoRoutesDay(ctx);
+    departAuto(s, a, s.routes[route.id]);
+    departAuto(s, b, s.routes[route.id]);
+    expect(a.job).toBeTruthy();
+    must(demolishBuilding(ctx, mill.id));
+    expect(a.job ?? null).toBeNull();
+    expect(b.job ?? null).toBeNull();
+    expect(s.routes[route.id].jobs).toEqual([]);
+    expect(() => {
+      for (let d = 0; d < 5; d++) {
+        tick(ctx, 24);
+        autoRoutesDay(ctx);
+      }
+    }).not.toThrow();
+    for (const j of s.routes[route.id].jobs!) expect(j.from < 2 && j.to < 2).toBe(true);
   });
 
   it('cutting a route to one stop idles its trucks', () => {
@@ -392,6 +475,19 @@ describe('smart waits (manual routes, D10)', () => {
     expect(v.dwell ?? 0).toBe(0);
   });
 
+  it('a reassignment or a mode switch starts the smart wait afresh', () => {
+    const { s, ctx, camp, route } = line(1);
+    camp.output.wood = 5;
+    const v = must(buyTruck(ctx, 'player', route.id));
+    until(ctx, () => (v.dwell ?? 0) > 0);
+    must(updateRoute(ctx, route.id, { mode: 'auto' }));
+    expect(v.dwell ?? 0).toBe(0);
+    must(updateRoute(ctx, route.id, { mode: 'manual' }));
+    until(ctx, () => (v.dwell ?? 0) > 0);
+    must(assignVehicle(ctx, v.id, must(createRoute(ctx, 'player', 'Other', s.routes[route.id].stops)).id));
+    expect(v.dwell ?? 0).toBe(0);
+  });
+
   it('minLoad 0 leaves at once, as before', () => {
     const { ctx, camp, route } = line(0);
     camp.output.wood = 5;
@@ -451,6 +547,28 @@ describe('auto-sizing (spec §6.4)', () => {
     autoSizeRoutesMonth(ctx);
     expect(trucksOf(s, route.id).map((v) => v.id)).toEqual([a.id, c.id]);
   });
+
+  for (const mode of ['manual', 'auto'] as const) {
+    it(`a busy 2-stop ${mode} route grows its fleet: return legs from an unload-only stop are not waste`, () => {
+      const { s, ctx, camp, mill } = chain();
+      const route = must(createRoute(ctx, 'player', 'Wood', [
+        { buildingId: camp.id, load: ['wood'], unload: [] },
+        { buildingId: mill.id, load: [], unload: ['wood'] },
+      ]));
+      must(updateRoute(ctx, route.id, { mode, autoSize: { on: true, maxTrucks: 4 } }));
+      for (let i = 0; i < 2; i++) must(buyTruck(ctx, 'player', route.id));
+      for (let d = 0; d < 30; d++) {
+        camp.output.wood = 120;
+        mill.input.wood = 0;
+        tick(ctx, 24);
+        autoRoutesDay(ctx);
+      }
+      expect(s.routes[route.id].stats!.empty).toBe(0);
+      autoSizeRoutesMonth(ctx);
+      expect(s.routes[route.id].stats!.last).toBe(100);
+      expect(trucksOf(s, route.id)).toHaveLength(3);
+    });
+  }
 
   it('never sells the last truck', () => {
     const { s, ctx, route } = sized(1);

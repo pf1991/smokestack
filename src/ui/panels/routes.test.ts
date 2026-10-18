@@ -356,7 +356,7 @@ describe('routes panel', () => {
     expect(auto().querySelector('[data-act="mode"]')!.textContent).toBe('Manual');
     expect(auto().textContent).toContain('Last month: no departures');
     const selects = () => auto().querySelectorAll<HTMLSelectElement>('[data-act="minload"]');
-    expect(selects()).toHaveLength(2);
+    expect(selects()).toHaveLength(1); // the mill stop loads nothing: no select
 
     // Leave at 100% on the first stop
     const sel = selects()[0];
@@ -388,6 +388,20 @@ describe('routes panel', () => {
     click('.rt-head'); // collapse and reopen: the section is rebuilt from the route
     click('.rt-head');
     expect(auto().textContent).toContain('Last month: 72% loaded');
+  });
+
+  it('warns about a truck holding cargo that no stop unloads', () => {
+    const { ctx, camp, mill, host } = setup();
+    const r = must(createRoute(ctx, 'player', 'Wood', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    const v = must(buyTruck(ctx, 'player', r.id));
+    PANELS.routes.open(host, r.id);
+    expect(win().textContent).not.toContain('no stop unloads');
+    v.cargo = { coal: 5 };
+    PANELS.routes.open(host, r.id); // re-renders
+    expect(win().textContent).toContain('trucks holding cargo no stop unloads: 1');
   });
 
   it('rail lines have no automation section', () => {

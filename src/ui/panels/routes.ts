@@ -59,6 +59,10 @@ export function routeWarnings(state: GameState, route: Route): string[] {
   const stuck = routeTrucks(state, route.id).filter((v) => v.state === 'stuck').length;
   if (stuck > 0) out.push(`${info.many} stuck: ${stuck}`);
   if (routeTrucks(state, route.id).length === 0) out.push(`no ${info.many} assigned`);
+  // cargo that no stop of the route unloads would ride along forever
+  const unloads = new Set(route.stops.flatMap((s) => s.unload));
+  const stranded = routeTrucks(state, route.id).filter((v) => Object.keys(v.cargo).some((g) => v.cargo[g] > 0 && !unloads.has(g))).length;
+  if (stranded > 0) out.push(`${info.many} holding cargo no stop unloads: ${stranded}`);
   return out;
 }
 

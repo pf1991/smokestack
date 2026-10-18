@@ -180,7 +180,9 @@ jobs `{ from, to, good, qty, score }` (stop indices):
 
 - for each stop *i* and each good *g* in its `load`: `avail` = whole units in stock, less the cargo
   already promised to trucks heading to *i* for *g*;
-- for each other stop *j* whose `unload` has *g* and accepts it: `room` = `storageLeft`;
+- for each other stop *j* whose `unload` has *g* and accepts it: `room` = `storageLeft`. A *pool*
+  stop (one whose `load` and `unload` both list *g*, such as a warehouse used as a buffer) never sends
+  *g* to another pool stop, so goods do not bounce between buffers;
 - `qty = min(avail, room)`; jobs under 5 units are dropped;
 - `score = qty × basePrice(g) / (distance(i, j) + 8)`, where distance is the Manhattan distance
   between the two buildings' centres;
@@ -192,20 +194,27 @@ The board is saved with the route, so a reload continues identically.
 
 When an auto truck finishes its dwell:
 
-1. **If it carries cargo**, it heads for the nearest stop (by distance, then stop index) that unloads
-   a carried good and has room for it. If no stop has room, it heads for the nearest stop that unloads
-   it and waits there.
+1. **If it carries cargo**, it heads for its job's drop stop while that has room. Otherwise it heads
+   for the nearest stop (by distance, then stop index) that unloads a carried good and has room for it.
+   If no stop has room, it heads for the nearest stop that unloads it and waits there. It never drops
+   cargo back at the stop it loaded it from, nor from one pool stop at another (§6.2).
 2. **Otherwise** it takes the first board job with `qty > 0`, lowers that job's `qty` by its
-   capacity, and heads for the job's pickup stop. At the pickup it loads only the job's good.
+   capacity, and heads for the job's pickup stop. At the pickup it loads only the job's good; the
+   job then becomes a delivery (no longer promised cargo) that remembers its pickup and drop.
 3. **With no job**, it stays at its stop and checks again the next day. It never drives an empty
    leg unless a job waits at its end.
 
 ### 6.4 Auto-sizing (monthly)
 
-A route with `autoSize = { on: true, maxTrucks }` counts loaded and empty departures and the days
-its board had a job no truck took (`backlogDays`). At the month end:
+A route with `autoSize = { on: true, maxTrucks }` counts loaded and empty departures and its
+backlog days (`backlogDays`). At the month end:
 
-- utilisation `u = loaded / (loaded + empty)`;
+- only departures **from a stop that loads something** count: leaving an unload-only stop empty is
+  the return leg, not waste (so a busy two-stop route reads 100%, not 50%);
+- a backlog day on an automatic route is a day whose board ended with a job of at least one truck
+  load (the smallest truck on the route) left untaken; on an auto-sized manual route, which has no
+  board, it is a day ending with at least one truck load of a loaded good waiting at a loading stop;
+- utilisation `u = loaded / (loaded + empty)` (0 with no counted departures);
 - if `u > 0.85`, `backlogDays ≥ 10`, the route has fewer than `maxTrucks` trucks and the owner keeps
   the reserve after paying, it buys one truck of the newest model;
 - else if `u < 0.60` and the route has more than one truck, it sells the oldest (lowest `builtYear`,

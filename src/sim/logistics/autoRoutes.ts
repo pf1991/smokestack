@@ -1,15 +1,14 @@
 import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import { acceptsGood, loadSource, storageLeft } from '../inventory';
-import { atPrices } from '../society/economy';
-import type { Building, GameState, GoodId, Route, SimContext, Vehicle } from '../types';
-import { buyTruck, sellVehicle, vehiclePrice } from '../vehicles';
+import type { Building, GameState, GoodId, Route, RouteStop, SimContext, Vehicle } from '../types';
 import { modelSpec, newestModel } from './models';
 import type { AutoJob, HubJob, RouteStats } from './types';
 
 /**
- * Automatic routes (spec §6): a daily job board per auto route, the per-departure job pick, and
- * monthly auto-sizing. The only writer of an auto-route truck's `job` (a `'collect'` HubJob whose
+ * Automatic routes (spec §6): a daily job board per auto route and the per-departure job pick
+ * (monthly auto-sizing is in autoSize.ts, which may import vehicles.ts: this module may not, since
+ * state.ts and vehicles.ts import it). The only writer of an auto-route truck's `job` (a `'collect'` HubJob whose
  * from/to are stop indices on its route).
  */
 
@@ -42,7 +41,14 @@ export const tracksStats = (route: Route): boolean => route.mode === 'auto' || r
 const isCollect = (j: Vehicle['job']): j is HubJob & { good: GoodId } =>
   !!j && 'kind' in j && j.kind === 'collect' && j.good !== null;
 
-const newStats = (): RouteStats => ({ loaded: 0, empty: 0, backlogDays: 0 });
+/** A loaded auto-route truck: a 'deliver' HubJob remembering its pickup (`from`) and drop (`to`) stop indices. */
+const isDeliver = (j: Vehicle['job']): j is HubJob & { good: GoodId } =>
+  !!j && 'kind' in j && j.kind === 'deliver' && j.good !== null;
+
+/** A pool stop both loads and unloads `g` (a warehouse used as a buffer): goods never move pool to pool. */
+const isPool = (stop: RouteStop | undefined, g: GoodId): boolean => !!stop && stop.load.includes(g) && stop.unload.includes(g);
+
+export const newStats = (): RouteStats => ({ loaded: 0, empty: 0, backlogDays: 0 });
 
 function cargoTotal(veh: Vehicle): number {
   let n = 0;
@@ -68,12 +74,16 @@ function truckLoad(state: GameState, trucks: Vehicle[]): number {
 const byScore = (a: AutoJob, b: AutoJob): number =>
   b.score - a.score || a.from - b.from || a.to - b.to || (a.good < b.good ? -1 : a.good > b.good ? 1 : 0);
 
-/** Clears a truck's job when it no longer names a loading stop of its route. */
-function validJob(veh: Vehicle, route: Route): boolean {
+/**
+ * Clears a truck's job when it no longer fits its route: a pickup must name a stop that loads its
+ * good; a delivery only valid stop indices. True for a pickup still to be made (promised cargo).
+ */
+function promisedJob(veh: Vehicle, route: Route): boolean {
   const j = veh.job;
   if (!j) return false;
-  const stop = isCollect(j) ? route.stops[j.from] : undefined;
-  if (isCollect(j) && stop && j.to < route.stops.length && stop.load.includes(j.good)) return true;
+  const n = route.stops.length;
+  if (isCollect(j) && j.from < n && j.to < n && route.stops[j.from].load.includes(j.good)) return true;
+  if (isDeliver(j) && j.from < n && j.to < n) return false;
   veh.job = null;
   return false;
 }
@@ -91,7 +101,7 @@ function rebuildBoard(state: GameState, route: Route, trucks: Vehicle[]): void {
   // cargo promised to trucks still heading for their pickup, by stop and good
   let promised: Map<string, number> | null = null;
   for (const v of trucks) {
-    if (!validJob(v, route)) continue;
+    if (!promisedJob(v, route)) continue;
     const j = v.job as HubJob;
     const key = `${j.from}:${j.good}`;
     (promised ??= new Map()).set(key, (promised.get(key) ?? 0) + j.qty);
@@ -106,7 +116,7 @@ function rebuildBoard(state: GameState, route: Route, trucks: Vehicle[]): void {
         const avail = Math.floor(src[g] ?? 0) - (promised?.get(`${i}:${g}`) ?? 0);
         if (avail < AUTO_MIN_JOB) continue;
         for (let j = 0; j < n; j++) {
-          if (j === i || !stops[j].unload.includes(g)) continue;
+          if (j === i || !stops[j].unload.includes(g) || (isPool(stops[i], g) && isPool(stops[j], g))) continue;
           const to = state.buildings[stops[j].buildingId];
           if (!to || to === from || !acceptsGood(to, g)) continue;
           const qty = Math.min(avail, storageLeft(to, g));
@@ -163,7 +173,7 @@ export function autoRoutesChanged(): void {
 }
 const anyCache = new WeakMap<GameState['routes'], { rev: number; nextId: number; any: boolean }>();
 
-function anyTracked(state: GameState): boolean {
+export function anyTracked(state: GameState): boolean {
   const c = anyCache.get(state.routes);
   if (c && c.rev === autoRev && c.nextId === state.nextId) return c.any;
   let any = false;
@@ -193,11 +203,12 @@ export function autoRoutesDay(ctx: SimContext): void {
 }
 
 /**
- * Spec §6.3, at the end of an auto truck's dwell at stop `veh.stopIndex`: cargo first (the nearest
- * stop that unloads a carried good and has room; else the nearest that unloads it), then the board
- * (the first job with qty left: the truck promises up to its capacity), else `'wait'`. Returns the
- * next stop index, or `'wait'` when the truck should stay where it is (the caller retries the
- * transfer and checks again later). Sets or clears `veh.job`.
+ * Spec §6.3, at the end of an auto truck's dwell at stop `veh.stopIndex`: cargo first (its job's drop
+ * while that has room; else the nearest stop that unloads a carried good and has room; else the
+ * nearest that unloads it; never back to the pickup, nor from a pool to a pool), then the board (the
+ * first job with qty left: the truck promises up to its capacity), else `'wait'`. Returns the next
+ * stop index, or `'wait'` when the truck should stay where it is (the caller retries the transfer
+ * and checks again later). Sets or clears `veh.job`.
  */
 export function departAuto(state: GameState, veh: Vehicle, route: Route): number | 'wait' {
   const { stops } = route;
@@ -205,7 +216,13 @@ export function departAuto(state: GameState, veh: Vehicle, route: Route): number
   const here = veh.stopIndex;
   const at = stops[here] ? state.buildings[stops[here].buildingId] : undefined;
   if (cargoTotal(veh) > 0) {
-    if (veh.job) veh.job = null;
+    const dj = isDeliver(veh.job) && veh.job.from < n && veh.job.to < n ? veh.job : null;
+    if (!dj && veh.job) veh.job = null;
+    if (dj && dj.to !== here && (veh.cargo[dj.good] ?? 0) > 0 && stops[dj.to].unload.includes(dj.good)) {
+      const drop = state.buildings[stops[dj.to].buildingId];
+      if (drop && storageLeft(drop, dj.good) > 0) return dj.to;
+    }
+    const origin = dj ? dj.from : -1;
     let best = -1;
     let bestD = Infinity;
     let fallback = -1;
@@ -217,6 +234,7 @@ export function departAuto(state: GameState, veh: Vehicle, route: Route): number
       let room = false;
       for (const g in veh.cargo) {
         if (!stops[j].unload.includes(g) || !acceptsGood(b, g)) continue;
+        if (j === origin || (origin >= 0 && isPool(stops[origin], g) && isPool(stops[j], g))) continue;
         unloads = true;
         if (storageLeft(b, g) > 0) room = true;
       }
@@ -248,12 +266,13 @@ export function departAuto(state: GameState, veh: Vehicle, route: Route): number
 
 /**
  * At an auto truck's arrival: the one good it may load here (its job's, when this is the job's
- * pickup), or null to load nothing. The pickup is then done, so the job is cleared (no longer promised).
+ * pickup), or null to load nothing. The pickup is then done: the job becomes a 'deliver' job (no
+ * longer promised) that remembers where the cargo came from and where it is bound.
  */
 export function autoPickup(veh: Vehicle): GoodId | null {
   const j = veh.job;
   if (!isCollect(j) || j.from !== veh.stopIndex) return null;
-  veh.job = null;
+  veh.job = { kind: 'deliver', from: j.from, to: j.to, good: j.good, qty: j.qty };
   return j.good;
 }
 
@@ -268,60 +287,27 @@ export function leaveAutoRoute(veh: Vehicle): void {
   if (veh.job && veh.hubId == null) veh.job = null;
 }
 
-/** Counts a departure for auto-sizing and the soak's auto-route gate. */
-export function noteDeparture(state: GameState, veh: Vehicle, route: Route): void {
+/**
+ * Counts a departure for auto-sizing and the soak's auto-route gate. Utilisation counts only
+ * departures from a stop that loads something (`from`; undefined when the truck was not at a stop):
+ * leaving an unload-only stop empty is the return leg, not waste. Every loaded departure on an auto
+ * route counts towards `autoLoaded`.
+ */
+export function noteDeparture(state: GameState, veh: Vehicle, route: Route, from: RouteStop | undefined): void {
   if (!tracksStats(route)) return;
+  const loaded = cargoTotal(veh) > 0;
+  if (loaded && route.mode === 'auto') {
+    const tally = state.logistics.stats.autoLoaded;
+    tally[veh.ownerId] = (tally[veh.ownerId] ?? 0) + 1;
+  }
+  if (!from || from.load.length === 0) return;
   const stats = (route.stats ??= newStats());
-  if (cargoTotal(veh) > 0) {
-    stats.loaded++;
-    if (route.mode === 'auto') {
-      const tally = state.logistics.stats.autoLoaded;
-      tally[veh.ownerId] = (tally[veh.ownerId] ?? 0) + 1;
-    }
-  } else stats.empty++;
+  if (loaded) stats.loaded++;
+  else stats.empty++;
 }
 
 /** Share of loaded departures in `stats` (0 with no departures). */
 export function utilisation(stats: RouteStats | undefined): number {
   const total = stats ? stats.loaded + stats.empty : 0;
   return total > 0 ? stats!.loaded / total : 0;
-}
-
-/** Spec §6.4 for one auto-sized route: buy one, sell one, or neither. */
-function sizeRoute(ctx: SimContext, route: Route, maxTrucks: number): void {
-  const { state } = ctx;
-  const stats = route.stats ?? newStats();
-  const u = utilisation(stats);
-  const trucks = Object.values(state.vehicles).filter((v) => v.routeId === route.id && v.kind === 'truck');
-  if (u > AUTO_BAND.high && stats.backlogDays >= AUTO_BACKLOG_DAYS && trucks.length < maxTrucks) {
-    const company = state.companies[route.ownerId];
-    if (company && company.money > 0 && company.money - vehiclePrice(state, 'truck') >= atPrices(state, AUTO_RESERVE)) {
-      buyTruck(ctx, route.ownerId, route.id);
-    }
-  } else if (u < AUTO_BAND.low && trucks.length > 1) {
-    let oldest = trucks[0];
-    for (const v of trucks) if (v.builtYear < oldest.builtYear) oldest = v; // ids ascend: ties keep the lowest
-    sellVehicle(ctx, oldest.id);
-  }
-}
-
-/**
- * Monthly, routes in id order: auto-sizes every route with auto-sizing on, then resets every
- * route's counters, keeping last month's loaded share (percent) for the route window.
- */
-export function autoSizeRoutesMonth(ctx: SimContext): void {
-  const { state } = ctx;
-  if (!anyTracked(state)) return;
-  for (const key in state.routes) {
-    const route = state.routes[key];
-    if (route.autoSize?.on) sizeRoute(ctx, route, clampMaxTrucks(route.autoSize.maxTrucks));
-    if (!route.stats) continue;
-    if (!tracksStats(route)) {
-      delete route.stats; // switched back to a plain manual route
-      continue;
-    }
-    const s = route.stats;
-    route.stats = { ...newStats(), last: s.loaded + s.empty > 0 ? Math.round(utilisation(s) * 100) : undefined };
-    if (route.stats.last === undefined) delete route.stats.last;
-  }
 }
