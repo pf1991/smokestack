@@ -35,11 +35,10 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-// rival.ts is Phase 4's: it only gets classes added, its inline sizes are migrated with its content
 // panels that have several titled blocks must say so
-const MIN_SECTIONS: Record<string, number> = { finance: 5, politics: 5, building: 3, city: 3, contracts: 3, rival: 2 };
+const MIN_SECTIONS: Record<string, number> = { finance: 5, politics: 5, building: 3, city: 3, contracts: 3, rival: 6 };
 
-const INLINE_FONT_EXEMPT = new Set(['rival']);
+const INLINE_FONT_EXEMPT = new Set<string>([]);
 
 describe('panel density classes', () => {
   const cases: [string, (t: ReturnType<typeof setup>) => unknown][] = [

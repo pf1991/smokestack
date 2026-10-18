@@ -431,13 +431,124 @@
   min-height: 20px;
 }
 
-/* the Baron's header keeps portrait and text side by side */
+/* ---- Rival panel: the shared sections, with the Baron's portrait beside his name ---- */
+
 .p-section.rival-head {
   flex-direction: row;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 10px;
 }
 
-/* the rival panel already spaces its blocks with a flex gap */
-.rival-panel > .p-section {
-  margin-bottom: 0;
+.rival-head-text {
+  min-width: 0;
+}
+
+.rival-head-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--brass-light);
+}
+
+.rival-head-age,
+.rival-cash,
+.rival-date {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.rival-quip {
+  font-style: italic;
+  line-height: 1.3;
+  margin: 2px 0;
+}
+
+.rival-none {
+  opacity: 0.8;
+}
+
+.rival-traits {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rival-trait {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.rival-trait-label {
+  display: inline-block;
+  padding: 0 6px;
+  margin-right: 6px;
+  background: #3a1a18;
+  border: 1px solid var(--brass-dark);
+  border-radius: 2px;
+  color: var(--paper);
+  font-weight: bold;
+}
+
+.rival-trait-blurb {
+  opacity: 0.85;
+}
+
+.rival-grudges,
+.rival-strikes,
+.rival-stores {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rival-grudges li {
+  padding: 0 6px;
+  min-height: 18px;
+  margin-bottom: 1px;
+}
+
+.rival-strikes li,
+.rival-stores li {
+  line-height: 1.35;
+}
+
+.rival-worth-labels {
+  font-size: 12px;
+  min-height: 18px;
+}
+
+.rival-you {
+  color: #8fb6e6;
+}
+
+.rival-him {
+  color: #e88a86;
+  text-align: right;
+}
+
+.rival-worth-bar {
+  display: flex;
+  height: 12px;
+  border: 1px solid var(--brass-dark);
+  background: #1d1a16;
+  overflow: hidden;
+}
+
+.rival-worth-bar > div {
+  transition: width 0.4s;
+}
+
+.rival-stake {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.rival-stake > span {
+  opacity: 0.85;
+}
+
+.rival-takeover:disabled {
+  opacity: 0.55;
 }

@@ -19,7 +19,8 @@ import type { PanelDef } from './index';
 
 const PLAYER_COLOR = '#2f6fb5';
 const RIVAL_COLOR = '#b5302f';
-const PORTRAIT_PX = 132;
+/** the same size as the Family panel's head of the family */
+const PORTRAIT_PX = 96;
 /** shares the "Buy his shares" button buys at a time */
 const BUY_LOT = 50;
 /** how many grudges and retaliations the panel lists */
@@ -63,16 +64,12 @@ function worthBar(player: number, rival: number, playerName: string): HTMLElemen
   const p = Math.max(0, player);
   const r = Math.max(0, rival);
   const total = p + r || 1;
-  const seg = (v: number, color: string) =>
-    h('div', { style: { width: `${(v / total) * 100}%`, background: color, transition: 'width 0.4s' } });
-  return h('div', null,
-    h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '3px', gap: '8px' } },
-      h('span', { style: { color: '#8fb6e6' } }, `${playerName}: ${formatMoney(player)}`),
-      h('span', { style: { color: '#e88a86', textAlign: 'right' } }, `Smogsworth: ${formatMoney(rival)}`)),
-    h('div', {
-      class: 'rival-worth-bar',
-      style: { display: 'flex', height: '14px', border: '1px solid #8a6d17', background: '#1d1a16', overflow: 'hidden' },
-    }, seg(p, PLAYER_COLOR), seg(r, RIVAL_COLOR)),
+  const seg = (v: number, color: string) => h('div', { style: { width: `${(v / total) * 100}%`, background: color } });
+  return h('div', { class: 'rival-worth' },
+    h('div', { class: 'p-row rival-worth-labels' },
+      h('span', { class: 'rival-you' }, `${playerName}: ${formatMoney(player)}`),
+      h('span', { class: 'rival-him' }, `Smogsworth: ${formatMoney(rival)}`)),
+    h('div', { class: 'rival-worth-bar' }, seg(p, PLAYER_COLOR), seg(r, RIVAL_COLOR)),
   );
 }
 
@@ -105,46 +102,35 @@ function lastStrikes(state: GameState): NewsItem[] {
   return out;
 }
 
-const sectionTitle = (text: string) =>
-  h('div', { style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', margin: '10px 0 4px' } }, text);
+/** One block of the panel: the shared 12 px header, then its content (panels.css .p-section). */
+const section = (title: string, ...content: (HTMLElement | null)[]) =>
+  h('div', { class: 'p-section' }, h('div', { class: 'p-head' }, title), ...content);
 
 function traitChips(state: GameState): HTMLElement {
-  return h('div', { class: 'rival-traits', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
-    state.nemesis.traits.map((t) => h('div', {
-      class: 'rival-trait',
-      'data-trait': t,
-      style: { fontSize: '12px', lineHeight: '1.3' },
-    },
-    h('span', {
-      class: 'rival-trait-label',
-      style: {
-        display: 'inline-block', padding: '0 6px', marginRight: '6px', background: '#3a1a18',
-        border: '1px solid #8a6d17', borderRadius: '2px', color: '#efe3c3', fontWeight: 'bold',
-      },
-    }, BARON_TRAITS[t].label),
-    h('span', { style: { opacity: '0.85' } }, BARON_TRAITS[t].blurb))));
+  return h('div', { class: 'rival-traits' },
+    state.nemesis.traits.map((t) => h('div', { class: 'rival-trait', 'data-trait': t },
+      h('span', { class: 'rival-trait-label' }, BARON_TRAITS[t].label),
+      h('span', { class: 'rival-trait-blurb' }, BARON_TRAITS[t].blurb))));
 }
 
 function grudgeList(state: GameState): HTMLElement {
   const top = topGrudges(state);
   const heaviest = top[0]?.weight ?? 1;
-  if (top.length === 0) return h('div', { class: 'rival-grudges', style: { fontSize: '13px', opacity: '0.8' } }, 'No grudges. He barely knows your name.');
-  return h('ul', { class: 'rival-grudges', style: { margin: '0', paddingLeft: '0', listStyle: 'none', fontSize: '13px' } },
+  if (top.length === 0) return h('div', { class: 'rival-grudges rival-none' }, 'No grudges. He barely knows your name.');
+  return h('ul', { class: 'rival-grudges' },
     top.map((g) => h('li', {
       title: `Weight ${g.weight.toFixed(1)}`,
-      style: {
-        padding: '1px 6px', marginBottom: '2px',
-        background: `linear-gradient(90deg, rgba(181,48,47,0.45) ${Math.round((g.weight / heaviest) * 100)}%, transparent 0)`,
-      },
+      // the bar behind each grudge is its weight against the heaviest
+      style: { background: `linear-gradient(90deg, rgba(181,48,47,0.45) ${Math.round((g.weight / heaviest) * 100)}%, transparent 0)` },
     }, grudgeLine(state, g))));
 }
 
 function strikeList(state: GameState): HTMLElement {
   const strikes = lastStrikes(state);
-  if (strikes.length === 0) return h('div', { class: 'rival-strikes', style: { fontSize: '13px', opacity: '0.8' } }, 'He has not struck back. Yet.');
-  return h('ul', { class: 'rival-strikes', style: { margin: '0', paddingLeft: '18px', fontSize: '13px' } },
+  if (strikes.length === 0) return h('div', { class: 'rival-strikes rival-none' }, 'He has not struck back. Yet.');
+  return h('ul', { class: 'rival-strikes' },
     strikes.map((n) => h('li', { title: n.body },
-      h('span', { style: { opacity: '0.7', fontSize: '12px' } }, `${formatDate(n.date)}: `), n.headline)));
+      h('span', { class: 'rival-date' }, `${formatDate(n.date)}: `), n.headline)));
 }
 
 function render(game: GameController, refresh: () => void): HTMLElement {
@@ -157,22 +143,20 @@ function render(game: GameController, refresh: () => void): HTMLElement {
   const mood: BaronMood = rival.active ? baronMood(state) : 'furious';
   const quip = rival.active ? lastQuip(state) : 'Ousted. The Baron now spends his days writing furious letters to the editor.';
 
-  const head = h('div', { class: 'p-section rival-head', style: { display: 'flex', gap: '12px', alignItems: 'flex-start' } },
+  const head = h('div', { class: 'p-section rival-head' },
     portrait(mood, nem.head.generation, nem.head.name),
-    h('div', { style: { minWidth: '0' } },
-      h('div', { class: 'rival-head-name', style: { fontFamily: 'var(--font-display)', fontSize: '17px', color: 'var(--brass-light)' } }, nem.head.name),
-      h('div', { class: 'rival-head-age', style: { fontSize: '12px', opacity: '0.8', marginBottom: '6px' } },
+    h('div', { class: 'rival-head-text' },
+      h('div', { class: 'rival-head-name' }, nem.head.name),
+      h('div', { class: 'rival-head-age' },
         `aged ${state.date.year - nem.head.born} · ${rival.name}${rival.active ? '' : ' (defunct)'}`),
-      quip && h('div', { style: { fontStyle: 'italic', fontSize: '13px', lineHeight: '1.35' } }, quip.startsWith("'") ? quip : `“${quip}”`),
-      h('div', { style: { fontSize: '12px', marginTop: '6px', opacity: '0.85' } },
-        `Cash ${formatMoney(rival.money)} · Loan ${formatMoney(rival.loan)}`)));
+      quip && h('div', { class: 'rival-quip' }, quip.startsWith("'") ? quip : `“${quip}”`),
+      h('div', { class: 'rival-cash' }, `Cash ${formatMoney(rival.money)} · Loan ${formatMoney(rival.loan)}`)));
 
   const stores = storesByCity(state);
-  const storeList = h('div', { class: 'p-section' },
-    h('div', { class: 'p-head', style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', margin: '10px 0 4px' } }, 'His stores'),
+  const storeList = section('His stores',
     stores.length === 0
-      ? h('div', { style: { fontSize: '13px', opacity: '0.8' } }, 'None yet. He is scheming.')
-      : h('ul', { class: 'rival-stores', style: { margin: '0', paddingLeft: '18px', fontSize: '13px' } },
+      ? h('div', { class: 'rival-none' }, 'None yet. He is scheming.')
+      : h('ul', { class: 'rival-stores' },
         stores.map((s) => h('li', null, h('b', null, s.city), s.goods.length ? ` — ${s.goods.join(', ')}` : ' — empty shelves'))));
 
   // the share route (exchange/trading.ts): a majority of his shares takes his company
@@ -185,7 +169,6 @@ function render(game: GameController, refresh: () => void): HTMLElement {
     class: 'btn rival-takeover',
     disabled: !usable,
     title: gate ?? undefined,
-    style: { width: '100%', marginTop: '12px', opacity: usable ? '1' : '0.55' },
     onClick: () => {
       const r = buyShares(game.ctx, 'player', 'rival', BUY_LOT);
       const message = !r.ok ? r.error : game.ctx.state.flags.takeover ? 'Hostile takeover complete! Smogsworth is ousted.' : `Bought ${BUY_LOT} of his shares`;
@@ -196,24 +179,23 @@ function render(game: GameController, refresh: () => void): HTMLElement {
     ? `Buy his shares · ${BUY_LOT} for ${formatMoney(q.total)}${q.premium > 0 ? ` (incl. ${formatMoney(q.premium)} control premium)` : ''}`
     : 'Takeover complete');
   const hint = rival.active
-    ? h('div', { class: 'rival-stake', style: { fontSize: '12px', opacity: '0.8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' } },
+    ? h('div', { class: 'rival-stake' },
       h('span', null, gate ?? `You hold ${held} of his ${SHARES_OUTSTANDING} shares; ${CONTROL_SHARES} takes his company (you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes control pays a control premium as large again).`),
       h('button', { class: 'btn', type: 'button', onClick: () => game.openPanel('exchange') }, 'Exchange'))
     : null;
 
-  return h('div', { class: 'rival-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+  return h('div', { class: 'rival-panel' },
     head,
-    sectionTitle('His character'),
-    traitChips(state),
-    sectionTitle('Grudges against you'),
-    grudgeList(state),
-    sectionTitle('His last strikes'),
-    strikeList(state),
-    h('div', { class: 'p-head', style: { fontFamily: 'var(--font-display)', color: 'var(--brass-light)', marginTop: '8px' }, title: 'Cash minus loans, plus works, vehicles and shares held' }, 'Net worth'),
-    worthBar(mine, his, state.companies.player.name),
+    section('His character', traitChips(state)),
+    section('Grudges against you', grudgeList(state)),
+    section('His last strikes', strikeList(state)),
+    h('div', { class: 'p-section', title: 'Cash minus loans, plus works, vehicles and shares held' },
+      h('div', { class: 'p-head' }, 'Net worth'),
+      worthBar(mine, his, state.companies.player.name)),
     storeList,
-    button,
-    hint);
+    hint && section('Takeover', hint),
+    // pinned to the foot of the panel, like Finance's loan buttons
+    h('div', { class: 'p-actions' }, button));
 }
 
 let win: GameWindow | null = null;
