@@ -321,6 +321,29 @@ describe('truck tolls', () => {
     expect(ledger.expense.vehicles).toBe(3 * TRUCK_TOLL);
   });
 
+  it('toll a hub truck in the towns of its warehouse and of its job\'s pickup and drop, once per town', () => {
+    const ctx = testCtx(testState({ width: 120, height: 60, money: 1e7, cities: [{ x: 20, y: 20 }, { x: 90, y: 20 }] }));
+    const { state } = ctx;
+    for (const c of state.cities) c.politics.edicts = ['truck_tolls'];
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 29, y: 24 }));
+    const near = must(placeBuilding(ctx, 'player', 'sawmill', NEAR));
+    const b1 = must(placeBuilding(ctx, 'player', 'sawmill', { x: 75, y: 19 }));
+    const hubTruck = (job: Vehicle['job']): void => {
+      const v: Vehicle = {
+        id: state.nextId++, kind: 'truck', ownerId: 'player', routeId: null, pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 },
+        path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900, model: 'steam_lorry', speed: 0.5,
+        hubId: wh.id, job,
+      };
+      state.vehicles[v.id] = v;
+    };
+    hubTruck(null); // waiting at home: its warehouse's town
+    hubTruck({ kind: 'collect', from: near.id, to: wh.id, good: 'lumber', qty: 10 }); // both ends in town 0: one toll
+    hubTruck({ kind: 'deliver', from: wh.id, to: b1.id, good: 'lumber', qty: 10 }); // towns 0 and 1: two tolls
+    const before = state.companies.player.money;
+    truckTollsMonth(ctx);
+    expect(before - state.companies.player.money).toBe(4 * TRUCK_TOLL);
+  });
+
   it('are charged by the monthly vehicle upkeep', () => {
     const ctx = town();
     ctx.state.cities[0].politics.edicts = ['truck_tolls'];

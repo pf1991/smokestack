@@ -4,7 +4,10 @@ import type { GameController } from '../../game/controller';
 import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle } from '../../sim/vehicles';
 import { fitKit, hasNewerModel, kitCost, kitRefusal, modelRow, newestModel, type KitId } from '../../sim/logistics/models';
 import { assetAge, assetEfficiency } from '../../sim/society/aging';
-import { routeOptions } from './fleet';
+import { HUB_VALUE, routeOptions } from './fleet';
+import { hubTarget } from '../../sim/logistics/jobRoute';
+import type { HubJob } from '../../sim/logistics/types';
+import type { Vehicle } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
@@ -20,6 +23,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     class: 'insp-route-sel',
     'aria-label': 'Route',
     onChange: () => {
+      if (routeSel.value === HUB_VALUE) return; // already on its hub
       const r = assignVehicle(host.ctx, id, routeSel.value === '' ? null : Number(routeSel.value));
       if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
       view.update();
@@ -39,8 +43,10 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   }, 'Follow');
   const state = h('span');
   const next = h('span');
+  const job = h('span');
   const cargo = h('span');
   const stat = (label: string, v: HTMLElement) => h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, label), v);
+  const jobRow = stat('Job', job);
   const sell = h('button', {
     class: 'btn insp-sell',
     onClick: () => {
@@ -87,7 +93,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   });
   const view: InspectorView = {
     el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner),
-      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), stat('Model', model), ...kitRows.map((k) => k.row), stat('Age', age)),
+      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), jobRow, stat('Next stop', next), stat('Cargo', cargo), stat('Model', model), ...kitRows.map((k) => k.row), stat('Age', age)),
       h('div', { class: 'p-actions' }, follow, replace, sell)),
     update() {
       const s = host.ctx.state;
@@ -95,7 +101,9 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       if (!v) return false;
       const route = v.routeId !== null ? s.routes[v.routeId] : undefined;
       const stop = route?.stops[v.stopIndex];
-      const target = stop ? s.buildings[stop.buildingId] : undefined;
+      const hubbed = v.hubId != null;
+      const targetId = hubbed ? hubTarget(v) : stop?.buildingId;
+      const target = targetId != null ? s.buildings[targetId] : undefined;
       setOwnerBadge(owner, s, v.ownerId);
       const opts = routeOptions(s, v);
       const sig = opts.map((o) => `${o.value}:${o.label}`).join('|');
@@ -104,12 +112,14 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         optSig = sig;
         routeSel.replaceChildren(...opts.map((o) => h('option', { value: o.value }, o.label)));
       }
-      const want = v.routeId === null ? '' : String(v.routeId);
+      const want = hubbed ? HUB_VALUE : v.routeId === null ? '' : String(v.routeId);
       if (!focused && routeSel.value !== want) routeSel.value = want;
       const mine = v.ownerId === 'player';
       routeSel.hidden = !mine;
       routeText.hidden = mine;
-      setText(routeText, route ? route.name : 'No route');
+      setText(routeText, hubbed ? (opts.find((o) => o.value === HUB_VALUE)?.label ?? 'Hub') : route ? route.name : 'No route');
+      jobRow.hidden = !hubbed;
+      if (hubbed) setText(job, jobText(v));
       const following = game.followId === id;
       follow.classList.toggle('active', following);
       follow.setAttribute('aria-pressed', String(following));
@@ -162,3 +172,12 @@ export const vehiclePanel: PanelDef = {
     });
   },
 };
+
+/** A hub truck's job in words: "Collect 20 Lumber", "Deliver 15 Bread", "Return home", or waiting. */
+function jobText(v: Vehicle): string {
+  const j = (v.job ?? null) as HubJob | null;
+  if (!j) return 'Waiting at its hub';
+  if (j.kind === 'return') return 'Return home';
+  const verb = j.kind === 'collect' ? 'Collect' : j.kind === 'deliver' ? 'Deliver' : 'Balance';
+  return `${verb} ${formatNumber(j.qty)} ${j.good ? getGood(j.good).name : ''}`.trim();
+}

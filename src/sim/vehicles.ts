@@ -11,7 +11,7 @@ import { hasNewerModel, modelSpec, newestModel } from './logistics/models';
 import {
   AUTO_RECHECK_TICKS, autoPickup, autoRoutesChanged, clampMaxTrucks, departAuto, dropAutoJobs, leaveAutoRoute, MIN_LOAD_MAX_WAIT_TICKS, noteDeparture,
 } from './logistics/autoRoutes';
-import { advanceHubJob, hubRoute, joinHub, leaveHub } from './logistics/jobRoute';
+import { advanceHubJob, hubLoadCap, hubRoute, joinHub, leaveHub } from './logistics/jobRoute';
 import type { AutoSize, HubJob, RouteMode, VehicleModelId } from './logistics/types';
 import type { Building, GameState, GoodId, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -329,12 +329,15 @@ export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Re
   const at = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };
   if (hub) {
     // a hub truck stays on its hub and carries on with its job from where the old one stood
+    // and keeps its cargo (taken from a hub or a producer, it has nowhere else to go)
     const job = (veh.job ?? null) as HubJob | null;
+    const cargo = veh.cargo;
     sellVehicle(ctx, id);
     const model = newestModel(state);
     spend(state.companies[ownerId], 'vehicles', vehiclePrice(state, model), state.date);
     const fresh = newVehicle(state, ownerId, kind, model, at, null);
     joinHub(fresh, hub.id, job);
+    fresh.cargo = cargo;
     fresh.stopIndex = stopIndex;
     if (job) fresh.state = 'moving';
     return ok(fresh);
@@ -457,8 +460,9 @@ function cargoTotal(veh: Vehicle): number {
 /**
  * Unload `stop.unload` goods the building accepts (bounded by storageLeft), then load `stop.load`;
  * with `onlyGood` (an auto route's pickup) load just that good if the stop loads it, and with null nothing.
+ * `max` caps the units loaded (a hub truck takes only its job's quantity).
  */
-function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building, onlyGood?: GoodId | null): void {
+function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building, onlyGood?: GoodId | null, max?: number): void {
   let unloaded: string[] | null = null;
   for (const g of stop.unload) {
     const carried = veh.cargo[g] ?? 0;
@@ -481,6 +485,7 @@ function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building, 
   const goods = onlyGood === undefined ? stop.load : onlyGood !== null && stop.load.includes(onlyGood) ? [onlyGood] : NO_GOODS;
   const k = goods.length;
   let free = veh.capacity - cargoTotal(veh);
+  if (max !== undefined && max < free) free = max;
   if (k === 0 || free <= 0) return;
   if (k === 1) {
     // single good: the unit-by-unit loop below takes min(free, floor(avail)) units, and subtracting
@@ -568,7 +573,7 @@ function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
     plan(ctx, veh, route, def);
     return;
   }
-  transfer(state, veh, stop, b, route.mode === 'auto' ? autoPickup(veh) : undefined);
+  transfer(state, veh, stop, b, route.mode === 'auto' ? autoPickup(veh) : undefined, route.id < 0 ? hubLoadCap(veh) : undefined);
   veh.state = 'loading';
   veh.waitTicks = def.spec.loadTicks;
 }

@@ -5,6 +5,7 @@ import { buildRoad, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import { buyTruck, createRoute } from '../../sim/vehicles';
 import { PANELS } from './index';
+import { filterVehicles } from './fleet';
 import { buyHubTruck } from '../../sim/logistics/hubs';
 
 function setup() {
@@ -148,5 +149,15 @@ describe('fleet hub trucks', () => {
     sel.dispatchEvent(new Event('change'));
     expect(truck.hubId).toBeNull();
     expect(truck.routeId).toBe(r1.id);
+  });
+
+  it('a hub truck waiting at home is not a problem; a stuck one is', () => {
+    const { s, ctx } = setup();
+    s.companies.player.money = 1e7;
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 5, y: 11 }));
+    const truck = must(buyHubTruck(ctx, 'player', wh.id));
+    expect(filterVehicles([truck], 'problem')).toEqual([]);
+    truck.state = 'stuck';
+    expect(filterVehicles([truck], 'problem')).toEqual([truck]);
   });
 });

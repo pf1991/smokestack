@@ -3,6 +3,7 @@ import type { GameEvent } from '../core/events';
 import { buildRoad, demolishBuilding, placeBuilding } from '../sim/state';
 import { must, testCtx } from '../sim/testkit';
 import { buyTruck, createRoute } from '../sim/vehicles';
+import { buyHubTruck } from '../sim/logistics/hubs';
 import { attachBaronStrikeToasts, attachStrikeToasts, attachStuckToasts, reportLostStops, routesUsing, STUCK_TOAST_GAP_MS } from './feedback';
 
 function chain() {
@@ -17,6 +18,18 @@ function chain() {
 }
 
 describe('feedback toasts', () => {
+  it('a stuck hub truck says "its hub", throttled per hub apart from route-less trucks', () => {
+    const { ctx, toasts } = chain();
+    ctx.state.companies.player.money = 1e7;
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 2, y: 6 }));
+    const h1 = must(buyHubTruck(ctx, 'player', wh.id));
+    const h2 = must(buyHubTruck(ctx, 'player', wh.id));
+    attachStuckToasts(ctx, () => 0);
+    ctx.bus.emit({ type: 'vehicleStuck', vehicleId: h1.id });
+    ctx.bus.emit({ type: 'vehicleStuck', vehicleId: h2.id });
+    expect(toasts).toEqual([`Truck #${h1.id} on its hub is stuck — check its roads`]);
+  });
+
   it('stuck toasts are throttled per route', () => {
     const { ctx, a, b, c, toasts } = chain();
     const r1 = must(createRoute(ctx, 'player', 'Timber Run', [

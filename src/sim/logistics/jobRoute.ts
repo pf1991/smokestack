@@ -80,6 +80,20 @@ export function advanceHubJob(state: GameState, veh: Vehicle): void {
   else sendHome(veh);
 }
 
+/** The building a hub truck heads for or dwells at: the job's pickup, then its drop, or home on a return (read-only). */
+export function hubTarget(veh: Vehicle): number | null {
+  const j = hubJob(veh);
+  if (!j) return null;
+  if (j.kind === 'return') return veh.hubId ?? null;
+  return veh.stopIndex === 0 ? j.from : j.to;
+}
+
+/** Most units a hub truck may load at its current stop: its job's quantity at the pickup (undefined elsewhere). */
+export function hubLoadCap(veh: Vehicle): number | undefined {
+  const j = hubJob(veh);
+  return j && j.kind !== 'return' && veh.stopIndex === 0 ? j.qty : undefined;
+}
+
 /** Puts a (new) truck on hub `hubId`, optionally carrying on with `job` (a replacement). */
 export function joinHub(veh: Vehicle, hubId: number, job: HubJob | null = null): void {
   veh.hubId = hubId;

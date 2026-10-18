@@ -8,6 +8,7 @@ import { must, testCtx, testState } from '../../sim/testkit';
 import type { Building, SimContext } from '../../sim/types';
 import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
+import { buyHubTruck } from '../../sim/logistics/hubs';
 import { startStrike } from '../../sim/society/strikes';
 import { ageLine, staffingText } from './building';
 import { addDays, dateToDays, formatDate } from '../../sim/clock';
@@ -291,6 +292,32 @@ describe('vehicle panel', () => {
     expect(ctx.state.vehicles[v.id]).toBeUndefined();
     vi.advanceTimersByTime(600);
     expect(document.querySelector('.window')).toBeNull();
+  });
+});
+
+describe('vehicle panel hub truck', () => {
+  it('shows its hub, its job and its next stop; picking the hub entry changes nothing', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 13 }, { x: 38, y: 13 })));
+    const wh = place(ctx, 'warehouse', 10, 10);
+    const mill = place(ctx, 'sawmill', 15, 10);
+    const v = must(buyHubTruck(ctx, 'player', wh.id));
+    PANELS.vehicle.open(host(ctx) as never, v.id);
+    const sel = document.querySelector<HTMLSelectElement>('select.insp-route-sel')!;
+    expect(sel.value).toBe('hub');
+    expect(sel.selectedOptions[0].textContent).toBe('Hub: Warehouse');
+    expect(text()).toContain('Waiting at its hub');
+    v.job = { kind: 'collect', from: mill.id, to: wh.id, good: 'lumber', qty: 15 };
+    vi.advanceTimersByTime(1000);
+    expect(text()).toContain('Collect 15 Lumber');
+    expect(text()).toContain(`Sawmill #${mill.id}`);
+    const toasts: string[] = [];
+    ctx.bus.on('toast', (e: Extract<GameEvent, { type: 'toast' }>) => toasts.push(e.message));
+    sel.value = 'hub';
+    sel.dispatchEvent(new Event('change'));
+    expect(toasts).toEqual([]);
+    expect(v.hubId).toBe(wh.id);
+    expect(v.job).not.toBeNull();
   });
 });
 

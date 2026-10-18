@@ -33,7 +33,8 @@ const playerVehicles = (state: GameState): Vehicle[] =>
     .filter((v) => v.ownerId === 'player')
     .sort((a, b) => a.id - b.id);
 
-const isProblem = (v: Vehicle): boolean => v.state === 'idle' || v.state === 'stuck';
+/** Idle or stuck; a hub truck waiting at home for its next job is not a problem. */
+const isProblem = (v: Vehicle): boolean => (v.state === 'idle' && v.hubId == null) || v.state === 'stuck';
 
 /** Vehicles shown under a filter (exported for tests). */
 export function filterVehicles(vehicles: Vehicle[], f: FleetFilter): Vehicle[] {
@@ -81,7 +82,7 @@ export function routeOptions(state: GameState, v: Vehicle): { value: string; lab
 }
 
 /** The route column's value for a hub truck's own entry. */
-const HUB_VALUE = 'hub';
+export const HUB_VALUE = 'hub';
 
 interface Row {
   vehicle: Vehicle;

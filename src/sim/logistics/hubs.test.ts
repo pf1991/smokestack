@@ -304,6 +304,31 @@ describe('hub trips', () => {
     expect(checkInvariants(s)).toEqual([]);
   });
 
+  it('a hub truck loads only its job\'s quantity', () => {
+    const { s, ctx, hub, mill, truck } = trip();
+    s.logistics.managers = []; // no dispatch: the job is set by hand
+    s.logistics.rev++;
+    mill.output.lumber = 30;
+    truck.job = { kind: 'collect', from: mill.id, to: hub.id, good: 'lumber', qty: 12 };
+    truck.state = 'moving';
+    until(ctx, () => truck.job === null && truck.state === 'idle');
+    expect(hub.input.lumber).toBe(12);
+    expect(mill.output.lumber).toBe(18);
+  });
+
+  it('replacing a loaded hub truck keeps its cargo and the trip still ends in the hub', () => {
+    const { s, ctx, hub, mill, truck } = trip();
+    s.date.year = 1960;
+    mill.output.lumber = 15;
+    dispatchNow(ctx, hub);
+    until(ctx, () => truck.stopIndex === 1 && (truck.cargo.lumber ?? 0) > 0 && truck.state === 'moving');
+    const fresh = must(replaceVehicle(ctx, truck.id, 'player'));
+    expect(fresh.cargo).toEqual({ lumber: 15 });
+    until(ctx, () => fresh.job === null && fresh.state === 'idle');
+    expect(hub.input.lumber).toBe(15);
+    expect(checkInvariants(s)).toEqual([]);
+  });
+
   it('renewOldAssets also replaces an old hub truck', () => {
     const { s, ctx, hub, truck } = trip();
     s.date.year = 1960;

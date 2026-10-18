@@ -18,12 +18,15 @@ export function attachStuckToasts(ctx: SimContext, now: () => number = () => per
   return ctx.bus.on('vehicleStuck', (e) => {
     const v = ctx.state.vehicles[e.vehicleId];
     const routeId = v?.routeId ?? null;
+    const hubId = v?.hubId ?? null;
+    // throttled per route, and per hub for hub trucks (keyed by the negated warehouse id)
+    const key = hubId !== null ? -hubId : routeId;
     const t = now();
-    const prev = last.get(routeId);
+    const prev = last.get(key);
     if (prev !== undefined && t - prev < STUCK_TOAST_GAP_MS) return;
-    last.set(routeId, t);
+    last.set(key, t);
     const route = routeId !== null ? ctx.state.routes[routeId] : undefined;
-    const name = route?.name ?? 'its route';
+    const name = hubId !== null ? 'its hub' : (route?.name ?? 'its route');
     ctx.bus.emit({
       type: 'toast',
       message: `Truck #${e.vehicleId} on ${name} is stuck — check its roads`,

@@ -245,7 +245,10 @@ export function mayorEdictEffect(id: MayorEdictId, index = 1): string {
   return MAYOR_EDICTS[id].effect;
 }
 
-/** Monthly: TRUCK_TOLL per player truck per toll town its route stops in (once per town), under 'vehicles'. */
+/**
+ * Monthly: TRUCK_TOLL per player truck per toll town it stops in (once per town), under 'vehicles'. A route
+ * truck stops at its route's stops; a hub truck at its warehouse and its current job's pickup and drop.
+ */
 export function truckTollsMonth(ctx: SimContext): void {
   const { state } = ctx;
   const tolled = new Set(state.cities.filter((c) => hasEdict(c, 'truck_tolls')).map((c) => c.id));
@@ -260,16 +263,27 @@ export function truckTollsMonth(ctx: SimContext): void {
     return id;
   };
   let total = 0;
+  const towns = new Set<number>();
+  const stopAt = (buildingId: number): void => {
+    const b = state.buildings[buildingId];
+    const id = b ? town(b) : null;
+    if (id !== null && tolled.has(id)) towns.add(id);
+  };
   for (const v of Object.values(state.vehicles)) {
-    if (v.kind !== 'truck' || v.ownerId !== PLAYER_ID || v.routeId === null) continue;
-    const route = state.routes[v.routeId];
-    if (!route) continue;
-    const towns = new Set<number>();
-    for (const s of route.stops) {
-      const b = state.buildings[s.buildingId];
-      const id = b ? town(b) : null;
-      if (id !== null && tolled.has(id)) towns.add(id);
-    }
+    if (v.kind !== 'truck' || v.ownerId !== PLAYER_ID) continue;
+    towns.clear();
+    if (v.routeId !== null) {
+      const route = state.routes[v.routeId];
+      if (!route) continue;
+      for (const s of route.stops) stopAt(s.buildingId);
+    } else if (v.hubId != null) {
+      // a hub truck stops at its warehouse and at its current job's two ends
+      stopAt(v.hubId);
+      if (v.job) {
+        stopAt(v.job.from);
+        stopAt(v.job.to);
+      }
+    } else continue;
     total += TRUCK_TOLL * towns.size;
   }
   if (total > 0) spend(state.companies[PLAYER_ID], 'vehicles', atPrices(state, total), state.date);
