@@ -17,6 +17,7 @@ import { must } from '../testkit';
 import { runAutoplay } from '../../game/autoplay';
 import { checkInvariants } from '../invariants';
 import { stateHash } from '../hash';
+import { random } from '../rng';
 
 const town = (year = 1905, seed = 3) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
 /** Sets the price index (society/economy.ts), which drives card money since Task 8. */
@@ -529,17 +530,34 @@ describe('election cards only when it matters (R-Q10b)', () => {
 });
 
 describe('spring card dealer asks JEV', () => {
-  const SNAPSHOT = ['dust_bowl', 'baron_smear', 'baron_smear', 'leaning_steeple', 'dust_bowl', 'company_hour', 'letter_to_editor', 'founders_parade', 'works_dance', 'company_hour', 'company_hour', 'hard_times', 'company_hour', 'soup_kitchen', 'works_dance', 'dust_bowl', 'dust_bowl', 'hard_times', 'letter_to_editor', 'baron_smear'];
+  // what the reference pick below gives for seeds 1-20 on 1 April 1935 (re-derived when Phase 4 added
+  // market_rumour and bull_market to the spring deck); pinned so a change to the deck shows up here
+  const SNAPSHOT = ['dust_bowl', 'baron_envelope', 'baron_smear', 'prize_marrow', 'baron_smear', 'company_hour', 'letter_to_editor', 'founders_parade', 'works_dance', 'company_hour', 'company_hour', 'hard_times', 'dust_bowl', 'soup_kitchen', 'works_dance', 'dust_bowl', 'baron_smear', 'soup_kitchen', 'letter_to_editor', 'baron_envelope'];
   const spring = (seed: number, year = 1935) => testCtx(testState({ seed, year, cities: [{ x: 10, y: 10, name: 'Ashford' }, { x: 28, y: 20, name: 'Brill' }] }));
+  /** The pre-JEV spring pick, on a copy: one random draw × total weight walked over the eligible cards in table order. */
+  const referencePick = (ctx: SimContext): string => {
+    const copy = structuredClone(ctx.state);
+    const list = eligibleCards(copy, 'spring', null);
+    const total = list.reduce((s, e) => s + Math.max(0, e.card.weight), 0);
+    let r = random(copy) * total;
+    for (const e of list) {
+      r -= Math.max(0, e.card.weight);
+      if (r < 0) return e.card.id;
+    }
+    return list[list.length - 1].card.id;
+  };
 
   it('without an answer draws exactly as the pre-JEV weighted pick (seeds 1-20)', () => {
     const picked: string[] = [];
+    const reference: string[] = [];
     for (let seed = 1; seed <= 20; seed++) {
       const ctx = spring(seed);
+      reference.push(referencePick(ctx));
       drawSpringCard(ctx);
       picked.push(pending(ctx)[0].cardId);
     }
-    expect(picked).toEqual(SNAPSHOT);
+    expect(picked).toEqual(reference);
+    expect(reference).toEqual(SNAPSHOT);
   });
 
   it('posts card:<year> on 1 March with the eligible card ids, once', () => {
@@ -584,8 +602,16 @@ describe('spring card dealer asks JEV', () => {
       cardsDayHook(ctx);
       answerDecision(ctx.state, 'card:1935', { probabilities: { not_a_card: 1, hard_times_gone: 1 } });
       at(ctx, 1935, 4, 1);
+      // neither answered id is a card, so neither can be eligible
+      const eligible = eligibleCards(ctx.state, 'spring', null).map((e) => e.card.id);
+      for (const id of ['not_a_card', 'hard_times_gone']) {
+        expect(CARDS_BY_ID[id]).toBeUndefined();
+        expect(eligible).not.toContain(id);
+      }
+      const expected = referencePick(ctx);
       drawSpringCard(ctx);
-      expect(pending(ctx)[0].cardId).toBe(SNAPSHOT[seed - 1]);
+      expect(pending(ctx)[0].cardId).toBe(expected);
+      expect(expected).toBe(SNAPSHOT[seed - 1]);
     }
   });
 });
