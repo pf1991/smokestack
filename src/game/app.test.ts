@@ -22,7 +22,8 @@ vi.mock('../ui/tutorial', () => ({
     destroy() {}
   },
 }));
-vi.mock('../ui/ticker', () => ({ Ticker: { attach: () => {} } }));
+const tickerOff = vi.fn();
+vi.mock('../ui/ticker', () => ({ Ticker: { attach: () => tickerOff } }));
 vi.mock('../ui/panels/newspaper', () => ({ attachNewspaper: () => {} }));
 vi.mock('../ui/menu', () => ({
   closeModal: () => {},
@@ -87,6 +88,15 @@ describe('App and the cold open', () => {
     a.startNew({ seed: 7 });
     a.quitToMenu();
     expect(played[0].cancel).toHaveBeenCalled();
+  });
+
+  it('the ticker subscription is released when the game is torn down', () => {
+    tickerOff.mockClear();
+    const a = app();
+    a.start(createGame({ seed: 7 }));
+    expect(tickerOff).not.toHaveBeenCalled();
+    a.start(createGame({ seed: 8 })); // a second game tears the first down
+    expect(tickerOff).toHaveBeenCalledTimes(1);
   });
 
   it('"Skip intro" goes straight to the tutorial', () => {
