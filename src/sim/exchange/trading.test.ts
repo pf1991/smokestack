@@ -79,6 +79,8 @@ describe('quotes', () => {
   it('a quote rises with block size (2% per 50 shares) and includes the broker fee', () => {
     const { state } = rich();
     const l = state.exchange.listings.rival;
+    // a fundamental well above book (as earnings make it), so no lot here meets the book floor
+    l.fundamental *= 2;
     const base = l.fundamental * l.sentiment;
     const q10 = quote(state, 'player', 'rival', 10);
     const q50 = quote(state, 'player', 'rival', 50);

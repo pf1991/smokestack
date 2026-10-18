@@ -10,7 +10,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Living world:** day/night cycle with lit windows and street lamps, seasons (snowy winters; farms fallow in winter and bumper in summer), and chimney smoke that follows real production.
 - **Houses evolve by era:** wooden cottages, brick rowhouses, art-deco blocks, then modern towers.
 - **The Daily Smokestack:** a monthly newspaper plus a scrolling headline ticker covering historic events (the 1914 war boom, the 1929 crash, the 1969 moon landing toy craze, the 1973 oil crisis) and random ones (strikes, fires, festivals, gold rushes, visiting inventors).
-- **Rival AI:** Baron Smogsworth builds his own chains, undercuts your markets and taunts you in print. Buy 510 of his 1000 shares on the exchange for a **Hostile Takeover** (you need 1.5× his wealth to take control).
+- **Rival AI:** Baron Smogsworth builds his own chains, undercuts your markets and taunts you in print. Buy 510 of his 1000 shares on the exchange for a **Hostile Takeover**: you need 1.5× his wealth to take control, and the lot that takes it costs a control premium as large again as 510 shares at its price.
 - **Mayor's Contracts:** time-limited delivery contracts paid in cash and population growth.
 - **Product lifecycle:** inventions arrive by year (automobiles and oil 1910, radios 1925, plastic 1935, television 1950, computers 1980); radios fade after 1965 and the newspaper warns you first.
 - **Fleet and routes:** trucks on routes, trains on rail, a Fleet window to manage vehicles, and route editing that is easier to build and change.

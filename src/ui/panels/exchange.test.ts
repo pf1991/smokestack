@@ -138,5 +138,12 @@ describe('exchange panel', () => {
     PANELS.exchange.open(game(c));
     expect(button('rival', 'buy-10').disabled).toBe(false);
     expect((row('rival').querySelector('.exchange-gate') as HTMLElement).style.display).toBe('none');
+    // the control lot shows its premium in the price and the tooltip; the full total is the quote's
+    const q = quote(state, 'player', 'rival', 10);
+    expect(q.premium).toBeGreaterThan(0);
+    expect(button('rival', 'buy-10').textContent).toBe(`Buy 10 · ${formatMoney(q.total)} incl. ${formatMoney(q.premium)} control premium`);
+    expect(button('rival', 'buy-10').title).toContain(`premium of ${formatMoney(q.premium)}`);
+    // a lot below control carries none
+    expect(button('player', 'buy-10').textContent).not.toContain('premium');
   });
 });

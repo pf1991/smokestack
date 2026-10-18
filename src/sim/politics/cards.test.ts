@@ -444,11 +444,16 @@ describe('card content (Task 8)', () => {
         at(ctx, Math.max(c.years[0], 1901), 4, 1);
         const cityId = c.needsCity ? cardCity(ctx.state, c) : null;
         const before = JSON.stringify(ctx.state.cities.map((x) => x.opinion));
+        const conditional = OPINION_ON_SUCCESS[c.id] === ch.label;
+        // the success case: the purse for the action, so its opinion effect must land
+        if (conditional) ctx.state.companies.player.money += 1e9;
         const logged = ctx.state.politics.log.length;
         ch.apply!(ctx, cityId);
-        if (OPINION_ON_SUCCESS[c.id] === ch.label) {
+        if (conditional) {
           // its opinion effect hangs on its action succeeding, so apply moves it, through adjustOpinion only
-          expect(ctx.state.politics.log.slice(logged).every((e) => e.reason === c.title), `${c.id}: ${ch.label}`).toBe(true);
+          const added = ctx.state.politics.log.slice(logged);
+          expect(added.length, `${c.id}: ${ch.label} logged nothing`).toBeGreaterThan(0);
+          expect(added.every((e) => e.reason === c.title), `${c.id}: ${ch.label}`).toBe(true);
         } else expect(JSON.stringify(ctx.state.cities.map((x) => x.opinion)), `${c.id}: ${ch.label} moved opinion`).toBe(before);
         expect(checkInvariants(ctx.state), `${c.id}: ${ch.label}`).toEqual([]);
         return stateHash(ctx.state);

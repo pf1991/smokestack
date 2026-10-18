@@ -40,6 +40,8 @@ export const IMPACT_BLOCK = 50;
 export const PRICE_IMPACT = 1.02;
 /** The broker's commission on each side of a trade. */
 export const BROKER_FEE = 0.01;
+/** The control premium on the lot that takes control of the Baron, as a share of (CONTROL_SHARES × that lot's price per share). */
+export const CONTROL_PREMIUM = 1;
 export { CONTROL_SHARES, CONTROL_WEALTH_RATIO };
 
 const clampSentiment = (s: number): number => (s < SENTIMENT_MIN ? SENTIMENT_MIN : s > SENTIMENT_MAX ? SENTIMENT_MAX : s);
@@ -50,7 +52,7 @@ export function holding(state: GameState, holder: OwnerId, target: OwnerId): num
 }
 
 /**
- * The gross value of `n` shares of `target` at the current fundamental (tradeFundamental) and sentiment, priced lot by
+ * The gross value of `n` shares of `target` at the current fundamental and sentiment, priced lot by
  * lot: a buy (dir 1) pays sentiment × PRICE_IMPACT^(shares before / IMPACT_BLOCK) for each lot, a sale
  * (dir -1) gets it at PRICE_IMPACT^-(shares after / IMPACT_BLOCK), so a buy and the same sale cost the
  * same before fees. Each lot's sentiment is clamped like exchangeShock's.
@@ -58,38 +60,57 @@ export function holding(state: GameState, holder: OwnerId, target: OwnerId): num
 function gross(state: GameState, target: OwnerId, n: number, dir: 1 | -1): number {
   const l = state.exchange.listings[target];
   if (!l || !(n > 0)) return 0;
-  const f = tradeFundamental(state, target);
+  const book = liveBook(state, target);
+  const f = book > l.fundamental ? book : l.fundamental;
   let sum = 0;
   for (let done = 0; done < n; done += TRADE_LOT) {
     const lot = Math.min(TRADE_LOT, n - done);
     const at = dir > 0 ? done : -(done + lot);
-    sum += lot * f * clampSentiment(l.sentiment * PRICE_IMPACT ** (at / IMPACT_BLOCK));
+    const price = f * clampSentiment(l.sentiment * PRICE_IMPACT ** (at / IMPACT_BLOCK));
+    sum += lot * (price > book ? price : book);
   }
   return sum;
 }
 
 /**
- * The fundamental a trade is priced at: the listing's monthly figure, floored at today's book value
- * per share (prices.ts applies the same floor monthly). The live floor keeps the books between two
- * monthly refreshes (cash that came in this month, or a save from before the floor) from selling a
- * company below what a takeover would pay out of it.
+ * Today's book value per share of `target` (0 when it is not finite or not positive): the floor of
+ * every traded share price, buy or sell, whatever the sentiment. prices.ts floors the monthly
+ * fundamental at book too; the live floor also covers the books between two monthly refreshes (cash
+ * that came in this month, or a save from before the floor) and a crash's low sentiment, so no trade
+ * prices a company below what a takeover would pay out of it. buyBackQuote does not use it.
  */
-function tradeFundamental(state: GameState, target: OwnerId): number {
+function liveBook(state: GameState, target: OwnerId): number {
   const l = state.exchange.listings[target];
-  const book = state.companies[target] ? netWorth(state, target) / l.shares : 0;
-  return Number.isFinite(book) && book > l.fundamental ? book : l.fundamental;
+  const book = state.companies[target] && l ? netWorth(state, target) / l.shares : 0;
+  return Number.isFinite(book) && book > 0 ? book : 0;
 }
 
 const perShare = (total: number, n: number): number => (n > 0 ? Math.round((total / n) * 100) / 100 : 0);
 
+/** A buy quote: `price` per share and `premium` (the control premium, 0 for most lots) are both inside `total`. */
+export interface BuyQuote {
+  price: number;
+  total: number;
+  premium: number;
+}
+
 /**
- * What buying `n` shares of `target` costs now: `total` in whole dollars (price impact and the broker's
- * fee included) and its average `price` per share. The buyer does not change the price; it is part of
- * the interface so a quote reads like the trade it prices.
+ * What buying `n` shares of `target` costs now: `total` in whole dollars (price impact, the broker's
+ * fee and any control premium included), the shares' average `price` per share (premium excluded) and
+ * the `premium` itself. The control premium falls on the player's lot that takes its holding of the
+ * Baron to CONTROL_SHARES or more: CONTROL_PREMIUM × (CONTROL_SHARES × that lot's price per share), so
+ * control costs about twice the shares' value. It is paid with the lot under 'shares' and leaves the
+ * economy. Regional firms and every other buyer carry none.
  */
-export function quote(state: GameState, _buyer: OwnerId, target: OwnerId, n: number): { price: number; total: number } {
-  const total = Math.round(gross(state, target, n, 1) * (1 + BROKER_FEE));
-  return { price: perShare(total, n), total };
+export function quote(state: GameState, buyer: OwnerId, target: OwnerId, n: number): BuyQuote {
+  const shares = Math.round(gross(state, target, n, 1) * (1 + BROKER_FEE));
+  const premium = takesBaronControl(state, buyer, target, n) ? Math.round((CONTROL_PREMIUM * CONTROL_SHARES * shares) / n) : 0;
+  return { price: perShare(shares, n), total: shares + premium, premium };
+}
+
+/** Whether `buyer` buying `n` of `target` is the player's lot that takes its holding of the Baron to CONTROL_SHARES. */
+function takesBaronControl(state: GameState, buyer: OwnerId, target: OwnerId, n: number): boolean {
+  return buyer === PLAYER_ID && target === BARON_ID && n > 0 && holding(state, buyer, target) < CONTROL_SHARES && holding(state, buyer, target) + n >= CONTROL_SHARES;
 }
 
 /** What selling `n` shares of `target` brings now, net of price impact and the broker's fee. */
@@ -140,14 +161,14 @@ export function sellerFor(state: GameState, buyer: OwnerId, target: OwnerId): Ow
  * The buy-back price during the Baron's open bid: the fundamental per share, with no sentiment, no
  * price impact and no broker's fee, so his own buying cannot price the player out of its company.
  */
-export function buyBackQuote(state: GameState, n: number): { price: number; total: number } {
+export function buyBackQuote(state: GameState, n: number): BuyQuote {
   const f = state.exchange.listings[PLAYER_ID]?.fundamental ?? 0;
   const total = n > 0 ? Math.round(f * n) : 0;
-  return { price: perShare(total, n), total };
+  return { price: perShare(total, n), total, premium: 0 };
 }
 
 /** What `buyer` buying `n` shares of `target` costs now: the buy-back price from the bidder, else the market quote. */
-export function buyQuote(state: GameState, buyer: OwnerId, target: OwnerId, n: number): { price: number; total: number } {
+export function buyQuote(state: GameState, buyer: OwnerId, target: OwnerId, n: number): BuyQuote {
   return sellerFor(state, buyer, target) === BARON_ID ? buyBackQuote(state, n) : quote(state, buyer, target, n);
 }
 
@@ -161,11 +182,14 @@ export function buyShares(ctx: SimContext, buyer: OwnerId, target: OwnerId, n: n
   const from = sellerFor(state, buyer, target);
   const have = holding(state, from, target);
   if (have < n) return err(have === 0 ? 'No shares on offer' : `Only ${have} shares on offer`);
-  const { total } = buyQuote(state, buyer, target, n);
+  const { total, premium } = buyQuote(state, buyer, target, n);
   const c = state.companies[buyer];
-  if (c.money < total) return err('Not enough money');
+  if (c.money < total) {
+    return err(premium > 0 ? `Not enough money: control of Smogsworth costs ${dollars(total)}, a control premium of ${dollars(premium)} included` : 'Not enough money');
+  }
+  // the lot and any control premium, both under 'shares' (the premium leaves the economy)
   spend(c, 'shares', total, state.date);
-  if (from !== PUBLIC_HOLDER) earn(state.companies[from], 'shares', total, state.date);
+  if (from !== PUBLIC_HOLDER) earn(state.companies[from], 'shares', total - premium, state.date);
   moveShares(state, target, from, buyer, n);
   // a buy-back from the bidder is off the market: it does not move the price
   if (from === PUBLIC_HOLDER) exchangeShock(state, target, PRICE_IMPACT ** (n / IMPACT_BLOCK));

@@ -5,6 +5,8 @@ import type { GameController } from '../../game/controller';
 import { publishNews } from '../../sim/news';
 import { createGame } from '../../sim/state';
 import { moveShares } from '../../sim/exchange/shares';
+import { quote } from '../../sim/exchange/trading';
+import { formatMoney } from '../format';
 import { EventBus } from '../../core/events';
 import type { SimContext } from '../../sim/types';
 import { PANELS } from './index';
@@ -92,6 +94,11 @@ describe('rival panel', () => {
     expect(panel().querySelector('.rival-stake')!.textContent).toMatch(/1\.5× his wealth/);
     ctx.state.companies.player.money = 1e11;
     PANELS.rival.open(game(ctx));
-    expect((panel().querySelector('.rival-takeover') as HTMLButtonElement).disabled).toBe(false);
+    const open = panel().querySelector('.rival-takeover') as HTMLButtonElement;
+    expect(open.disabled).toBe(false);
+    // the lot that takes control shows the control premium in its price
+    const q = quote(ctx.state, 'player', 'rival', 50);
+    expect(q.premium).toBeGreaterThan(0);
+    expect(open.textContent).toBe(`Buy his shares · 50 for ${formatMoney(q.total)} (incl. ${formatMoney(q.premium)} control premium)`);
   });
 });

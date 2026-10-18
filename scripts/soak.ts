@@ -43,7 +43,8 @@
  * the crash card resolutions with their dates, workers' national opinion in 2000, the player's loan
  * at the end and the emergency bid loans autoplay drew (finance.ts takeBidLoan, seen as a rise in
  * `bidLoan` across autoplayDefend), both companies' wealth (state.ts), the first month end the player's wealth
- * reached 1.5x the Baron's (the takeover gate) and the year, if ever, the Baron was taken over.
+ * reached 1.5x the Baron's (the takeover gate), the first month end it could also pay for control (the
+ * lot and its control premium) and the year, if ever, the Baron was taken over.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
@@ -57,6 +58,8 @@ import type { CompanyEdicts } from '../src/sim/politics/types';
 import { netWorth } from '../src/sim/rival/takeover';
 import { runDays } from '../src/sim/simulation';
 import { createGame, wealth } from '../src/sim/state';
+import { holding, quote, TRADE_LOT } from '../src/sim/exchange/trading';
+import { CONTROL_SHARES } from '../src/sim/exchange/types';
 import { nationalBlackLung } from '../src/sim/society/escalation';
 import { assetAge, renewBuilding } from '../src/sim/society/aging';
 import { grudgeTotal } from '../src/sim/nemesis/grudges';
@@ -164,6 +167,9 @@ for (const seed of seeds) {
   // 1.5x the Baron, and the year (if ever) the Baron is taken over
   let gateOpen = '';
   let takenOver = '';
+  // the first month end the player could pay for control of the Baron (gate open, cash for the lot that
+  // takes control and its control premium), whether or not autoplay buys
+  let affordable = '';
   const heads: string[] = [`${ctx.state.dynasty.head.name} ${ctx.state.date.year}`];
   while (ctx.state.date.year < endYear && !over) {
     // the heir is (re)named once a year, before December's births and deaths
@@ -181,6 +187,10 @@ for (const seed of seeds) {
         bidLoanTotal += drawn;
       }
       if (!gateOpen && ctx.state.companies.rival.active && wealth(ctx.state, 'player') >= 1.5 * wealth(ctx.state, 'rival')) gateOpen = `${ctx.state.date.year}-${String(ctx.state.date.month).padStart(2, '0')}`;
+      if (gateOpen && !affordable && ctx.state.companies.rival.active) {
+        const need = Math.ceil((CONTROL_SHARES - holding(ctx.state, 'player', 'rival')) / TRADE_LOT) * TRADE_LOT;
+        if (ctx.state.companies.player.money >= quote(ctx.state, 'player', 'rival', need).total && wealth(ctx.state, 'player') >= 1.5 * wealth(ctx.state, 'rival')) affordable = `${ctx.state.date.year}-${String(ctx.state.date.month).padStart(2, '0')}`;
+      }
       if (!takenOver && ctx.state.flags.takeover === true) takenOver = String(ctx.state.date.year);
       for (const [id, l] of Object.entries(ctx.state.exchange.listings)) {
         if (!badPrice && !(Number.isFinite(l.price) && l.price > 0)) badPrice = `${id} ${l.price} in ${ctx.state.date.year}-${ctx.state.date.month}`;
@@ -281,7 +291,7 @@ for (const seed of seeds) {
   const activeFirms = firms.filter((id) => state.companies[id].active).length;
   console.log(`  regional ${seed}: ${firmText.join(' | ') || 'none'} | active ${activeFirms}`);
   console.log(
-    `  phase4 ${seed}: crash cards ${crashCards.join(', ') || 'none'} | workers 2000 ${Number.isFinite(workers2000) ? workers2000.toFixed(1) : 'n/a'} | regional active 2000 ${Number.isFinite(firms2000) ? firms2000 : 'n/a'} | player loan ${money(state.companies.player.loan)} (bid loan ${money(state.companies.player.bidLoan ?? 0)}) | emergency bid loans ${bidLoans} (${money(bidLoanTotal)}) | wealth player ${money(wealth(state, 'player'))}, baron ${money(wealth(state, 'rival'))} | 1.5x gate first open ${gateOpen || 'never'} | baron taken over ${takenOver || 'never'} | ${victory ? `victory: ${victory}` : 'no victory'}`,
+    `  phase4 ${seed}: crash cards ${crashCards.join(', ') || 'none'} | workers 2000 ${Number.isFinite(workers2000) ? workers2000.toFixed(1) : 'n/a'} | regional active 2000 ${Number.isFinite(firms2000) ? firms2000 : 'n/a'} | player loan ${money(state.companies.player.loan)} (bid loan ${money(state.companies.player.bidLoan ?? 0)}) | emergency bid loans ${bidLoans} (${money(bidLoanTotal)}) | wealth player ${money(wealth(state, 'player'))}, baron ${money(wealth(state, 'rival'))} | 1.5x gate first open ${gateOpen || 'never'} | control first affordable ${affordable || 'never'} | baron taken over ${takenOver || 'never'} | ${victory ? `victory: ${victory}` : 'no victory'}`,
   );
   if (years >= 100) {
     const gate: string[] = [];

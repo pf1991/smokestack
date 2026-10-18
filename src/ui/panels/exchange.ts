@@ -45,8 +45,11 @@ function actionState(state: GameState, id: OwnerId, action: Action): { label: st
     const q = buyQuote(state, 'player', id, n);
     const offer = holding(state, sellerFor(state, 'player', id), id);
     const gate = takeoverRefusal(state, 'player', id, n);
-    if (gate) return { label: `Buy ${n} · ${formatMoney(q.total)}`, enabled: false, reason: gate };
-    return { label: `Buy ${n} · ${formatMoney(q.total)}`, enabled: offer >= n && state.companies.player.money >= q.total };
+    // the lot that takes control of the Baron shows its control premium in the price
+    const label = q.premium > 0 ? `Buy ${n} · ${formatMoney(q.total)} incl. ${formatMoney(q.premium)} control premium` : `Buy ${n} · ${formatMoney(q.total)}`;
+    const premiumNote = q.premium > 0 ? `Taking control costs a premium of ${formatMoney(q.premium)} on top of the shares' ${formatMoney(q.total - q.premium)}` : undefined;
+    if (gate) return { label, enabled: false, reason: premiumNote ? `${gate}. ${premiumNote}` : gate };
+    return { label, enabled: offer >= n && state.companies.player.money >= q.total, reason: premiumNote };
   }
   const q = sellQuote(state, 'player', id, n);
   return { label: `Sell ${n} · ${formatMoney(q.total)}`, enabled: holding(state, 'player', id) >= n };
@@ -171,7 +174,7 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
   const el = h('div', { class: 'exchange-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
     bidBanner(game, rerender),
     h('div', { style: { fontSize: '12px', opacity: '0.8' } },
-      `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth.`),
+      `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes it costs a control premium as large again as 510 of its shares.`),
     ...rows);
   return { el, live: { update: () => updates.forEach((u) => u()) } };
 }

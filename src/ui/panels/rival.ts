@@ -191,10 +191,12 @@ function render(game: GameController, refresh: () => void): HTMLElement {
       game.ctx.bus.emit({ type: 'toast', message, tone: r.ok ? 'good' : 'bad' });
       refresh();
     },
-  }, rival.active ? `Buy his shares · ${BUY_LOT} for ${formatMoney(q.total)}` : 'Takeover complete');
+  }, rival.active
+    ? `Buy his shares · ${BUY_LOT} for ${formatMoney(q.total)}${q.premium > 0 ? ` (incl. ${formatMoney(q.premium)} control premium)` : ''}`
+    : 'Takeover complete');
   const hint = rival.active
     ? h('div', { class: 'rival-stake', style: { fontSize: '12px', opacity: '0.8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' } },
-      h('span', null, gate ?? `You hold ${held} of his ${SHARES_OUTSTANDING} shares; ${CONTROL_SHARES} takes his company (you need ${CONTROL_WEALTH_RATIO}× his wealth to take control).`),
+      h('span', null, gate ?? `You hold ${held} of his ${SHARES_OUTSTANDING} shares; ${CONTROL_SHARES} takes his company (you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes control pays a control premium as large again).`),
       h('button', { class: 'btn', type: 'button', onClick: () => game.openPanel('exchange') }, 'Exchange'))
     : null;
 
