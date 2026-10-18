@@ -5,6 +5,7 @@ import { buildRoad, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import { buyTruck, createRoute } from '../../sim/vehicles';
 import { PANELS } from './index';
+import { buyHubTruck } from '../../sim/logistics/hubs';
 
 function setup() {
   const s = testState();
@@ -130,5 +131,22 @@ describe('fleet panel', () => {
     sel.dispatchEvent(new Event('change'));
     click('[data-act="upgrade-route"]');
     expect(Object.values(s.vehicles).map((v) => v.model)).toEqual(['motor_truck']);
+  });
+});
+
+describe('fleet hub trucks', () => {
+  it('shows "Hub: Warehouse" in the route column; picking a route takes the truck off the hub', () => {
+    const { s, ctx, r1, host } = setup();
+    s.companies.player.money = 1e7;
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 5, y: 11 }));
+    const truck = must(buyHubTruck(ctx, 'player', wh.id));
+    PANELS.fleet.open(host);
+    const sel = document.querySelector<HTMLSelectElement>(`[data-vehicle="${truck.id}"] select.fl-route`)!;
+    expect(sel.value).toBe('hub');
+    expect(sel.selectedOptions[0].textContent).toBe('Hub: Warehouse');
+    sel.value = String(r1.id);
+    sel.dispatchEvent(new Event('change'));
+    expect(truck.hubId).toBeNull();
+    expect(truck.routeId).toBe(r1.id);
   });
 });

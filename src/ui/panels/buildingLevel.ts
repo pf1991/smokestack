@@ -10,6 +10,74 @@ import { formatMoney, formatNumber } from '../format';
 import { setText } from './inspect';
 import { assign, managerAt } from '../../sim/logistics/managers';
 import { payText, skillChips } from './managers';
+import { buyHubTruck, hubAttached, hubCap, hubTier, hubTruckRefusal, hubTrucks, setHubAutoSize } from '../../sim/logistics/hubs';
+import { hubRange } from '../../sim/logistics/levels';
+import { newestModel } from '../../sim/logistics/models';
+import { vehiclePrice } from '../../sim/vehicles';
+import { iconEl } from '../icon';
+
+/**
+ * The warehouse's "Hub" section (spec §8.5): range and attached buildings, trucks and cap with "Buy hub
+ * truck", the auto-size switch, yesterday's dispatch and the no-manager warning.
+ */
+export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLElement; refresh(): void } {
+  const range = h('div', { class: 'p-row insp-hub-range' });
+  const trucks = h('div', { class: 'p-row insp-hub-trucks' });
+  const buy = h('button', {
+    class: 'btn insp-hub-truck',
+    'data-act': 'hub-truck',
+    onClick: () => {
+      const r = buyHubTruck(host.ctx, 'player', id);
+      host.ctx.bus.emit(r.ok ? { type: 'toast', message: 'Hub truck bought', tone: 'good' } : { type: 'toast', message: r.error, tone: 'bad' });
+      refresh();
+    },
+  }) as HTMLButtonElement;
+  const auto = h('input', {
+    type: 'checkbox',
+    'data-act': 'hub-autosize',
+    onChange: () => {
+      const r = setHubAutoSize(host.ctx, id, 'player', auto.checked);
+      if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+      refresh();
+    },
+  }) as HTMLInputElement;
+  const autoRow = h('div', { class: 'p-row insp-hub-auto' }, h('label', { title: 'Buy a truck when work waits, sell one when trucks idle (monthly)' }, auto, ' Auto-size the hub fleet'));
+  const yesterday = h('div', { class: 'p-row insp-muted insp-hub-yesterday' });
+  const warn = h('div', { class: 'insp-warn insp-hub-warn' }, iconEl('warning', 14), ' Hire a manager to run this hub');
+  const el = h('div', { class: 'p-section insp-hub' }, h('div', { class: 'p-head' }, iconEl('hub', 14), ' Hub'), range, trucks, buy, autoRow, yesterday, warn);
+
+  function refresh(): void {
+    const { state } = host.ctx;
+    const b = state.buildings[id];
+    el.hidden = !b || b.typeId !== 'warehouse';
+    if (!b || el.hidden) return;
+    const mine = b.ownerId === 'player';
+    const full = hubRange(b);
+    const tier = hubTier(state, b);
+    const used = tier ? Math.round(full * tier.rangeShare * 10) / 10 : 0;
+    const attached = hubAttached(state, b, full).length;
+    setText(range, `Range ${full} tiles${tier ? ` (${used} used)` : ''}: ${attached} ${attached === 1 ? 'building' : 'buildings'} attached`);
+    const n = hubTrucks(state, id).length;
+    setText(trucks, `Trucks ${n} / ${hubCap(b)}`);
+    buy.hidden = !mine;
+    setText(buy, `Buy hub truck ${formatMoney(vehiclePrice(state, newestModel(state)))}`);
+    const why = mine ? hubTruckRefusal(state, b, 'player') : null;
+    if (buy.disabled !== (why !== null)) buy.disabled = why !== null;
+    const tip = why ?? 'A truck of this warehouse, dispatched by its manager';
+    if (buy.title !== tip) buy.title = tip;
+    autoRow.hidden = !b.hub;
+    auto.disabled = !mine;
+    if (b.hub && auto.checked !== b.hub.autoSize) auto.checked = b.hub.autoSize;
+    yesterday.hidden = !b.hub;
+    if (b.hub) {
+      const y = b.hub.yesterday;
+      setText(yesterday, `Yesterday: ${y.jobs} ${y.jobs === 1 ? 'job' : 'jobs'}, ${y.idle} ${y.idle === 1 ? 'truck' : 'trucks'} idle`);
+    }
+    warn.hidden = !mine || tier !== null;
+  }
+  refresh();
+  return { el, refresh };
+}
 
 /** One column of the card: the catalogue value times the level's factors, as readable lines. */
 export function levelLines(ctx: SimContext, b: Building, lv: LevelDef): string[] {
@@ -73,7 +141,8 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
     },
   }, 'Unassign') as HTMLButtonElement;
   const mgrBox = h('div', { class: 'p-section insp-manager' }, h('div', { class: 'p-head' }, 'Manager'), mgrInfo, h('div', { class: 'mgr-acts' }, mgrSelect, mgrUnassign));
-  const el = h('div', { class: 'p-section insp-section insp-level' }, h('div', { class: 'p-head' }, 'Level'), cols, progress, btn, why, mgrBox);
+  const hub = hubSection(host, id);
+  const el = h('div', { class: 'p-section insp-section insp-level' }, h('div', { class: 'p-head' }, 'Level'), cols, progress, btn, why, mgrBox, hub.el);
 
   const fill = (col: HTMLElement, title: string, lines: string[]): void => {
     const sig = [title, ...lines].join('|');
@@ -114,6 +183,7 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
     el.hidden = !lv;
     if (!lv) return;
     managerSlot(live);
+    hub.refresh();
     const next = nextLevel(live);
     fill(cur, `Level ${live.level}`, levelLines(host.ctx, live, lv));
     fill(nxt, next ? `Level ${next.level}` : 'Top level', next ? levelLines(host.ctx, live, next) : ['Nothing further']);

@@ -327,7 +327,7 @@ export function renewOldAssets(ctx: SimContext, owner: OwnerId = BARON_ID, reser
       .sort((a, b) => a.builtYear - b.builtYear || a.id - b.id)[0];
   const b = oldest(Object.values(state.buildings));
   if (b && company.money - renewCost(state, b) >= reserve) renewBuilding(ctx, b.id, owner);
-  const v = oldest(Object.values(state.vehicles).filter((x) => x.routeId !== null));
+  const v = oldest(Object.values(state.vehicles).filter((x) => x.routeId !== null || x.hubId != null));
   if (v && company.money - replaceCost(state, v) >= reserve) replaceVehicle(ctx, v.id, owner);
 }
 

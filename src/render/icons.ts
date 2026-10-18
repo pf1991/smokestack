@@ -594,6 +594,13 @@ const UI_PAINTERS: Record<string, Painter> = {
     line(g, [8, 11, 8, 14], C.red, 1.2);
     rect(g, 5, 1.8, 6, 1.6, C.coal);
   },
+  // a warehouse hub: a depot with spokes to three stops
+  hub: (g) => {
+    for (const [x, y] of [[2.5, 3], [13.5, 3], [8, 14]]) line(g, [8, 8.5, x, y], C.brassDark, 1.2);
+    for (const [x, y] of [[2.5, 3], [13.5, 3], [8, 14]]) circ(g, x, y, 1.7, C.paper);
+    poly(g, [4.5, 8, 8, 5, 11.5, 8, 11.5, 11.5, 4.5, 11.5], C.brass);
+    rect(g, 7, 9, 2, 2.5, C.walnut);
+  },
   wage: (g) => {
     rect(g, 1.5, 5, 13, 9, C.paperShade);
     poly(g, [1.5, 5, 8, 10, 14.5, 5], C.paper);

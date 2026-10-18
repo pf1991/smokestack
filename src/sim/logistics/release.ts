@@ -10,6 +10,24 @@ export function releaseBuilding(state: GameState, id: number): void {
     m.post = null;
     L.rev++;
   }
+  if (state.buildings[id]?.hub) releaseHubTrucks(state, id);
+}
+
+/**
+ * A hub warehouse goes: its trucks are released idle where they stand (D11), never deleted, and keep
+ * any cargo aboard; the player can reassign or sell them.
+ */
+function releaseHubTrucks(state: GameState, hubId: number): void {
+  for (const v of Object.values(state.vehicles)) {
+    if (v.hubId !== hubId) continue;
+    v.hubId = null;
+    v.job = null;
+    v.state = 'idle';
+    v.path = [];
+    v.pathIndex = 0;
+    v.waitTicks = 0;
+    v.stuckNotified = false;
+  }
 }
 
 /** A closing firm's managers leave the game with it. */

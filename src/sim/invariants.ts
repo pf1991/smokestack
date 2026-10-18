@@ -45,6 +45,7 @@ export function checkInvariants(state: GameState): string[] {
     if (!Number.isInteger(v.builtYear) || v.builtYear > state.date.year) out.push(`vehicle ${v.id}: builtYear ${v.builtYear} is not a past year`);
     if (typeof v.speed !== 'number' || !Number.isFinite(v.speed) || v.speed <= 0) out.push(`vehicle ${v.id}: speed ${v.speed} is not a finite number > 0`);
   }
+  out.push(...hubProblems(state));
 
   for (const r of Object.values(state.routes)) {
     if (r.mode !== 'manual' && r.mode !== 'auto') out.push(`route ${r.id}: bad mode ${r.mode}`);
@@ -229,6 +230,31 @@ function managerProblems(state: GameState): string[] {
     if (!b || b.ownerId !== m.employer) out.push(`manager ${m.id}: post ${m.post} is not a building of ${m.employer}`);
     if (posts.has(m.post)) out.push(`manager ${m.id}: post ${m.post} is held by another manager`);
     posts.add(m.post);
+  }
+  return out;
+}
+
+/**
+ * Hub trucks (sim/logistics/hubs.ts): no route, a hub warehouse of their owner, no more than its level
+ * allows, and integer job ends (which may name a building demolished since dispatch: the truck turns
+ * home at its next dwell end or on the road).
+ */
+function hubProblems(state: GameState): string[] {
+  const out: string[] = [];
+  const count = new Map<number, number>();
+  for (const v of Object.values(state.vehicles)) {
+    if (v.hubId == null) continue;
+    if (v.routeId !== null) out.push(`vehicle ${v.id}: hub truck on route ${v.routeId}`);
+    const h = state.buildings[v.hubId];
+    if (!h || h.typeId !== 'warehouse' || h.ownerId !== v.ownerId || !h.hub) out.push(`vehicle ${v.id}: hub ${v.hubId} is not a hub warehouse of ${v.ownerId}`);
+    count.set(v.hubId, (count.get(v.hubId) ?? 0) + 1);
+    const j = v.job;
+    if (j && (!Number.isInteger(j.from) || !Number.isInteger(j.to))) out.push(`vehicle ${v.id}: hub job ends ${j.from}/${j.to} are not integers`);
+  }
+  for (const [id, n] of count) {
+    const h = state.buildings[id];
+    const cap = h?.typeId === 'warehouse' ? (WAREHOUSE_LEVELS[h.level - 1]?.hubTrucks ?? 0) : 0;
+    if (h && n > cap) out.push(`building ${id}: ${n} hub trucks over the cap of ${cap}`);
   }
   return out;
 }

@@ -1,6 +1,7 @@
 import type { SimContext } from '../types';
 import { autoRoutesDay } from './autoRoutes';
 import { autoSizeRoutesMonth } from './autoSize';
+import { hubsDay } from './hubs';
 import { worksDay } from './levels';
 import { refreshMarket, retireYear, salariesMonth } from './managers';
 import { raiseYear } from './raises';
@@ -9,6 +10,7 @@ import { raiseYear } from './raises';
 export function logisticsDay(ctx: SimContext): void {
   worksDay(ctx);
   autoRoutesDay(ctx);
+  hubsDay(ctx);
 }
 export function logisticsMonth(ctx: SimContext): void {
   autoSizeRoutesMonth(ctx);

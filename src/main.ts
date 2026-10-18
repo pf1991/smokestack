@@ -1,5 +1,6 @@
 import { loadSettings, saveSettings, UI_SCALES } from './game/settings';
 import { startUpgrade } from './sim/logistics/levels';
+import { buyHubTruck } from './sim/logistics/hubs';
 import { startUiScale } from './ui/scale';
 import { openHelp } from './ui/help';
 import './ui/theme.css';
@@ -13,7 +14,7 @@ import { bidOpen, startBid } from './sim/nemesis/bid';
 import { moveShares } from './sim/exchange/shares';
 import { CONTROL_SHARES } from './sim/exchange/types';
 import { runDays, stepTick } from './sim/simulation';
-import { canPlaceBuilding, createGame, placeBuilding } from './sim/state';
+import { accessTiles, canPlaceBuilding, createGame, placeBuilding } from './sim/state';
 import { buyUpgrade } from './sim/society/upgrades';
 import type { SmogTier, Speed } from './sim/types';
 import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
@@ -33,6 +34,8 @@ import { startStrike } from './sim/society/strikes';
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
  *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
  *  - `inspectcity=1` / `inspectvehicle=1` (dev) open the first city / vehicle inspector
+ *  - `inspecthub=1` (dev) opens a hub on the player's first warehouse (placing one by their first works when
+ *    there is none), selects it and opens its inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
  *  - `hudmenu=<id>` (dev) open a top-bar dropdown: company, operations, world, more
  *  - `scenario=<id>`   start a scenario
@@ -266,6 +269,31 @@ if (debugStart) {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
     }
     if (import.meta.env.DEV && params.get('inspectcity') === '1') g.openPanel('city', 0);
+    // `inspecthub=1` opens a hub (one truck) on the player's first warehouse, if any, and selects it
+    if (import.meta.env.DEV && params.get('inspecthub') === '1') {
+      const st = g.ctx.state;
+      let wh = Object.values(st.buildings).find((b) => b.ownerId === 'player' && b.typeId === 'warehouse');
+      // none yet: put one on the road nearest the player's first works, so the shot has a hub to show
+      const works = Object.values(st.buildings).find((b) => b.ownerId === 'player' && BUILDINGS[b.typeId].category !== 'retail');
+      for (let r = 1; !wh && works && r <= 12; r++) {
+        for (let dy = -r; dy <= r && !wh; dy++) {
+          for (let dx = -r; dx <= r && !wh; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const p = { x: works.pos.x + dx, y: works.pos.y + dy };
+            if (!canPlaceBuilding(st, 'player', 'warehouse', p).ok || accessTiles(st, { typeId: 'warehouse', pos: p }).length === 0) continue;
+            const placed = placeBuilding(g.ctx, 'player', 'warehouse', p);
+            if (placed.ok) wh = placed.value;
+          }
+        }
+      }
+      if (wh) {
+        if (!wh.hub) buyHubTruck(g.ctx, 'player', wh.id);
+        const size = BUILDINGS[wh.typeId].size;
+        g.centerOn({ x: wh.pos.x + size.w / 2, y: wh.pos.y + size.h / 2 });
+        g.renderer.setSelection({ buildingId: wh.id });
+        g.openPanel('building', wh.id);
+      }
+    }
     if (import.meta.env.DEV && params.get('inspectvehicle') === '1') {
       const v = Object.values(g.ctx.state.vehicles)[0];
       if (v) g.openPanel('vehicle', v.id);

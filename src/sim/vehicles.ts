@@ -11,7 +11,8 @@ import { hasNewerModel, modelSpec, newestModel } from './logistics/models';
 import {
   AUTO_RECHECK_TICKS, autoPickup, autoRoutesChanged, clampMaxTrucks, departAuto, dropAutoJobs, leaveAutoRoute, MIN_LOAD_MAX_WAIT_TICKS, noteDeparture,
 } from './logistics/autoRoutes';
-import type { AutoSize, RouteMode, VehicleModelId } from './logistics/types';
+import { advanceHubJob, hubRoute, joinHub, leaveHub } from './logistics/jobRoute';
+import type { AutoSize, HubJob, RouteMode, VehicleModelId } from './logistics/types';
 import type { Building, GameState, GoodId, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
 export interface VehicleSpec {
@@ -255,6 +256,16 @@ export function buyVehicle(
   const price = vehiclePrice(state, model);
   if (!canAfford(company, price)) return err('Not enough money');
   spend(company, 'vehicles', price, state.date);
+  const vehicle = newVehicle(state, owner, kind, model, spawn, routeId);
+  if (route.stops.length >= 2) vehicle.state = 'moving';
+  return ok(vehicle);
+}
+
+/**
+ * Adds a new idle vehicle of `model` at `spawn` (no charge: the caller spends under 'vehicles'). Used by
+ * buyVehicle and by hub truck purchases (logistics/hubs.ts), which pass `routeId: null`.
+ */
+export function newVehicle(state: GameState, owner: OwnerId, kind: Vehicle['kind'], model: VehicleModelId, spawn: Vec2, routeId: number | null): Vehicle {
   const vehicle: Vehicle = {
     id: nextId(state),
     kind,
@@ -267,7 +278,7 @@ export function buyVehicle(
     stopIndex: 0,
     cargo: {},
     capacity: modelSpec(model).capacity,
-    state: route.stops.length >= 2 ? 'moving' : 'idle',
+    state: 'idle',
     waitTicks: 0,
     stuckNotified: false,
     builtYear: state.date.year,
@@ -275,7 +286,7 @@ export function buyVehicle(
     speed: modelSpec(model).speed,
   };
   state.vehicles[vehicle.id] = vehicle;
-  return ok(vehicle);
+  return vehicle;
 }
 
 /** Spawns at the first stop's first access tile and heads for that stop. */
@@ -306,17 +317,30 @@ export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Re
   const veh = state.vehicles[id];
   if (!veh) return err('No such vehicle');
   if (owner !== undefined && veh.ownerId !== owner) return err('Not your vehicle');
+  const hub = veh.hubId != null ? state.buildings[veh.hubId] : undefined;
   const route = veh.routeId !== null ? state.routes[veh.routeId] : undefined;
-  if (!route) return err('Assign it to a route first');
+  if (!route && !hub) return err('Assign it to a route first');
   const def = VEHICLE_KINDS[veh.kind];
-  const first = route.stops[0] ? state.buildings[route.stops[0].buildingId] : undefined;
+  const first = hub ?? (route!.stops[0] ? state.buildings[route!.stops[0].buildingId] : undefined);
   if (!def || !first || !def.access(state, first)[0]) return err(def?.noAccessError ?? 'Stop has no road access');
   if (assetAge(state, veh) <= AGING_GRACE && !hasNewerModel(state, veh.model)) return err(NO_WEAR);
   if (!canAfford(state.companies[veh.ownerId], replaceCost(state, veh))) return err('Not enough money');
   const { ownerId, kind, stopIndex } = veh;
   const at = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };
+  if (hub) {
+    // a hub truck stays on its hub and carries on with its job from where the old one stood
+    const job = (veh.job ?? null) as HubJob | null;
+    sellVehicle(ctx, id);
+    const model = newestModel(state);
+    spend(state.companies[ownerId], 'vehicles', vehiclePrice(state, model), state.date);
+    const fresh = newVehicle(state, ownerId, kind, model, at, null);
+    joinHub(fresh, hub.id, job);
+    fresh.stopIndex = stopIndex;
+    if (job) fresh.state = 'moving';
+    return ok(fresh);
+  }
   sellVehicle(ctx, id);
-  const bought = buyVehicle(ctx, ownerId, route.id, kind); // the newest model, no kits
+  const bought = buyVehicle(ctx, ownerId, route!.id, kind); // the newest model, no kits
   if (!bought.ok) return bought;
   const fresh = bought.value;
   fresh.pos = { ...at };
@@ -390,6 +414,10 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
     if (!route) return err('No such route');
     if (route.ownerId !== veh.ownerId) return err('Not your route');
     if (route.kind !== veh.kind) return err(veh.kind === 'train' ? 'Trains only run on rail lines' : 'Trucks cannot run rail lines');
+  }
+  if (veh.hubId != null) {
+    leaveHub(veh); // off its hub: the hold empties as it would leaving a route
+    veh.cargo = {};
   }
   if (veh.routeId !== routeId) {
     veh.cargo = {};
@@ -584,6 +612,19 @@ function depart(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
   plan(ctx, veh, route, def);
 }
 
+/** A hub truck's dwell end: its job moves on (logistics/jobRoute.ts), then it heads for the next stop or idles. */
+function departHub(ctx: SimContext, veh: Vehicle, def: VehicleKindDef): void {
+  advanceHubJob(ctx.state, veh);
+  const next = hubRoute(ctx.state, veh);
+  if (next) {
+    plan(ctx, veh, next, def);
+    return;
+  }
+  veh.state = 'idle';
+  veh.path = [];
+  veh.pathIndex = 0;
+}
+
 const EPS = 1e-9;
 
 /** Advances `speed` tiles along the path, crossing several nodes if needed; arrival at the last node. */
@@ -641,7 +682,8 @@ function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined, gr
   if (!def) return;
   if (def.halted?.(state)) return;
   const n = route ? route.stops.length : 0;
-  if (!route || n < 2) {
+  // a hub truck's return trip is a one-stop route (its hub); any other route needs two stops
+  if (!route || n < (route.id < 0 ? 1 : 2)) {
     veh.state = 'idle';
     veh.stuckNotified = false;
     if (veh.path.length > 0) {
@@ -661,6 +703,7 @@ function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined, gr
     case 'loading': {
       if (--veh.waitTicks > 0) return;
       veh.waitTicks = 0;
+      if (route.id < 0) return departHub(ctx, veh, def);
       depart(ctx, veh, route, def);
       return;
     }
@@ -685,7 +728,7 @@ export function vehiclesTick(ctx: SimContext): void {
   const grace = AGING_GRACE;
   for (let k = 0; k < list.length; k++) {
     const veh = list[k];
-    tickVehicle(ctx, veh, veh.routeId !== null ? routeOf(state, c, k, veh.routeId) : undefined, grace);
+    tickVehicle(ctx, veh, veh.routeId !== null ? routeOf(state, c, k, veh.routeId) : veh.hubId != null ? hubRoute(state, veh) : undefined, grace);
   }
 }
 

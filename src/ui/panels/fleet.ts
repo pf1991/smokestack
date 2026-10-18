@@ -12,6 +12,7 @@ import { formatMoney, formatNumber } from '../format';
 import { COMPACT_WIDTH, createWindow } from '../window';
 import type { PanelDef } from './index';
 import './fleet.css';
+import { buildingName } from './routeActions';
 
 /** The slice of the GameController this panel needs (lets tests use a small stub). */
 type Host = Pick<GameController, 'ctx' | 'renderer' | 'centerOn' | 'openPanel'> & { follow?: GameController['follow'] };
@@ -74,8 +75,13 @@ const playerRoutes = (state: GameState, kind: Vehicle['kind']): Route[] =>
 
 /** Fills a route dropdown for a vehicle; returns the signature of the options shown. */
 export function routeOptions(state: GameState, v: Vehicle): { value: string; label: string }[] {
-  return [{ value: '', label: '— no route —' }, ...playerRoutes(state, v.kind).map((r) => ({ value: String(r.id), label: r.name }))];
+  // a hub truck shows its warehouse; picking a route (or none) takes it off the hub
+  const hub = v.hubId != null ? [{ value: HUB_VALUE, label: `Hub: ${buildingName(state.buildings[v.hubId])}` }] : [];
+  return [...hub, { value: '', label: '— no route —' }, ...playerRoutes(state, v.kind).map((r) => ({ value: String(r.id), label: r.name }))];
 }
+
+/** The route column's value for a hub truck's own entry. */
+const HUB_VALUE = 'hub';
 
 interface Row {
   vehicle: Vehicle;
@@ -163,7 +169,7 @@ class FleetPanel {
       'aria-label': 'Route',
       onChange: () => {
         const cur = this.ctx.state.vehicles[v.id];
-        if (!cur) return;
+        if (!cur || select.value === HUB_VALUE) return;
         const r = assignVehicle(this.ctx, v.id, select.value === '' ? null : Number(select.value));
         if (!r.ok) this.toast(r.error, 'bad');
         this.update();
@@ -266,7 +272,7 @@ class FleetPanel {
       text(row.model, modelRow(v.model).name);
       text(row.trips, String(tripsLast30(state, v)));
       text(row.age, ageText(state, v));
-      const tip = `Sell and buy new for this route: ${formatMoney(replaceCost(state, v))} net`;
+      const tip = `Sell and buy new for ${v.hubId != null ? 'its hub' : 'this route'}: ${formatMoney(replaceCost(state, v))} net`;
       if (row.replace.title !== tip) row.replace.title = tip;
       this.syncSelect(row, v);
     }
@@ -299,7 +305,7 @@ class FleetPanel {
       row.optSig = sig;
       row.select.replaceChildren(...opts.map((o) => h('option', { value: o.value }, o.label)));
     }
-    const want = v.routeId === null ? '' : String(v.routeId);
+    const want = v.hubId != null ? HUB_VALUE : v.routeId === null ? '' : String(v.routeId);
     if (!focused && row.select.value !== want) row.select.value = want;
   }
 }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameEvent } from '../../core/events';
 import { DEMAND_PER_1000 } from '../../data/goods';
 import { buyTruck, createRoute } from '../../sim/vehicles';
-import { demolishBuilding, placeBuilding } from '../../sim/state';
+import { buildRoad, demolishBuilding, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import type { Building, SimContext } from '../../sim/types';
 import { adjustOpinion } from '../../sim/politics/factions';
@@ -395,5 +395,39 @@ describe('building level card', () => {
     document.querySelector<HTMLButtonElement>('.window-close')?.click();
     PANELS.building.open(host(ctx) as never, b.id);
     expect(text()).toContain('Upgrading to level 3: 45 days left');
+  });
+});
+
+describe('warehouse hub section', () => {
+  it('shows range, trucks and the buy button, and warns when no manager runs the hub', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 13 }, { x: 38, y: 13 })));
+    const wh = place(ctx, 'warehouse', 10, 10);
+    place(ctx, 'sawmill', 15, 10);
+    PANELS.building.open(host(ctx) as never, wh.id);
+    const sec = document.querySelector<HTMLElement>('.insp-hub')!;
+    expect(sec.querySelector('.p-head')!.textContent).toContain('Hub');
+    expect(sec.textContent).toContain('Range 12 tiles: 1 building attached');
+    expect(sec.textContent).toContain('Trucks 0 / 4');
+    expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.hidden).toBe(false);
+    expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.textContent).toContain('Hire a manager to run this hub');
+    const buy = sec.querySelector<HTMLButtonElement>('button[data-act="hub-truck"]')!;
+    expect(buy.textContent).toBe('Buy hub truck $8,000');
+    buy.click();
+    expect(wh.hub).toBeDefined();
+    expect(sec.textContent).toContain('Trucks 1 / 4');
+    expect(sec.textContent).toContain('Yesterday: 0 jobs, 0 trucks idle');
+    const auto = sec.querySelector<HTMLInputElement>('input[data-act="hub-autosize"]')!;
+    expect(auto.checked).toBe(true);
+    auto.checked = false;
+    auto.dispatchEvent(new Event('change'));
+    expect(wh.hub!.autoSize).toBe(false);
+  });
+
+  it('is absent for anything but a warehouse', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(document.querySelector<HTMLElement>('.insp-hub')!.hidden).toBe(true);
   });
 });
