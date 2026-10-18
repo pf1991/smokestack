@@ -71,6 +71,19 @@ function addOutput(b: Building, goodId: GoodId, amount: number, cap: number): vo
   b.producedThisMonth[goodId] = (b.producedThisMonth[goodId] ?? 0) + add;
 }
 
+/**
+ * `state.unlocked` as a Set (has() answers as includes() does), cached per array and rebuilt when its
+ * length changes: the sim only ever appends to it (eras.ts, events.ts) or replaces it.
+ */
+const unlockedSets = new WeakMap<string[], { length: number; set: Set<string> }>();
+
+function unlockedSet(state: GameState): Set<string> {
+  const ids = state.unlocked;
+  let c = unlockedSets.get(ids);
+  if (!c || c.length !== ids.length) unlockedSets.set(ids, (c = { length: ids.length, set: new Set(ids) }));
+  return c.set;
+}
+
 export function productionDay(ctx: SimContext): void {
   const { state } = ctx;
   // mayors' smog limits hold some of the player's dirty works back (politics/mayorEdicts.ts)
@@ -80,6 +93,7 @@ export function productionDay(ctx: SimContext): void {
   // a go-slow (workers' opinion below 30) in the town a works hires from (society/strikeState.ts)
   const slowed = slowedBuildings(state);
   const today = dateToDays(state.date);
+  const unlocked = unlockedSet(state);
   for (const b of buildingList(state)) {
     const def = BUILDINGS[b.typeId];
     // a striking works produces nothing; on the day it ends the strike is cleared and an unanswered
@@ -98,7 +112,7 @@ export function productionDay(ctx: SimContext): void {
       }
       b.haltedUntil = null;
     }
-    const recipe = b.recipeId && state.unlocked.includes(b.recipeId) ? RECIPES[b.recipeId] : undefined;
+    const recipe = b.recipeId && unlocked.has(b.recipeId) ? RECIPES[b.recipeId] : undefined;
     if (!recipe || (def.category !== 'extractor' && def.category !== 'factory')) {
       b.status = 'idle';
       continue;
