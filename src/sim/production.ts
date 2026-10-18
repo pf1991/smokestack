@@ -10,13 +10,12 @@ import { strikeOver } from './society/strikes';
 import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
-import { DEMAND_PER_1000 } from '../data/goods';
 import { RECIPES, type RecipeDef } from '../data/recipes';
 import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
-import { averageSatisfaction, computeDailySales, demandModifier, monthlyDemand, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
+import { averageSatisfaction, computeDailySales, demandGoods, demandModifier, monthlyDemandAt, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
 import { layCityStreets, refreshUrbanTiles, ROAD_UPKEEP } from './state';
 import { assetEfficiency } from './society/aging';
 import { atPrices, priceIndex } from './society/economy';
@@ -141,7 +140,7 @@ export function productionDay(ctx: SimContext): void {
 export function retailDay(ctx: SimContext): void {
   const { state, bus } = ctx;
   const dayOffset = dateToDays(state.date);
-  const goodIds = Object.keys(DEMAND_PER_1000);
+  const goodIds = demandGoods();
   // stores grouped by city in one pass (id order, as a per-city filter would give)
   const storesByCity = new Map<number, Building[]>();
   for (const b of buildingList(state)) {
@@ -187,8 +186,9 @@ export function retailDay(ctx: SimContext): void {
     }
     // a store is 'ok' on a day it sold anything, otherwise 'idle' (productionDay leaves it 'idle')
     for (const b of stores) if (b.status !== 'halted') b.status = soldStores.has(b.id) ? 'ok' : 'idle';
-    for (const g of goodIds) {
-      const demandToday = monthlyDemand(city, g, state.date.year, mod(g)) / 30;
+    for (let gi = 0; gi < goodIds.length; gi++) {
+      const g = goodIds[gi];
+      const demandToday = monthlyDemandAt(city, gi, state.date.year, mod(g)) / 30;
       if (demandToday > 0) updateMarketDay(city, g, soldByGood[g] ?? 0, demandToday);
     }
   }
