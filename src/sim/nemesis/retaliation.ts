@@ -215,6 +215,8 @@ function cause(state: GameState, kind: GrudgeKind | null, cityId: number | null)
       return 'your bid for his company';
     case 'rivalry':
       return 'your fortune rising to rival his own';
+    case 'wake':
+      return "your dancing at his father's wake";
     default:
       return 'old slights';
   }

@@ -44,6 +44,8 @@ export const GRUDGE_WEIGHTS: Record<GrudgeKind, number> = {
   takeover_bid: 8,
   /** each December the player's net worth is at least half the Baron's (Phase 4 fix round: a source needing no shared town) */
   rivalry: 3,
+  /** the funeral card's wake choice (nemesis/grudges.ts wakeGrudge): what was a doubled city grudge */
+  wake: 10,
 };
 
 /** How a grudge reads in the rival panel's ledger: "Undercut in Millbrook, 1923". */
@@ -55,6 +57,7 @@ export const GRUDGE_LABELS: Record<GrudgeKind, string> = {
   sabotage_exposed: 'Saboteurs exposed',
   takeover_bid: 'Takeover bid',
   rivalry: 'A rival fortune',
+  wake: "Dancing at his father's wake",
 };
 
 /** Short names of the Baron's moves, as the `baronStrike` toast reads them. */

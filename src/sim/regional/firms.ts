@@ -106,7 +106,7 @@ function tryFound(ctx: SimContext, def: RegionalFirmDef): boolean {
   const { state } = ctx;
   const city = regionalHomeCity(state, chainGood(def.chain));
   if (!city) return false;
-  const firm = { id: def.id, kind: 'regional' as const, name: firmName(def, city), money: atPrices(state, REGIONAL_START_MONEY), loan: 0, homeCityId: city.id };
+  const firm = { id: def.id, kind: 'regional' as const, name: firmName(def, city), money: Math.round(atPrices(state, REGIONAL_START_MONEY)), loan: 0, homeCityId: city.id };
   const trial: SimContext = { state: structuredClone(state), bus: new EventBus() };
   addCompany(trial.state, firm);
   const trialCity = trial.state.cities.find((c) => c.id === city.id)!;

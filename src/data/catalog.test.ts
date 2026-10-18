@@ -239,6 +239,6 @@ describe('content catalog', () => {
   });
 
   it('grudge weights', () => {
-    expect(GRUDGE_WEIGHTS).toEqual({ undercut: 2, contract: 3, shares: 4, city: 5, sabotage_exposed: 6, takeover_bid: 8, rivalry: 3 });
+    expect(GRUDGE_WEIGHTS).toEqual({ undercut: 2, contract: 3, shares: 4, city: 5, sabotage_exposed: 6, takeover_bid: 8, rivalry: 3, wake: 10 });
   });
 });

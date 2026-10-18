@@ -7,11 +7,14 @@
 import { PLAYER_ID } from '../../sim/companies';
 import { exchangeShock } from '../../sim/exchange/prices';
 import { buyQuote, buyShares } from '../../sim/exchange/trading';
+import { adjustOpinion } from '../../sim/politics/factions';
 import { nation } from './helpers';
 import type { CardDef } from './types';
 
 const ANY: [number, number] = [1901, 2000];
 const BUY_BACK_SHARES = 50;
+/** Old Money's (national) reassurance when the buy-back goes through */
+const BUY_BACK_OLD_MONEY = 10;
 const dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 /** Opened by the 1929 crash (sim/events.ts; national: no town needed). Two of them act on the exchange. */
@@ -53,14 +56,16 @@ export const CRASH_CARDS: readonly CardDef[] = [
     choices: [
       {
         label: 'Buy back your shares',
-        // the purchase books its own price under 'shares' (buyShares), so the card itself costs nothing
+        // the purchase books its own price under 'shares' (buyShares), so the card itself costs nothing;
+        // Old Money is reassured (through adjustOpinion) only if the purchase goes through
         cost: 0,
-        effects: [nation('oldmoney', 10)],
+        effects: [],
         apply: (ctx) => {
           const r = buyShares(ctx, PLAYER_ID, PLAYER_ID, BUY_BACK_SHARES);
-          if (!r.ok) ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+          if (r.ok) adjustOpinion(ctx.state, 'oldmoney', 'national', BUY_BACK_OLD_MONEY, 'Panic on the Exchange');
+          else ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
         },
-        note: 'Buys 50 of your shares at the market price',
+        note: `Buys 50 of your shares at the market price; Old Money +${BUY_BACK_OLD_MONEY} if it goes through`,
       },
       { label: 'Slash the payroll', cost: -8000, effects: [nation('oldmoney', 6), nation('workers', -12)] },
       { label: 'Issue a calm statement', cost: 0, effects: [nation('oldmoney', -4)] },

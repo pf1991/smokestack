@@ -1,7 +1,7 @@
 /** Spring cards of 1901-1924: suffrage, unions, temperance, the first motorcars, the Great War home front. */
 import { city, DAYS_PER_MONTH, demand, hasWorksNear, nation } from './helpers';
 import { cityOf, type CardDef } from './types';
-import { canMarry, marry } from '../../sim/dynasty/types';
+import { canMarry, isFemale, marry } from '../../sim/dynasty/types';
 
 export const EARLY_CARDS: readonly CardDef[] = [
   {
@@ -174,7 +174,12 @@ export const EARLY_CARDS: readonly CardDef[] = [
     // family under 50 (dynastyMonth), so every head is asked; ids are save data
     id: 'marriage',
     title: 'A Match for the Family',
-    body: 'Your mother has drawn up a list. On it: a banker\'s daughter with a dowry the size of a gasworks, and a viscount\'s niece with a pedigree longer than your railway. The family needs an heir, she reminds you, and you are not getting any younger.',
+    body: 'Your mother has drawn up a list. On it: {banker}, and {viscount} with a pedigree longer than your railway. The family needs an heir, she reminds you, and you are not getting any younger.',
+    // the matches suit the head of the family (sim/dynasty/types.ts isFemale reads the given name)
+    vars: (state) =>
+      isFemale(state.dynasty.head)
+        ? { banker: "a banker's son with prospects the size of a gasworks", viscount: "a viscount's nephew" }
+        : { banker: "a banker's daughter with a dowry the size of a gasworks", viscount: "a viscount's niece" },
     trigger: 'spring',
     years: [1905, 1910],
     weight: 6,

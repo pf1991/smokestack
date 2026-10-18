@@ -187,17 +187,32 @@ export function nemesisDay(ctx: SimContext): void {
   noteContested(ctx.state);
 }
 
-/** The funeral card's wake choice leaves a flag; the Baron takes it as a double city grudge (none if he is out of the game). */
+/** The funeral card's wake choice leaves a flag; the Baron takes it as a 'wake' grudge (none if he is out of the game). */
 function wakeGrudge(state: GameState): void {
   if (!state.flags[WAKE_FLAG]) return;
   delete state.flags[WAKE_FLAG];
-  addGrudge(state, 'city', null, 2);
+  addGrudge(state, 'wake', null);
 }
 
-/** Monthly: the contract grudges, the succession (December), a hostile bid falling due (Task 8), then the Baron's retaliation (Task 2). */
+/** exchange/trading.ts: the player bought `n` of the Baron's shares (tallied into one grudge a month). */
+export function noteShareBuy(state: GameState, n: number): void {
+  const t = state.nemesis.track;
+  t.sharesBought = (t.sharesBought ?? 0) + n;
+}
+
+/** Monthly: the month's purchases of his shares weigh as one 'shares' grudge, GRUDGE_WEIGHTS.shares per 100 shares. */
+function sharesGrudge(state: GameState): void {
+  const t = state.nemesis.track;
+  const n = t.sharesBought ?? 0;
+  if (t.sharesBought !== undefined) delete t.sharesBought;
+  if (n > 0) addGrudge(state, 'shares', null, n / 100);
+}
+
+/** Monthly: the contract, wake and share-dealing grudges, the succession (December), a hostile bid falling due (Task 8), then the Baron's retaliation (Task 2). */
 export function nemesisMonth(ctx: SimContext): void {
   contractGrudges(ctx.state);
   wakeGrudge(ctx.state);
+  sharesGrudge(ctx.state);
   successionMonth(ctx);
   // a bid's deadline falls before he can strike (and buy) again
   bidMonth(ctx);

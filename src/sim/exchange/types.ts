@@ -46,7 +46,11 @@ export interface ExchangeState {
   listings: Record<OwnerId, Listing>;
   /**
    * The exchange's own rng stream (sim/rng.ts mulberry32 state; `random(state.exchange)`), so share
-   * price noise never draws from the game's rng and never changes the game's course.
+   * price noise never draws from the game's rng: the game's other random draws stay in step whatever
+   * the exchange does. The noise itself does reach the game through prices: sentiment moves `quote()`,
+   * and so the Baron's hostile-bid eligibility and lot size (nemesis/retaliation.ts), every trade's
+   * cost and the wealth comparisons (state.ts wealth). Deterministic all the same: the stream is
+   * seeded from the game seed.
    */
   rngState: number;
 }

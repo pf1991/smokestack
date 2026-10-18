@@ -23,7 +23,7 @@ import { err, ok, type Result } from '../../core/result';
 import { BARON_ID, PLAYER_ID, transferOwnership } from '../companies';
 import { earn, loanStep, maxLoan, spend, takeBidLoan, takeLoan } from '../finance';
 import { bidOpen, checkBid, dropBid, startBid } from '../nemesis/bid';
-import { addGrudge } from '../nemesis/grudges';
+import { noteShareBuy } from '../nemesis/grudges';
 import { publishNews } from '../news';
 import { takeover } from '../rival/takeover';
 import { priceIndex } from '../society/economy';
@@ -169,8 +169,8 @@ export function buyShares(ctx: SimContext, buyer: OwnerId, target: OwnerId, n: n
   moveShares(state, target, from, buyer, n);
   // a buy-back from the bidder is off the market: it does not move the price
   if (from === PUBLIC_HOLDER) exchangeShock(state, target, PRICE_IMPACT ** (n / IMPACT_BLOCK));
-  // he notices who is buying into his company
-  if (buyer === PLAYER_ID && target === BARON_ID) addGrudge(state, 'shares', null, n / 100);
+  // he notices who is buying into his company: the month's purchases become one grudge (nemesisMonth)
+  if (buyer === PLAYER_ID && target === BARON_ID) noteShareBuy(state, n);
   settle(ctx, buyer, target);
   return ok();
 }

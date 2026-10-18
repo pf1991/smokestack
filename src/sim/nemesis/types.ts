@@ -9,7 +9,7 @@ import { pick, type RngHolder } from '../rng';
 export const BARON_TRAIT_IDS = ['greedy', 'vindictive', 'showman', 'cunning'] as const;
 export type BaronTrait = (typeof BARON_TRAIT_IDS)[number];
 
-export type GrudgeKind = 'undercut' | 'contract' | 'shares' | 'city' | 'sabotage_exposed' | 'takeover_bid' | 'rivalry';
+export type GrudgeKind = 'undercut' | 'contract' | 'shares' | 'city' | 'sabotage_exposed' | 'takeover_bid' | 'rivalry' | 'wake';
 
 export interface Grudge {
   kind: GrudgeKind;
@@ -55,6 +55,12 @@ export interface NemesisTrack {
   contested: string[];
   /** per city id: the month index (year * 12 + month - 1) of the Baron's last poach there */
   poached: Record<string, number>;
+  /**
+   * the Baron's shares the player bought since the last nemesisMonth (exchange/trading.ts buyShares,
+   * through grudges.ts noteShareBuy): one 'shares' grudge per month for the lot, so splitting a buy
+   * evades nothing. Absent in older saves (read as 0).
+   */
+  sharesBought?: number;
 }
 
 export interface NemesisState {

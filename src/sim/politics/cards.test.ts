@@ -430,7 +430,12 @@ describe('card content (Task 8)', () => {
   // `new_mayor` (Task 7 seed) is the one card whose apply moves opinion: it targets the mayor's faction
   const applied = CARDS.flatMap((c) => c.choices.filter((ch) => ch.apply).map((ch) => ({ c, ch }))).filter(({ c }) => c.id !== 'new_mayor');
 
-  it('apply hooks exist, move no opinion, keep invariants and are deterministic', () => {
+  /**
+   * Choices whose opinion effect applies only if their action succeeds (final review Minor 5): the
+   * effect cannot sit in `effects`, which the engine applies before `apply` runs.
+   */
+  const OPINION_ON_SUCCESS: Record<string, string> = { exchange_panic: 'Buy back your shares' };
+  it('apply hooks exist, move no opinion (bar OPINION_ON_SUCCESS), keep invariants and are deterministic', () => {
     expect(applied.length).toBeGreaterThanOrEqual(10);
     for (const { c, ch } of applied) {
       const run = () => {
@@ -439,8 +444,12 @@ describe('card content (Task 8)', () => {
         at(ctx, Math.max(c.years[0], 1901), 4, 1);
         const cityId = c.needsCity ? cardCity(ctx.state, c) : null;
         const before = JSON.stringify(ctx.state.cities.map((x) => x.opinion));
+        const logged = ctx.state.politics.log.length;
         ch.apply!(ctx, cityId);
-        expect(JSON.stringify(ctx.state.cities.map((x) => x.opinion)), `${c.id}: ${ch.label} moved opinion`).toBe(before);
+        if (OPINION_ON_SUCCESS[c.id] === ch.label) {
+          // its opinion effect hangs on its action succeeding, so apply moves it, through adjustOpinion only
+          expect(ctx.state.politics.log.slice(logged).every((e) => e.reason === c.title), `${c.id}: ${ch.label}`).toBe(true);
+        } else expect(JSON.stringify(ctx.state.cities.map((x) => x.opinion)), `${c.id}: ${ch.label} moved opinion`).toBe(before);
         expect(checkInvariants(ctx.state), `${c.id}: ${ch.label}`).toEqual([]);
         return stateHash(ctx.state);
       };

@@ -114,14 +114,14 @@ describe('baron_funeral card', () => {
     expect(pending(ctx)).toHaveLength(1);
   });
 
-  it('the wake leaves a double city grudge at the next monthly hook', () => {
+  it('the wake leaves a wake grudge (weighing a double city grudge) at the next monthly hook', () => {
     const ctx = setup(5, 1956);
     ctx.state.date.month = 4;
     CARDS_BY_ID.baron_funeral.choices[2].apply!(ctx, null);
     expect(grudgeTotal(ctx.state)).toBe(0);
     nemesisMonth(ctx);
     expect(ctx.state.nemesis.grudges).toHaveLength(1);
-    expect(ctx.state.nemesis.grudges[0]).toMatchObject({ kind: 'city', cityId: null });
+    expect(ctx.state.nemesis.grudges[0]).toMatchObject({ kind: 'wake', cityId: null });
     expect(ctx.state.flags['nemesis:wake']).toBeUndefined();
   });
 
