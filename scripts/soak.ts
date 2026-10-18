@@ -32,10 +32,17 @@
  * the year they took the chair. Autoplay names an heir each year (autoplayNameHeir). Century gate: no
  * game over of any kind (the family line must not end) and generation >= 2.
  * A ninth line reports the regional firms (Phase 4 Task 6): each firm's founding year, home town, net worth at
- * the last month end sampled in 1950 and in 2000, and whether it is still active. Century gate: >= 2 firms active.
+ * the last month end sampled in 1950 and in 2000, and whether it is still active (Phase 4 gate below).
  * An exchange line (Phase 4 Task 8, printed before the dynasty line) counts the Baron's hostile bids started,
  * repelled and lost, his final stake in the player and the player's loan. Autoplay answers a bid at every month
  * end (autoplayDefend: buy back, borrowing the shortfall); a lost bid is a game over and fails the century gate.
+ * Phase 4 gate (years >= 100): >= 5 retaliations, the Baron's succession done, dynasty generation >= 2,
+ * >= 2 regional firms active at the last month end sampled in 2000, every listing price finite and > 0
+ * at every month end, a crash card (trigger 'crash', opened by the crash1929 event) resolved in 1929,
+ * victory emitted (no game over) and a finite Legacy score. A `phase4` line prints the measurements:
+ * the crash card resolutions with their dates, workers' national opinion in 2000, the player's loan
+ * at the end and the emergency bid loans autoplay drew (finance.ts takeBidLoan, seen as a rise in
+ * `bidLoan` across autoplayDefend).
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
@@ -96,6 +103,16 @@ for (const seed of seeds) {
     cardTotal++;
   });
   ctx.bus.on('gameOver', (e) => (over = e.reason));
+  let victory = '';
+  ctx.bus.on('victory', (e) => (victory = e.reason));
+  const crashCards: string[] = [];
+  let crashIn1929 = false;
+  ctx.bus.on('cardResolved', (e) => {
+    if (CARDS_BY_ID[e.cardId]?.trigger !== 'crash') return;
+    const d = ctx.state.date;
+    crashCards.push(`${e.cardId} ${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`);
+    if (d.year === 1929) crashIn1929 = true;
+  });
   let strikes = 0;
   ctx.bus.on('strike', () => strikes++);
   const retaliations: Record<string, number> = {};
@@ -137,6 +154,11 @@ for (const seed of seeds) {
   const founded: Record<string, number> = {};
   const worth1950: Record<string, number> = {};
   const worth2000: Record<string, number> = {};
+  let firms2000 = Number.NaN;
+  let workers2000 = Number.NaN;
+  let badPrice = '';
+  let bidLoans = 0;
+  let bidLoanTotal = 0;
   const heads: string[] = [`${ctx.state.dynasty.head.name} ${ctx.state.date.year}`];
   while (ctx.state.date.year < endYear && !over) {
     // the heir is (re)named once a year, before December's births and deaths
@@ -146,7 +168,16 @@ for (const seed of seeds) {
     for (let m = 0; m < 12 && !over; m++) {
       runDays(ctx, 30);
       // a hostile bid is answered at each month end, through the public API
+      const bidLoanBefore = ctx.state.companies.player.bidLoan ?? 0;
       autoplayDefend(ctx);
+      const drawn = (ctx.state.companies.player.bidLoan ?? 0) - bidLoanBefore;
+      if (drawn > 0) {
+        bidLoans++;
+        bidLoanTotal += drawn;
+      }
+      for (const [id, l] of Object.entries(ctx.state.exchange.listings)) {
+        if (!badPrice && !(Number.isFinite(l.price) && l.price > 0)) badPrice = `${id} ${l.price} in ${ctx.state.date.year}-${ctx.state.date.month}`;
+      }
       for (const l of ctx.state.companies.player.ledger) fineByMonth.set(l.year * 12 + l.month, l.expense.fines ?? 0);
       for (const c of ctx.state.cities) {
         tierMonths[c.smog.tier]++;
@@ -166,6 +197,8 @@ for (const seed of seeds) {
         if (ctx.state.date.year === 2000) worth2000[id] = netWorth(ctx.state, id);
       }
       if (ctx.state.date.year === 2000) {
+        firms2000 = companyIds(ctx.state).filter((id) => ctx.state.companies[id].kind === 'regional' && ctx.state.companies[id].active).length;
+        workers2000 = nationalOpinion(ctx.state, 'workers');
         index2000 = ctx.state.economy.priceIndex;
         const big = ctx.state.cities.reduce((a, b) => (b.population > a.population ? b : a));
         const k = big.classes;
@@ -240,9 +273,18 @@ for (const seed of seeds) {
   });
   const activeFirms = firms.filter((id) => state.companies[id].active).length;
   console.log(`  regional ${seed}: ${firmText.join(' | ') || 'none'} | active ${activeFirms}`);
+  console.log(
+    `  phase4 ${seed}: crash cards ${crashCards.join(', ') || 'none'} | workers 2000 ${Number.isFinite(workers2000) ? workers2000.toFixed(1) : 'n/a'} | regional active 2000 ${Number.isFinite(firms2000) ? firms2000 : 'n/a'} | player loan ${money(state.companies.player.loan)} (bid loan ${money(state.companies.player.bidLoan ?? 0)}) | emergency bid loans ${bidLoans} (${money(bidLoanTotal)}) | ${victory ? `victory: ${victory}` : 'no victory'}`,
+  );
   if (years >= 100) {
     const gate: string[] = [];
-    if (activeFirms < 2) gate.push(`only ${activeFirms} regional firms active (need 2)`);
+    if (!(firms2000 >= 2)) gate.push(`only ${firms2000} regional firms active in 2000 (need 2)`);
+    if (retaliationTotal < 5) gate.push(`only ${retaliationTotal} retaliations (need 5)`);
+    if (!state.nemesis.succession.done) gate.push('the Baron\'s succession never happened');
+    if (badPrice) gate.push(`listing price not finite and > 0: ${badPrice}`);
+    if (!crashIn1929) gate.push(`no crash card resolved in 1929 (${crashCards.join(', ') || 'none resolved'})`);
+    if (!victory) gate.push('no victory emitted');
+    if (!Number.isFinite(lg.total)) gate.push(`Legacy score not finite: ${lg.total}`);
     if (over === 'Bankrupt') gate.push('player went bankrupt');
     else if (over) gate.push(`game over: ${over}`);
     if (state.dynasty.generation < 2) gate.push(`dynasty generation ${state.dynasty.generation} (need 2)`);

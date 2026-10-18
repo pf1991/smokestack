@@ -3,7 +3,11 @@ import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
-import { runAutoplay } from './game/autoplay';
+import { autoplayDefend, autoplayNameHeir, runAutoplay } from './game/autoplay';
+import { addGrudge, FURIOUS_AT, grudgeTotal } from './sim/nemesis/grudges';
+import { bidOpen, startBid } from './sim/nemesis/bid';
+import { moveShares } from './sim/exchange/shares';
+import { CONTROL_SHARES } from './sim/exchange/types';
 import { runDays, stepTick } from './sim/simulation';
 import { canPlaceBuilding, createGame, placeBuilding } from './sim/state';
 import { buyUpgrade } from './sim/society/upgrades';
@@ -29,7 +33,14 @@ import { startStrike } from './sim/society/strikes';
  *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
  *  - `pause=1` (dev, with a debug start) open the pause menu
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
- *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint
+ *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint; with
+ *    `autoplay=1` the years run as the soak runs them (scripts/soak.ts): the heir named each year and
+ *    the Baron's hostile bid answered at each 30-day month end, so the company is still the player's
+ *  - `baron=furious` (dev) give the Baron grudges up to FURIOUS_AT and forget his last strike, so his
+ *    portrait (rival panel) is furious rather than gloating
+ *  - `bid=1` (dev) hand the Baron a majority of the player's shares and open his hostile bid (the
+ *    exchange panel's bid banner; add `panel=exchange`)
+ *  - `end=1` (dev) show the victory end screen, with its Legacy table, on load
  *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
  *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
  *  - `classes=<cityId>:<working>,<middle>,<upper>` (dev) set a town's class mix (normalised), e.g. to
@@ -65,9 +76,11 @@ if (debugStart) {
   let notice: { message: string; tone: 'info' | 'good' | 'bad' } | null = null;
   let focus: { x: number; y: number } | null = null;
 
+  let autoplayed = false;
   if (params.get('autoplay') === '1') {
     const r = runAutoplay(setup);
     if (r.ok) {
+      autoplayed = true;
       runDays(setup, 20);
       state.speed = 8;
       const xs = r.value.map((b) => b.pos.x + BUILDINGS[b.typeId].size.w / 2);
@@ -84,7 +97,30 @@ if (debugStart) {
 
   const skipYears = Number(params.get('skipYears'));
   if (import.meta.env.DEV && params.has('skipYears') && Number.isFinite(skipYears) && skipYears > 0) {
-    runDays(setup, Math.floor(skipYears) * 360);
+    const days = Math.floor(skipYears) * 360;
+    if (!autoplayed) runDays(setup, days);
+    else {
+      for (let d = 0; d < days; d += 30) {
+        if (d % 360 === 0) autoplayNameHeir(setup);
+        runDays(setup, 30);
+        autoplayDefend(setup);
+      }
+    }
+  }
+  // `baron=furious`: enough grudges for FURIOUS_AT and no recent strike to gloat over
+  if (import.meta.env.DEV && params.get('baron') === 'furious') {
+    for (let i = 0; i < 40 && grudgeTotal(state) < FURIOUS_AT; i++) addGrudge(state, 'rivalry', null);
+    state.nemesis.lastAction = null;
+  }
+  // `bid=1`: the Baron takes a majority of the player's shares (from the player, then the public) and bids
+  const playerListing = state.exchange.listings.player;
+  if (import.meta.env.DEV && params.get('bid') === '1' && playerListing && !bidOpen(state)) {
+    for (const from of ['player', 'public']) {
+      const want = CONTROL_SHARES - (playerListing.holders.rival ?? 0);
+      const n = Math.min(Math.max(0, want), playerListing.holders[from] ?? 0);
+      if (n > 0) moveShares(state, 'player', from, 'rival', n);
+    }
+    if ((playerListing.holders.rival ?? 0) >= CONTROL_SHARES) startBid(setup);
   }
   // `strike=<buildingId>` starts a strike at that building today (its card opens; `cards=0` answers it
   // "Wait it out", so the strike stays on) and centres the view on it, for screenshots
@@ -203,6 +239,7 @@ if (debugStart) {
     else if (tutorial) app.showTutorial(g);
     if (notice) g.ctx.bus.emit({ type: 'toast', ...notice });
     if (import.meta.env.DEV && params.get('pause') === '1') g.onPause?.();
+    if (import.meta.env.DEV && params.get('end') === '1') g.ctx.bus.emit({ type: 'victory', reason: 'The century is over' });
   });
 } else {
   const menu = app.showMenu();

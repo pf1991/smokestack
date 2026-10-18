@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Screenshot matrix: sizes x skipYears x zoom, via headless Chrome against the vite dev server.
 # Usage: scripts/shots.sh [port]   (default 5199). Exits non-zero if any shot is missing or < 50 KB.
+# After the matrix, Phase 4 showcase shots (1366x768, seed 7, autoplay) are written as
+# shots/showcase-<name>.png: the rival panel with Smogsworth Jr. furious (y55, baron=furious), the family
+# panel (y55), the exchange panel with the hostile bid banner (y55, bid=1) and the victory end screen's
+# Legacy table (y101, end=1). See src/main.ts for those debug parameters.
 # A shot under 2 KB (Chrome sometimes writes a blank PNG under parallel load) is retried up to 2 times.
 #
 # The URL uses speed=0 (deviation from the original brief's speed=1, approved): the game starts
@@ -53,6 +57,31 @@ shot() {
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
 export -f shot
+
+# showcase <name> <skipYears> <extra query>: one 1366x768 shot of a scene, shots/showcase-<name>.png
+showcase() {
+  local name="$1" skip="$2" extra="$3" w=1366 h=768
+  local f="shots/showcase-${name}.png"
+  local udd attempt
+  for attempt in 1 2 3; do
+    udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
+    rm -f "$f"
+    timeout 300 google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+      --user-data-dir="$udd" --virtual-time-budget=10000 \
+      --window-size="$w,$((h + CHROME_H_OFFSET))" \
+      --screenshot="$f" \
+      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=1&hour=16&cards=0&$extra" >/dev/null 2>&1
+    rm -rf "$udd"
+    if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
+    echo "blank or missing shot $f (attempt $attempt)" >&2
+  done
+  convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
+}
+export -f showcase
+SHOWCASE="rival-furious 55 baron=furious&panel=rival
+family 55 panel=family
+exchange-bid 55 bid=1&panel=exchange
+end-legacy 101 end=1"
 MIN_SHOT_BYTES="${MIN_SHOT_BYTES:-2048}"
 export PORT CHROME_H_OFFSET MIN_SHOT_BYTES
 
@@ -63,6 +92,7 @@ for size in 1366,768 1920,1080; do
     done
   done
 done | xargs -P "$JOBS" -L 1 bash -c 'shot "$@"' _
+echo "$SHOWCASE" | xargs -P "$JOBS" -L 1 bash -c 'showcase "$@"' _
 
 bad=0
 for size in 1366 1920; do
@@ -73,5 +103,9 @@ for size in 1366 1920; do
     done
   done
 done
+while read -r name _; do
+  f="shots/showcase-${name}.png"
+  if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 51200 ]; then echo "BAD: $f" >&2; bad=1; fi
+done <<<"$SHOWCASE"
 echo "$(ls shots/*.png 2>/dev/null | wc -l) screenshots written"
 [ "$bad" = 0 ] || { echo "some shots missing or too small; vite log: $VLOG" >&2; exit 1; }

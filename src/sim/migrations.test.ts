@@ -14,6 +14,7 @@ const phase0 = fixtures['./__fixtures__/phase0.save.json'];
 const phase1 = fixtures['./__fixtures__/phase1.save.json'];
 const phase2 = fixtures['./__fixtures__/phase2.save.json'];
 const phase3 = fixtures['./__fixtures__/phase3.save.json'];
+const phase4 = fixtures['./__fixtures__/phase4.save.json'];
 
 describe('migrateSave', () => {
   it('rejects a SMOKESTACK I save', () => {
@@ -254,6 +255,23 @@ describe('v6 -> v7: nemesis', () => {
     expect(r.value.dynasty.generation).toBe(1);
     expect(checkInvariants(r.value)).toEqual([]);
     const ctx = testCtx(r.value);
+    runDays(ctx, 360);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+  it('phase4.save.json (1950: Junior, a second generation, a live exchange) loads, holds invariants and plays a year', () => {
+    const raw = JSON.parse(phase4) as { version: number };
+    expect(raw.version).toBe(SAVE_VERSION);
+    const r = unpackState(phase4);
+    if (!r.ok) throw new Error(r.error);
+    const s = r.value;
+    expect(s.date.year).toBe(1950);
+    expect(s.nemesis.succession.done).toBe(true);
+    expect(s.nemesis.head.generation).toBe(2);
+    expect(s.dynasty.generation).toBeGreaterThanOrEqual(2);
+    expect(Object.values(s.companies).filter((c) => c.kind === 'regional' && c.active).length).toBeGreaterThanOrEqual(2);
+    for (const l of Object.values(s.exchange.listings)) expect(Number.isFinite(l.price) && l.price > 0).toBe(true);
+    expect(checkInvariants(s)).toEqual([]);
+    const ctx = testCtx(s);
     runDays(ctx, 360);
     expect(checkInvariants(ctx.state)).toEqual([]);
   });

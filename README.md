@@ -47,6 +47,17 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **Social classes, demand and villas:** each town splits into working, middle and upper classes. Their wealth changes what they buy, and prosperous, clean towns grow villas and semis.
 - **Inflation, aging, renew and replace:** prices rise across the century and your buildings age and wear. Renew an old building to restore it, or replace it with something new.
 
+## What's new in SMOKESTACK II (Phase 4)
+
+- **The Baron as a nemesis:** Smogsworth keeps a ledger of grudges against you (undercutting him, taking his towns and contracts, a fortune that rivals his). Once they weigh enough he strikes back with smear campaigns, sabotage, poached workers, money for your opponents' candidates, price wars and share raids. The Rival window shows his character traits, his grudges, his last strikes and his mood: smug, scheming, gloating or furious.
+- **Smogsworth Jr.:** the old Baron dies in the 1940s. His son Reginald inherits the firm, part of the grudge ledger and a temper of his own.
+- **Your dynasty:** your company is a family. The head has traits that change how they do business, marries, has children and grows old. Name an heir in the Family window. When the head dies, the heir takes the chair. If the line ends with no heir, so does the game. Prestige and generations count towards your Legacy.
+- **Regional firms:** three independent companies are founded in 1905, 1920 and 1935, each in a town where nobody yet sells its goods. They build their own chains, compete for customers and close if they go broke.
+- **The stock exchange:** every company is listed with 1,000 shares and a daily price that follows its fundamentals and the market mood. Buy and sell in lots of 10 in the Exchange window. Holding 510 shares of a company takes it over.
+- **Hostile bids:** if the Baron gets 510 of your shares, he bids for your company. You have six months to buy back enough shares at their fair price, and a loan covers any shortfall. If he still holds a majority at the deadline, the company is his and the game is over.
+- **The 1929 crash:** in October 1929 the exchange collapses and demand falls for a year and a half. Crash cards ask whether to buy back your shares, sell assets cheaply, ask for a bailout or ride out a run on the bank.
+- **Legacy score:** the end screen and the Legacy window total your fortune (in 1900 dollars), landmarks raised where you lead the retail trade, your reputation with the factions, and your dynasty's prestige and generations.
+
 ## Scenarios
 
 | Scenario | Goal |
@@ -96,7 +107,7 @@ Development URL parameters skip the main menu and start a game directly:
 - `autoplay=1` script a furniture chain by the biggest city and fast-forward 20 days at speed 8
 - `hour=<0-23>` advance the clock to that hour on load
 - `speed=<0|1|2|4|8>` starting speed
-- `panel=<id>` open a panel on load (e.g. `routes`, `finance`, `newspaper`, `fleet`, `rival`)
+- `panel=<id>` open a panel on load (e.g. `routes`, `finance`, `newspaper`, `fleet`, `rival`, `family`, `exchange`, `legacy`)
 - `tutorial=1` show the tutorial card
 - `menu=1` force the main menu even when other parameters are present
 
