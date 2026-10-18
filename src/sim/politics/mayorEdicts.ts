@@ -11,6 +11,7 @@
  * somewhere (no soft-lock). Retail and logistics never need a permit. Minimum wage and truck tolls
  * go by the town a building hires from (`workCity`).
  */
+import { levelSmoke } from '../logistics/levels';
 import { BUILDINGS } from '../../data/buildings';
 import { factionName } from '../../data/factions';
 import { PLAYER_ID } from '../companies';
@@ -207,7 +208,7 @@ export function smogLimited(state: GameState): Set<number> {
   for (const city of state.cities) {
     if (!((city.smog?.level ?? 0) >= SMOG_LIMIT_LEVEL) || !hasEdict(city, 'smog_limit')) continue;
     for (const b of buildingsNear(state, city.center, city.urbanRadius + NEAR_MARGIN, PLAYER_ID)) {
-      if (BUILDINGS[b.typeId].pollution > 0) out.add(b.id);
+      if (BUILDINGS[b.typeId].pollution * levelSmoke(b) > 0) out.add(b.id);
     }
   }
   return out;

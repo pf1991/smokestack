@@ -1,11 +1,14 @@
 import type { FactionId } from '../data/factions';
 import type { LandmarkId } from '../data/landmarks';
+import type { BuildingLevel } from '../sim/logistics/types';
 import type { RetaliationKind } from '../sim/nemesis/types';
 import type { Building, GameDate, GoodId, NewsItem, OwnerId, Vec2 } from '../sim/types';
 
 export type GameEvent =
   | { type: 'buildingPlaced'; building: Building }
   | { type: 'buildingRemoved'; buildingId: number }
+  /** an upgrade's works finished (sim/logistics/levels.ts worksDay) */
+  | { type: 'buildingUpgraded'; buildingId: number; level: BuildingLevel; ownerId: OwnerId }
   | { type: 'roadChanged'; tiles: Vec2[] }
   | { type: 'railChanged'; tiles: Vec2[] }
   /** tiles whose terrain changed (trees planted: sim/state.ts plantForest) */

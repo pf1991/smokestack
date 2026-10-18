@@ -245,6 +245,14 @@ export class WorldRenderer {
         this.constructing.set(b.id, { start: performance.now(), burst: false });
         this.invalidate([b.pos, { x: b.pos.x + w - 1, y: b.pos.y + h - 1 }]);
       }),
+      bus.on('buildingUpgraded', (e) => {
+        // the scaffold comes down: replay the reveal, with its sparks, over the new level
+        const b = this.state.buildings[e.buildingId];
+        if (!b) return;
+        const { w, h } = BUILDINGS[b.typeId].size;
+        this.constructing.set(b.id, { start: performance.now(), burst: false });
+        this.invalidate([b.pos, { x: b.pos.x + w - 1, y: b.pos.y + h - 1 }]);
+      }),
       bus.on('buildingRemoved', (e) => {
         this.constructing.delete(e.buildingId);
         this.invalidate();
@@ -818,6 +826,12 @@ export class WorldRenderer {
       // an upgraded sprite (tall chimney, scrubber) carries extra rows on top
       const y = b.pos.y * TILE - HEADROOM - upgradeHeadroom(b.upgrades);
       const cs = this.constructing.get(b.id);
+      if (b.works && !cs) {
+        // an upgrade in progress: the sprite stands behind a full scaffold until the works end
+        const scaffoldH = sprite.height - upgradeHeadroom(b.upgrades) - HEADROOM + (BUILDING_HEIGHT[b.typeId] ?? 0) + 4;
+        drawConstruction(ctx, sprite, x, y, sprite.width, sprite.height, { scaffold: 1, reveal: 1, done: false }, scaffoldH);
+        continue;
+      }
       if (cs) {
         const stage = constructionStage(performance.now() - cs.start);
         if (stage.done) this.constructing.delete(b.id);

@@ -1,4 +1,5 @@
 import { loadSettings, saveSettings, UI_SCALES } from './game/settings';
+import { startUpgrade } from './sim/logistics/levels';
 import { startUiScale } from './ui/scale';
 import { openHelp } from './ui/help';
 import './ui/theme.css';
@@ -70,7 +71,7 @@ startUiScale();
 const app = new App(canvas, ui);
 
 // inspect2 does nothing outside DEV, so only there does it start a debug game
-const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', ...(import.meta.env.DEV ? ['inspect2', 'card'] : [])];
+const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', ...(import.meta.env.DEV ? ['inspect2', 'card', 'upgrading'] : [])];
 const debugStart = !params.has('menu') && DEBUG_KEYS.some((k) => params.has(k));
 
 if (debugStart) {
@@ -176,6 +177,17 @@ if (debugStart) {
       focus = { x: pb.value.pos.x, y: pa.value.pos.y + 1 };
     }
   }
+  // `upgrading=1` (dev) starts a level-2 upgrade on the first player works (a sawmill when there is one; use with `autoplay=1`)
+  let upgradingId: number | null = null;
+  if (import.meta.env.DEV && params.get('upgrading') === '1') {
+    const works = Object.values(state.buildings).filter((b) => b.ownerId === 'player' && ['extractor', 'factory'].includes(BUILDINGS[b.typeId].category));
+    const mill = works.find((b) => b.typeId === 'sawmill') ?? works.find((b) => BUILDINGS[b.typeId].category === 'factory') ?? works[0];
+    if (mill && startUpgrade(setup, mill.id, 'player').ok) {
+      upgradingId = mill.id;
+      const size = BUILDINGS[mill.typeId].size;
+      focus = { x: Math.round(mill.pos.x + size.w / 2), y: Math.round(mill.pos.y + size.h / 2) };
+    }
+  }
   const cardParam = params.get('card');
   // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen
   if (import.meta.env.DEV && (params.get('cards') === '0' || cardParam)) {
@@ -249,6 +261,7 @@ if (debugStart) {
       if (r) g.openPanel('routes', r.id);
     }
     if (import.meta.env.DEV && upgradedId !== null && params.get('inspectup') === '1') g.openPanel('building', upgradedId);
+    if (import.meta.env.DEV && upgradingId !== null) g.openPanel('building', upgradingId);
     if (import.meta.env.DEV && params.get('inspect2') === '1') {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
     }

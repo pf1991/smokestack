@@ -59,4 +59,16 @@ describe('drawConstruction', () => {
     // poles start at the scaffold top: y + h - 60
     expect(g.fillRect).toHaveBeenCalledWith(10, 60, 3, 60);
   });
+  it('draws scaffold poles over a fully revealed sprite for an upgrade in progress', () => {
+    const g = {
+      drawImage: vi.fn(), fillRect: vi.fn(), save: vi.fn(), restore: vi.fn(),
+      fillStyle: '', globalAlpha: 1,
+    };
+    drawConstruction(g as unknown as CanvasRenderingContext2D, {} as CanvasImageSource, 10, 20, 64, 100, { scaffold: 1, reveal: 1, done: false });
+    expect(g.drawImage).toHaveBeenCalledTimes(1);
+    // four poles, full height, and the planks between them
+    expect(g.fillRect).toHaveBeenCalledWith(10, 20, 3, 100);
+    expect(g.fillRect).toHaveBeenCalledWith(71, 20, 3, 100);
+    expect(g.fillRect.mock.calls.length).toBeGreaterThan(4);
+  });
 });

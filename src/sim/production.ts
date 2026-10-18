@@ -97,6 +97,11 @@ export function productionDay(ctx: SimContext): void {
   const unlocked = unlockedSet(state);
   for (const b of buildingList(state)) {
     const def = BUILDINGS[b.typeId];
+    // an upgrade's works halts the building; strike and halt timers keep running (sim/logistics/levels.ts)
+    if (b.works) {
+      b.status = 'upgrading';
+      continue;
+    }
     // a striking works produces nothing; on the day it ends the strike is cleared and an unanswered
     // strike card withdrawn (society/strikes.ts)
     if (b.strike) {

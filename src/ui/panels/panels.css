@@ -718,3 +718,14 @@
   border-top: 1px solid var(--brass-dark);
   font-size: 14px;
 }
+
+/* building level card: current and next level side by side */
+.lv-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.lv-col .p-row {
+  justify-content: flex-start;
+}

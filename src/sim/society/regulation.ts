@@ -6,6 +6,7 @@
  * enforcement month each player polluter below the law's scrubber tier pays
  * `def.pollution * 400 * priceIndex` a month, all fines capped at 25% of last month's sales.
  */
+import { levelSmoke } from '../logistics/levels';
 import { BUILDINGS } from '../../data/buildings';
 import { FINE_CAP_SHARE, FINE_RATE, LAWS, LAW_IDS, LAW_STREAK, type LawId } from '../../data/laws';
 import { PLAYER_ID } from '../companies';
@@ -64,7 +65,7 @@ export function monthlyFines(state: GameState): number {
     for (const b of nonCompliant(state, id)) {
       if (fined.has(b.id)) continue;
       fined.add(b.id);
-      total += BUILDINGS[b.typeId].pollution * FINE_RATE * index;
+      total += BUILDINGS[b.typeId].pollution * levelSmoke(b) * FINE_RATE * index;
     }
   }
   return Math.min(total, FINE_CAP_SHARE * lastMonthSales(state));

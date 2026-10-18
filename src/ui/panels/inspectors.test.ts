@@ -10,7 +10,7 @@ import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
 import { startStrike } from '../../sim/society/strikes';
 import { ageLine, staffingText } from './building';
-import { addDays, formatDate } from '../../sim/clock';
+import { addDays, dateToDays, formatDate } from '../../sim/clock';
 
 function host(ctx: SimContext) {
   const selections: unknown[] = [];
@@ -355,5 +355,45 @@ describe('building age (Task 8)', () => {
     b.builtYear = 1912;
     ctx.state.date = { ...ctx.state.date, year: 1953 };
     expect(ageLine(ctx.state, b)).toBe('Built 1912 (age 41): upkeep +52%');
+  });
+});
+
+describe('building level card', () => {
+  it('shows both columns, the price and the refusal', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    PANELS.building.open(host(ctx) as never, b.id);
+    const card = document.querySelector<HTMLElement>('.insp-level')!;
+    expect(card.querySelector('.p-head')!.textContent).toBe('Level');
+    const cols = card.querySelectorAll('.lv-col');
+    expect(cols).toHaveLength(2);
+    expect(cols[0].textContent).toContain('Level 1');
+    expect(cols[1].textContent).toContain('Level 2');
+    expect(cols[1].textContent).toContain('Workers 78');
+    expect(cols[1].textContent).toContain('Smoke ×1.3');
+    const btn = card.querySelector<HTMLButtonElement>('button[data-act="upgrade-level"]')!;
+    expect(btn.textContent).toBe('Upgrade $10,000: 30 days, output paused');
+    expect(btn.disabled).toBe(false);
+    btn.click();
+    expect(b.works?.toLevel).toBe(2);
+    expect(text()).toContain('Upgrading to level 2: 30 days left');
+  });
+
+  it('says why a level 2 works cannot climb yet, and counts the days during works', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    b.level = 2;
+    PANELS.building.open(host(ctx) as never, b.id);
+    const btn = document.querySelector<HTMLButtonElement>('button[data-act="upgrade-level"]')!;
+    expect(btn.disabled).toBe(true);
+    expect(btn.title).toBe('Level 3 arrives in 1920');
+    expect(text()).toContain('Level 3 arrives in 1920');
+    ctx.state.date.year = 1920;
+    b.works = { toLevel: 3, startDay: dateToDays(ctx.state.date), untilDay: dateToDays(ctx.state.date) + 45 };
+    b.status = 'upgrading';
+    vi.advanceTimersByTime(2000);
+    document.querySelector<HTMLButtonElement>('.window-close')?.click();
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(text()).toContain('Upgrading to level 3: 45 days left');
   });
 });

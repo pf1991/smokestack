@@ -126,6 +126,7 @@ panelmore 25 panel=finance&hudmenu=more
 panelcompany 55 panel=exchange&hudmenu=company
 finance 25 panel=finance
 tab-routes 55 panel=routes
+tab-building-level 25 inspect2=1&upgrading=1
 tab-fleet 55 panel=fleet
 tab-finance 55 panel=finance
 tab-newspaper 55 panel=newspaper

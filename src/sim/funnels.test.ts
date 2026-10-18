@@ -88,6 +88,14 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['migrations.ts', 'society/aging.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
+  it('building level and works are written only by logistics/levels.ts and the v8 migration', () => {
+    // `.level` is narrowed to building receivers: the smog tier EMA writes `s.level` (society/escalation.ts)
+    const re = /\b(?:b|building)\.level\s*(?:[-+*/]?=(?!=)|\+\+|--)|\.works\s*=(?!=)/;
+    for (const w of ['b.level = 2;', 'b.level++', 'b.works = { toLevel: 2 };', 'b.level += 1']) expect(re.test(w), w).toBe(true);
+    for (const w of ['b.level === 2', 'if (b.works) return', 'const l = b.level;', 'level: 1,']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['logistics/levels.ts', 'migrations.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
   it('weather is written only by weather.ts (and the v6 migration that adds it)', () => {
     const re = /\.(?:weather|windX|windY|rain|rainDays)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
     for (const w of ['w.windX = 1;', 'state.weather = x', 'o.weather = defaultWeather(1);', 'w.rainDays++']) expect(re.test(w), w).toBe(true);
