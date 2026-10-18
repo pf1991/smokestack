@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventBus } from '../../core/events';
 import type { GameController } from '../../game/controller';
-import { buyShares, CONTROL_SHARES, holding, quote, sellQuote } from '../../sim/exchange/trading';
+import { buyBackNeed, buyBackQuote, buyShares, CONTROL_SHARES, holding, quote, sellQuote } from '../../sim/exchange/trading';
 import { delist } from '../../sim/exchange/shares';
 import { createGame } from '../../sim/state';
 import { must } from '../../sim/testkit';
@@ -94,8 +94,29 @@ describe('exchange panel', () => {
     state.date.month += 2;
     PANELS.exchange.open(game(c));
     expect(panel().querySelector('.exchange-bid')!.textContent).toContain('4 months');
+    const need = buyBackNeed(state);
+    const fair = buyBackQuote(state, need);
+    expect(panel().querySelector('.exchange-bid')!.textContent).toContain(formatMoney(fair.price));
+    expect(panel().querySelector('.exchange-bid button')!.textContent).toContain(formatMoney(fair.total));
+    expect(state.politics.cards.pending.map((p) => p.cardId)).toEqual(['hostile_bid_warning']);
     (panel().querySelector('.exchange-bid button') as HTMLButtonElement).click();
     expect(state.nemesis.bid).toBeNull();
     expect(panel().querySelector('.exchange-bid')).toBeNull();
+    // repelled from the banner: the warning card is withdrawn
+    expect(state.politics.cards.pending).toEqual([]);
+  });
+
+  it("during a bid the player's own Buy buttons buy from the Baron at the fair price, even with no public float", () => {
+    const c = ctx();
+    const { state } = c;
+    must(buyShares(c, 'rival', 'player', 600));
+    expect(holding(state, 'public', 'player')).toBe(0);
+    PANELS.exchange.open(game(c));
+    const b = button('player', 'buy-10');
+    expect(b.disabled).toBe(false);
+    expect(b.textContent).toContain(formatMoney(buyBackQuote(state, 10).total));
+    b.click();
+    expect(holding(state, 'rival', 'player')).toBe(590);
+    expect(holding(state, 'player', 'player')).toBe(410);
   });
 });

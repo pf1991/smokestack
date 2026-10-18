@@ -215,12 +215,24 @@ export function resolveCard(ctx: SimContext, uid: number, choice: number, defs: 
     adjustOpinion(state, e.faction, scope, e.delta, title);
   }
   c.apply?.(ctx, inst.cityId, inst);
-  cards.pending.splice(cards.pending.indexOf(inst), 1);
+  // apply may already have withdrawn the card (withdrawCard)
+  const at = cards.pending.indexOf(inst);
+  if (at >= 0) cards.pending.splice(at, 1);
   cards.history.push({ id: card.id, year: state.date.year, choice });
   if (cards.history.length > HISTORY_CAP) cards.history.splice(0, cards.history.length - HISTORY_CAP);
   publishNews(ctx, 'politics', title.toUpperCase(), `${player.name} chose: ${c.label}.`);
   ctx.bus.emit({ type: 'cardResolved', cardId: card.id, uid });
   return ok();
+}
+
+/**
+ * Withdraws every pending `cardId` unanswered (no choice, no history, no news): for a card whose
+ * moment has passed, like the hostile bid warning once the bid is repelled.
+ */
+export function withdrawCard(state: GameState, cardId: string): void {
+  const pending = state.politics.cards.pending;
+  // in place: the controller holds the array
+  for (let i = pending.length - 1; i >= 0; i--) if (pending[i].cardId === cardId) pending.splice(i, 1);
 }
 
 /** Resolves every card pending AUTO_RESOLVE_DAYS or more: default choice, else the first affordable one. */

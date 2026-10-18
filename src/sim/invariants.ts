@@ -19,6 +19,8 @@ export function checkInvariants(state: GameState): string[] {
     const c = state.companies[id];
     if (!Number.isFinite(c.money)) out.push(`company ${id}: money is ${c.money}`);
     if (!Number.isFinite(c.loan)) out.push(`company ${id}: loan is ${c.loan}`);
+    // an emergency bid loan may take the balance above maxLoan (finance.ts takeBidLoan); it is part of it
+    if (c.bidLoan !== undefined && !(Number.isFinite(c.bidLoan) && c.bidLoan > 0 && c.bidLoan <= c.loan)) out.push(`company ${id}: bidLoan ${c.bidLoan} not in (0, loan]`);
   }
 
   for (const city of state.cities) {

@@ -1,8 +1,9 @@
 /**
  * The Baron's hostile bid for the player's company (Phase 4 Task 8, plan Review Focus 2). When his
  * holding of the player's shares reaches CONTROL_SHARES (exchange/trading.ts), a bid opens: the
- * player has BID_GRACE_MONTHS months of grace, a warning card (`hostile_bid_warning`) and, at any time,
- * a buy-back at the quote (exchange/trading.ts buyBack, which can borrow the shortfall). Bought back
+ * player has BID_GRACE_MONTHS months of grace, a warning card (`hostile_bid_warning`, withdrawn when
+ * the bid ends) and, at any time, a buy-back at the fundamental (exchange/trading.ts buyBack, which
+ * borrows any shortfall, above the loan limit if need be: the bid is always answerable). Bought back
  * below the line, the bid is repelled and the Baron takes it as a grudge; still above it at the
  * deadline, the game is over.
  *
@@ -12,7 +13,7 @@
 import { BARON_ID, PLAYER_ID } from '../companies';
 import { CONTROL_SHARES } from '../exchange/types';
 import { publishNews } from '../news';
-import { openCardById } from '../politics/cards';
+import { openCardById, withdrawCard } from '../politics/cards';
 import { monthIndex } from '../politics/elections';
 import type { GameState, SimContext } from '../types';
 import { addGrudge } from './grudges';
@@ -58,6 +59,7 @@ export function startBid(ctx: SimContext): void {
 function repel(ctx: SimContext): void {
   const { state } = ctx;
   state.nemesis.bid = null;
+  withdrawCard(state, HOSTILE_BID_CARD_ID);
   ctx.bus.emit({ type: 'hostileBid', stage: 'repelled' });
   publishNews(ctx, 'rival', 'SMOGSWORTH BID REPELLED', `${state.companies[PLAYER_ID].name} has bought back its shares. ${state.nemesis.head.name} is said to be livid.`);
   addGrudge(state, 'takeover_bid', null);
@@ -72,6 +74,7 @@ export function checkBid(ctx: SimContext): void {
 export function dropBid(ctx: SimContext): void {
   if (!bidOpen(ctx.state)) return;
   ctx.state.nemesis.bid = null;
+  withdrawCard(ctx.state, HOSTILE_BID_CARD_ID);
   ctx.bus.emit({ type: 'hostileBid', stage: 'repelled' });
 }
 
@@ -93,6 +96,7 @@ export function bidMonth(ctx: SimContext): void {
   }
   if (monthIndex(state.date) < bid.deadline) return;
   state.nemesis.bid = null;
+  withdrawCard(state, HOSTILE_BID_CARD_ID);
   ctx.bus.emit({ type: 'hostileBid', stage: 'lost' });
   publishNews(ctx, 'rival', `SMOGSWORTH SEIZES ${state.companies[PLAYER_ID].name.toUpperCase()}`, `${BARON_TAKES_YOU}.`);
   ctx.bus.emit({ type: 'gameOver', reason: BARON_TAKES_YOU });

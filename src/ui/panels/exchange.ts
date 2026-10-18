@@ -9,7 +9,7 @@
  */
 import type { GameController } from '../../game/controller';
 import { companyIds } from '../../sim/companies';
-import { buyBack, buyBackNeed, buyShares, holding, quote, sellQuote, sellShares } from '../../sim/exchange/trading';
+import { buyBack, buyBackNeed, buyBackQuote, buyQuote, buyShares, holding, sellerFor, sellQuote, sellShares } from '../../sim/exchange/trading';
 import { CONTROL_SHARES, PUBLIC_HOLDER } from '../../sim/exchange/types';
 import { bidMonthsLeft, bidOpen } from '../../sim/nemesis/bid';
 import type { GameState, OwnerId } from '../../sim/types';
@@ -38,8 +38,9 @@ function actionState(state: GameState, id: OwnerId, action: Action): { label: st
   const [side, lot] = action.split('-') as ['buy' | 'sell', string];
   const n = Number(lot);
   if (side === 'buy') {
-    const q = quote(state, 'player', id, n);
-    const offer = holding(state, PUBLIC_HOLDER, id);
+    // during a bid the player's own shares come from the Baron, at the buy-back price
+    const q = buyQuote(state, 'player', id, n);
+    const offer = holding(state, sellerFor(state, 'player', id), id);
     return { label: `Buy ${n} · ${formatMoney(q.total)}`, enabled: offer >= n && state.companies.player.money >= q.total };
   }
   const q = sellQuote(state, 'player', id, n);
@@ -62,7 +63,7 @@ function bidBanner(game: GameController, rerender: () => void): HTMLElement | nu
   if (!bidOpen(state)) return null;
   const months = bidMonthsLeft(state);
   const need = buyBackNeed(state);
-  const q = quote(state, 'player', 'player', need);
+  const q = buyBackQuote(state, need);
   const his = holding(state, 'rival', 'player');
   const btn = h('button', {
     class: 'btn',
@@ -82,7 +83,7 @@ function bidBanner(game: GameController, rerender: () => void): HTMLElement | nu
   },
   h('div', { style: { fontFamily: 'var(--font-display)', fontSize: '15px' } }, `Hostile bid: ${plural(months, 'month')} left`),
   h('div', { style: { fontSize: '13px', lineHeight: '1.35' } },
-    `Smogsworth holds ${his} of your shares (${CONTROL_SHARES} is control). Buy back ${need} before the deadline or lose the company. A loan covers any shortfall.`),
+    `Smogsworth holds ${his} of your shares (${CONTROL_SHARES} is control). Buy back ${need} from him at the fair price of ${formatMoney(q.price)} a share before the deadline, or lose the company. A loan covers any shortfall.`),
   btn);
 }
 

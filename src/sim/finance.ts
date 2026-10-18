@@ -90,6 +90,20 @@ export function takeLoan(c: Company, amount: number, index = 1): Result {
   return ok();
 }
 
+/**
+ * The emergency bid loan: borrows `amount` even above maxLoan, to fund the buy-back of the player's
+ * shares against the Baron's hostile bid (exchange/trading.ts buyBack is its only caller, pinned in
+ * funnels.test.ts). Same balance, same interest, repaid like any loan; the excess is tracked in
+ * `bidLoan` so the books show it.
+ */
+export function takeBidLoan(c: Company, amount: number): Result {
+  if (!(Number.isFinite(amount) && amount > 0)) return err('Bad loan amount');
+  c.loan += amount;
+  c.money += amount;
+  c.bidLoan = (c.bidLoan ?? 0) + amount;
+  return ok();
+}
+
 /** What one repayment clears now: a loan step, or the whole (nominal) balance when that is smaller. */
 export function repayStep(c: Company, index = 1): number {
   return Math.min(loanStep(index), c.loan);
@@ -105,6 +119,12 @@ export function repayLoan(c: Company, amount: number, index = 1): Result {
   if (c.money < amount) return err('Not enough money');
   c.loan -= amount;
   c.money -= amount;
+  // repayments clear the emergency bid loan first
+  if (c.bidLoan !== undefined) {
+    const left = Math.max(0, Math.min(c.loan, c.bidLoan - amount));
+    if (left > 0) c.bidLoan = left;
+    else delete c.bidLoan;
+  }
   return ok();
 }
 

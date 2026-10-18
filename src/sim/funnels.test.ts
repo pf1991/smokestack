@@ -101,6 +101,13 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['nemesis/grudges.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
+  it('the emergency bid loan is drawn only by exchange/trading.ts buyBack, and bidLoan is written only in finance.ts', () => {
+    expect(writers(/\btakeBidLoan\(/)).toEqual(['exchange/trading.ts', 'finance.ts']);
+    expect(outside.filter((f) => /\btakeBidLoan\b/.test(f.src)).map((f) => f.rel)).toEqual([]);
+    const re = /\.bidLoan\s*(?:[-+*/]?=(?!=)|\+\+|--)|delete\s+[\w.$]*\.bidLoan\b/;
+    expect(writers(re)).toEqual(['finance.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
   it('share holdings are written only by exchange/shares.ts (moveShares, listing creation)', () => {
     // element writes (`.holders[k] = `, `+=`, `++`), deletes, whole-map assignment, Object.assign, and
     // `holders:` initialisers other than the type annotation

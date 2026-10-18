@@ -232,6 +232,11 @@ export interface Company {
   active: boolean;
   /** a regional firm's home town (regional/firms.ts); absent for the player and the Baron */
   homeCityId?: number;
+  /**
+   * the part of `loan` borrowed above the loan limit to buy back shares against a hostile bid
+   * (finance.ts takeBidLoan); repaid first. Absent when none.
+   */
+  bidLoan?: number;
 }
 
 export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics' | 'protest';

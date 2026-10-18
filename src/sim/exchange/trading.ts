@@ -4,8 +4,9 @@
  *
  * - Shares trade in lots of TRADE_LOT. A buy takes them from the public, never from another holder,
  *   with one exception: while the Baron's hostile bid is open (nemesis/bid.ts), the player buying its
- *   own shares buys them back from the Baron, at the same quote; that is the only way his stake can
- *   fall, and it is always on offer. A sale goes to the public.
+ *   own shares buys them back from the Baron at the fundamental (buyBackQuote: no sentiment, impact
+ *   or fee); that is the only way his stake can fall, and it is always on offer, funded by an
+ *   emergency bid loan if need be (buyBack). A sale goes to the public.
  * - Price impact: each IMPACT_BLOCK shares bought raise the price PRICE_IMPACT for the next ones
  *   (priced lot by lot), and selling lowers it the same way. The impact lands on the listing's
  *   sentiment through exchangeShock (same clamp), so the daily walk wears it off. A broker takes
@@ -19,7 +20,7 @@
  */
 import { err, ok, type Result } from '../../core/result';
 import { BARON_ID, PLAYER_ID, transferOwnership } from '../companies';
-import { earn, loanStep, spend, takeLoan } from '../finance';
+import { earn, loanStep, maxLoan, spend, takeBidLoan, takeLoan } from '../finance';
 import { bidOpen, checkBid, dropBid, startBid } from '../nemesis/bid';
 import { addGrudge } from '../nemesis/grudges';
 import { publishNews } from '../news';
@@ -40,7 +41,6 @@ export const BROKER_FEE = 0.01;
 export { CONTROL_SHARES };
 
 const clampSentiment = (s: number): number => (s < SENTIMENT_MIN ? SENTIMENT_MIN : s > SENTIMENT_MAX ? SENTIMENT_MAX : s);
-const dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 /** How many shares of `target` `holder` holds (0 for an unknown listing). */
 export function holding(state: GameState, holder: OwnerId, target: OwnerId): number {
@@ -99,12 +99,27 @@ function refusal(state: GameState, trader: OwnerId, target: OwnerId, n: number):
  * Where `buyer`'s shares of `target` come from: the public, except that the player buying back its
  * own shares during the Baron's open bid buys them from him.
  */
-function sellerFor(state: GameState, buyer: OwnerId, target: OwnerId): OwnerId {
+export function sellerFor(state: GameState, buyer: OwnerId, target: OwnerId): OwnerId {
   if (buyer === PLAYER_ID && target === PLAYER_ID && bidOpen(state) && holding(state, BARON_ID, PLAYER_ID) > 0) return BARON_ID;
   return PUBLIC_HOLDER;
 }
 
-/** `buyer` buys `n` shares of `target` (its own included) at the quote. */
+/**
+ * The buy-back price during the Baron's open bid: the fundamental per share, with no sentiment, no
+ * price impact and no broker's fee, so his own buying cannot price the player out of its company.
+ */
+export function buyBackQuote(state: GameState, n: number): { price: number; total: number } {
+  const f = state.exchange.listings[PLAYER_ID]?.fundamental ?? 0;
+  const total = n > 0 ? Math.round(f * n) : 0;
+  return { price: perShare(total, n), total };
+}
+
+/** What `buyer` buying `n` shares of `target` costs now: the buy-back price from the bidder, else the market quote. */
+export function buyQuote(state: GameState, buyer: OwnerId, target: OwnerId, n: number): { price: number; total: number } {
+  return sellerFor(state, buyer, target) === BARON_ID ? buyBackQuote(state, n) : quote(state, buyer, target, n);
+}
+
+/** `buyer` buys `n` shares of `target` (its own included) at buyQuote. */
 export function buyShares(ctx: SimContext, buyer: OwnerId, target: OwnerId, n: number): Result {
   const { state } = ctx;
   const bad = refusal(state, buyer, target, n);
@@ -112,13 +127,14 @@ export function buyShares(ctx: SimContext, buyer: OwnerId, target: OwnerId, n: n
   const from = sellerFor(state, buyer, target);
   const have = holding(state, from, target);
   if (have < n) return err(have === 0 ? 'No shares on offer' : `Only ${have} shares on offer`);
-  const { total } = quote(state, buyer, target, n);
+  const { total } = buyQuote(state, buyer, target, n);
   const c = state.companies[buyer];
   if (c.money < total) return err('Not enough money');
   spend(c, 'shares', total, state.date);
   if (from !== PUBLIC_HOLDER) earn(state.companies[from], 'shares', total, state.date);
   moveShares(state, target, from, buyer, n);
-  exchangeShock(state, target, PRICE_IMPACT ** (n / IMPACT_BLOCK));
+  // a buy-back from the bidder is off the market: it does not move the price
+  if (from === PUBLIC_HOLDER) exchangeShock(state, target, PRICE_IMPACT ** (n / IMPACT_BLOCK));
   // he notices who is buying into his company
   if (buyer === PLAYER_ID && target === BARON_ID) addGrudge(state, 'shares', null, n / 100);
   settle(ctx, buyer, target);
@@ -206,22 +222,29 @@ export function buyBackNeed(state: GameState): number {
 }
 
 /**
- * Answers the Baron's bid: buys back buyBackNeed shares from him at the quote, first borrowing any
- * shortfall in loan steps (finance.ts takeLoan). Refused, with nothing borrowed, when even the loan
- * limit cannot cover it.
+ * Answers the Baron's bid, always (plan Review Focus 2): buys back buyBackNeed shares from him at
+ * buyBackQuote. A shortfall is borrowed in loan steps, first within the loan limit (takeLoan), then
+ * the rest as an emergency bid loan above it (takeBidLoan, drawn only here).
  */
 export function buyBack(ctx: SimContext): Result {
   const { state } = ctx;
   const need = buyBackNeed(state);
   if (need === 0) return err('There is no bid to answer');
   const c = state.companies[PLAYER_ID];
-  const { total } = quote(state, PLAYER_ID, PLAYER_ID, need);
-  const short = total - c.money;
-  if (short > 0) {
+  const { total } = buyBackQuote(state, need);
+  if (total > c.money) {
     const index = priceIndex(state);
     const step = loanStep(index);
-    const r = takeLoan(c, Math.ceil(short / step) * step, index);
-    if (!r.ok) return err(`Buying back ${need} shares costs ${dollars(total)}: ${r.error}`);
+    const headroom = Math.max(0, Math.floor((maxLoan(index) - c.loan) / step) * step);
+    const normal = Math.min(headroom, Math.ceil((total - c.money) / step) * step);
+    if (normal > 0) {
+      const r = takeLoan(c, normal, index);
+      if (!r.ok) return r;
+    }
+    if (total > c.money) {
+      const r = takeBidLoan(c, Math.ceil((total - c.money) / step) * step);
+      if (!r.ok) return r;
+    }
   }
   return buyShares(ctx, PLAYER_ID, PLAYER_ID, need);
 }

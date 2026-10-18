@@ -3,12 +3,12 @@ import { EventBus, type GameEvent } from '../../core/events';
 import { CARDS_BY_ID } from '../../data/cards';
 import { autoplayDefend, runAutoplay } from '../../game/autoplay';
 import { unpackState } from '../../game/saves';
-import { monthProfit } from '../finance';
+import { loanStep, maxLoan, monthProfit, repayLoan, takeLoan } from '../finance';
 import { checkInvariants } from '../invariants';
 import { BID_GRACE_MONTHS, BARON_TAKES_YOU, bidMonth, HOSTILE_BID_CARD_ID } from '../nemesis/bid';
 import { eligibleKinds, retaliate } from '../nemesis/retaliation';
 import { addGrudge } from '../nemesis/grudges';
-import { cardText, resolveCard } from '../politics/cards';
+import { cardText, forceCard, resolveCard } from '../politics/cards';
 import { monthIndex } from '../politics/elections';
 import { regionalMonth } from '../regional/firms';
 import { runDays, serialize } from '../simulation';
@@ -19,6 +19,8 @@ import { delist } from './shares';
 import {
   BROKER_FEE,
   buyBack,
+  buyBackQuote,
+  buyQuote,
   buyBackNeed,
   buyShares,
   CONTROL_SHARES,
@@ -298,6 +300,7 @@ describe('hostile bids', () => {
     expect(seen.filter((e) => e.type === 'hostileBid')).toEqual([{ type: 'hostileBid', stage: 'started' }]);
     expect(state.politics.cards.pending.map((p) => p.cardId)).toEqual([HOSTILE_BID_CARD_ID]);
     expect(CARDS_BY_ID[HOSTILE_BID_CARD_ID].trigger).toBe('bid');
+    expect(HOSTILE_BID_CARD_ID).toBe('hostile_bid_warning');
     // more buying does not open a second bid
     must(buyShares(ctx, 'rival', 'player', 10));
     expect(seen.filter((e) => e.type === 'hostileBid')).toHaveLength(1);
@@ -333,10 +336,10 @@ describe('hostile bids', () => {
     // whole lots of 10, just enough to bring him below 510
     expect(need).toBe(Math.ceil((holding(state, 'rival', 'player') - CONTROL_SHARES + 1) / 10) * 10);
     const baronCash = state.companies.rival.money;
-    const total = quote(state, 'player', 'player', need).total;
+    const total = buyBackQuote(state, need).total;
     must(buyBack(ctx));
     expect(holding(state, 'rival', 'player')).toBeLessThan(CONTROL_SHARES);
-    // bought from the bidder, who is paid the quote
+    // bought from the bidder, who is paid the buy-back price
     expect(state.companies.rival.money - baronCash).toBe(total);
     expect(state.nemesis.bid).toBeNull();
     expect(seen.filter((e) => e.type === 'hostileBid')).toEqual([{ type: 'hostileBid', stage: 'repelled' }]);
@@ -367,7 +370,7 @@ describe('hostile bids', () => {
     const { state } = ctx;
     openBid(ctx);
     const need = buyBackNeed(state);
-    const total = quote(state, 'player', 'player', need).total;
+    const total = buyBackQuote(state, need).total;
     state.companies.player.money = Math.round(total / 2);
     const inst = state.politics.cards.pending[0];
     const card = CARDS_BY_ID[inst.cardId];
@@ -384,28 +387,109 @@ describe('hostile bids', () => {
     expect(state.companies.player.money).toBeGreaterThanOrEqual(0);
   });
 
-  it('when even the loan limit cannot cover the buy-back, nothing is borrowed and the grace months run on', () => {
-    const ctx = rich(1e9, 1e10);
+  it('the buy-back is priced at the fundamental: no sentiment, no price impact, no fee', () => {
+    const ctx = rich(100_000, 1e9);
     const { state } = ctx;
     openBid(ctx);
-    state.companies.player.money = 0;
-    const r = buyBack(ctx);
-    expect(r.ok).toBe(false);
-    expect(state.companies.player.loan).toBe(0);
-    expect(state.nemesis.bid).not.toBeNull();
-    const inst = state.politics.cards.pending[0];
-    must(resolveCard(ctx, inst.uid, 0));
-    expect(state.companies.player.loan).toBe(0);
-    expect(state.nemesis.bid).not.toBeNull();
+    const l = state.exchange.listings.player;
+    // his buying has driven the market price up; the buy-back ignores it
+    l.sentiment = 1.6;
+    const need = buyBackNeed(state);
+    const fair = buyBackQuote(state, need);
+    expect(fair.total).toBe(Math.round(l.fundamental * need));
+    expect(fair.total).toBeLessThan(quote(state, 'player', 'player', need).total);
+    expect(buyQuote(state, 'player', 'player', need)).toEqual(fair);
+    // an ordinary trade keeps the market quote
+    expect(buyQuote(state, 'player', 'rival', 10)).toEqual(quote(state, 'player', 'rival', 10));
+    const money = state.companies.player.money;
+    must(buyBack(ctx));
+    expect(money - state.companies.player.money).toBe(fair.total);
+    expect(l.sentiment).toBe(1.6);
   });
 
-  it('waiting (the default) leaves the grace period running', () => {
+  /** A player with no cash and a maxed loan facing a bid whose buy-back costs far more than the loan limit. */
+  function cornered(): SimContext {
+    const ctx = rich(100_000, 1e10);
+    const { state } = ctx;
+    openBid(ctx);
+    const p = state.companies.player;
+    must(takeLoan(p, maxLoan(1), 1));
+    p.money = 1_000;
+    const l = state.exchange.listings.player;
+    l.fundamental = 1_000_000;
+    l.sentiment = 1.6;
+    expect(buyBackQuote(state, buyBackNeed(state)).total).toBeGreaterThan(10 * maxLoan(1));
+    return ctx;
+  }
+
+  it('a cornered player still repels the bid through the card, with an emergency bid loan above the limit', () => {
+    const ctx = cornered();
+    const { state } = ctx;
+    const p = state.companies.player;
+    const need = buyBackNeed(state);
+    const total = buyBackQuote(state, need).total;
+    const inst = state.politics.cards.pending[0];
+    expect(cardText(state, inst).body).toContain(`$${total.toLocaleString('en-US')}`);
+    const seen = events(ctx);
+    must(resolveCard(ctx, inst.uid, 0));
+    expect(seen.some((e) => e.type === 'hostileBid' && e.stage === 'repelled')).toBe(true);
+    expect(state.nemesis.bid).toBeNull();
+    expect(holding(state, 'rival', 'player')).toBeLessThan(CONTROL_SHARES);
+    expect(p.loan).toBeGreaterThan(maxLoan(1));
+    expect(p.bidLoan).toBe(p.loan - maxLoan(1));
+    expect(p.money).toBeGreaterThanOrEqual(0);
+    expect(state.politics.cards.pending).toEqual([]);
+    expect(checkInvariants(state)).toEqual([]);
+    // it survives save and load and is repaid like any loan, the bid loan first
+    const r = unpackState(serialize(state));
+    expect(r.ok && r.value.companies.player.bidLoan).toBe(p.bidLoan);
+    p.money += p.loan;
+    const bid = p.bidLoan!;
+    must(repayLoan(p, loanStep(1), 1));
+    expect(p.bidLoan).toBe(bid - loanStep(1));
+    must(repayLoan(p, p.loan, 1));
+    expect(p.bidLoan).toBeUndefined();
+    expect(p.loan).toBe(0);
+    expect(checkInvariants(state)).toEqual([]);
+    // the normal limit still binds new borrowing while the bid loan is owed
+    const again = cornered();
+    must(buyBack(again));
+    expect(takeLoan(again.state.companies.player, loanStep(1), 1).ok).toBe(false);
+  });
+
+  it('a cornered player still repels the bid through autoplayDefend', () => {
+    const ctx = cornered();
+    const seen = events(ctx);
+    autoplayDefend(ctx);
+    expect(seen.some((e) => e.type === 'hostileBid' && e.stage === 'repelled')).toBe(true);
+    expect(ctx.state.nemesis.bid).toBeNull();
+    expect(ctx.state.companies.player.bidLoan).toBeGreaterThan(0);
+    for (let i = 0; i < BID_GRACE_MONTHS + 1; i++) monthEnd(ctx);
+    expect(seen.some((e) => e.type === 'gameOver')).toBe(false);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+
+  it('a buy-back made outside the card withdraws the warning card, leaving other cards alone', () => {
+    const ctx = rich();
+    const { state } = ctx;
+    openBid(ctx);
+    expect(forceCard(ctx, 'new_machine')).toBe(true);
+    must(buyBack(ctx));
+    expect(state.politics.cards.pending.map((p) => p.cardId)).toEqual(['new_machine']);
+    expect(state.politics.cards.history.some((h) => h.id === HOSTILE_BID_CARD_ID)).toBe(false);
+  });
+
+  it('waiting (the default) leaves the grace period running, and the game ends at the deadline', () => {
     const ctx = rich();
     const { state } = ctx;
     openBid(ctx);
     const inst = state.politics.cards.pending[0];
     must(resolveCard(ctx, inst.uid, CARDS_BY_ID[inst.cardId].defaultChoice));
     expect(state.nemesis.bid).not.toBeNull();
+    const over: string[] = [];
+    ctx.bus.on('gameOver', (e) => over.push(e.reason));
+    for (let i = 0; i <= BID_GRACE_MONTHS; i++) monthEnd(ctx);
+    expect(over).toEqual([BARON_TAKES_YOU]);
   });
 
   it('autoplayDefend repels an injected bid on seed 42', () => {
