@@ -85,6 +85,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 | 1, 2, 3, 4 | Normal, fast, faster, fastest speed |
 | R / V / F / N / C | Routes / Fleet / Finance / Newspaper / Contracts |
 | G / O / X | Goals / Politics / Rival |
+| E / Y / L | Exchange / Family / Legacy |
 | B | Show or hide the build bar |
 | M / K | Smog map / Faction map |
 | P | Photo mode |
@@ -95,7 +96,8 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 **Interface**
 
 - Panels open as tabs in one side panel; the tab bar switches between the open windows and Esc closes the active tab.
-- Settings include a UI scale (makes the whole interface larger or smaller) and a ticker mode (scrolling, single headline or off).
+- The top bar groups the panels: Company (Finance, Goals, Exchange, Family, Legacy), Operations (Routes, Fleet, Contracts) and World (Newspaper, Politics, Rival).
+- Settings include a UI scale (makes the whole interface larger or smaller), a ticker mode (scrolling, single headline or off), the side panel width (drag the panel's edge; Reset in Settings) and Smart events (JEV).
 
 ## Run it
 
