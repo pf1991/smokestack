@@ -108,7 +108,11 @@ export interface PriceWar {
   priceFactor: number;
 }
 
-/** `wars` holds the town's price wars by good (null, the common case, for none). */
+/**
+ * `wars` holds the town's price wars by good (null, the common case, for none). `monthlyOut`, when
+ * given, receives each demand good's monthly demand by index into `demandGoods()` (retailDay reuses it
+ * for the day's market update instead of computing it again).
+ */
 export function computeDailySales(
   city: City,
   stores: StoreStock[],
@@ -117,6 +121,7 @@ export function computeDailySales(
   dayOffset = 0,
   index = 1,
   wars: Readonly<Partial<Record<GoodId, PriceWar>>> | null = null,
+  monthlyOut: Float64Array | null = null,
 ): Sale[] {
   const out: Sale[] = [];
   const goodIds = DEMAND_GOODS;
@@ -134,6 +139,7 @@ export function computeDailySales(
   for (let gi = 0; gi < goodIds.length; gi++) {
     const goodId = goodIds[gi];
     const monthly = monthlyDemandAt(city, gi, year, demandMod(goodId));
+    if (monthlyOut) monthlyOut[gi] = monthly;
     if (monthly <= 0) {
       const existing = city.market[goodId];
       if (existing) existing.pending = 0;

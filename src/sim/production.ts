@@ -15,7 +15,7 @@ import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
-import { averageSatisfaction, computeDailySales, demandGoods, demandModifier, monthlyDemandAt, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
+import { averageSatisfaction, computeDailySales, demandGoods, demandModifier, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
 import { layCityStreets, refreshUrbanTiles, ROAD_UPKEEP } from './state';
 import { assetEfficiency } from './society/aging';
 import { atPrices, priceIndex } from './society/economy';
@@ -151,10 +151,14 @@ export function productionDay(ctx: SimContext): void {
   }
 }
 
+let monthlyScratch: Float64Array | null = null;
+
 export function retailDay(ctx: SimContext): void {
   const { state, bus } = ctx;
   const dayOffset = dateToDays(state.date);
   const goodIds = demandGoods();
+  // each town's monthly demand by good, written by computeDailySales (every entry, every town)
+  const monthly = (monthlyScratch ??= new Float64Array(goodIds.length));
   // stores grouped by city in one pass (id order, as a per-city filter would give)
   const storesByCity = new Map<number, Building[]>();
   for (const b of buildingList(state)) {
@@ -168,7 +172,7 @@ export function retailDay(ctx: SimContext): void {
     const stocks: StoreStock[] = stores.map((b) => ({ buildingId: b.id, ownerId: b.ownerId, stock: loadSource(b) }));
     const mod = (g: GoodId) => demandModifier(state, city.id, g);
     // the Baron's price wars in this town (nemesis/retaliation.ts); null, allocation-free, when none
-    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state), priceWars(state, city.id));
+    const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state), priceWars(state, city.id), monthly);
     const soldByGood: Record<GoodId, number> = {};
     const soldStores = new Set<number>();
     for (const s of sales) {
@@ -200,9 +204,11 @@ export function retailDay(ctx: SimContext): void {
     }
     // a store is 'ok' on a day it sold anything, otherwise 'idle' (productionDay leaves it 'idle')
     for (const b of stores) if (b.status !== 'halted') b.status = soldStores.has(b.id) ? 'ok' : 'idle';
+    // the same monthly demand computeDailySales just used: the sales above change neither the town's
+    // population and classes nor the modifiers or the date
     for (let gi = 0; gi < goodIds.length; gi++) {
       const g = goodIds[gi];
-      const demandToday = monthlyDemandAt(city, gi, state.date.year, mod(g)) / 30;
+      const demandToday = monthly[gi] / 30;
       if (demandToday > 0) updateMarketDay(city, g, soldByGood[g] ?? 0, demandToday);
     }
   }
