@@ -11,13 +11,13 @@ import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
 import { DEMAND_PER_1000 } from '../data/goods';
-import { RECIPES } from '../data/recipes';
+import { RECIPES, type RecipeDef } from '../data/recipes';
 import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
 import { averageSatisfaction, computeDailySales, demandModifier, monthlyDemand, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
-import { footprint, layCityStreets, refreshUrbanTiles, ROAD_UPKEEP } from './state';
+import { layCityStreets, refreshUrbanTiles, ROAD_UPKEEP } from './state';
 import { assetEfficiency } from './society/aging';
 import { atPrices, priceIndex } from './society/economy';
 import { buildingMaintenance } from './society/upgrades';
@@ -27,19 +27,41 @@ import { buildingList } from './spatial';
 /** demandModifier and averageSatisfaction live in market.ts (a leaf for society/classes.ts); re-exported for existing importers. */
 export { averageSatisfaction, demandModifier } from './market';
 
-function extractorEfficiency(state: GameState, b: Building, outputs: string[]): number {
-  const tiles = footprint(b).map((p) => state.map.tiles[p.y * state.map.width + p.x]);
-  if (b.typeId === 'lumber_camp') return tiles.filter((t) => t.terrain === 'forest').length / tiles.length;
+function extractorEfficiency(state: GameState, b: Building, outputs: readonly string[]): number {
+  // counts over footprint(b)'s tiles, in loops instead of mapped and filtered lists (same counts)
   const def = BUILDINGS[b.typeId];
+  const { w, h } = def.size;
+  const { tiles, width } = state.map;
+  const total = w * h;
+  if (b.typeId === 'lumber_camp') {
+    let forest = 0;
+    for (let y = b.pos.y; y < b.pos.y + h; y++) for (let x = b.pos.x; x < b.pos.x + w; x++) if (tiles[y * width + x].terrain === 'forest') forest++;
+    return forest / total;
+  }
   if (def.requiresDeposit) {
-    const n = tiles.filter((t) => t.deposit !== null && outputs.includes(t.deposit)).length;
-    return n > 0 ? Math.max(0.25, n / tiles.length) : 0;
+    let n = 0;
+    for (let y = b.pos.y; y < b.pos.y + h; y++) {
+      for (let x = b.pos.x; x < b.pos.x + w; x++) {
+        const d = tiles[y * width + x].deposit;
+        if (d !== null && outputs.includes(d)) n++;
+      }
+    }
+    return n > 0 ? Math.max(0.25, n / total) : 0;
   }
   if (b.typeId === 'farm') {
     const seasonal = outputs.some((g) => g === 'grain' || g === 'cotton' || g === 'fruit');
     if (seasonal) return isWinter(state.date.month) ? 0 : isSummer(state.date.month) ? 1.5 : 1;
   }
   return 1;
+}
+
+/** A recipe's output and input goods, as Object.keys gives them (RECIPES is static data). */
+const recipeKeys = new WeakMap<RecipeDef, { outs: string[]; ins: string[] }>();
+
+function keysOf(recipe: RecipeDef): { outs: string[]; ins: string[] } {
+  let k = recipeKeys.get(recipe);
+  if (!k) recipeKeys.set(recipe, (k = { outs: Object.keys(recipe.outputs), ins: Object.keys(recipe.inputs) }));
+  return k;
 }
 
 function addOutput(b: Building, goodId: GoodId, amount: number, cap: number): void {
@@ -82,28 +104,34 @@ export function productionDay(ctx: SimContext): void {
       b.status = 'idle';
       continue;
     }
-    const outs = Object.keys(recipe.outputs);
+    const { outs, ins } = keysOf(recipe);
     // staffing and age (society/aging.ts) scale every works' rate alike
     const rate = b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;
       for (const g of outs) addOutput(b, g, recipe.outputs[g] * eff, def.storage);
-      b.status = outs.some((g) => (b.output[g] ?? 0) >= def.storage) ? 'output_full' : 'ok';
+      let full = false;
+      for (const g of outs) if ((b.output[g] ?? 0) >= def.storage) full = true;
+      b.status = full ? 'output_full' : 'ok';
       continue;
     }
-    if (outs.some((g) => (b.output[g] ?? 0) + recipe.outputs[g] > def.storage)) {
+    let full = false;
+    for (const g of outs) if ((b.output[g] ?? 0) + recipe.outputs[g] > def.storage) full = true;
+    if (full) {
       b.status = 'output_full';
       continue;
     }
-    if (!Object.entries(recipe.inputs).every(([g, q]) => (b.input[g] ?? 0) >= q)) {
+    let fed = true;
+    for (const g of ins) if (!((b.input[g] ?? 0) >= recipe.inputs[g])) fed = false;
+    if (!fed) {
       b.status = 'no_input';
       continue;
     }
     b.status = 'ok';
     b.progress += rate / recipe.days;
     if (b.progress >= 1 - 1e-9) {
-      for (const [g, q] of Object.entries(recipe.inputs)) b.input[g] -= q;
+      for (const g of ins) b.input[g] -= recipe.inputs[g];
       for (const g of outs) addOutput(b, g, recipe.outputs[g], def.storage);
       b.progress = Math.max(0, b.progress - 1);
     }
