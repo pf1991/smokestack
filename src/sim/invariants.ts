@@ -102,6 +102,12 @@ export function checkInvariants(state: GameState): string[] {
     }
   }
 
+  // a save from before Task 8 has no bid field: read as none
+  const bid = state.nemesis?.bid ?? null;
+  if (bid !== null && !(Number.isInteger(bid.since) && Number.isInteger(bid.deadline) && bid.deadline >= bid.since)) {
+    out.push(`nemesis: bad hostile bid ${JSON.stringify(bid)}`);
+  }
+
   out.push(...dynastyProblems(state));
   out.push(...exchangeProblems(state));
 

@@ -49,7 +49,7 @@ export const SCENARIOS: Record<string, ScenarioDef> = {
   beat_the_baron: {
     id: 'beat_the_baron',
     name: 'Beat the Baron',
-    blurb: 'Outgrow Baron Smogsworth, then take over his empire by 1950.',
+    blurb: 'Outgrow Baron Smogsworth, then buy a majority of his shares by 1950.',
     startYear: 1900,
     money: 300_000,
     rival: true,

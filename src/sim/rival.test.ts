@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
 import { connectToRoads, roadCost } from './roads';
-import { canTakeover, chainFor, chooseProject, MAX_STALL_MONTHS, maxRivalChains, netWorth, RIVAL_RESERVE, rivalChainCount, rivalMonth, rivalSupply, rivalTaunt, takeover, TAUNTS } from './rival';
+import { chainFor, chooseProject, MAX_STALL_MONTHS, maxRivalChains, netWorth, RIVAL_RESERVE, rivalChainCount, rivalMonth, rivalSupply, rivalTaunt, takeover, TAUNTS } from './rival';
 import { deserialize, runDays, serialize } from './simulation';
 import { buildRoad, createGame, lPath, placeBuilding } from './state';
 import { must, testCtx, testState } from './testkit';
@@ -245,7 +245,7 @@ describe('rivalTaunt', () => {
 });
 
 describe('takeover', () => {
-  it('takeover transfers ownership', () => {
+  it('takeover (the completion of a share majority) transfers ownership and charges nothing more', () => {
     const ctx = rivalGame(7);
     runDays(ctx, 360);
     const { state } = ctx;
@@ -255,23 +255,16 @@ describe('takeover', () => {
     const rivalRoads = state.map.tiles.filter((t) => t.roadOwner === 'rival').length;
     expect(rivalBuildings.length).toBeGreaterThan(0);
 
-    expect(canTakeover(state)).toBe(false);
-    expect(takeover(ctx).ok).toBe(false);
-
-    const price = Math.round(1.2 * netWorth(state, 'rival'));
-    state.companies.player.money = Math.max(1_000_000, 3 * netWorth(state, 'rival')) + price;
-    expect(canTakeover(state)).toBe(true);
     const events: string[] = [];
     ctx.bus.on('achievement', (e) => events.push(e.id));
     const playerMoney = state.companies.player.money;
     state.companies.rival.loan = 50000;
     const rivalCash = state.companies.rival.money - state.companies.rival.loan;
-    const priceWithLoan = Math.round(1.2 * netWorth(state, 'rival'));
     const playerRoads = state.companies.player.roadTiles;
     must(takeover(ctx));
 
-    // pays 1.2 × his net worth, receives his cash net of his loan
-    expect(state.companies.player.money).toBe(playerMoney - priceWithLoan + rivalCash);
+    // receives his cash net of his loan; the shares were the price
+    expect(state.companies.player.money).toBe(playerMoney + rivalCash);
     expect(state.companies.rival.money).toBe(0);
     expect(state.companies.rival.loan).toBe(0);
     for (const id of rivalBuildings) expect(state.buildings[id].ownerId).toBe('player');
@@ -285,20 +278,11 @@ describe('takeover', () => {
     expect(state.flags.takeover).toBe(true);
     expect(events).toEqual(['baron_busted']);
     expect(state.news[state.news.length - 1].headline).toBe('SMOGSWORTH OUSTED!');
-    expect(canTakeover(state)).toBe(false);
+    expect(takeover(ctx).ok).toBe(false);
 
     // the rival stays dormant afterwards and nothing breaks
     runDays(ctx, 60);
     expect(Object.values(state.buildings).every((b) => b.ownerId === 'player')).toBe(true);
-  });
-
-  it('refuses below $1,000,000 net worth', () => {
-    const ctx = rivalGame(7);
-    ctx.state.companies.rival.money = 100000;
-    ctx.state.companies.player.money = 900000;
-    expect(canTakeover(ctx.state)).toBe(false);
-    ctx.state.companies.player.money = 1_000_000;
-    expect(canTakeover(ctx.state)).toBe(true);
   });
 });
 

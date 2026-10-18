@@ -38,6 +38,7 @@ const PANELS: { id: string; label: string; icon?: string }[] = [
   { id: 'goals', label: 'Goals' },
   { id: 'politics', label: 'Politics', icon: 'ballot' },
   { id: 'family', label: 'Family' },
+  { id: 'exchange', label: 'Exchange' },
 ];
 
 const DELTA_MS = 1500;

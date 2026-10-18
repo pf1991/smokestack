@@ -205,7 +205,9 @@ export type LedgerCategory =
   | 'demolition'
   | 'fines'
   /** a regional firm's payout to its owners (regional/firms.ts): a distribution, not an operating expense */
-  | 'dividends';
+  | 'dividends'
+  /** share trades and takeover settlements (exchange/trading.ts): capital flows, not operating profit */
+  | 'shares';
 
 export interface LedgerMonth {
   year: number;

@@ -31,6 +31,8 @@ export type GameEvent =
   /** the Baron retaliated (sim/nemesis/retaliation.ts); `cityId` is the town it hit, if any */
   | { type: 'baronStrike'; kind: RetaliationKind; cityId: number | null }
   | { type: 'gameOver'; reason: string }
+  /** the Baron's bid for a majority of the player's shares (sim/nemesis/bid.ts) */
+  | { type: 'hostileBid'; stage: 'started' | 'repelled' | 'lost' }
   | { type: 'victory'; reason: string };
 
 export type GameEventType = GameEvent['type'];

@@ -179,7 +179,12 @@ export function cardText(state: GameState, inst: CardInstance, defs: CardTable =
   const city = state.cities.find((c) => c.id === inst.cityId);
   const year = state.date.year;
   const faction = city ? city.politics.mayor.faction : cardFactions(card)[0];
-  const fill = (s: string) => s.replaceAll('{city}', city?.name ?? 'the valley').replaceAll('{faction}', factionName(faction, year));
+  const vars = card.vars?.(state) ?? {};
+  const fill = (s: string) => {
+    let out = s.replaceAll('{city}', city?.name ?? 'the valley').replaceAll('{faction}', factionName(faction, year));
+    for (const [k, v] of Object.entries(vars)) out = out.replaceAll(`{${k}}`, v);
+    return out;
+  };
   return { title: fill(card.title), body: fill(card.body) };
 }
 

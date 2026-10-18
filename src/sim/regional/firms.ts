@@ -5,7 +5,8 @@
  * own money. Each month a firm tops up trucks on backed-up legs, renews worn assets and borrows or
  * repays like the Baron (rival/projects.ts, parameterised by owner); six months in the red and it
  * closes, selling its assets through demolishBuilding and sellVehicle. Each December it pays its
- * owners a dividend (DIVIDEND_SHARE of its cash above DIVIDEND_KEEP), so its cash does not pile up. Finance closes their books
+ * owners a dividend (DIVIDEND_SHARE of its cash above DIVIDEND_KEEP), so its cash does not pile up; the player and the
+ * Baron get their part pro rata to their shares (exchange/trading.ts payDividend). Finance closes their books
  * with every other company's (companyIds). Town politics ignores their sales (politics/factions.ts).
  *
  * Founding happens in January's hook. At most one firm is founded a year: the earliest due firm whose
@@ -23,6 +24,7 @@ import { RECIPES } from '../../data/recipes';
 import { buildChain, CHAINS, type ChainId } from '../chainBuilder';
 import { abandonInfrastructure, addCompany, companyIds } from '../companies';
 import { delist, listCompany } from '../exchange/shares';
+import { payDividend } from '../exchange/trading';
 import { BANKRUPT_MONTHS, spend } from '../finance';
 import { publishNews } from '../news';
 import { manageLoans, renewOldAssets, repayLoans, topUpTrucks } from '../rival/projects';
@@ -180,8 +182,12 @@ export function regionalMonth(ctx: SimContext): void {
     topUpTrucks(ctx, id, reserve);
     renewOldAssets(ctx, id, reserve);
     repayLoans(ctx, id);
-    // the firm's (abstract) owners take their dividend; the money leaves the economy
+    // the firm's shareholders take their dividend pro rata: the player's and the Baron's parts are
+    // paid to them (exchange/trading.ts payDividend); the public's and the firm's own leave the economy
     const dividend = state.date.month === 12 ? regionalDividend(state, c) : 0;
-    if (dividend > 0) spend(c, 'dividends', dividend, state.date);
+    if (dividend > 0) {
+      spend(c, 'dividends', dividend, state.date);
+      payDividend(state, id, dividend);
+    }
   }
 }

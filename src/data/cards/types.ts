@@ -37,14 +37,19 @@ export interface CardChoice {
   note?: string;
 }
 
-export type CardTrigger = 'spring' | 'election' | 'scandal' | 'strike' | 'disaster' | 'invention' | 'crash' | 'law' | 'succession';
+export type CardTrigger = 'spring' | 'election' | 'scandal' | 'strike' | 'disaster' | 'invention' | 'crash' | 'law' | 'succession' | 'bid';
 
 /** All money in a card's choices is authored in 1900 dollars for a starting $300,000 company (see CardChoice.cost). */
 export interface CardDef {
   id: string;
   title: string;
-  /** may contain `{city}` (the card's town) and `{faction}` (the town mayor's faction, else the first effect's) */
+  /**
+   * may contain `{city}` (the card's town) and `{faction}` (the town mayor's faction, else the first
+   * effect's), plus any `{key}` that `vars` fills
+   */
   body: string;
+  /** extra placeholders for the title and body, read from the state when the card is shown */
+  vars?: (state: GameState) => Record<string, string>;
   trigger: CardTrigger;
   /** first and last year the card can appear, both inclusive */
   years: [number, number];

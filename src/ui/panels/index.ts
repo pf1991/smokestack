@@ -45,3 +45,7 @@ PANELS.politics = politicsPanel;
 import { familyPanel } from './family';
 
 PANELS.family = familyPanel;
+
+import { exchangePanel } from './exchange';
+
+PANELS.exchange = exchangePanel;

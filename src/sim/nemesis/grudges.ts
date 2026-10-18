@@ -18,6 +18,7 @@ import { netWorth } from '../rival/takeover';
 import { sellersInclude } from '../scenarios';
 import { buildingsInCity } from '../state';
 import type { GameState, SimContext } from '../types';
+import { bidMonth } from './bid';
 import { retaliateMonth } from './retaliation';
 import { successionMonth } from './succession';
 import { CONTRACTS_SEEN_CAP, RETALIATE_AT, type BaronMood, type Grudge, type GrudgeKind } from './types';
@@ -194,10 +195,12 @@ function wakeGrudge(state: GameState): void {
   addGrudge(state, 'city', null, 2);
 }
 
-/** Monthly: the contract grudges, the succession (December), then the Baron's retaliation (Task 2). */
+/** Monthly: the contract grudges, the succession (December), a hostile bid falling due (Task 8), then the Baron's retaliation (Task 2). */
 export function nemesisMonth(ctx: SimContext): void {
   contractGrudges(ctx.state);
   wakeGrudge(ctx.state);
   successionMonth(ctx);
+  // a bid's deadline falls before he can strike (and buy) again
+  bidMonth(ctx);
   retaliateMonth(ctx);
 }

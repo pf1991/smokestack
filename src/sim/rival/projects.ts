@@ -14,7 +14,7 @@ import { assetAge, renewBuilding, renewCost } from '../society/aging';
 import { planChain } from './chains';
 import type { ChainEdge, ChainNode } from './chains';
 import { block, rivalStoreIn } from './market';
-import { FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
+import { clearProjectFlags, F_BUILDINGS, F_FAILS, F_STALL, FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
 import { atPrices, priceIndex } from '../society/economy';
 
 const LOAN_BELOW = 20000;
@@ -23,19 +23,12 @@ const REPAY_ABOVE = 150000;
 const MAX_TRUCKS_PER_LEG = 4;
 const MAX_FAILS = 2;
 // flags used to remember a project's details across months (GameState.flags holds primitives only)
-const F_BUILDINGS = 'rivalBuildings';
-const F_FAILS = 'rivalFails';
-const F_STALL = 'rivalStall';
+// the project flags and their reset live in shared.ts (takeover.ts clears them without importing this module)
+export { clearProjectFlags };
 
 export function projectIds(state: GameState): number[] {
   const v = state.flags[F_BUILDINGS];
   return typeof v === 'string' && v ? v.split(',').map(Number) : [];
-}
-
-export function clearProjectFlags(state: GameState): void {
-  delete state.flags[F_BUILDINGS];
-  delete state.flags[F_FAILS];
-  delete state.flags[F_STALL];
 }
 
 export const centreOf = (b: Building): Vec2 => {

@@ -71,6 +71,12 @@ export interface NemesisState {
   sabotageBanUntil: number;
   succession: { done: boolean; year: number | null };
   track: NemesisTrack;
+  /**
+   * The Baron's open hostile bid (Task 8): he holds a majority of the player's shares since month
+   * index `since` (politics/elections.ts monthIndex); unless bought back below it, the game ends at the
+   * end of month `deadline`. Null when none is open. Written only by nemesis/bid.ts.
+   */
+  bid: { since: number; deadline: number } | null;
 }
 
 /** the longest seen-contract list the Baron keeps */
@@ -97,5 +103,6 @@ export function newNemesis(rng: RngHolder, contractsSeen: number[] = []): Nemesi
     sabotageBanUntil: 0,
     succession: { done: false, year: null },
     track: { contractsSeen: contractsSeen.slice(-CONTRACTS_SEEN_CAP), cityYear: {}, contested: [], poached: {} },
+    bid: null,
   };
 }

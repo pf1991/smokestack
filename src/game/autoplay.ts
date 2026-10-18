@@ -10,6 +10,8 @@ import { runTicks } from '../sim/simulation';
 import { buyTruck } from '../sim/vehicles';
 import { nameHeir } from '../sim/dynasty/family';
 import { livingChildren } from '../sim/dynasty/types';
+import { buyBack } from '../sim/exchange/trading';
+import { bidOpen } from '../sim/nemesis/bid';
 
 export function biggestCity(cities: City[]): City | undefined {
   return [...cities].sort((a, b) => b.population - a.population)[0];
@@ -50,4 +52,15 @@ export function autoplayNameHeir(ctx: SimContext): void {
   let best = kids[0];
   for (const k of kids) if (good(k) > good(best)) best = k;
   if (d.heirId !== best.id) nameHeir(ctx.state, best.id);
+}
+
+/**
+ * Headless defence against the Baron's hostile bid (the soak calls it monthly): while a bid is open,
+ * buys back just enough shares to break his majority, borrowing the shortfall when cash is short.
+ * Only through the public API (exchange/trading.ts buyBack: takeLoan, then buyShares). No-op with no
+ * bid; when even the loan limit cannot cover it, it tries again next month.
+ */
+export function autoplayDefend(ctx: SimContext): void {
+  if (!bidOpen(ctx.state)) return;
+  buyBack(ctx);
 }

@@ -8,6 +8,8 @@ import type { OwnerId } from '../types';
 export const SHARES_OUTSTANDING = 1000;
 /** The founding family's (treasury) holding at listing; the rest goes to the public. */
 export const FOUNDER_SHARES = 400;
+/** A holding of at least this many of a company's shares controls it (exchange/trading.ts). */
+export const CONTROL_SHARES = 510;
 /** The holder id for shares in the hands of the public. */
 export const PUBLIC_HOLDER: OwnerId = 'public';
 /** Bounds of the sentiment multiplier. */

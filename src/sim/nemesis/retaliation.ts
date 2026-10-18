@@ -27,6 +27,10 @@ import { rivalReserve } from '../rival/shared';
 import { atPrices } from '../society/economy';
 import { strikeActive } from '../society/strikeState';
 import type { Building, City, GameState, GoodId, SimContext } from '../types';
+import { buyShares, quote, TRADE_LOT } from '../exchange/trading';
+import { PUBLIC_HOLDER, SHARES_OUTSTANDING } from '../exchange/types';
+import { netWorth } from '../rival/takeover';
+import { bidOpen } from './bid';
 import { addGrudge, grudgeTotal, heaviestGrudge, spendHeaviestGrudge } from './grudges';
 import { NEMESIS_NEWS_TAG, RETALIATE_AT, RETALIATION_KINDS, type GrudgeKind, type RetaliationKind } from './types';
 
@@ -56,7 +60,10 @@ export const SABOTAGE_MAX_DAYS = 20;
 export const SABOTAGE_EXPOSE_CHANCE = 0.25;
 export const SABOTAGE_BAN_YEARS = 5;
 
-/** What each move costs the Baron, in 1900 dollars (charged at atPrices). hostile_bid pays the share price (Task 8). */
+/**
+ * What each move costs the Baron, in 1900 dollars (charged at atPrices). hostile_bid instead costs the
+ * quote for the shares it buys (Task 8), which buyShares books under 'shares'.
+ */
 export const RETALIATION_COST: Record<RetaliationKind, number> = {
   price_war: 5000,
   poach: 3000,
@@ -141,9 +148,24 @@ function hasTarget(state: GameState, kind: RetaliationKind): boolean {
     case 'sabotage':
       return sabotageTargets(state).length > 0;
     case 'hostile_bid':
-      // Task 8 (hostile bids for the player's shares) does not exist yet: never chosen
-      return false;
+      return bidLot(state) > 0 && netWorth(state, BARON_ID) >= HOSTILE_BID_WORTH_RATIO * netWorth(state, PLAYER_ID);
   }
+}
+
+/** a hostile bid buys this many of the player's shares at most */
+export const HOSTILE_BID_SHARES = 100;
+/** he only bids for the player's shares while his net worth is at least this multiple of the player's */
+export const HOSTILE_BID_WORTH_RATIO = 1.5;
+
+/**
+ * The player's shares a hostile_bid move would buy: HOSTILE_BID_SHARES, or fewer when fewer are on
+ * offer; none while the player is unlisted or a bid is already open (the grace period is the player's).
+ */
+function bidLot(state: GameState): number {
+  const l = state.exchange.listings[PLAYER_ID];
+  if (!l?.listed || bidOpen(state)) return 0;
+  const offer = l.holders[PUBLIC_HOLDER] ?? 0;
+  return Math.min(HOSTILE_BID_SHARES, offer - (offer % TRADE_LOT));
 }
 
 /** he keeps this many rivalReserves after any move, so his project money is never spent on spite */
@@ -152,7 +174,8 @@ export const RESERVE_MULTIPLE = 3;
 /** the factions a smear can target: never the workers (that would be an all-town poach) nor his own circle */
 export const SMEAR_FACTIONS: readonly FactionId[] = FACTION_IDS.filter((f) => f !== 'workers' && f !== 'baron');
 
-const costNow = (state: GameState, kind: RetaliationKind): number => Math.round(atPrices(state, RETALIATION_COST[kind]));
+const costNow = (state: GameState, kind: RetaliationKind): number =>
+  kind === 'hostile_bid' ? quote(state, BARON_ID, PLAYER_ID, bidLot(state)).total : Math.round(atPrices(state, RETALIATION_COST[kind]));
 
 /** Moves the Baron could make now: a target exists and he can pay while keeping RESERVE_MULTIPLE × his reserve. In RETALIATION_KINDS order. */
 export function eligibleKinds(ctx: SimContext): RetaliationKind[] {
@@ -199,7 +222,7 @@ interface Strike {
   exposed?: boolean;
 }
 
-function apply(ctx: SimContext, kind: Exclude<RetaliationKind, 'hostile_bid'>): Strike {
+function apply(ctx: SimContext, kind: RetaliationKind): Strike {
   const { state } = ctx;
   const year = state.date.year;
   const today = dateToDays(state.date);
@@ -267,6 +290,19 @@ function apply(ctx: SimContext, kind: Exclude<RetaliationKind, 'hostile_bid'>): 
         exposed: chance(state, SABOTAGE_EXPOSE_CHANCE),
       };
     }
+    case 'hostile_bid': {
+      // eligibility priced the whole lot within his means; fewer only if that ever changes
+      const reserve = RESERVE_MULTIPLE * rivalReserve(state);
+      let n = bidLot(state);
+      while (n > 0 && state.companies[BARON_ID].money - quote(state, BARON_ID, PLAYER_ID, n).total < reserve) n -= TRADE_LOT;
+      if (n > 0) buyShares(ctx, BARON_ID, PLAYER_ID, n);
+      const held = state.exchange.listings[PLAYER_ID]?.holders[BARON_ID] ?? 0;
+      return {
+        cityId: null,
+        headline: `SMOGSWORTH BUYS INTO ${firm.toUpperCase()}`,
+        body: `${baron}'s brokers buy ${n} shares of ${firm}; he now holds ${held} of ${SHARES_OUTSTANDING}.`,
+      };
+    }
   }
 }
 
@@ -293,8 +329,9 @@ function exposeSabotage(ctx: SimContext): void {
 export function retaliate(ctx: SimContext, kind: RetaliationKind): boolean {
   const { state } = ctx;
   // nothing is charged or spent unless the move can be applied
-  if (kind === 'hostile_bid' || !eligibleKinds(ctx).includes(kind)) return false;
-  spend(state.companies[BARON_ID], 'events', costNow(state, kind), state.date);
+  if (!eligibleKinds(ctx).includes(kind)) return false;
+  // a hostile bid pays for its shares through buyShares (under 'shares')
+  if (kind !== 'hostile_bid') spend(state.companies[BARON_ID], 'events', costNow(state, kind), state.date);
   const g = heaviestGrudge(state);
   const why = cause(state, g?.kind ?? null, g?.cityId ?? null);
   spendHeaviestGrudge(state);

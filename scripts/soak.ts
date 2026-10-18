@@ -33,11 +33,14 @@
  * game over of any kind (the family line must not end) and generation >= 2.
  * A ninth line reports the regional firms (Phase 4 Task 6): each firm's founding year, home town, net worth at
  * the last month end sampled in 1950 and in 2000, and whether it is still active. Century gate: >= 2 firms active.
+ * An exchange line (Phase 4 Task 8, printed before the dynasty line) counts the Baron's hostile bids started,
+ * repelled and lost, his final stake in the player and the player's loan. Autoplay answers a bid at every month
+ * end (autoplayDefend: buy back, borrowing the shortfall); a lost bid is a game over and fails the century gate.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
 import { EventBus } from '../src/core/events';
-import { autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
+import { autoplayDefend, autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
 import { CARDS_BY_ID } from '../src/data/cards';
 import { FACTION_IDS } from '../src/data/factions';
 import { checkInvariants } from '../src/sim/invariants';
@@ -100,6 +103,8 @@ for (const seed of seeds) {
     retaliations[e.kind] = (retaliations[e.kind] ?? 0) + 1;
     retaliationTotal++;
   });
+  const bids = { started: 0, repelled: 0, lost: 0 };
+  ctx.bus.on('hostileBid', (e) => bids[e.stage]++);
   let slowMonths = 0;
   let strikeRiskMonths = 0;
   let minWorkers = 100;
@@ -139,6 +144,8 @@ for (const seed of seeds) {
     // a year as 12 months of 30 days, sampling every town's smog tier at each month end
     for (let m = 0; m < 12 && !over; m++) {
       runDays(ctx, 30);
+      // a hostile bid is answered at each month end, through the public API
+      autoplayDefend(ctx);
       for (const l of ctx.state.companies.player.ledger) fineByMonth.set(l.year * 12 + l.month, l.expense.fines ?? 0);
       for (const c of ctx.state.cities) {
         tierMonths[c.smog.tier]++;
@@ -215,6 +222,10 @@ for (const seed of seeds) {
   );
   console.log(
     `  nemesis ${seed}: retaliations ${retaliationTotal} | ${Object.entries(retaliations).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | succession ${state.nemesis.succession.year ?? 'none'} | traits ${state.nemesis.traits.join(', ')} | grudges ${state.nemesis.grudges.length} (weight ${grudgeTotal(state).toFixed(1)}) | baron net worth ${money(netWorth(state, 'rival'))}`,
+  );
+  const stake = (holder: string, id: string) => state.exchange.listings[id]?.holders[holder] ?? 0;
+  console.log(
+    `  exchange ${seed}: bids started ${bids.started}, repelled ${bids.repelled}, lost ${bids.lost} | baron holds ${stake('rival', 'player')} of the player, player ${stake('player', 'player')} own | player loan ${money(state.companies.player.loan)} | baron ${state.companies.rival.active ? 'active' : 'taken over'}`,
   );
   console.log(`  dynasty ${seed}: generation ${state.dynasty.generation} | heads ${heads.join(', ')} | prestige ${state.dynasty.prestige} | children ${state.dynasty.children.length}`);
   const firms = companyIds(state).filter((id) => state.companies[id].kind === 'regional');

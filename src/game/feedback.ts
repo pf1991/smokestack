@@ -66,6 +66,17 @@ export function attachBaronStrikeToasts(ctx: SimContext, openRival: () => void):
   });
 }
 
+/** Toasts the Baron's hostile bid opening (with the exchange to answer it) and its repulse. */
+export function attachHostileBidToasts(ctx: SimContext, openExchange: () => void): () => void {
+  return ctx.bus.on('hostileBid', (e) => {
+    if (e.stage === 'started') {
+      ctx.bus.emit({ type: 'toast', message: 'Smogsworth holds a majority of your shares!', tone: 'bad', action: { label: 'Exchange', run: openExchange } });
+    } else if (e.stage === 'repelled') {
+      ctx.bus.emit({ type: 'toast', message: "Smogsworth's bid is repelled", tone: 'good' });
+    }
+  });
+}
+
 /** Routes that stop at `buildingId` (call before demolishing it). */
 export function routesUsing(state: GameState, buildingId: number): Route[] {
   return Object.values(state.routes).filter((r) => r.stops.some((s) => s.buildingId === buildingId));

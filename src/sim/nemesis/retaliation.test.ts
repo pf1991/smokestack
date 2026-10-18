@@ -404,10 +404,10 @@ describe('every kind', () => {
     }
   });
 
-  it('hostile_bid is never chosen yet (Task 8)', () => {
+  it('hostile_bid needs the Baron 1.5x the player (exchange/trading.test.ts covers the move)', () => {
     const ctx = setup();
-    expect(eligibleKinds(ctx)).not.toContain('hostile_bid');
     feud(ctx, 40);
+    expect(eligibleKinds(ctx)).not.toContain('hostile_bid');
     const before = JSON.stringify(ctx.state);
     expect(retaliate(ctx, 'hostile_bid')).toBe(false);
     expect(JSON.stringify(ctx.state)).toBe(before);

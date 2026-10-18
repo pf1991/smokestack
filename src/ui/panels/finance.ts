@@ -27,12 +27,15 @@ const LABELS: Record<LedgerCategory, string> = {
   interest: 'Interest',
   fines: 'Smoke fines',
   dividends: 'Dividends',
+  shares: 'Share trades',
 };
 // rows come from the sim's category lists, so the statement and monthProfit cannot drift apart
 const INCOME_CATS = INCOME_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));
 // spending under 'events' is philanthropy and takeover deals, not windfalls: its own label on the expense side
 const EXPENSE_LABELS: Partial<Record<LedgerCategory, string>> = { events: 'Gifts & deals' };
 const EXPENSE_CATS = EXPENSE_CATEGORIES.map((cat) => ({ cat, label: EXPENSE_LABELS[cat] ?? LABELS[cat] }));
+/** Capital flows shown under the profit line (net of both sides), only in months that had any. */
+const CAPITAL_CATS: LedgerCategory[] = ['shares', 'dividends'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const monthKey = (m: { year: number; month: number }) => m.year * 12 + m.month;
@@ -68,6 +71,9 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
           h('th', { scope: 'row' }, 'Profit'),
           profit.map((v) => h('td', { class: v < 0 ? 'neg' : 'pos' }, formatMoney(v))),
         ),
+        // capital flows below the line: share trades and dividends never count as profit
+        CAPITAL_CATS.filter((cat) => months.some((m) => (m.income[cat] ?? 0) !== 0 || (m.expense[cat] ?? 0) !== 0)).map((cat) =>
+          row(LABELS[cat], months.map((m) => (m.income[cat] ?? 0) - (m.expense[cat] ?? 0)))),
       ),
     ),
   );

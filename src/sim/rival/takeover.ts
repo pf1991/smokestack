@@ -2,50 +2,38 @@ import type { Result } from '../../core/result';
 import { err, ok } from '../../core/result';
 import { transferOwnership } from '../companies';
 import { earn, spend } from '../finance';
-import { delist } from '../exchange/shares';
+import { delist, handOverHoldings } from '../exchange/shares';
 import { publishNews } from '../news';
 import { assetValue } from '../state';
-import { atPrices } from '../society/economy';
 import type { GameState, OwnerId, SimContext } from '../types';
-import { clearProjectFlags } from './projects';
-
-const TAKEOVER_MULTIPLE = 3;
-/** Least net worth for a takeover, in 1900 dollars (× price index). */
-export const TAKEOVER_MIN_WORTH = 1_000_000;
-const TAKEOVER_PREMIUM = 1.2;
+import { clearProjectFlags } from './shared';
 
 export function netWorth(state: GameState, owner: OwnerId): number {
   const c = state.companies[owner];
   return c.money - c.loan + assetValue(state, owner);
 }
 
-export function canTakeover(state: GameState): boolean {
-  if (!state.companies.rival.active) return false;
-  const mine = netWorth(state, 'player');
-  return mine >= atPrices(state, TAKEOVER_MIN_WORTH) && mine >= TAKEOVER_MULTIPLE * netWorth(state, 'rival');
-}
-
-export function takeoverPrice(state: GameState): number {
-  return Math.max(0, Math.round(TAKEOVER_PREMIUM * netWorth(state, 'rival')));
-}
-
-/** Buys out the Baron: every rival building, route, vehicle and road passes to the player. */
-export function takeover(ctx: SimContext): Result<{ price: number }> {
+/**
+ * Completes the takeover of the Baron once the player holds a majority of his shares
+ * (exchange/trading.ts buyShares calls it; the shares were the price, so nothing more is charged).
+ * The deal brings his treasury net of his debts; every rival building, route, vehicle and road passes
+ * to the player, his share holdings too, and his company is delisted. An open hostile bid of his ends
+ * with him (exchange/trading.ts drops it; nemesis/bid.ts bidMonth too, for a direct call).
+ */
+export function takeover(ctx: SimContext): Result {
   const { state } = ctx;
-  if (!canTakeover(state)) return err(`Your net worth must be 3× the Baron’s and at least $${Math.round(atPrices(state, TAKEOVER_MIN_WORTH)).toLocaleString('en-US')}`);
-  const price = takeoverPrice(state);
   const player = state.companies.player;
   const rival = state.companies.rival;
-  if (player.money < price) return err('Not enough money');
-  spend(player, 'events', price, state.date);
+  if (!rival?.active) return err('Smogsworth is already out of business');
   // the deal includes the Baron's treasury and his debts: his cash minus his loan goes to the buyer
   const cash = rival.money - rival.loan;
-  if (cash >= 0) earn(player, 'events', cash, state.date);
-  else spend(player, 'events', -cash, state.date);
+  if (cash >= 0) earn(player, 'shares', cash, state.date);
+  else spend(player, 'shares', -cash, state.date);
   rival.money = 0;
   rival.loan = 0;
   transferOwnership(ctx, 'rival', 'player');
   rival.active = false;
+  handOverHoldings(state, 'rival', 'player');
   delist(state, 'rival');
   state.rivalProject = null;
   state.rivalRail = null;
@@ -56,9 +44,8 @@ export function takeover(ctx: SimContext): Result<{ price: number }> {
     ctx,
     'rival',
     'SMOGSWORTH OUSTED!',
-    `${player.name} completes a hostile takeover of Smogsworth Consolidated for ${price.toLocaleString('en-US')} dollars. ` +
+    `${player.name} completes a hostile takeover of Smogsworth Consolidated, having bought a majority of his shares. ` +
       'The Baron was last seen shaking his cane at the board and hailing a cab, monocle dangling.',
   );
-  return ok({ price });
+  return ok();
 }
-

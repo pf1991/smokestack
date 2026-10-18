@@ -44,7 +44,7 @@ export function fundamental(state: GameState, id: OwnerId, assets?: Map<OwnerId,
 }
 
 /** The listing's price from its fundamental and sentiment. */
-export function quote(l: Listing): number {
+export function listingPrice(l: Listing): number {
   return round2(l.fundamental * l.sentiment);
 }
 
@@ -63,7 +63,7 @@ export function exchangeDay(ctx: SimContext): void {
     let s = l.sentiment * Math.exp(DAILY_VOLATILITY * (random(state.exchange) - 0.5) * 2);
     s += MEAN_REVERSION * (1 - s);
     l.sentiment = clampSentiment(s);
-    l.price = quote(l);
+    l.price = listingPrice(l);
   }
 }
 
@@ -76,7 +76,7 @@ export function exchangeMonth(ctx: SimContext): void {
     const l = listings[id];
     if (!l.listed) continue;
     l.fundamental = fundamental(state, id, assets);
-    l.price = quote(l);
+    l.price = listingPrice(l);
     l.history.push(l.price);
     if (l.history.length > PRICE_HISTORY_MONTHS) l.history.splice(0, l.history.length - PRICE_HISTORY_MONTHS);
   }
@@ -91,6 +91,6 @@ export function exchangeShock(state: GameState, id: OwnerId | '*', factor: numbe
     if (!l.listed) continue;
     const s = l.sentiment * factor;
     l.sentiment = Number.isFinite(s) ? clampSentiment(s) : l.sentiment;
-    l.price = quote(l);
+    l.price = listingPrice(l);
   }
 }

@@ -6,10 +6,10 @@ import { drawBaronPortrait, type BaronMood } from '../../render/portrait';
 import { formatDate } from '../../sim/clock';
 import { baronMood } from '../../sim/nemesis/grudges';
 import { NEMESIS_NEWS_TAG, type Grudge } from '../../sim/nemesis/types';
-import { canTakeover, netWorth, takeover, takeoverPrice } from '../../sim/rival';
+import { buyShares, holding, quote } from '../../sim/exchange/trading';
+import { CONTROL_SHARES, SHARES_OUTSTANDING } from '../../sim/exchange/types';
+import { netWorth } from '../../sim/rival';
 import { runDays } from '../../sim/simulation';
-import { TAKEOVER_MIN_WORTH } from '../../sim/rival/takeover';
-import { atPrices } from '../../sim/society/economy';
 import type { GameState, NewsItem } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney } from '../format';
@@ -19,6 +19,8 @@ import type { PanelDef } from './index';
 const PLAYER_COLOR = '#2f6fb5';
 const RIVAL_COLOR = '#b5302f';
 const PORTRAIT_PX = 132;
+/** shares the "Buy his shares" button buys at a time */
+const BUY_LOT = 50;
 /** how many grudges and retaliations the panel lists */
 const LIST_MAX = 5;
 
@@ -172,25 +174,24 @@ function render(game: GameController, refresh: () => void): HTMLElement {
       : h('ul', { class: 'rival-stores', style: { margin: '0', paddingLeft: '18px', fontSize: '13px' } },
         stores.map((s) => h('li', null, h('b', null, s.city), s.goods.length ? ` — ${s.goods.join(', ')}` : ' — empty shelves'))));
 
-  const able = canTakeover(state);
-  const price = takeoverPrice(state);
+  // the share route (exchange/trading.ts): a majority of his shares takes his company
+  const held = holding(state, 'player', 'rival');
+  const q = quote(state, 'player', 'rival', BUY_LOT);
   const button = h('button', {
     class: 'btn rival-takeover',
-    disabled: !able,
-    style: { width: '100%', marginTop: '12px', opacity: able ? '1' : '0.55' },
+    disabled: !rival.active,
+    style: { width: '100%', marginTop: '12px', opacity: rival.active ? '1' : '0.55' },
     onClick: () => {
-      const r = takeover(game.ctx);
-      game.ctx.bus.emit(r.ok
-        ? { type: 'toast', message: 'Hostile takeover complete! Smogsworth is ousted.', tone: 'good' }
-        : { type: 'toast', message: r.error, tone: 'bad' });
+      const r = buyShares(game.ctx, 'player', 'rival', BUY_LOT);
+      const message = !r.ok ? r.error : game.ctx.state.flags.takeover ? 'Hostile takeover complete! Smogsworth is ousted.' : `Bought ${BUY_LOT} of his shares`;
+      game.ctx.bus.emit({ type: 'toast', message, tone: r.ok ? 'good' : 'bad' });
       refresh();
     },
-  }, rival.active ? `Hostile Takeover · ${formatMoney(price)}` : 'Takeover complete');
-  const floor = atPrices(game.ctx.state, TAKEOVER_MIN_WORTH);
-  const need = Math.max(floor, 3 * his);
-  const hint = rival.active && !able
-    ? h('div', { style: { fontSize: '12px', opacity: '0.8', marginTop: '4px' } },
-      `Reach ${formatMoney(need)} net worth (3× his, at least ${formatMoney(floor)}) to buy him out.`)
+  }, rival.active ? `Buy his shares · ${BUY_LOT} for ${formatMoney(q.total)}` : 'Takeover complete');
+  const hint = rival.active
+    ? h('div', { class: 'rival-stake', style: { fontSize: '12px', opacity: '0.8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' } },
+      h('span', null, `You hold ${held} of his ${SHARES_OUTSTANDING} shares; ${CONTROL_SHARES} takes his company.`),
+      h('button', { class: 'btn', type: 'button', onClick: () => game.openPanel('exchange') }, 'Exchange'))
     : null;
 
   return h('div', { class: 'rival-panel', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },

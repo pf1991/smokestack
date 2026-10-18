@@ -4,7 +4,7 @@
  */
 import { companyIds } from '../companies';
 import type { GameState, OwnerId } from '../types';
-import { fundamental, quote } from './prices';
+import { fundamental, listingPrice } from './prices';
 import { FOUNDER_SHARES, PUBLIC_HOLDER, SHARES_OUTSTANDING, type Listing } from './types';
 
 /**
@@ -49,7 +49,7 @@ export function listCompany(state: GameState, id: OwnerId): Listing {
   }
   state.exchange.listings = listings;
   l.fundamental = fundamental(state, id);
-  l.price = quote(l);
+  l.price = listingPrice(l);
   return l;
 }
 
@@ -63,5 +63,18 @@ export function delist(state: GameState, id: OwnerId): void {
   l.listed = false;
   for (const holder of Object.keys(l.holders)) {
     if (holder !== PUBLIC_HOLDER) moveShares(state, id, holder, PUBLIC_HOLDER, l.holders[holder]);
+  }
+}
+
+/**
+ * A company taken over hands its portfolio to the buyer: every share it holds in another listing
+ * moves to `to` (its holding in itself is left for `delist`). Listings are visited in key order.
+ */
+export function handOverHoldings(state: GameState, from: OwnerId, to: OwnerId): void {
+  const listings = state.exchange.listings;
+  for (const id in listings) {
+    if (id === from) continue;
+    const n = listings[id].holders[from] ?? 0;
+    if (n > 0) moveShares(state, id, from, to, n);
   }
 }
