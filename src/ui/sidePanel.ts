@@ -101,14 +101,23 @@ function defaultWidthPx(vw: number): number {
 }
 
 /**
+ * The panel's resolved width in screen px, never a CSS expression: the laid-out rect, or (no layout,
+ * e.g. jsdom) the inline px width times the UI scale, or the default width for the min() expression.
+ */
+function resolvedWidthPx(el: HTMLElement): number {
+  const rect = el.getBoundingClientRect().width;
+  if (rect > 0) return rect;
+  const inline = el.style.width;
+  if (inline.endsWith('px') && !inline.startsWith('min')) return parseFloat(inline) * currentUiScale();
+  return defaultWidthPx(window.innerWidth);
+}
+
+/**
  * Publishes the panel's on-screen width as --side-panel-w on <html> (0px when hidden), so the toast
  * stack (theme.css) moves left of it instead of sliding underneath.
  */
 function publishWidth(): void {
-  let w = root && !root.hidden ? root.style.width || '0px' : '0px';
-  // the root's width is in zoomed px; the variable is in screen px
-  if (w.endsWith('px') && !w.startsWith('min')) w = `${parseFloat(w) * currentUiScale()}px`;
-  document.documentElement.style.setProperty('--side-panel-w', w);
+  document.documentElement.style.setProperty('--side-panel-w', root && !root.hidden ? `${resolvedWidthPx(root)}px` : '0px');
 }
 
 let observer: ResizeObserver | null = null;
@@ -137,8 +146,10 @@ function startResize(ev: MouseEvent): void {
   const saved = savedWidth();
   const startW = rectW > 0 ? rectW : saved ?? (parseFloat(root.style.width) * currentUiScale() || defaultWidthPx(window.innerWidth));
   let w = startW;
+  let moved = false;
   root.classList.add('resizing');
   const onMove = (m: MouseEvent) => {
+    moved = true;
     w = clampPanelWidth(startW + (startX - m.clientX), window.innerWidth);
     if (root) root.style.width = `${w / currentUiScale()}px`;
     publishWidth();
@@ -148,6 +159,7 @@ function startResize(ev: MouseEvent): void {
     document.removeEventListener('pointerup', onUp);
     document.removeEventListener('pointercancel', onUp);
     root?.classList.remove('resizing');
+    if (!moved) return; // a bare click must not freeze the width
     const s = loadSettings();
     s.panelWidth = w;
     saveSettings(s);
@@ -155,6 +167,14 @@ function startResize(ev: MouseEvent): void {
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onUp);
   document.addEventListener('pointercancel', onUp);
+}
+
+/** Double-click on the grip: forget the saved width and go back to the default / auto-widening. */
+function resetWidth(): void {
+  const s = loadSettings();
+  s.panelWidth = null;
+  saveSettings(s);
+  layout();
 }
 
 /** The panel element, created on first use (and again if the page body was cleared). */
@@ -180,7 +200,7 @@ export function sidePanelEl(): HTMLElement {
     'aria-label': 'Expand panel',
     onClick: () => expandPanel(),
   }, railCount);
-  const grip = h('div', { class: 'side-panel-grip', title: 'Drag to resize', 'aria-hidden': 'true', onPointerDown: startResize });
+  const grip = h('div', { class: 'side-panel-grip', title: 'Drag to resize', 'aria-hidden': 'true', onPointerDown: startResize, onDblClick: resetWidth });
   root = h('aside', {
     class: 'side-panel',
     'aria-label': 'Side panel',

@@ -183,6 +183,24 @@ describe('side panel width', () => {
     expect(parseFloat(panel()!.style.width)).toBeCloseTo(0.6 * window.innerWidth);
   });
 
+  it('a bare click on the grip saves nothing; a double-click resets the saved width', () => {
+    open('a');
+    const grip = panel()!.querySelector<HTMLElement>('.side-panel-grip')!;
+    pointer(grip, 'pointerdown', 600);
+    pointer(document, 'pointerup', 600);
+    expect(loadSettings().panelWidth).toBeNull();
+    saveSettings({ ...DEFAULT_SETTINGS, panelWidth: 380 });
+    grip.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(loadSettings().panelWidth).toBeNull();
+  });
+
+  it('publishes the resolved px width as --side-panel-w, never a min() expression', () => {
+    open('a');
+    panel()!.getBoundingClientRect = () => ({ width: 420 } as DOMRect);
+    open('b');
+    expect(document.documentElement.style.getPropertyValue('--side-panel-w')).toBe('420px');
+  });
+
   it('a saved width is used when the panel opens', () => {
     saveSettings({ ...DEFAULT_SETTINGS, panelWidth: 380 });
     open('a');
@@ -264,7 +282,7 @@ describe('side panel width variable', () => {
   it('publishes --side-panel-w for the toast stack (0px when no tab is open)', () => {
     const a = open('a');
     const v = () => document.documentElement.style.getPropertyValue('--side-panel-w');
-    expect(v()).toBe('min(420px, 34vw)');
+    expect(v()).toBe(`${Math.min(420, 0.34 * window.innerWidth)}px`); // resolved px, never a min() expression
     a.dock();
     expect(v()).toBe(`${RAIL_W}px`);
     a.close();
