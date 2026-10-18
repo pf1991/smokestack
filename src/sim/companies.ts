@@ -72,3 +72,20 @@ export function transferOwnership(
   ctx.bus.emit({ type: 'ownershipChanged', from, to });
   return { buildings, routes, vehicles, roadTiles, railTiles };
 }
+
+/**
+ * A closing company walks away from its roads and rails: they stay on the map, owned by nobody, and
+ * its tile counts (which drive upkeep) drop to zero. Returns how many road and rail tiles it left.
+ */
+export function abandonInfrastructure(state: GameState, owner: OwnerId): { roadTiles: number; railTiles: number } {
+  const c = state.companies[owner];
+  if (!c) throw new Error(`abandonInfrastructure: unknown company ${owner}`);
+  for (const t of state.map.tiles) {
+    if (t.roadOwner === owner) t.roadOwner = null;
+    if (t.railOwner === owner) t.railOwner = null;
+  }
+  const left = { roadTiles: c.roadTiles, railTiles: c.railTiles };
+  c.roadTiles = 0;
+  c.railTiles = 0;
+  return left;
+}

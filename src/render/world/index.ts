@@ -28,7 +28,8 @@ import type { EventBus } from '../../core/events';
 import { BUILDINGS } from '../../data/buildings';
 import { LANDMARK_LAYER } from '../../sim/landmarkTiles';
 import { layerAt } from '../../sim/layers';
-import type { Building, City, GameState, Vec2 } from '../../sim/types';
+import type { Building, City, GameState, OwnerId, Vec2 } from '../../sim/types';
+import { ownerColor } from '../ownerColors';
 import { applyAtmosphere, cssFilterFor, easeLight, isLit } from '../atmosphere';
 import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
@@ -89,6 +90,11 @@ const SHADOW_REACH = Math.ceil((MAX_CASTER_Z * MAX_SHADOW_LENGTH) / TILE) + 1;
 
 const PLAYER_FLOAT = '#7ee07e';
 const RIVAL_FLOAT = '#b5302f';
+
+/** Sale floater colour: green for the player, crimson for the Baron, a regional firm's own colour otherwise. */
+export function floatColor(ownerId: OwnerId): string {
+  return ownerId === 'player' ? PLAYER_FLOAT : ownerId === 'rival' ? RIVAL_FLOAT : ownerColor(ownerId);
+}
 
 
 const MONEY = (n: number): string => '$' + Math.round(n).toLocaleString('en-US');
@@ -479,7 +485,7 @@ export class WorldRenderer {
       const def = BUILDINGS[b.typeId];
       const wx = (b.pos.x + def.size.w / 2) * TILE + (Math.random() - 0.5) * 2 * FLOAT_JITTER_PX;
       const wy = b.pos.y * TILE - 4;
-      this.floaters.emitFloatText(wx, wy, `+${MONEY(p.revenue)}`, p.ownerId === 'player' ? PLAYER_FLOAT : RIVAL_FLOAT);
+      this.floaters.emitFloatText(wx, wy, `+${MONEY(p.revenue)}`, floatColor(p.ownerId));
     }
     if (this.lastFloat.size > 256) {
       for (const [id, t] of this.lastFloat) if (nowMs - t > FLOAT_FLUSH_MS) this.lastFloat.delete(id);

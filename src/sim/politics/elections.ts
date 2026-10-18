@@ -23,6 +23,7 @@ import { workCity } from './workforce';
 import { REVOLT_REFORMER_VOTE, smogTier } from '../society/tiers';
 import type { CityPolitics } from './types';
 import { atPrices } from '../society/economy';
+import { dynastyModifier } from '../dynasty/types';
 
 export const ELECTION_TERM = 48;
 /** Oldest entries of `politics.elections` are dropped beyond this. */
@@ -32,6 +33,8 @@ export const ENDORSE_WINDOW = 12;
 export const MIN_LEAD = 6;
 export const ENDORSE_SHARE_BONUS = 1.3;
 export const MAX_SLUSH = 3;
+/** the vote-share multiplier of the faction the Baron funds (nemesis/retaliation.ts fund_opponent) */
+export const BARON_BACK_BONUS = 1.3;
 const DEFAULT_FACTION: FactionId = FACTION_IDS.reduce((a, b) => (FACTIONS[b].weight > FACTIONS[a].weight ? b : a));
 
 export const monthIndex = (d: { year: number; month: number }) => d.year * MONTHS_PER_YEAR + (d.month - 1);
@@ -101,6 +104,7 @@ export function voteShares(city: City): Record<FactionId, number> {
       s *= ENDORSE_SHARE_BONUS;
       s *= 1 + 0.25 * Math.min(MAX_SLUSH, Math.max(0, p.slush));
     }
+    if (p.baronBacks === f) s *= BARON_BACK_BONUS;
     // a smog revolt (tier 4) swings the town to the reformers
     if (f === 'reformers' && smogTier(city) >= 4) s *= REVOLT_REFORMER_VOTE;
     scores[f] = s;
@@ -134,6 +138,7 @@ export function holdElection(ctx: SimContext, city: City): FactionId {
   while (p.nextElection <= now) p.nextElection += ELECTION_TERM;
   p.endorsed = null;
   p.slush = 0;
+  p.baronBacks = null;
   p.edicts = chooseMayorEdicts(city);
   const year = state.date.year;
   const log = (state.politics.elections ??= []);
@@ -239,7 +244,7 @@ export function scandalMonth(ctx: SimContext): void {
   const { state } = ctx;
   for (const city of state.cities) {
     const p = city.politics;
-    if (p.scandalRisk > 0 && chance(state, p.scandalRisk * SCANDAL_CHANCE_PER_RISK)) {
+    if (p.scandalRisk > 0 && chance(state, p.scandalRisk * SCANDAL_CHANCE_PER_RISK * dynastyModifier(state).scandal)) {
       publishNews(ctx, 'politics', `BRIBERY SCANDAL ROCKS ${city.name.toUpperCase()} CITY HALL`, `Payments to the ${city.name} campaign have come to light.`);
       adjustOpinion(state, 'reformers', city.id, -10, 'Bribery scandal');
       adjustOpinion(state, 'church', city.id, -6, 'Bribery scandal');

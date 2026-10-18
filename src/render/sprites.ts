@@ -60,18 +60,8 @@ const LIFT_ROOM = HEADROOM - HR0;
 const WALL = 7;
 const SHADOW = 4;
 
-const OWNER_COLOR: Record<string, string> = { player: '#2f6fb5', rival: '#b5302f' };
-export const REGIONAL_COLORS = ['#3f8f5a', '#8a5aa8', '#c07a2a'];
-
-function strHash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  return h >>> 0;
-}
-
-export function ownerColor(id: OwnerId): string {
-  return OWNER_COLOR[id] ?? REGIONAL_COLORS[strHash(id) % REGIONAL_COLORS.length];
-}
+export { ownerColor, REGIONAL_COLORS } from './ownerColors';
+import { ownerColor } from './ownerColors';
 
 type Ctx = CanvasRenderingContext2D;
 type Dir = 'N' | 'E' | 'S' | 'W';

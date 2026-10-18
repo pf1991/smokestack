@@ -16,6 +16,24 @@ const key = (bx: number, by: number): number => (by + 1024) * 4096 + (bx + 1024)
 /** Drops the cached index; placeBuilding/demolishBuilding call this after mutating state.buildings. */
 export function invalidateSpatial(state: GameState): void {
   indexes.delete(state.buildings);
+  lists.delete(state.buildings);
+}
+
+/**
+ * Every building in ascending id order, as `Object.values(state.buildings)` gives them (the ids are
+ * integer keys), cached per buildings record like the index above. Ids are sparse, so the record is a
+ * dictionary and enumerating it daily in several systems is costly. The list is rebuilt after
+ * invalidateSpatial (placeBuilding, demolishBuilding) or when `state.nextId` moves, and never
+ * mutated in place, so a caller iterating it sees the same snapshot Object.values would have given.
+ */
+const lists = new WeakMap<GameState['buildings'], { nextId: number; list: readonly Building[] }>();
+
+export function buildingList(state: GameState): readonly Building[] {
+  const c = lists.get(state.buildings);
+  if (c && c.nextId === state.nextId) return c.list;
+  const list = Object.values(state.buildings);
+  lists.set(state.buildings, { nextId: state.nextId, list });
+  return list;
 }
 
 function indexFor(state: GameState): Index {

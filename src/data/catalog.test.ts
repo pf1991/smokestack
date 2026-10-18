@@ -6,7 +6,11 @@ import { LANDMARK_IDS, LANDMARKS } from './landmarks';
 import { defaultOpinion, FACTION_IDS, FACTIONS, factionName } from './factions';
 import { ICON_IDS } from '../render/icons';
 import { CARDS } from './cards';
+import { resolveCard } from '../sim/politics/cards';
+import { testCtx, testState } from '../sim/testkit';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
+import { BARON_TRAITS, GRUDGE_WEIGHTS } from './nemesis';
+import { BARON_TRAIT_IDS, RETALIATION_KINDS } from '../sim/nemesis/types';
 
 describe('content catalog', () => {
   it('every recipe good exists', () => {
@@ -184,7 +188,8 @@ describe('content catalog', () => {
       expect(c.years[1], c.id).toBeLessThanOrEqual(2000);
       expect(Number.isInteger(c.defaultChoice) && c.defaultChoice >= 0 && c.defaultChoice < c.choices.length, `${c.id} defaultChoice`).toBe(true);
       // ruling R-Q8: authored in 1900 dollars for a $300k company; the engine scales them
-      const maxCost = c.trigger === 'crash' || c.trigger === 'disaster' ? 60_000 : 15_000;
+      // the marriage card's dowry (Phase 4 Task 5) is the one larger spring sum
+      const maxCost = c.trigger === 'crash' || c.trigger === 'disaster' ? 60_000 : c.id === 'marriage' ? 20_000 : 15_000;
       for (const ch of c.choices) {
         expect(Math.abs(ch.cost), `${c.id}: ${ch.label} cost`).toBeLessThanOrEqual(maxCost);
         expect(ch.label.length, `${c.id}: ${ch.label}`).toBeLessThan(40);
@@ -201,5 +206,39 @@ describe('content catalog', () => {
     for (const f of FACTION_IDS) expect(used.has(f), `no card touches ${f}`).toBe(true);
     const baronCards = CARDS.filter((c) => c.choices.some((ch) => ch.effects.some((e) => e.faction === 'baron')));
     expect(baronCards.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('every crash card resolves, in each choice, on a 1929 state', () => {
+    const crash = CARDS.filter((c) => c.trigger === 'crash');
+    expect(crash.length).toBeGreaterThanOrEqual(4);
+    for (const c of crash) {
+      c.choices.forEach((ch, i) => {
+        const state = testState({ cities: [{ x: 10, y: 10 }], year: 1929, seed: 3, money: 1e9 });
+        const ctx = testCtx(state);
+        state.politics.cards.pending.push({ uid: 1, cardId: c.id, cityId: null, openedDay: 0 });
+        const r = resolveCard(ctx, 1, i);
+        expect(r.ok, `${c.id}: ${ch.label}`).toBe(true);
+        expect(state.politics.cards.pending).toHaveLength(0);
+      });
+    }
+  });
+
+  it('every Baron trait has a label, a blurb and action weights of 1 to 3 over known retaliations', () => {
+    expect(Object.keys(BARON_TRAITS).sort()).toEqual([...BARON_TRAIT_IDS].sort());
+    for (const id of BARON_TRAIT_IDS) {
+      const t = BARON_TRAITS[id];
+      expect(t.label.length, id).toBeGreaterThan(0);
+      expect(t.blurb.length, id).toBeGreaterThan(0);
+      const weights = Object.entries(t.actionWeights);
+      expect(weights.length, id).toBeGreaterThan(0);
+      for (const [kind, w] of weights) {
+        expect(RETALIATION_KINDS, `${id}: ${kind}`).toContain(kind);
+        expect(Number.isInteger(w) && w! >= 1 && w! <= 3, `${id}: ${kind} weight ${w}`).toBe(true);
+      }
+    }
+  });
+
+  it('grudge weights', () => {
+    expect(GRUDGE_WEIGHTS).toEqual({ undercut: 2, contract: 3, shares: 4, city: 5, sabotage_exposed: 6, takeover_bid: 8, rivalry: 3, wake: 10 });
   });
 });

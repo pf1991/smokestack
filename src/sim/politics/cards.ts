@@ -26,6 +26,7 @@ import type { GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CardInstance } from './types';
 import { priceIndex } from '../society/economy';
+import { dynastyModifier } from '../dynasty/types';
 
 /** Days a card may stay unanswered before it resolves itself with its default choice. */
 export const AUTO_RESOLVE_DAYS = 60;
@@ -125,7 +126,11 @@ export function postSpringRequest(state: GameState): void {
   postDecision(state, {
     id,
     question: SPRING_QUESTION,
-    options: list.map((e) => ({ key: e.card.id, label: `${e.card.title} ${e.card.body.slice(0, 120)}` })),
+    // filled as the player would read it ({city}, {faction} and a card's own vars, e.g. marriage's {banker})
+    options: list.map((e) => {
+      const t = cardText(state, { uid: 0, cardId: e.card.id, cityId: e.cityId, openedDay: 0 });
+      return { key: e.card.id, label: `${t.title} ${t.body.slice(0, 120)}` };
+    }),
     context: cardContext(state),
     dueDay: dateToDays({ ...state.date, month: SPRING_MONTH, day: SPRING_DAY }),
   });
@@ -197,7 +202,9 @@ export function cardScale(state: GameState): number {
 
 /** A choice's cost now, in today's dollars, rounded to $100 (negative: money received). */
 export function choiceCost(state: GameState, choice: CardChoice): number {
-  return Math.round((choice.cost * cardScale(state)) / 100) * 100;
+  // the head of the family's traits (shrewd, reckless) haggle what the player pays, never what he receives
+  const family = choice.cost > 0 ? dynastyModifier(state).cardCost : 1;
+  return Math.round((choice.cost * cardScale(state) * family) / 100) * 100;
 }
 
 export function canAffordChoice(state: GameState, choice: CardChoice): boolean {
@@ -212,7 +219,12 @@ export function cardText(state: GameState, inst: CardInstance, defs: CardTable =
   const city = state.cities.find((c) => c.id === inst.cityId);
   const year = state.date.year;
   const faction = city ? city.politics.mayor.faction : cardFactions(card)[0];
-  const fill = (s: string) => s.replaceAll('{city}', city?.name ?? 'the valley').replaceAll('{faction}', factionName(faction, year));
+  const vars = card.vars?.(state) ?? {};
+  const fill = (s: string) => {
+    let out = s.replaceAll('{city}', city?.name ?? 'the valley').replaceAll('{faction}', factionName(faction, year));
+    for (const [k, v] of Object.entries(vars)) out = out.replaceAll(`{${k}}`, v);
+    return out;
+  };
   return { title: fill(card.title), body: fill(card.body) };
 }
 
@@ -243,12 +255,24 @@ export function resolveCard(ctx: SimContext, uid: number, choice: number, defs: 
     adjustOpinion(state, e.faction, scope, e.delta, title);
   }
   c.apply?.(ctx, inst.cityId, inst);
-  cards.pending.splice(cards.pending.indexOf(inst), 1);
+  // apply may already have withdrawn the card (withdrawCard)
+  const at = cards.pending.indexOf(inst);
+  if (at >= 0) cards.pending.splice(at, 1);
   cards.history.push({ id: card.id, year: state.date.year, choice });
   if (cards.history.length > HISTORY_CAP) cards.history.splice(0, cards.history.length - HISTORY_CAP);
   publishNews(ctx, 'politics', title.toUpperCase(), `${player.name} chose: ${c.label}.`);
   ctx.bus.emit({ type: 'cardResolved', cardId: card.id, uid });
   return ok();
+}
+
+/**
+ * Withdraws every pending `cardId` unanswered (no choice, no history, no news): for a card whose
+ * moment has passed, like the hostile bid warning once the bid is repelled.
+ */
+export function withdrawCard(state: GameState, cardId: string): void {
+  const pending = state.politics.cards.pending;
+  // in place: the controller holds the array
+  for (let i = pending.length - 1; i >= 0; i--) if (pending[i].cardId === cardId) pending.splice(i, 1);
 }
 
 /** Resolves every card pending AUTO_RESOLVE_DAYS or more: default choice, else the first affordable one. */

@@ -33,6 +33,7 @@ import { adjustOpinion } from '../politics/factions';
 import { siteCity } from '../politics/mayorEdicts';
 import { HEADLINES } from '../pollution';
 import type { Building, City, GameState, SimContext, SmogTier } from '../types';
+import { buildingList } from '../spatial';
 import {
   BLACK_LUNG_RATE,
   SMOG_EXIT_SHARE,
@@ -122,7 +123,7 @@ function isProtested(state: GameState, b: Building): boolean {
 export function protestedBuildings(state: GameState): Set<number> {
   const out = new Set<number>();
   if (!state.cities.some((c) => c.smog.tier >= 3)) return out;
-  for (const b of Object.values(state.buildings)) if (isProtested(state, b)) out.add(b.id);
+  for (const b of buildingList(state)) if (isProtested(state, b)) out.add(b.id);
   return out;
 }
 

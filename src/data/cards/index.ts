@@ -14,6 +14,9 @@ import { POSTWAR_CARDS } from './postwar';
 import { SEED_CARDS } from './seed';
 import { LAW_CARDS } from './laws';
 import { TRIGGERED_CARDS } from './triggered';
+import { BID_CARDS } from './bid';
+import { CRASH_CARDS } from './crash';
+import { MARKET_CARDS } from './market';
 import type { CardDef } from './types';
 
 export type { CardChoice, CardDef, CardEffect, CardTrigger } from './types';
@@ -27,6 +30,9 @@ export const CARDS: readonly CardDef[] = [
   ...ANYTIME_CARDS,
   ...TRIGGERED_CARDS,
   ...LAW_CARDS,
+  ...BID_CARDS,
+  ...CRASH_CARDS,
+  ...MARKET_CARDS,
 ];
 
 export const CARDS_BY_ID: Readonly<Record<string, CardDef>> = Object.fromEntries(CARDS.map((c) => [c.id, c]));

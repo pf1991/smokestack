@@ -14,6 +14,11 @@ import type { City, GameState, SimContext, Vec2 } from './types';
 
 export { LANDMARK_BLOCKED, LANDMARK_LAYER } from './landmarkTiles';
 
+/** The flag recording that landmark `idx` (its position in the city's list) was built under the player's lead. */
+export function landmarkCreditKey(cityId: number, idx: number): string {
+  return `landmarkCredit:${cityId}:${idx}`;
+}
+
 /** True when tile (x, y) can hold part of a landmark of `city`. */
 function freeFor(state: GameState, city: City, x: number, y: number): boolean {
   const { map } = state;
@@ -84,6 +89,10 @@ export function raiseLandmark(ctx: SimContext, city: City, id: LandmarkId, pos: 
   const { state } = ctx;
   city.landmarks.push({ id, pos: { x: pos.x, y: pos.y } });
   const value = city.landmarks.length; // index + 1
+  // Legacy credit (sim/legacy.ts): the player's retail revenue in this town this month strictly beats
+  // the Baron's (the only other company the tally keeps); a tie, or no sales, earns none
+  const sales = state.politics.track.sales[String(city.id)];
+  if (sales && sales.player > sales.baron) state.flags[landmarkCreditKey(city.id, value - 1)] = true;
   const l = layer(state, LANDMARK_LAYER);
   const w = state.map.width;
   for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) l[(pos.y + dy) * w + pos.x + dx] = value;

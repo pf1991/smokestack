@@ -5,6 +5,9 @@ import { POLLUTION_CAP } from './pollution';
 import { footprint } from './state';
 import { STRIKE_MAX_DAYS } from './society/strikeState';
 import { classesValid } from './society/classes';
+import { GRUDGE_CAP } from './nemesis/grudges';
+import { HEIR_MIN_AGE, HEIR_TRAITS, MAX_CHILDREN, successor } from './dynasty/types';
+import { PRICE_HISTORY_MONTHS, SENTIMENT_MAX, SENTIMENT_MIN } from './exchange/types';
 import { MAX_LOG, MAX_PENDING } from './ai/mailbox';
 import type { GameState } from './types';
 
@@ -17,6 +20,8 @@ export function checkInvariants(state: GameState): string[] {
     const c = state.companies[id];
     if (!Number.isFinite(c.money)) out.push(`company ${id}: money is ${c.money}`);
     if (!Number.isFinite(c.loan)) out.push(`company ${id}: loan is ${c.loan}`);
+    // an emergency bid loan may take the balance above maxLoan (finance.ts takeBidLoan); it is part of it
+    if (c.bidLoan !== undefined && !(Number.isFinite(c.bidLoan) && c.bidLoan > 0 && c.bidLoan <= c.loan)) out.push(`company ${id}: bidLoan ${c.bidLoan} not in (0, loan]`);
   }
 
   for (const city of state.cities) {
@@ -91,6 +96,24 @@ export function checkInvariants(state: GameState): string[] {
   const rd = w?.rainDays;
   if (typeof rd !== 'number' || !Number.isFinite(rd) || rd < 0) out.push(`weather: rainDays ${rd} is not a finite number >= 0`);
 
+  const grudges = state.nemesis?.grudges;
+  if (!Array.isArray(grudges)) out.push('nemesis: grudges missing');
+  else {
+    if (grudges.length > GRUDGE_CAP) out.push(`nemesis: ${grudges.length} grudges, more than ${GRUDGE_CAP}`);
+    for (const g of grudges) {
+      if (typeof g.weight !== 'number' || !Number.isFinite(g.weight) || g.weight <= 0) out.push(`nemesis: ${g.kind} grudge weight ${g.weight} is not a finite number > 0`);
+    }
+  }
+
+  // a save from before Task 8 has no bid field: read as none
+  const bid = state.nemesis?.bid ?? null;
+  if (bid !== null && !(Number.isInteger(bid.since) && Number.isInteger(bid.deadline) && bid.deadline >= bid.since)) {
+    out.push(`nemesis: bad hostile bid ${JSON.stringify(bid)}`);
+  }
+
+  out.push(...dynastyProblems(state));
+  out.push(...exchangeProblems(state));
+
   const ai = state.ai;
   if (ai) {
     if (ai.pending.length > MAX_PENDING) out.push(`ai: ${ai.pending.length} pending requests, cap is ${MAX_PENDING}`);
@@ -107,6 +130,60 @@ export function checkInvariants(state: GameState): string[] {
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {
     if (l.length !== n) out.push(`layer ${id}: length ${l.length}, expected ${n}`);
+  }
+  return out;
+}
+
+/** The stock exchange (sim/exchange): a listing per company, whole holdings, finite positive prices. */
+function exchangeProblems(state: GameState): string[] {
+  const listings = state.exchange?.listings;
+  if (!listings || typeof listings !== 'object') return ['exchange: listings missing'];
+  const out: string[] = [];
+  const r = state.exchange.rngState;
+  if (typeof r !== 'number' || !Number.isInteger(r)) out.push(`exchange: rngState ${r} is not an integer`);
+  for (const id of companyIds(state)) if (!listings[id]) out.push(`exchange: company ${id} has no listing`);
+  for (const [id, l] of Object.entries(listings)) {
+    if (!state.companies[id]) out.push(`exchange: listing ${id} has no company`);
+    let sum = 0;
+    let whole = true;
+    for (const n of Object.values(l.holders ?? {})) {
+      sum += n;
+      if (!Number.isInteger(n) || n <= 0) whole = false;
+    }
+    if (!whole || sum !== l.shares) out.push(`exchange: ${id} holders ${JSON.stringify(l.holders)} do not sum to ${l.shares} whole shares`);
+    if (typeof l.price !== 'number' || !Number.isFinite(l.price) || l.price <= 0) out.push(`exchange: ${id} price ${l.price} is not a finite number > 0`);
+    if (typeof l.fundamental !== 'number' || !Number.isFinite(l.fundamental) || l.fundamental <= 0) out.push(`exchange: ${id} fundamental ${l.fundamental} is not a finite number > 0`);
+    if (typeof l.sentiment !== 'number' || !(l.sentiment >= SENTIMENT_MIN && l.sentiment <= SENTIMENT_MAX)) out.push(`exchange: ${id} sentiment ${l.sentiment} outside [${SENTIMENT_MIN}, ${SENTIMENT_MAX}]`);
+    if (!Array.isArray(l.history) || l.history.length > PRICE_HISTORY_MONTHS) out.push(`exchange: ${id} bad price history`);
+    if (l.listed && state.companies[id] && !state.companies[id].active) out.push(`exchange: ${id} is inactive but still listed`);
+  }
+  return out;
+}
+
+/** The player's family (sim/dynasty): unique ids, a valid heir, a living head unless the line ended. */
+function dynastyProblems(state: GameState): string[] {
+  const out: string[] = [];
+  const d = state.dynasty;
+  if (!d || typeof d !== 'object' || !d.head) return ['dynasty: missing'];
+  if (!Number.isFinite(d.prestige)) out.push(`dynasty: prestige ${d.prestige} is not finite`);
+  if (!Number.isInteger(d.generation) || d.generation < 1) out.push(`dynasty: generation ${d.generation} is not an integer >= 1`);
+  if (!Array.isArray(d.children)) return [...out, 'dynasty: children missing'];
+  if (d.children.length > MAX_CHILDREN) out.push(`dynasty: ${d.children.length} children, more than ${MAX_CHILDREN}`);
+  const people = [d.head, ...(d.spouse ? [d.spouse] : []), ...d.children];
+  const ids = new Set<number>();
+  for (const p of people) {
+    if (ids.has(p.id)) out.push(`dynasty: person id ${p.id} used twice`);
+    ids.add(p.id);
+    if (!Number.isInteger(p.id) || p.id >= d.nextPersonId) out.push(`dynasty: person id ${p.id} not below nextPersonId ${d.nextPersonId}`);
+    if (!Number.isFinite(p.born)) out.push(`dynasty: ${p.name} born ${p.born} is not finite`);
+    if (p.alive && p.died !== undefined) out.push(`dynasty: ${p.name} is alive but died in ${p.died}`);
+    for (const t of p.traits) if (!HEIR_TRAITS.includes(t)) out.push(`dynasty: ${p.name} has unknown trait ${t}`);
+  }
+  if (d.heirId !== null && !d.children.some((c) => c.id === d.heirId && c.alive)) out.push(`dynasty: heir ${d.heirId} is not a living child`);
+  if (!d.head.alive) {
+    // only a line that ended may have a dead head: an adult successor would have taken the chair
+    const heir = successor(d);
+    if (heir && state.date.year - heir.born >= HEIR_MIN_AGE) out.push(`dynasty: ${d.head.name} is dead but ${heir.name} never took the chair`);
   }
   return out;
 }

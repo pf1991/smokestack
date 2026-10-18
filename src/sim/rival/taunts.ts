@@ -1,7 +1,8 @@
+import { BARON_LINES, fillBaronLine } from '../../data/baronLines';
+import { heaviestGrudge } from '../nemesis/grudges';
 import { publishNews } from '../news';
 import { chance, pick } from '../rng';
-import type { SimContext } from '../types';
-
+import type { GameState, SimContext } from '../types';
 
 export const TAUNT_CHANCE = 0.3;
 
@@ -31,24 +32,46 @@ export const TAUNTS: readonly string[] = [
 
 const TAUNT_BODIES: readonly string[] = [
   'The Baron delivered the remark between puffs of a fat cigar at the {city} Exchange.',
-  'Baron Cornelius Smogsworth said so to our reporter on the steps of the {city} Grand Hotel, polishing his monocle.',
+  '{baron} said so to our reporter on the steps of the {city} Grand Hotel, polishing his monocle.',
   'The quip, made over brandy at the {city} Gentlemen\'s Club, drew polite and slightly frightened laughter.',
   'Smogsworth Consolidated declined to elaborate, but its chimneys in {city} were seen smoking harder than usual.',
 ];
 
-function fill(text: string, player: string, city: string): string {
-  // "Gilded Gear & Co." at the end of a sentence must not end in ".."
-  return text.split('{player}').join(player).split('{city}').join(city).replace(/\.\./g, '.');
+/** the share of taunts drawn from the head's own voice (his traits' lines, and Junior's) */
+export const TRAIT_TAUNT_SHARE = 0.5;
+
+/** The head's own lines: those of each of his traits, in trait order, then Junior's when he is generation 2. */
+export function voiceLines(state: GameState): string[] {
+  const n = state.nemesis;
+  const out: string[] = [];
+  for (const t of n.traits) out.push(...BARON_LINES.trait[t]);
+  if (n.head.generation === 2) out.push(...BARON_LINES.junior);
+  return out;
 }
 
-/** Monthly, with probability 0.3: a `rival` news item with one of the Baron's quips. */
+/**
+ * The town a taunt names: the town of the Baron's heaviest grudge if it has one (he talks about what
+ * galls him), otherwise a random town.
+ */
+function tauntCity(state: GameState): string {
+  const g = heaviestGrudge(state);
+  const sore = g && g.cityId !== null ? state.cities.find((c) => c.id === g.cityId) : undefined;
+  if (sore) return sore.name;
+  return state.cities.length > 0 ? pick(state, state.cities).name : 'town';
+}
+
+/**
+ * Monthly, with probability TAUNT_CHANCE: a `rival` news item with one of the Baron's quips. Half of
+ * them (TRAIT_TAUNT_SHARE) come from his own voice (voiceLines), the rest from the classic TAUNTS.
+ */
 export function rivalTaunt(ctx: SimContext): void {
   const { state } = ctx;
   if (!state.companies.rival.active) return;
   if (!chance(state, TAUNT_CHANCE)) return;
-  const quip = pick(state, TAUNTS);
-  const body = pick(state, TAUNT_BODIES);
-  const city = state.cities.length > 0 ? pick(state, state.cities).name : 'town';
+  const own = voiceLines(state);
+  const quip = own.length > 0 && chance(state, TRAIT_TAUNT_SHARE) ? pick(state, own) : pick(state, TAUNTS);
+  const body = pick(state, TAUNT_BODIES).split('{baron}').join(state.nemesis.head.name);
+  const city = tauntCity(state);
   const player = state.companies.player.name;
-  publishNews(ctx, 'rival', `Smogsworth: '${fill(quip, player, city)}'`, fill(body, player, city));
+  publishNews(ctx, 'rival', `Smogsworth: '${fillBaronLine(quip, player, city)}'`, fillBaronLine(body, player, city));
 }

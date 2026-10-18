@@ -18,7 +18,8 @@ import { monthlyDemand, salePrice, satisfaction, supplyRatio } from '../../sim/m
 import { demandModifier } from '../../sim/production';
 import { priceIndex } from '../../sim/society/economy';
 import { forcedEdicts, SMOG_HINT, SMOG_TIER_NAMES, SMOG_TIER_THRESHOLDS } from '../../sim/society/tiers';
-import type { City, GameState } from '../../sim/types';
+import type { City, GameState, OwnerId } from '../../sim/types';
+import { ownerColor } from '../../render/ownerColors';
 import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber, formatPercent } from '../format';
@@ -30,6 +31,13 @@ import type { PanelDef } from './index';
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const PLAYER_COLOR = '#2f6fb5';
 const RIVAL_COLOR = '#b5302f';
+
+/** A store dot's tooltip: yours, the Baron's ("Rival store") or a regional firm's ("<Firm name> store"). */
+export function storeTitle(state: GameState, ownerId: OwnerId): string {
+  if (ownerId === 'player') return 'Your store';
+  if (ownerId === 'rival') return 'Rival store';
+  return `${state.companies[ownerId]?.name ?? ownerId} store`;
+}
 
 export interface GoodDemand {
   goodId: string;
@@ -399,8 +407,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
               ? sellers.map((s) =>
                   h('span', {
                     class: 'dot',
-                    title: `${s.ownerId === 'player' ? 'Your' : 'Rival'} store`,
-                    style: { background: s.ownerId === 'player' ? PLAYER_COLOR : RIVAL_COLOR },
+                    title: storeTitle(state, s.ownerId),
+                    style: { background: s.ownerId === 'player' ? PLAYER_COLOR : s.ownerId === 'rival' ? RIVAL_COLOR : ownerColor(s.ownerId) },
                   }),
                 )
               : ['—']),

@@ -3,7 +3,7 @@ import type { GameEvent } from '../core/events';
 import { buildRoad, demolishBuilding, placeBuilding } from '../sim/state';
 import { must, testCtx } from '../sim/testkit';
 import { buyTruck, createRoute } from '../sim/vehicles';
-import { attachStrikeToasts, attachStuckToasts, reportLostStops, routesUsing, STUCK_TOAST_GAP_MS } from './feedback';
+import { attachBaronStrikeToasts, attachStrikeToasts, attachStuckToasts, reportLostStops, routesUsing, STUCK_TOAST_GAP_MS } from './feedback';
 
 function chain() {
   const ctx = testCtx();
@@ -81,5 +81,22 @@ describe('strike toasts', () => {
     expect(toasts).toEqual(['Strike! Your Sawmill has downed tools']);
     action!();
     expect(opened).toEqual([a.id]);
+  });
+});
+
+describe('baron strike toasts', () => {
+  it('toasts "Smogsworth strikes: <kind>" with a Rival action', () => {
+    const ctx = testCtx();
+    const seen: Extract<GameEvent, { type: 'toast' }>[] = [];
+    ctx.bus.on('toast', (e) => seen.push(e));
+    let opened = 0;
+    attachBaronStrikeToasts(ctx, () => opened++);
+    ctx.bus.emit({ type: 'baronStrike', kind: 'price_war', cityId: 0 });
+    ctx.bus.emit({ type: 'baronStrike', kind: 'smear', cityId: null });
+    expect(seen.map((t) => t.message)).toEqual(['Smogsworth strikes: Price war', 'Smogsworth strikes: Smear campaign']);
+    expect(seen.every((t) => t.tone === 'bad')).toBe(true);
+    expect(seen[0].action!.label).toBe('Rival');
+    seen[0].action!.run();
+    expect(opened).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-import { CLASS_DEMAND, DEMAND_PER_1000, GOODS } from '../data/goods';
+import { CLASS_DEMAND, DEMAND_PER_1000, GOODS, type GoodDef } from '../data/goods';
 import { compareDates } from './clock';
 import type { City, CityClasses, GameState, GoodId, Inventory, MarketEntry, OwnerId } from './types';
 
@@ -21,7 +21,10 @@ const EPS = 1e-9;
 const DEMAND_GOODS = Object.keys(DEMAND_PER_1000);
 
 export function lifecycleFactor(goodId: GoodId, year: number): number {
-  const g = GOODS[goodId];
+  return lifecycleOf(GOODS[goodId], year);
+}
+
+function lifecycleOf(g: GoodDef | undefined, year: number): number {
   if (!g) return 0;
   if (year < g.era) return 0;
   if (g.fadeYear === null || year <= g.fadeYear) return 1;
@@ -56,6 +59,34 @@ export function monthlyDemand(city: City, goodId: GoodId, year: number, modifier
   return (city.population / 1000) * per * lifecycleFactor(goodId, year) * modifier * classDemandFactor(city.classes, goodId);
 }
 
+/**
+ * The static per-good tables by index into DEMAND_GOODS, so the daily market loops read arrays
+ * instead of looking each good up by name in four catalogues (the data modules are not mutated).
+ */
+const PER_1000_AT = DEMAND_GOODS.map((g) => DEMAND_PER_1000[g]);
+const GOOD_AT = DEMAND_GOODS.map((g) => GOODS[g]);
+const CLASS_DEMAND_AT = DEMAND_GOODS.map((g) => CLASS_DEMAND[g]);
+const CLASS_NORM_AT = DEMAND_GOODS.map((g) => CLASS_NORM[g]);
+const INDEX_OF = new Map<GoodId, number>(DEMAND_GOODS.map((g, gi) => [g, gi]));
+
+/** The goods with city demand, in catalog order (`Object.keys(DEMAND_PER_1000)`). */
+export function demandGoods(): readonly GoodId[] {
+  return DEMAND_GOODS;
+}
+
+/** monthlyDemand of `demandGoods()[gi]`: the same figure, computed in the same order. */
+export function monthlyDemandAt(city: City, gi: number, year: number, modifier = 1): number {
+  const per = PER_1000_AT[gi];
+  if (per === undefined) return 0;
+  const m = CLASS_DEMAND_AT[gi];
+  const norm = CLASS_NORM_AT[gi];
+  const cls = m === undefined || norm === undefined || norm <= 0 ? 1 : classMix(city.classes, m) / norm;
+  return (city.population / 1000) * per * lifecycleOf(GOOD_AT[gi], year) * modifier * cls;
+}
+
+/** Scratch marks for computeDailySales: 1 at a good's index when some store holds a whole unit. */
+const stocked = new Uint8Array(DEMAND_GOODS.length);
+
 /** Price of one unit at supply ratio `ratio`, at price index `index` (society/economy.ts), rounded. */
 export function salePrice(goodId: GoodId, ratio: number, index = 1): number {
   const base = GOODS[goodId]?.basePrice ?? 0;
@@ -68,6 +99,20 @@ export function supplyRatio(entry: MarketEntry | undefined): number {
   return entry.sold30 / entry.demand30;
 }
 
+/**
+ * A price war on one good in one town (nemesis/retaliation.ts): each round of the split, stores of
+ * `favoured` take 2 units where any other store takes 1, and every unit sells at `priceFactor` × price.
+ */
+export interface PriceWar {
+  favoured: OwnerId;
+  priceFactor: number;
+}
+
+/**
+ * `wars` holds the town's price wars by good (null, the common case, for none). `monthlyOut`, when
+ * given, receives each demand good's monthly demand by index into `demandGoods()` (retailDay reuses it
+ * for the day's market update instead of computing it again).
+ */
 export function computeDailySales(
   city: City,
   stores: StoreStock[],
@@ -75,12 +120,26 @@ export function computeDailySales(
   demandMod: (goodId: GoodId) => number,
   dayOffset = 0,
   index = 1,
+  wars: Readonly<Partial<Record<GoodId, PriceWar>>> | null = null,
+  monthlyOut: Float64Array | null = null,
 ): Sale[] {
   const out: Sale[] = [];
   const goodIds = DEMAND_GOODS;
+  // which goods any store holds a whole unit of: one pass over each store's few stocked goods
+  // instead of asking every store for every good
+  stocked.fill(0);
+  for (const s of stores) {
+    for (const g in s.stock) {
+      if (s.stock[g] >= 1) {
+        const gi = INDEX_OF.get(g);
+        if (gi !== undefined) stocked[gi] = 1;
+      }
+    }
+  }
   for (let gi = 0; gi < goodIds.length; gi++) {
     const goodId = goodIds[gi];
-    const monthly = monthlyDemand(city, goodId, year, demandMod(goodId));
+    const monthly = monthlyDemandAt(city, gi, year, demandMod(goodId));
+    if (monthlyOut) monthlyOut[gi] = monthly;
     if (monthly <= 0) {
       const existing = city.market[goodId];
       if (existing) existing.pending = 0;
@@ -93,39 +152,48 @@ export function computeDailySales(
     let units = Math.floor(entry.pending + EPS);
     if (units <= 0) continue;
     // fast path: no store has a whole unit of this good (the common case), so nothing sells
-    let anyStock = false;
-    for (const s of stores) {
-      if ((s.stock[goodId] ?? 0) >= 1) {
-        anyStock = true;
-        break;
-      }
-    }
-    if (!anyStock) continue;
-    const avail = stores.map((s) => Math.floor(s.stock[goodId] ?? 0));
-    const got = stores.map(() => 0);
+    if (stocked[gi] === 0) continue;
+    // plain loops over the stores (no per-good closures or spread copies), in the same orders
+    const ns = stores.length;
+    const avail: number[] = [];
+    const got: number[] = [];
     // equal split; shares a store cannot fill go to stores that still have stock
-    let active = avail.map((_, i) => i).filter((i) => avail[i] > 0);
+    let active: number[] = [];
+    for (let i = 0; i < ns; i++) {
+      avail.push(Math.floor(stores[i].stock[goodId] ?? 0));
+      got.push(0);
+      if (avail[i] > 0) active.push(i);
+    }
     // rotate the starting store so odd units do not always favour store 0
     if (active.length > 0) {
       const start = (((dayOffset + gi) % active.length) + active.length) % active.length;
-      active = [...active.slice(start), ...active.slice(0, start)];
+      if (start > 0) active = active.slice(start).concat(active.slice(0, start));
     }
-    while (units > 0 && active.length > 0) {
-      for (const i of active) {
+    const war = wars?.[goodId];
+    // active[0, live) are the stores still in the split
+    let live = active.length;
+    while (units > 0 && live > 0) {
+      for (let k = 0; k < live; k++) {
         if (units <= 0) break;
-        got[i]++;
-        units--;
+        const i = active[k];
+        const take = war && stores[i].ownerId === war.favoured ? Math.min(2, units, avail[i] - got[i]) : 1;
+        got[i] += take;
+        units -= take;
       }
-      active = active.filter((i) => got[i] < avail[i]);
+      // keep the stores that still have stock, in order
+      let m = 0;
+      for (let k = 0; k < live; k++) if (got[active[k]] < avail[active[k]]) active[m++] = active[k];
+      live = m;
     }
-    const price = salePrice(goodId, supplyRatio(entry), index);
+    const price = salePrice(goodId, supplyRatio(entry), war ? index * war.priceFactor : index);
     let soldTotal = 0;
-    stores.forEach((s, i) => {
+    for (let i = 0; i < ns; i++) {
       if (got[i] > 0) {
+        const s = stores[i];
         out.push({ buildingId: s.buildingId, ownerId: s.ownerId, goodId, qty: got[i], revenue: got[i] * price });
         soldTotal += got[i];
       }
-    });
+    }
     entry.pending = Math.max(0, entry.pending - soldTotal);
   }
   return out;

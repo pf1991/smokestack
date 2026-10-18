@@ -1,11 +1,11 @@
 import { BUILDINGS } from '../data/buildings';
-import { footprint } from './state';
 import { publishNews } from './news';
 import { LANDMARK_LAYER } from './landmarkTiles';
 import { terrainEpoch } from './terrainEpoch';
 import { weatherDay } from './weather';
 import { hasTallChimney, scrubberEmission, TALL_CHIMNEY_ADVECT, TALL_CHIMNEY_REACH } from './society/upgrades';
 import type { Building, GameMap, GameState, SimContext } from './types';
+import { buildingList } from './spatial';
 
 export const POLLUTION_DECAY = 0.97;
 export const POLLUTION_CAP = 100;
@@ -85,23 +85,26 @@ for (let code = 0; code < 32; code++) {
  */
 export function smogDay(ctx: SimContext): void {
   const { state } = ctx;
-  const { map, buildings, weather } = state;
+  const { map, weather } = state;
   const { width, height, tiles } = map;
   const dirty = dirtyTiles(map);
   const { list, member } = dirty;
 
   // 1. emission
-  for (const b of Object.values(buildings)) {
+  for (const b of buildingList(state)) {
     if (b.status !== 'ok') continue;
     const amount = BUILDINGS[b.typeId].pollution * SOURCE_FACTOR * emissionFactor(state, b);
     if (amount <= 0) continue;
-    const fp = footprint(b);
-    const c = fp[Math.floor(fp.length / 2)];
-    if (c.x < 0 || c.y < 0 || c.x >= width || c.y >= height) continue;
-    const i = c.y * width + c.x;
+    // the middle entry of footprint(b) (row-major), without building the list
+    const { w, h } = BUILDINGS[b.typeId].size;
+    const k = Math.floor((w * h) / 2);
+    const cx = b.pos.x + (k % w);
+    const cy = b.pos.y + Math.floor(k / w);
+    if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
+    const i = cy * width + cx;
     if (hasTallChimney(b) && (weather.windX !== 0 || weather.windY !== 0)) {
-      const near = downwindTile(map, weather.windX, weather.windY, c.x, c.y, TALL_CHIMNEY_REACH);
-      const far = downwindTile(map, weather.windX, weather.windY, c.x, c.y, TALL_CHIMNEY_REACH + 1);
+      const near = downwindTile(map, weather.windX, weather.windY, cx, cy, TALL_CHIMNEY_REACH);
+      const far = downwindTile(map, weather.windX, weather.windY, cx, cy, TALL_CHIMNEY_REACH + 1);
       if (near !== null) emitCross(tiles, dirty, width, height, near, amount * (1 - TALL_CHIMNEY_ADVECT));
       if (far !== null) emitCross(tiles, dirty, width, height, far, amount * TALL_CHIMNEY_ADVECT);
       continue;
@@ -113,9 +116,14 @@ export function smogDay(ctx: SimContext): void {
   const { snap, next } = scratch(map);
   const n0 = dirty.count;
   let n = n0;
+  // the tile reads alone first: a tight loop keeps many of these (mostly cache-missing) loads in
+  // flight at once, then the neighbour scan below runs on the small arrays only
   for (let j = 0; j < n0; j++) {
     const i = list[j];
     snap[i] = tiles[i].pollution;
+  }
+  for (let j = 0; j < n0; j++) {
+    const i = list[j];
     const y = (i / width) | 0;
     const x = i - y * width;
     if (x > 0 && !member[i - 1]) (member[i - 1] = 1), (list[n++] = i - 1);

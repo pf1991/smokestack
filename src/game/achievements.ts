@@ -1,7 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import type { IconId } from '../render/icons';
-import { netWorth } from '../sim/rival';
+import { wealth } from '../sim/state';
 import { realMoney } from '../sim/society/economy';
 import type { GameState, SimContext } from '../sim/types';
 
@@ -36,7 +36,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
       Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && GOODS[k.slice(5)]?.tier === 2 && flagNum(s, k) > 0),
   },
   // ruling R-S14: money achievements count real money (nominal / price index, sim/society/economy.ts)
-  { id: 'millionaire', name: 'Millionaire', icon: 'money', desc: 'Reach a net worth of $1,000,000 (in 1900 dollars).', test: (s) => realMoney(s, netWorth(s, 'player')) >= 1_000_000 },
+  { id: 'millionaire', name: 'Millionaire', icon: 'money', desc: 'Reach a net worth of $1,000,000, shares included (in 1900 dollars).', test: (s) => realMoney(s, wealth(s, 'player')) >= 1_000_000 },
   { id: 'motor_mogul', name: 'Motor Mogul', icon: 'cars', desc: 'Sell 100 automobiles.', test: (s) => flagNum(s, 'sold:cars') >= 100 },
   { id: 'fleet_50', name: 'Fleet of Fifty', icon: 'truck', desc: 'Run 50 vehicles at once.', test: (s) => playerVehicles(s).length >= 50 },
   { id: 'rail_baron', name: 'Rail Baron', icon: 'train', desc: 'Run 10 trains at once.', test: (s) => playerVehicles(s).filter((v) => v.kind === 'train').length >= 10 },
@@ -45,7 +45,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     id: 'clean_hands', name: 'Clean Hands', icon: 'soap', desc: 'Be worth $1M (in 1900 dollars) in 1950 without a single heavy polluter.',
     test: (s) =>
       s.date.year >= 1950 &&
-      realMoney(s, netWorth(s, 'player')) > 1_000_000 &&
+      realMoney(s, wealth(s, 'player')) > 1_000_000 &&
       !Object.values(s.buildings).some((b) => b.ownerId === 'player' && (BUILDINGS[b.typeId]?.pollution ?? 0) > 2),
   },
   { id: 'contract_killer', name: 'Contract Killer', icon: 'scroll', desc: 'Complete 10 mayor\'s contracts.', test: (s) => flagNum(s, 'contractsDone') >= 10 },

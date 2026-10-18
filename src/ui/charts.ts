@@ -174,3 +174,29 @@ export function barChart(canvas: HTMLCanvasElement, bars: { label: string; value
     g.fillText(b.label, cx, PAD.top + plotH + 6, slot);
   });
 }
+
+/**
+ * A small axis-free line of `values` (oldest first), scaled to its own range: a share price's last
+ * months beside its figure. Fewer than two finite values draw nothing.
+ */
+export function sparkline(canvas: HTMLCanvasElement, values: number[], color: string): void {
+  const p = prepare(canvas);
+  if (!p) return;
+  const { g, w, h } = p;
+  const vs = values.filter((v) => Number.isFinite(v));
+  if (vs.length < 2) return;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const v of vs) {
+    lo = Math.min(lo, v);
+    hi = Math.max(hi, v);
+  }
+  const pad = 2;
+  const x = (i: number) => pad + (i / (vs.length - 1)) * (w - 2 * pad);
+  const y = (v: number) => (hi === lo ? h / 2 : pad + (1 - (v - lo) / (hi - lo)) * (h - 2 * pad));
+  g.strokeStyle = color;
+  g.lineWidth = 1.5;
+  g.beginPath();
+  vs.forEach((v, i) => (i === 0 ? g.moveTo(x(i), y(v)) : g.lineTo(x(i), y(v))));
+  g.stroke();
+}

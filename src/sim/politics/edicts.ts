@@ -20,6 +20,7 @@ import type { GameState, SimContext } from '../types';
 import { adjustOpinion } from './factions';
 import type { CompanyEdicts, SafetyLevel, UnionStance, WageLevel } from './types';
 import { atPrices } from '../society/economy';
+import { dynastyModifier } from '../dynasty/types';
 
 /**
  * Ruling R-Q11: drift pulls opinion 2% of the gap toward 50 each month, so a constant monthly drive d
@@ -90,6 +91,11 @@ export function maintenanceFactor(edicts: CompanyEdicts): number {
   let f = 1;
   for (const k of EDICT_KEYS) f *= option(k, edicts[k])?.cost ?? 1;
   return f;
+}
+
+/** The player's edict multiplier on building maintenance: maintenanceFactor × the head of the family's `edictCost` (a brute ×0.8). */
+export function companyEdictFactor(state: GameState): number {
+  return maintenanceFactor(state.politics.edicts) * dynastyModifier(state).edictCost;
 }
 
 /**

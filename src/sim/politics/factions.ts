@@ -69,7 +69,10 @@ export function nationalOpinion(state: GameState, faction: FactionId): number {
   return pop > 0 ? sum / pop : 50;
 }
 
-/** Called by retailDay for every sale: accumulates this month's player/Baron revenue per town. */
+/**
+ * Called by retailDay for every sale: accumulates this month's player/Baron revenue per town.
+ * Regional firms' sales (and any other owner's) are ignored: town politics weighs the player against the Baron.
+ */
 export function notePoliticsSale(state: GameState, ownerId: OwnerId, cityId: number, revenue: number): void {
   if (ownerId !== PLAYER_ID && ownerId !== BARON_ID) return;
   if (!(revenue > 0)) return;

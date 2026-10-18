@@ -1,3 +1,6 @@
+import type { NemesisState } from './nemesis/types';
+import type { DynastyState } from './dynasty/types';
+import type { ExchangeState } from './exchange/types';
 import type { SocietyState } from '../data/laws';
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
@@ -200,7 +203,11 @@ export type LedgerCategory =
   | 'contracts'
   | 'events'
   | 'demolition'
-  | 'fines';
+  | 'fines'
+  /** a regional firm's payout to its owners (regional/firms.ts): a distribution, not an operating expense */
+  | 'dividends'
+  /** share trades and takeover settlements (exchange/trading.ts): capital flows, not operating profit */
+  | 'shares';
 
 export interface LedgerMonth {
   year: number;
@@ -209,6 +216,7 @@ export interface LedgerMonth {
   expense: Partial<Record<LedgerCategory, number>>;
   salesByGood: Partial<Record<GoodId, number>>;
   cashEnd: number;
+  /** state.ts wealth at the month's close: net worth plus share holdings at the stored prices */
   netWorthEnd: number;
 }
 
@@ -223,6 +231,13 @@ export interface Company {
   roadTiles: number;
   railTiles: number;
   active: boolean;
+  /** a regional firm's home town (regional/firms.ts); absent for the player and the Baron */
+  homeCityId?: number;
+  /**
+   * the part of `loan` borrowed above the loan limit to buy back shares against a hostile bid
+   * (finance.ts takeBidLoan); repaid first. Absent when none.
+   */
+  bidLoan?: number;
 }
 
 export type NewsKind = 'historic' | 'civic' | 'random' | 'invention' | 'market' | 'rival' | 'contract' | 'warning' | 'politics' | 'protest';
@@ -233,6 +248,8 @@ export interface NewsItem {
   headline: string;
   body: string;
   kind: NewsKind;
+  /** optional marker for a news thread: 'nemesis' = one of the Baron's retaliations (Phase 4) */
+  tag?: string;
 }
 
 export interface DemandModifier {
@@ -330,6 +347,12 @@ export interface GameState {
   society: SocietyState;
   /** Phase 3 inflation (sim/society/economy.ts); added to old saves by the v6 migration at index 1 */
   economy: EconomyState;
+  /** Phase 4 the Baron as a person: traits, grudges, retaliation (sim/nemesis); added by the v7 migration */
+  nemesis: NemesisState;
+  /** Phase 4 the player's family: head, spouse, children, heir (sim/dynasty); added by the v7 migration */
+  dynasty: DynastyState;
+  /** Phase 4 the stock exchange: a listing per company (sim/exchange); added by the v7 migration */
+  exchange: ExchangeState;
   /** JEV decision mailbox (sim/ai/mailbox.ts); created lazily, absent in older saves and until a decision is posted */
   ai?: AiMailbox;
 }

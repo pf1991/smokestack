@@ -2,7 +2,7 @@ import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
 import { migrateSave, type Migration } from './migrations';
 import { advanceHour, TICKS_PER_DAY } from './clock';
-import { FINANCE_SYSTEM_ID, SYSTEMS } from './systems';
+import { FINANCE_SYSTEM_ID, SYSTEMS, type SimSystem } from './systems';
 import type { GameState, SimContext } from './types';
 
 export { SAVE_VERSION } from './version';
@@ -24,7 +24,7 @@ export function stepTick(ctx: SimContext): void {
   const { state, bus } = ctx;
   if (state.date.year >= END_YEAR) return;
   state.tick += 1;
-  for (const s of SYSTEMS) s.onTick?.(ctx);
+  for (const s of tickSystems()) s.onTick?.(ctx);
 
   const next = advanceHour(state.date);
   if (next.newDay) for (const s of SYSTEMS) s.onDay?.(ctx);
@@ -44,6 +44,27 @@ export function stepTick(ctx: SimContext): void {
     bus.emit({ type: 'victory', reason: 'The century is over' });
     state.speed = 0;
   }
+}
+
+/**
+ * The SYSTEMS entries that have an `onTick` hook, in SYSTEMS order. stepTick runs every game hour, and
+ * reading `onTick` off every (differently shaped) system each hour was a megamorphic lookup per system;
+ * the list is rebuilt whenever the registry differs from the snapshot it was made from (tests push and
+ * splice spy systems), and each hook is still read off its system when called.
+ */
+let tickSnapshot: SimSystem[] = [];
+let tickers: SimSystem[] = [];
+
+function tickSystems(): SimSystem[] {
+  const systems = SYSTEMS;
+  const snap = tickSnapshot;
+  let same = snap.length === systems.length;
+  for (let i = 0; same && i < systems.length; i++) same = snap[i] === systems[i];
+  if (!same) {
+    tickSnapshot = systems.slice();
+    tickers = systems.filter((s) => s.onTick !== undefined);
+  }
+  return tickers;
 }
 
 export function runTicks(ctx: SimContext, n: number): void {

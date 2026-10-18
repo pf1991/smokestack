@@ -7,13 +7,14 @@ import { loadSource, storageLeft } from '../inventory';
 import { publishNews } from '../news';
 import { connectToRoads, ensureRoadLink } from '../roads';
 import { demolishBuilding, findPlacement, placeBuilding } from '../state';
-import type { Building, City, GameState, GoodId, SimContext, Vec2 } from '../types';
+import type { Building, City, GameState, GoodId, OwnerId, SimContext, Vec2 } from '../types';
+import { BARON_ID } from '../companies';
 import { buyTruck, createRoute, deleteRoute, replaceCost, replaceVehicle, TRUCK } from '../vehicles';
 import { assetAge, renewBuilding, renewCost } from '../society/aging';
 import { planChain } from './chains';
 import type { ChainEdge, ChainNode } from './chains';
 import { block, rivalStoreIn } from './market';
-import { FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
+import { clearProjectFlags, F_BUILDINGS, F_FAILS, F_STALL, FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
 import { atPrices, priceIndex } from '../society/economy';
 
 const LOAN_BELOW = 20000;
@@ -22,19 +23,12 @@ const REPAY_ABOVE = 150000;
 const MAX_TRUCKS_PER_LEG = 4;
 const MAX_FAILS = 2;
 // flags used to remember a project's details across months (GameState.flags holds primitives only)
-const F_BUILDINGS = 'rivalBuildings';
-const F_FAILS = 'rivalFails';
-const F_STALL = 'rivalStall';
+// the project flags and their reset live in shared.ts (takeover.ts clears them without importing this module)
+export { clearProjectFlags };
 
 export function projectIds(state: GameState): number[] {
   const v = state.flags[F_BUILDINGS];
   return typeof v === 'string' && v ? v.split(',').map(Number) : [];
-}
-
-export function clearProjectFlags(state: GameState): void {
-  delete state.flags[F_BUILDINGS];
-  delete state.flags[F_FAILS];
-  delete state.flags[F_STALL];
 }
 
 export const centreOf = (b: Building): Vec2 => {
@@ -286,17 +280,18 @@ export function unwrap<T>(r: Result<T>): T | null {
 
 /**
  * More trucks for legs whose source is backing up (output ≥ 80% of storage) while the destination
- * still has room for a truckload, i.e. haulage is the bottleneck. At most 4 per leg.
+ * still has room for a truckload, i.e. haulage is the bottleneck. At most 4 per leg. `owner` (the
+ * Baron by default; regional firms too) buys only while it keeps `reserve` (today's dollars).
  */
-export function topUpTrucks(ctx: SimContext): void {
+export function topUpTrucks(ctx: SimContext, owner: OwnerId = BARON_ID, reserve = rivalReserve(ctx.state)): void {
   const { state } = ctx;
   for (const route of Object.values(state.routes)) {
-    if (route.ownerId !== 'rival' || route.kind !== 'truck') continue;
+    if (route.ownerId !== owner || route.kind !== 'truck') continue;
     const n = trucksOn(state, route.id);
-    if (n >= MAX_TRUCKS_PER_LEG || !affordable(state, TRUCK.cost)) continue;
+    if (n >= MAX_TRUCKS_PER_LEG || state.companies[owner].money - atPrices(state, TRUCK.cost) < reserve) continue;
     const backedUp = route.stops.some((s) => {
       const b = state.buildings[s.buildingId];
-      if (!b || b.ownerId !== 'rival') return false;
+      if (!b || b.ownerId !== owner) return false;
       const cap = BUILDINGS[b.typeId].storage;
       return s.load.some((g) => {
         if ((loadSource(b)[g] ?? 0) < FULL_RATIO * cap) return false;
@@ -306,7 +301,7 @@ export function topUpTrucks(ctx: SimContext): void {
         });
       });
     });
-    if (backedUp) buyTruck(ctx, 'rival', route.id);
+    if (backedUp) buyTruck(ctx, owner, route.id);
   }
 }
 
@@ -316,30 +311,33 @@ export const RIVAL_RENEW_AGE = 30;
 /**
  * The Baron keeps his empire up like any owner must: each month he renews his oldest works and
  * replaces his oldest vehicle once they reach RIVAL_RENEW_AGE, when he can pay and keep his reserve.
+ * Regional firms keep theirs up the same way (`owner`, `reserve`).
  */
-export function renewOldAssets(ctx: SimContext): void {
+export function renewOldAssets(ctx: SimContext, owner: OwnerId = BARON_ID, reserve = rivalReserve(ctx.state)): void {
   const { state } = ctx;
-  const rival = state.companies.rival;
+  const company = state.companies[owner];
   const oldest = <T extends { id: number; ownerId: string; builtYear: number }>(xs: T[]): T | undefined =>
     xs
-      .filter((x) => x.ownerId === 'rival' && assetAge(state, x) >= RIVAL_RENEW_AGE)
+      .filter((x) => x.ownerId === owner && assetAge(state, x) >= RIVAL_RENEW_AGE)
       .sort((a, b) => a.builtYear - b.builtYear || a.id - b.id)[0];
   const b = oldest(Object.values(state.buildings));
-  if (b && rival.money - renewCost(state, b) >= rivalReserve(state)) renewBuilding(ctx, b.id, 'rival');
+  if (b && company.money - renewCost(state, b) >= reserve) renewBuilding(ctx, b.id, owner);
   const v = oldest(Object.values(state.vehicles).filter((x) => x.routeId !== null));
-  if (v && rival.money - replaceCost(state, v.kind) >= rivalReserve(state)) replaceVehicle(ctx, v.id, 'rival');
+  if (v && company.money - replaceCost(state, v.kind) >= reserve) replaceVehicle(ctx, v.id, owner);
 }
 
-export function manageLoans(ctx: SimContext): void {
-  const rival = ctx.state.companies.rival;
+/** Borrows a loan step while `owner` (the Baron by default) is short of cash and under the loan cap. */
+export function manageLoans(ctx: SimContext, owner: OwnerId = BARON_ID): void {
+  const c = ctx.state.companies[owner];
   const index = priceIndex(ctx.state);
-  if (rival.money < LOAN_BELOW * index && rival.loan < LOAN_CAP * index) takeLoan(rival, loanStep(index), index);
+  if (c.money < LOAN_BELOW * index && c.loan < LOAN_CAP * index) takeLoan(c, loanStep(index), index);
 }
 
-export function repayLoans(ctx: SimContext): void {
-  const rival = ctx.state.companies.rival;
+/** Repays a loan step while `owner` (the Baron by default) is flush. */
+export function repayLoans(ctx: SimContext, owner: OwnerId = BARON_ID): void {
+  const c = ctx.state.companies[owner];
   const index = priceIndex(ctx.state);
-  if (rival.money > REPAY_ABOVE * index && rival.loan > 0) repayLoan(rival, repayStep(rival, index), index);
+  if (c.money > REPAY_ABOVE * index && c.loan > 0) repayLoan(c, repayStep(c, index), index);
 }
 
 /**

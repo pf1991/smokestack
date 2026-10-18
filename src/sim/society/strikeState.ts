@@ -12,6 +12,7 @@ import { BUILDINGS } from '../../data/buildings';
 import { PLAYER_ID } from '../companies';
 import { workCity } from '../politics/workforce';
 import type { Building, BuildingStrike, GameState } from '../types';
+import { buildingList } from '../spatial';
 
 /** Below this `opinion.workers`, the player's works staffed from the town go slow. */
 export const SLOWDOWN_OPINION = 30;
@@ -43,7 +44,7 @@ export function isWorks(b: Building): boolean {
 export function slowedBuildings(state: GameState): Set<number> {
   const out = new Set<number>();
   if (!state.cities.some((c) => c.opinion.workers < SLOWDOWN_OPINION)) return out;
-  for (const b of Object.values(state.buildings)) {
+  for (const b of buildingList(state)) {
     if (!isWorks(b)) continue;
     const city = workCity(state, b);
     if (city && city.opinion.workers < SLOWDOWN_OPINION) out.add(b.id);
