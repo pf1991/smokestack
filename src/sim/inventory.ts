@@ -50,8 +50,10 @@ export function loadSource(b: Building): Inventory {
 export function storageLeft(b: Building, goodId: GoodId): number {
   if (!acceptsGood(b, goodId)) return 0;
   const cap = BUILDINGS[b.typeId].storage;
-  const used = sharesStorage(b)
-    ? Object.values(b.input).reduce((sum, q) => sum + q, 0)
-    : (b.input[goodId] ?? 0);
+  let used = 0;
+  if (sharesStorage(b)) {
+    // the pool's total, summed in Object.values order without building the list
+    for (const g in b.input) used += b.input[g];
+  } else used = b.input[goodId] ?? 0;
   return Math.max(0, Math.floor(cap - used));
 }
