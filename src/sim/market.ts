@@ -153,33 +153,47 @@ export function computeDailySales(
     if (units <= 0) continue;
     // fast path: no store has a whole unit of this good (the common case), so nothing sells
     if (stocked[gi] === 0) continue;
-    const avail = stores.map((s) => Math.floor(s.stock[goodId] ?? 0));
-    const got = stores.map(() => 0);
+    // plain loops over the stores (no per-good closures or spread copies), in the same orders
+    const ns = stores.length;
+    const avail: number[] = [];
+    const got: number[] = [];
     // equal split; shares a store cannot fill go to stores that still have stock
-    let active = avail.map((_, i) => i).filter((i) => avail[i] > 0);
+    let active: number[] = [];
+    for (let i = 0; i < ns; i++) {
+      avail.push(Math.floor(stores[i].stock[goodId] ?? 0));
+      got.push(0);
+      if (avail[i] > 0) active.push(i);
+    }
     // rotate the starting store so odd units do not always favour store 0
     if (active.length > 0) {
       const start = (((dayOffset + gi) % active.length) + active.length) % active.length;
-      active = [...active.slice(start), ...active.slice(0, start)];
+      if (start > 0) active = active.slice(start).concat(active.slice(0, start));
     }
     const war = wars?.[goodId];
-    while (units > 0 && active.length > 0) {
-      for (const i of active) {
+    // active[0, live) are the stores still in the split
+    let live = active.length;
+    while (units > 0 && live > 0) {
+      for (let k = 0; k < live; k++) {
         if (units <= 0) break;
+        const i = active[k];
         const take = war && stores[i].ownerId === war.favoured ? Math.min(2, units, avail[i] - got[i]) : 1;
         got[i] += take;
         units -= take;
       }
-      active = active.filter((i) => got[i] < avail[i]);
+      // keep the stores that still have stock, in order
+      let m = 0;
+      for (let k = 0; k < live; k++) if (got[active[k]] < avail[active[k]]) active[m++] = active[k];
+      live = m;
     }
     const price = salePrice(goodId, supplyRatio(entry), war ? index * war.priceFactor : index);
     let soldTotal = 0;
-    stores.forEach((s, i) => {
+    for (let i = 0; i < ns; i++) {
       if (got[i] > 0) {
+        const s = stores[i];
         out.push({ buildingId: s.buildingId, ownerId: s.ownerId, goodId, qty: got[i], revenue: got[i] * price });
         soldTotal += got[i];
       }
-    });
+    }
     entry.pending = Math.max(0, entry.pending - soldTotal);
   }
   return out;
