@@ -138,9 +138,9 @@ reason when the next level is not available yet ("Level 3 arrives in 1920"). Dur
 | Model | From | Capacity | Speed (tiles/tick) | Price (1900 $) | Upkeep / month (1900 $) |
 |---|---|---|---|---|---|
 | Steam Lorry | 1900 | 20 | 0.5 | 8,000 | 150 |
-| Motor Truck | 1920 | 28 | 0.6 | 11,000 | 190 |
-| Diesel Truck | 1950 | 36 | 0.7 | 15,000 | 240 |
-| Articulated Lorry | 1975 | 48 | 0.8 | 21,000 | 320 |
+| Motor Truck | 1920 | 28 | 0.6 | 11,000 | 180 |
+| Diesel Truck | 1950 | 36 | 0.7 | 15,000 | 200 |
+| Articulated Lorry | 1975 | 48 | 0.8 | 21,000 | 220 |
 
 The Steam Lorry is today's truck, so every existing truck migrates to it unchanged. Trains keep their
 one spec (model `train`). Each vehicle stores its `model` and its effective `capacity` and `speed`.

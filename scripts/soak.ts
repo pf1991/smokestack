@@ -65,6 +65,7 @@ import { assetAge, renewBuilding } from '../src/sim/society/aging';
 import { grudgeTotal } from '../src/sim/nemesis/grudges';
 import { companyIds } from '../src/sim/companies';
 import { legacyScore } from '../src/sim/legacy';
+import { insolvencyDemolitions } from '../src/sim/rival/insolvency';
 
 const END_YEAR = 2001;
 
@@ -139,6 +140,7 @@ for (const seed of seeds) {
   if (edictsArg) ctx.state.politics.edicts = { ...EDICT_SETS[edictsArg] };
   const pinned: Record<string, number> = {};
   const pinFails = new Set<string>();
+  const demolitions0 = insolvencyDemolitions();
   let baronBuilt = false;
   const endYear = Math.min(END_YEAR, ctx.state.date.year + years);
   let problems: string[] = [];
@@ -309,6 +311,9 @@ for (const seed of seeds) {
     if (elections < 100) gate.push(`only ${elections} elections (need 100)`);
     if (pinFails.size > 0) gate.push(`opinion pinned 10+ years: ${[...pinFails].join(', ')}`);
     if (!baronBuilt) gate.push('the Baron never built anything');
+    // Phase 4b: the Baron's economy must survive the truck models (real 1900 $, and never forced to sell off)
+    if (!(netWorth(state, 'rival') / state.economy.priceIndex > 0)) gate.push(`the Baron's real net worth is ${money(netWorth(state, 'rival') / state.economy.priceIndex)} (need > 0)`);
+    if (insolvencyDemolitions() > demolitions0) gate.push(`the Baron was forced to demolish ${insolvencyDemolitions() - demolitions0} buildings for insolvency`);
     if (maxTier < 2) gate.push(`smog never reached tier 2 (max ${maxTier})`);
     if (!Object.values(laws).some((l) => l.passed != null)) gate.push('no regulation law passed');
     if (!(index2000 >= 14 && index2000 <= 22)) gate.push(`priceIndex 2000 ${index2000} outside [14, 22] (R-S12)`);

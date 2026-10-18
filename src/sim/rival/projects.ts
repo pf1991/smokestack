@@ -264,8 +264,11 @@ export function advanceProject(ctx: SimContext): void {
     routes.push(route.id);
   }
   const before = routes.map((id) => trucksOn(state, id));
-  for (const target of [1, 2]) {
-    for (const id of routes) if (trucksOn(state, id) < target && affordable(state, modelSpec(newestModel(state)).cost)) buyTruck(ctx, 'rival', id);
+  // bigger trucks replace trucks: the legs' fleet is sized by capacity (2 steam lorries = 1 motor truck)
+  const newest = modelSpec(newestModel(state));
+  const perLeg = Math.max(1, Math.round((2 * TRUCK.capacity) / newest.capacity));
+  for (let target = 1; target <= perLeg; target++) {
+    for (const id of routes) if (trucksOn(state, id) < target && affordable(state, newest.cost)) buyTruck(ctx, 'rival', id);
   }
   const allServed = routes.every((id) => trucksOn(state, id) > 0);
   if (allServed) {
@@ -299,7 +302,7 @@ export function topUpTrucks(ctx: SimContext, owner: OwnerId = BARON_ID, reserve 
         if ((loadSource(b)[g] ?? 0) < FULL_RATIO * cap) return false;
         return route.stops.some((d) => {
           const dest = state.buildings[d.buildingId];
-          return d.unload.includes(g) && dest !== undefined && storageLeft(dest, g) >= TRUCK.capacity;
+          return d.unload.includes(g) && dest !== undefined && storageLeft(dest, g) >= modelSpec(newestModel(state)).capacity;
         });
       });
     });

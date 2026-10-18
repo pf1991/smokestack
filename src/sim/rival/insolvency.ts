@@ -75,6 +75,10 @@ export function baronInsolvent(state: GameState): boolean {
   return (state.companies[BARON_ID]?.money ?? 0) < 0;
 }
 
+let guardDemolitions = 0;
+/** Buildings the guard has demolished since the module loaded (a soak gate reads the delta; not part of the save). */
+export const insolvencyDemolitions = (): number => guardDemolitions;
+
 /**
  * Month end: while insolvent, demolish the single worst earner if it lost money over its 12 months,
  * then delete the routes that left with fewer than two stops (selling their vehicles). Returns the
@@ -86,6 +90,7 @@ export function insolvencyGuard(ctx: SimContext): number | null {
   const worst = worstBaronBuilding(state);
   if (!worst || total(worst) >= 0) return null;
   if (!demolishBuilding(ctx, worst.id, BARON_ID).ok) return null;
+  guardDemolitions++;
   for (const r of Object.values(state.routes)) if (r.ownerId === BARON_ID && r.stops.length < 2) deleteRoute(ctx, r.id);
   return worst.id;
 }
