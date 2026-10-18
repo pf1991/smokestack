@@ -87,6 +87,9 @@
 .mn-dice { padding: 2px 8px; font-size: 12px; }
 .mn-row input[type='range'] { width: 220px; accent-color: var(--brass); }
 .mn-row input[type='checkbox'] { width: 20px; height: 20px; accent-color: var(--brass); }
+/* Side panel width: the saved value and its Reset */
+.mn-width { display: flex; align-items: center; gap: 10px; }
+.mn-width .btn { padding: 2px 10px; font-size: 12px; }
 
 .mn-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
 .mn-card {
