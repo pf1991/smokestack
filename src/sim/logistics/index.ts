@@ -1,4 +1,5 @@
 import type { SimContext } from '../types';
+import { aiLogisticsMonth } from './ai';
 import { autoRoutesDay } from './autoRoutes';
 import { autoSizeRoutesMonth } from './autoSize';
 import { hubAutoSizeMonth, hubsDay } from './hubs';
@@ -16,6 +17,7 @@ export function logisticsMonth(ctx: SimContext): void {
   autoSizeRoutesMonth(ctx);
   hubAutoSizeMonth(ctx);
   salariesMonth(ctx);
+  aiLogisticsMonth(ctx);
 }
 /** Year end (the date is still December): retire, then raise requests, then the next year's market. */
 export function logisticsYear(ctx: SimContext): void {

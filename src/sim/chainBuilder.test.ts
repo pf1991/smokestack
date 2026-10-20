@@ -3,7 +3,8 @@ import { EventBus } from '../core/events';
 import { biggestCity, runAutoplay } from '../game/autoplay';
 import { buildChain, CHAINS } from './chainBuilder';
 import { addCompany } from './companies';
-import { createGame } from './state';
+import { accessTiles, createGame } from './state';
+import { findPath, roadPassable } from './pathfinding';
 import type { SimContext } from './types';
 
 const fresh = (seed = 42): SimContext => ({ state: createGame({ seed }), bus: new EventBus() });
@@ -77,5 +78,32 @@ describe('buildChain', () => {
     const r = buildChain(ctx, 'regional_1', biggestCity(ctx.state.cities)!, 'cheese');
     expect(r.ok).toBe(false);
     expect(Object.keys(ctx.state.buildings)).toHaveLength(0);
+  });
+
+  it('with routes: false links roads but builds no route or truck', () => {
+    const ctx = fresh();
+    const { state } = ctx;
+    const city = biggestCity(state.cities)!;
+    const r = buildChain(ctx, 'player', city, 'cheese', 0, { routes: false });
+    expect(r.ok ? 'ok' : r.error).toBe('ok');
+    if (!r.ok) return;
+    expect(r.value.map((b) => b.typeId)).toEqual([...CHAINS.cheese.map((s) => s.typeId), 'store']);
+    expect(Object.keys(state.routes)).toEqual([]);
+    expect(Object.keys(state.vehicles)).toEqual([]);
+    for (let i = 0; i + 1 < r.value.length; i++) {
+      expect(findPath(state.map, accessTiles(state, r.value[i])[0], accessTiles(state, r.value[i + 1]), roadPassable), `leg ${i}`).not.toBeNull();
+    }
+  });
+
+  it('with near, the final factory goes near that spot instead of the town centre', () => {
+    const ctx = fresh();
+    const city = biggestCity(ctx.state.cities)!;
+    const near = { x: city.center.x + 12, y: city.center.y };
+    const r = buildChain(ctx, 'player', city, 'cheese', 0, { routes: false, near });
+    expect(r.ok ? 'ok' : r.error).toBe('ok');
+    if (!r.ok) return;
+    const factory = r.value[r.value.length - 2];
+    const d = (p: { x: number; y: number }, q: { x: number; y: number }) => Math.abs(p.x - q.x) + Math.abs(p.y - q.y);
+    expect(d(factory.pos, near)).toBeLessThan(d(factory.pos, city.center));
   });
 });

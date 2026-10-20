@@ -45,6 +45,9 @@
  * `bidLoan` across autoplayDefend), both companies' wealth (state.ts), the first month end the player's wealth
  * reached 1.5x the Baron's (the takeover gate), the first month end it could also pay for control (the
  * lot and its control premium) and the year, if ever, the Baron was taken over.
+ * A `logistics` line (Phase 4b Task 8, no gates yet) reports the Baron's and each firm's logistics adoption:
+ * upgrades started, highest building level, hubs, hub jobs, managers hired and employed at the end, and
+ * how many player managers the Baron poached (poach_manager).
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
@@ -292,6 +295,16 @@ for (const seed of seeds) {
   });
   const activeFirms = firms.filter((id) => state.companies[id].active).length;
   console.log(`  regional ${seed}: ${firmText.join(' | ') || 'none'} | active ${activeFirms}`);
+  // Phase 4b Task 8: AI adoption (no gates yet). Upgrades and hires are cumulative counts; hubs and levels are at the end
+  const L = state.logistics;
+  const adoption = companyIds(state).filter((id) => id !== 'player').map((id) => {
+    const own = Object.values(state.buildings).filter((b) => b.ownerId === id);
+    const maxLevel = own.reduce((m, b) => Math.max(m, b.level), 0);
+    const hubCount = own.filter((b) => b.hub).length;
+    const mgrs = L.managers.filter((m) => m.employer === id).length;
+    return `${id} upgrades ${L.stats.upgrades[id] ?? 0}, max level ${maxLevel || 'n/a'}, hubs ${hubCount}, hub jobs ${L.stats.hubJobs[id] ?? 0}, hires ${L.stats.hires[id] ?? 0}, managers ${mgrs}`;
+  });
+  console.log(`  logistics ${seed}: ${adoption.join(' | ')} | player managers poached ${retaliations.poach_manager ?? 0} | retirements ${L.stats.retirements}`);
   console.log(
     `  phase4 ${seed}: crash cards ${crashCards.join(', ') || 'none'} | workers 2000 ${Number.isFinite(workers2000) ? workers2000.toFixed(1) : 'n/a'} | regional active 2000 ${Number.isFinite(firms2000) ? firms2000 : 'n/a'} | player loan ${money(state.companies.player.loan)} (bid loan ${money(state.companies.player.bidLoan ?? 0)}) | emergency bid loans ${bidLoans} (${money(bidLoanTotal)}) | wealth player ${money(wealth(state, 'player'))}, baron ${money(wealth(state, 'rival'))} | 1.5x gate first open ${gateOpen || 'never'} | control first affordable ${affordable || 'never'} | baron taken over ${takenOver || 'never'} | ${victory ? `victory: ${victory}` : 'no victory'}`,
   );

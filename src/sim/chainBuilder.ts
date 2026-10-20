@@ -79,15 +79,24 @@ export function legRoute(ctx: SimContext, owner: OwnerId, a: Building, b: Buildi
  * the extractor on the nearest suitable land to the factory, then any middle stage between the two;
  * road access for each, a road link per leg, one route per leg and `trucksPerLeg` trucks on each
  * (round by round, so every leg has its first truck before any has a second).
+ * `opts.near` places the final factory (and so the extractor and middle stages) near that spot instead
+ * of the town centre; `opts.routes: false` links the roads but builds no routes or trucks.
  * Returns the chain's buildings, extractor first and store last, or the first error. A failure part
  * way leaves what was already built (callers that need all-or-nothing dry-run it first).
  */
-export function buildChain(ctx: SimContext, owner: OwnerId, city: City, chain: ChainId, trucksPerLeg = 2): Result<Building[]> {
+export function buildChain(
+  ctx: SimContext,
+  owner: OwnerId,
+  city: City,
+  chain: ChainId,
+  trucksPerLeg = 2,
+  opts: { routes?: boolean; near?: Vec2 } = {},
+): Result<Building[]> {
   const stages = CHAINS[chain];
   const last = stages[stages.length - 1];
   const store = place(ctx, owner, { typeId: 'store' }, city.center, 10);
   if (!store.ok) return store;
-  const factory = place(ctx, owner, last, city.center);
+  const factory = place(ctx, owner, last, opts.near ?? city.center);
   if (!factory.ok) return factory;
   const first = stages[0];
   const spot = extractorSpot(ctx, owner, first.typeId, factory.value.pos);
@@ -117,6 +126,7 @@ export function buildChain(ctx: SimContext, owner: OwnerId, city: City, chain: C
     const b = built[i + 1];
     const link = ensureRoadLink(ctx, owner, a, b);
     if (!link.ok) return link;
+    if (opts.routes === false) continue;
     const good = Object.keys(RECIPES[stages[i].recipeId].outputs)[0];
     const route = createRoute(ctx, owner, `${GOODS[good]?.name ?? good} line`, suggestStops(ctx.state, [a.id, b.id]));
     if (!route.ok) return route;

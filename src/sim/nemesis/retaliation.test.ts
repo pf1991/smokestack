@@ -27,8 +27,16 @@ import {
   retaliate,
   retaliateMonth,
   SABOTAGE_BAN_YEARS,
+  POACH_MANAGER_MIN_SKILL,
+  POACH_SALARY_FACTOR,
 } from './retaliation';
-import type { RetaliationKind } from './types';
+import { RETALIATION_KINDS, type RetaliationKind } from './types';
+import { buyHubTruck, hubsDay, hubTier, openHub, SKILL_TIERS } from '../logistics/hubs';
+import { assign, hire, managerAt, managerSalary, refreshMarket } from '../logistics/managers';
+import { RAISE_CARD_ID } from '../logistics/release';
+import type { Skill } from '../logistics/types';
+import { atPrices } from '../society/economy';
+import { buildRoad, lPath } from '../state';
 
 function setup(): SimContext {
   const ctx = testCtx(
@@ -429,5 +437,98 @@ describe('every kind', () => {
     const seen = strikes(ctx);
     for (let i = 0; i < 50; i++) month(ctx);
     expect(seen).toEqual([]);
+  });
+});
+
+describe('poach_manager', () => {
+  /** A road along y=27; the player's hub W (30,24) with a truck, a sawmill holding lumber next door; the Baron's hub (8,24). */
+  function managed() {
+    const ctx = setup();
+    refreshMarket(ctx.state, 1900);
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 27 }, { x: 58, y: 27 })));
+    const hub = must(placeBuilding(ctx, 'player', 'warehouse', { x: 30, y: 24 }));
+    const mill = must(placeBuilding(ctx, 'player', 'sawmill', { x: 35, y: 24 }));
+    mill.output.lumber = 60;
+    must(buyHubTruck(ctx, 'player', hub.id));
+    const his = must(placeBuilding(ctx, 'rival', 'warehouse', { x: 8, y: 24 }));
+    must(openHub(ctx, his.id, 'rival'));
+    return { ctx, hub, mill, his };
+  }
+
+  function hireWith(ctx: SimContext, skills: [number, number, number], post: number | null) {
+    const L = ctx.state.logistics;
+    if (L.market.length === 0) refreshMarket(ctx.state, ctx.state.date.year);
+    const m = must(hire(ctx, 'player', L.market[0].id));
+    const [logistics, production, frugality] = skills as [Skill, Skill, Skill];
+    m.skills = { logistics, production, frugality };
+    m.salary = managerSalary(m.skills);
+    L.rev++;
+    if (post !== null) must(assign(ctx, 'player', m.id, post));
+    return m;
+  }
+
+  it('is appended last; without a manager the eligible kinds are the Phase 4 ones', () => {
+    expect(RETALIATION_KINDS.slice(0, 6)).toEqual(['price_war', 'poach', 'fund_opponent', 'smear', 'sabotage', 'hostile_bid']);
+    expect(RETALIATION_KINDS[6]).toBe('poach_manager');
+    expect(RETALIATION_COST.poach_manager).toBe(4000);
+    const ctx = setup();
+    factory(ctx);
+    ctx.state.nemesis.track.contested = ['0:bread'];
+    ctx.state.cities[0].politics.nextElection = monthIndex(ctx.state.date) + 3;
+    expect(eligibleKinds(ctx)).toEqual(['price_war', 'poach', 'fund_opponent', 'smear', 'sabotage']);
+  });
+
+  it(`is ineligible without a player manager with a skill of ${POACH_MANAGER_MIN_SKILL}+`, () => {
+    const { ctx, hub } = managed();
+    hireWith(ctx, [2, 2, 2], hub.id);
+    expect(eligibleKinds(ctx)).not.toContain('poach_manager');
+    const before = JSON.stringify(ctx.state);
+    expect(retaliate(ctx, 'poach_manager')).toBe(false);
+    expect(JSON.stringify(ctx.state)).toBe(before);
+    hireWith(ctx, [1, 1, 3], null);
+    expect(eligibleKinds(ctx)).toContain('poach_manager');
+  });
+
+  it('takes the best player manager to the Baron\'s unmanned hub at x1.25 salary; the player\'s hub stops dispatching the next day', () => {
+    const { ctx, hub, his } = managed();
+    const weak = hireWith(ctx, [3, 1, 1], null);
+    const best = hireWith(ctx, [4, 2, 1], hub.id);
+    const tied = hireWith(ctx, [1, 2, 4], null);
+    expect(weak.id < best.id && best.id < tied.id).toBe(true);
+    expect(hubTier(ctx.state, hub)).toBe(SKILL_TIERS[4]);
+    const left: unknown[] = [];
+    ctx.bus.on('managerLeft', (e) => left.push(e));
+    const salary = best.salary;
+    const money = ctx.state.companies.rival.money;
+    expect(retaliate(ctx, 'poach_manager')).toBe(true);
+    expect(ctx.state.companies.rival.money).toBe(money - Math.round(atPrices(ctx.state, 4000)));
+    expect(best.employer).toBe('rival');
+    expect(best.post).toBe(his.id);
+    expect(best.salary).toBeCloseTo(salary * POACH_SALARY_FACTOR, 6);
+    expect(managerAt(ctx.state, hub.id)).toBeNull();
+    expect(managerAt(ctx.state, his.id)).toBe(best);
+    expect(left).toEqual([{ type: 'managerLeft', managerId: best.id, name: best.name, ownerId: 'player', reason: 'poached' }]);
+    const news = ctx.state.news.filter((n) => n.tag === 'nemesis').at(-1)!;
+    expect(news.headline).toBe(`SMOGSWORTH LURES ${best.name.toUpperCase()} FROM ${ctx.state.companies.player.name.toUpperCase()}`);
+    // the next day the player's hub has no manager and assigns nothing
+    hub.hub!.nextDispatchDay = dateToDays(ctx.state.date) + 1;
+    ctx.state.date = addDays(ctx.state.date, 1);
+    hubsDay(ctx);
+    expect(hubTier(ctx.state, hub)).toBeNull();
+    expect(hub.hub!.yesterday).toEqual({ jobs: 0, idle: 1 });
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+
+  it('withdraws the poached manager\'s open raise card; without a Baron hub he goes unposted', () => {
+    const ctx = setup();
+    refreshMarket(ctx.state, 1900);
+    const m = hireWith(ctx, [3, 3, 3], null);
+    ctx.state.logistics.raiseAsk = m.id;
+    ctx.state.politics.cards.pending.push({ uid: 9, cardId: RAISE_CARD_ID, cityId: null, openedDay: 0 });
+    expect(retaliate(ctx, 'poach_manager')).toBe(true);
+    expect(m.employer).toBe('rival');
+    expect(m.post).toBeNull();
+    expect(ctx.state.logistics.raiseAsk).toBeNull();
+    expect(ctx.state.politics.cards.pending).toEqual([]);
   });
 });

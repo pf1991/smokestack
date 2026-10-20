@@ -12,7 +12,7 @@ export type GameEvent =
   /** a manager was hired (sim/logistics/managers.ts) */
   | { type: 'managerHired'; managerId: number; ownerId: OwnerId }
   /** a manager retired or quit; a fired one does not emit */
-  | { type: 'managerLeft'; managerId: number; name: string; ownerId: OwnerId; reason: 'retired' | 'quit' }
+  | { type: 'managerLeft'; managerId: number; name: string; ownerId: OwnerId; reason: 'retired' | 'quit' | 'poached' }
   | { type: 'roadChanged'; tiles: Vec2[] }
   | { type: 'railChanged'; tiles: Vec2[] }
   /** tiles whose terrain changed (trees planted: sim/state.ts plantForest) */

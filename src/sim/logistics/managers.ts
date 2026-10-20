@@ -119,6 +119,35 @@ export function fire(ctx: SimContext, owner: OwnerId, managerId: number, withSev
   return ok();
 }
 
+/**
+ * Another company lures `managerId` away (the Baron's poach_manager): the post clears at once, any raise
+ * card goes, and the manager joins `to` at `factor` x salary, posted at `post` (a building of `to` with no
+ * manager, or null). Emits `managerLeft` ('poached') for the old employer. Not a hire: no hire is counted.
+ */
+export function poach(ctx: SimContext, managerId: number, to: OwnerId, post: number | null, factor: number): Result<Manager> {
+  const { state } = ctx;
+  const L = state.logistics;
+  const m = L.managers.find((x) => x.id === managerId);
+  if (!m || m.employer === null) return err('No such manager');
+  if (m.employer === to) return err('Already theirs');
+  if (!state.companies[to]) return err('No such company');
+  if (post !== null) {
+    const b = state.buildings[post];
+    if (!b || b.ownerId !== to || !takesManager(b)) return err('Not their building');
+    if (L.managers.some((x) => x !== m && x.post === post)) return err('Post already filled');
+  }
+  const from = m.employer;
+  clearRaise(state, m.id);
+  m.employer = to;
+  m.post = post;
+  m.salary = Math.round(m.salary * factor * 100) / 100;
+  m.hiredYear = state.date.year;
+  m.lastRaiseYear = null;
+  L.rev++;
+  ctx.bus.emit({ type: 'managerLeft', managerId: m.id, name: m.name, ownerId: from, reason: 'poached' });
+  return ok(m);
+}
+
 /** Posts `managerId` to `buildingId`, or unposts with null. */
 export function assign(ctx: SimContext, owner: OwnerId, managerId: number, buildingId: number | null): Result {
   const { state } = ctx;

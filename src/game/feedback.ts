@@ -86,7 +86,7 @@ export function attachManagerToasts(ctx: SimContext, openManagers: () => void): 
     if (e.ownerId !== 'player') return;
     ctx.bus.emit({
       type: 'toast',
-      message: e.reason === 'retired' ? `${e.name} has retired` : `${e.name} has quit`,
+      message: e.reason === 'retired' ? `${e.name} has retired` : e.reason === 'poached' ? `${e.name} has gone over to Smogsworth` : `${e.name} has quit`,
       tone: 'bad',
       action: { label: 'Managers', run: openManagers },
     });

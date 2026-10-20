@@ -10,6 +10,7 @@ import { resolveCard } from '../sim/politics/cards';
 import { testCtx, testState } from '../sim/testkit';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
 import { BARON_TRAITS, GRUDGE_WEIGHTS } from './nemesis';
+import { BARON_LINES } from './baronLines';
 import { BARON_TRAIT_IDS, RETALIATION_KINDS } from '../sim/nemesis/types';
 
 describe('content catalog', () => {
@@ -246,6 +247,15 @@ describe('content catalog', () => {
         expect(Number.isInteger(w) && w! >= 1 && w! <= 3, `${id}: ${kind} weight ${w}`).toBe(true);
       }
     }
+  });
+
+  it('poach_manager: cunning +3, greedy +1, and 4+ Baron lines without emoji, one naming no town', () => {
+    expect(BARON_TRAITS.cunning.actionWeights.poach_manager).toBe(3);
+    expect(BARON_TRAITS.greedy.actionWeights.poach_manager).toBe(1);
+    const lines = BARON_LINES.retaliation.poach_manager;
+    expect(lines.length).toBeGreaterThanOrEqual(4);
+    for (const l of lines) expect(l).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    expect(lines.some((l) => !l.includes('{city}'))).toBe(true);
   });
 
   it('grudge weights', () => {

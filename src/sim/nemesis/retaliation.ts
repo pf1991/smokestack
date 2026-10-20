@@ -32,6 +32,9 @@ import { buyShares, quote, TRADE_LOT } from '../exchange/trading';
 import { PUBLIC_HOLDER, SHARES_OUTSTANDING } from '../exchange/types';
 import { wealth } from '../state';
 import { CONTROL_WEALTH_RATIO } from '../exchange/types';
+import { aiPostFor } from '../logistics/aiPost';
+import { poach } from '../logistics/managers';
+import type { Manager } from '../logistics/types';
 import { bidOpen } from './bid';
 import { addGrudge, grudgeTotal, heaviestGrudge, spendHeaviestGrudge } from './grudges';
 import { NEMESIS_NEWS_TAG, RETALIATE_AT, RETALIATION_KINDS, type GrudgeKind, type RetaliationKind } from './types';
@@ -73,7 +76,12 @@ export const RETALIATION_COST: Record<RetaliationKind, number> = {
   smear: 1000,
   sabotage: 6000,
   hostile_bid: 0,
+  poach_manager: 4000,
 };
+
+/** poach_manager needs a player manager with a skill of at least this; the poached one's salary rises by POACH_SALARY_FACTOR. */
+export const POACH_MANAGER_MIN_SKILL = 3;
+export const POACH_SALARY_FACTOR = 1.25;
 
 const baronActive = (state: GameState): boolean => state.companies[BARON_ID]?.active === true;
 
@@ -137,6 +145,22 @@ function sabotageTargets(state: GameState): Building[] {
   return Object.values(state.buildings).filter((b) => b.ownerId === PLAYER_ID && BUILDINGS[b.typeId].category === 'factory' && !halted(state, b, today));
 }
 
+/**
+ * The player's manager poach_manager would lure: the highest skill total (lowest id on ties) among those
+ * with a skill of POACH_MANAGER_MIN_SKILL or more; null when there is none.
+ */
+function managerTarget(state: GameState): Manager | null {
+  let best: Manager | null = null;
+  let bestTotal = 0;
+  for (const m of state.logistics.managers) {
+    const s = m.skills;
+    if (m.employer !== PLAYER_ID || Math.max(s.logistics, s.production, s.frugality) < POACH_MANAGER_MIN_SKILL) continue;
+    const total = s.logistics + s.production + s.frugality;
+    if (total > bestTotal) (best = m), (bestTotal = total);
+  }
+  return best;
+}
+
 function hasTarget(state: GameState, kind: RetaliationKind): boolean {
   switch (kind) {
     case 'price_war':
@@ -151,6 +175,8 @@ function hasTarget(state: GameState, kind: RetaliationKind): boolean {
       return sabotageTargets(state).length > 0;
     case 'hostile_bid':
       return bidLot(state) > 0 && wealth(state, BARON_ID) >= HOSTILE_BID_WORTH_RATIO * wealth(state, PLAYER_ID);
+    case 'poach_manager':
+      return managerTarget(state) !== null;
   }
 }
 
@@ -310,6 +336,17 @@ function apply(ctx: SimContext, kind: RetaliationKind): Strike {
         cityId: null,
         headline: `SMOGSWORTH BUYS INTO ${firm.toUpperCase()}`,
         body: `${baron}'s brokers buy ${n} shares of ${firm}; he now holds ${held} of ${SHARES_OUTSTANDING}.`,
+      };
+    }
+    case 'poach_manager': {
+      const m = managerTarget(state)!;
+      const was = m.post === null ? undefined : state.buildings[m.post];
+      // spec §7.3: his unmanned hub, else his busiest unmanned works, else unposted
+      poach(ctx, m.id, BARON_ID, aiPostFor(state, BARON_ID), POACH_SALARY_FACTOR);
+      return {
+        cityId: was?.cityId ?? null,
+        headline: `SMOGSWORTH LURES ${m.name.toUpperCase()} FROM ${firm.toUpperCase()}`,
+        body: `${baron} hires ${m.name} away from ${firm} at a quarter more pay.`,
       };
     }
   }
