@@ -9,7 +9,7 @@ import { buildRoad, lPath, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Building, OwnerId, SimContext } from '../types';
 import {
-  AI_BACKED_UP_SHARE, AI_HUB_TRUCKS, AI_TRAILING_MONTHS, aiLogisticsMonth, backedUp, trailingOperatingProfit, aiReserve, BARON_RESERVE_MULTIPLE, BARON_UPGRADE_GAP_MONTHS, FIRM_RESERVE_MULTIPLE, FIRM_UPGRADE_GAP_MONTHS, hubCostEstimate, HUB_RETRY_MONTHS, hubReserveOf,
+  AI_BACKED_UP_SHARE, AI_HUB_TRUCKS, AI_TRAILING_MONTHS, aiLogisticsMonth, backedUp, losingYear, trailingOperatingProfit, aiReserve, BARON_RESERVE_MULTIPLE, BARON_UPGRADE_GAP_MONTHS, FIRM_RESERVE_MULTIPLE, FIRM_UPGRADE_GAP_MONTHS, hubCostEstimate, HUB_RETRY_MONTHS, hubReserveOf,
 } from './ai';
 import { outputValue } from './aiPost';
 import { HUB_RESERVE, hubAutoSizeMonth, hubTrucks } from './hubs';
@@ -19,7 +19,8 @@ import { managerAt, managerSalary, refreshMarket } from './managers';
 import type { Manager, Skill } from './types';
 import { checkInvariants } from '../invariants';
 import { runDays } from '../simulation';
-import { vehiclePrice } from '../vehicles';
+import { buyTruck, createRoute, vehiclePrice } from '../vehicles';
+import { topUpTrucks } from '../rival/projects';
 
 const FIRM: OwnerId = 'regional_1';
 
@@ -191,6 +192,33 @@ describe('AI spending rules', () => {
     expect(hubs(firm, FIRM)).toEqual([]);
   });
 
+  it('topUpTrucks adds no truck to a backed-up AI leg in a losing year, for the Baron and a firm', () => {
+    /** Trucks on a backed-up mill -> factory leg after one topUpTrucks, with the owner's trailing year at `profit`. */
+    const leg = (owner: OwnerId, profit: number): number => {
+      const ctx = setup(1905);
+      if (owner === FIRM) addFirm(ctx, 1e8, 1900);
+      const mill = works(ctx, owner, 'sawmill', 5, 'r_lumber');
+      const factory = works(ctx, owner, 'furniture_factory', 15, 'r_furniture');
+      const route = must(createRoute(ctx, owner, 'Leg', [
+        { buildingId: mill.id, load: ['lumber'], unload: [] },
+        { buildingId: factory.id, load: [], unload: ['lumber'] },
+      ]));
+      must(buyTruck(ctx, owner, route.id));
+      mill.output.lumber = buildingStorage(mill); // backing up while the factory is empty: haulage is short
+      const c = ctx.state.companies[owner];
+      // set the trailing year to `profit` (the truck above is booked as 'vehicles')
+      earn(c, 'sales', profit - trailingOperatingProfit(ctx.state, owner), ctx.state.date);
+      expect(trailingOperatingProfit(ctx.state, owner)).toBe(profit);
+      c.money = 1e8;
+      topUpTrucks(ctx, owner, 0);
+      return Object.values(ctx.state.vehicles).filter((v) => v.routeId === route.id).length;
+    };
+    for (const owner of ['rival', FIRM] as OwnerId[]) {
+      expect(leg(owner, 0), `${owner} breaking even`).toBe(2);
+      expect(leg(owner, -1), `${owner} losing $1`).toBe(1);
+    }
+  });
+
   it('boundaries: a trailing profit of exactly 0 buys, construction is not operating, and month 13 back does not count', () => {
     const zero = setup(1910, 12);
     baronChains(zero);
@@ -328,6 +356,9 @@ describe('AI hubs at work', () => {
   function firmChain() {
     const ctx = setup(1915, 12);
     addFirm(ctx, 1e7, 1910);
+    // trading at a profit: its hub trucks ('vehicles') leave no losing year
+    earn(ctx.state.companies[FIRM], 'sales', 1e6, ctx.state.date);
+    ctx.state.companies[FIRM].money -= 1e6;
     works(ctx, FIRM, 'dairy_farm', 22, 'r_milk', 1);
     const cream = must(placeBuilding(ctx, FIRM, 'creamery', { x: 34, y: 10 }, 'r_cheese'));
     aiLogisticsMonth(ctx);
@@ -376,6 +407,28 @@ describe('AI hubs at work', () => {
     hub.hub!.month = { jobs: 40, idleTruckDays: 0, backlogDays: 12 };
     hubAutoSizeMonth(ctx, hubReserveOf);
     expect(hubTrucks(ctx.state, hub.id).length).toBe(n + 1);
+  });
+
+  it('hub auto-sizing buys no AI hub truck in a losing year, and still sells an idle one', () => {
+    const { ctx, hub } = firmChain();
+    const firm = ctx.state.companies[FIRM];
+    const n = hubTrucks(ctx.state, hub.id).length;
+    firm.money = 1e8;
+    spend(firm, 'maintenance', trailingOperatingProfit(ctx.state, FIRM) + 1, ctx.state.date); // the trailing year now loses $1
+    expect(losingYear(ctx.state, FIRM)).toBe(true);
+    hub.hub!.month = { jobs: 40, idleTruckDays: 0, backlogDays: 12 };
+    hubAutoSizeMonth(ctx, hubReserveOf);
+    expect(hubTrucks(ctx.state, hub.id).length).toBe(n);
+    // break even: it buys again
+    earn(firm, 'sales', 1, ctx.state.date);
+    hub.hub!.month = { jobs: 40, idleTruckDays: 0, backlogDays: 12 };
+    hubAutoSizeMonth(ctx, hubReserveOf);
+    expect(hubTrucks(ctx.state, hub.id).length).toBe(n + 1);
+    // losing again: an idle month still sells a truck
+    spend(firm, 'maintenance', 10, ctx.state.date);
+    hub.hub!.month = { jobs: 0, idleTruckDays: 60, backlogDays: 0 };
+    hubAutoSizeMonth(ctx, hubReserveOf);
+    expect(hubTrucks(ctx.state, hub.id).length).toBe(n);
   });
 
   it('hires the cheapest candidate with logistics 2+ (lowest id on a tie), and nobody when it cannot pay a year of it and keep its reserve', () => {

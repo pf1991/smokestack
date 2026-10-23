@@ -3,7 +3,7 @@ import { BUILDINGS } from '../../data/buildings';
 import { buildingStorage } from '../logistics/levels';
 import { GOODS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
-import { loanStep, repayLoan, repayStep, takeLoan } from '../finance';
+import { aiLosingYear, loanStep, repayLoan, repayStep, takeLoan } from '../finance';
 import { loadSource, storageLeft } from '../inventory';
 import { publishNews } from '../news';
 import { connectToRoads, ensureRoadLink } from '../roads';
@@ -286,10 +286,12 @@ export function unwrap<T>(r: Result<T>): T | null {
 /**
  * More trucks for legs whose source is backing up (output ≥ 80% of storage) while the destination
  * still has room for a truckload, i.e. haulage is the bottleneck. At most 4 per leg. `owner` (the
- * Baron by default; regional firms too) buys only while it keeps `reserve` (today's dollars).
+ * Baron by default; regional firms too) buys only while it keeps `reserve` (today's dollars), and
+ * none in a losing year (finance.ts aiLosingYear).
  */
 export function topUpTrucks(ctx: SimContext, owner: OwnerId = BARON_ID, reserve = rivalReserve(ctx.state)): void {
   const { state } = ctx;
+  if (aiLosingYear(state, owner)) return;
   for (const route of Object.values(state.routes)) {
     if (route.ownerId !== owner || route.kind !== 'truck') continue;
     const n = trucksOn(state, route.id);

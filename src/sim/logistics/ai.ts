@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../../data/buildings';
 import { assetAge } from '../society/aging';
-import { monthProfit } from '../finance';
+import { aiLosingYear } from '../finance';
+export { AI_TRAILING_MONTHS, trailingOperatingProfit } from '../finance';
 import { atPrices } from '../society/economy';
 import { BARON_ID, companyIds, PLAYER_ID } from '../companies';
 import { monthIndex } from '../politics/elections';
@@ -52,8 +53,6 @@ export const BARON_RESERVE_MULTIPLE = 20;
 export const FIRM_RESERVE_MULTIPLE = 2;
 /** The AI upgrades only a works that is not backing up: not output_full, and every output stock below this share of its storage. */
 export const AI_BACKED_UP_SHARE = 0.5;
-/** Ledger months summed for the AI's trailing operating profit; while it is negative the AI upgrades nothing and builds or stocks no hub. */
-export const AI_TRAILING_MONTHS = 12;
 /** Months a company waits after its warehouse could not be placed or linked by road before it tries again. */
 export const HUB_RETRY_MONTHS = 12;
 /** It hires only when it can pay this many months of salary and keep its reserve. */
@@ -73,24 +72,8 @@ export function hubReserveOf(state: GameState, owner: OwnerId): number {
   return state.companies[owner]?.kind === 'player' ? atPrices(state, HUB_RESERVE) : aiReserve(state, owner);
 }
 
-/**
- * `owner`'s operating profit over its last AI_TRAILING_MONTHS ledger months: finance.ts monthProfit
- * (income minus expense over INCOME_CATEGORIES and EXPENSE_CATEGORIES) with construction added back,
- * since building is investment, not operations. Vehicle purchases stay in: the ledger books them with
- * vehicle upkeep under 'vehicles' and cannot split the two. The months are the ledger's last entries,
- * as the exchange's trailing profit (exchange/prices.ts) takes them.
- */
-export function trailingOperatingProfit(state: GameState, owner: OwnerId): number {
-  const ledger = state.companies[owner]?.ledger ?? [];
-  let p = 0;
-  for (let i = Math.max(0, ledger.length - AI_TRAILING_MONTHS); i < ledger.length; i++) {
-    p += monthProfit(ledger[i]) + (ledger[i].expense.construction ?? 0);
-  }
-  return p;
-}
-
-/** True when `owner` lost money on its operations over the trailing year: it then buys no level and no hub. */
-export const losingYear = (state: GameState, owner: OwnerId): boolean => trailingOperatingProfit(state, owner) < 0;
+/** True when `owner` lost money on its operations over the trailing year (finance.ts aiLosingYear): it then buys no level and no hub. */
+export const losingYear = aiLosingYear;
 
 /** A works whose output piles up: output_full, or any output stock at AI_BACKED_UP_SHARE of its (level) storage or more. */
 export function backedUp(b: Building): boolean {

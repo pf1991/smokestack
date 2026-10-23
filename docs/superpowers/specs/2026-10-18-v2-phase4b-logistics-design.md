@@ -361,7 +361,11 @@ The AI uses the same public functions as the player.
   storage (`AI_BACKED_UP_SHARE`), since a level adds output, not sales.
 - **Losing years:** the Baron and each firm make no upgrade, place no warehouse and buy no hub truck
   while their operating profit over the last 12 ledger months (`AI_TRAILING_MONTHS`; finance.ts
-  `monthProfit` with construction added back) is negative.
+  `monthProfit` with construction added back) is negative. The same rule (finance.ts
+  `aiLosingYear`) holds for every discretionary AI spend: in a losing year the Baron starts no new
+  chain or rail project (one under way goes on), and neither the Baron's nor a firm's legs gain
+  top-up trucks (rival `topUpTrucks`) nor their hubs auto-sized trucks; upkeep, salaries and sales
+  of idle trucks go on.
 - **Hubs:** from 1910, a Baron with 3+ chains and no hub places a warehouse at the free site nearest
   his buildings' centroid, buys 2 hub trucks and hires the cheapest affordable market candidate with
   logistics 2+ (at the end of January, D8) to run it. A regional firm founded 5+ years ago does the
