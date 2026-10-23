@@ -18,10 +18,17 @@ export interface Manager {
 
 export type HubJobKind = 'collect' | 'deliver' | 'balance' | 'return';
 export interface HubJob { kind: HubJobKind; from: number; to: number; good: GoodId | null; qty: number }
+/**
+ * A two-stop route the AI handed to its hub (logistics/ai.ts): loads `load` at `from`, unloads `unload`
+ * at `to`; `trucks` it brought to the hub, which hub auto-sizing never sells below (hubAutoSizeMonth).
+ */
+export interface HubLeg { from: number; to: number; load: GoodId[]; unload: GoodId[]; trucks: number }
 export interface HubState {
   autoSize: boolean; maxTrucks: number; nextDispatchDay: number;
   month: { jobs: number; idleTruckDays: number; backlogDays: number };
   yesterday: { jobs: number; idle: number };
+  /** AI hubs only: the legs converted to hub work, recreated as routes if the hub loses its manager. Absent means none. */
+  legs?: HubLeg[];
 }
 export interface AutoJob { from: number; to: number; good: GoodId; qty: number; score: number }
 

@@ -1,21 +1,22 @@
 import { BUILDINGS } from '../../data/buildings';
+import { GOODS } from '../../data/goods';
 import { assetAge } from '../society/aging';
 import { atPrices } from '../society/economy';
 import { BARON_ID, companyIds, PLAYER_ID } from '../companies';
 import { monthIndex } from '../politics/elections';
 import { REGIONAL_RESERVE } from '../regional/firms';
-import { rivalChainCount } from '../rival/projects';
+import { projectIds, rivalChainCount } from '../rival/projects';
 import { rivalReserve } from '../rival/shared';
 import { connectToRoads, ensureRoadLink } from '../roads';
 import { accessTiles, demolishBuilding, findPlacement, placeBuilding } from '../state';
 import type { Building, GameState, OwnerId, SimContext, Vec2 } from '../types';
-import { vehiclePrice } from '../vehicles';
+import { buyTruck, createRoute, deleteRoute, vehiclePrice } from '../vehicles';
 import { busiestUnmannedWorks, hubOf, isWorks, outputValue, ownedBy } from './aiPost';
-import { buyHubTruck, hubTrucks, setHubAutoSize } from './hubs';
-import { nextLevel, startUpgrade, upgradeCost } from './levels';
+import { buyHubTruck, HUB_RESERVE, hubAttached, hubRoom, hubTier, hubTrucks, moveToHub, moveToRoute, setHubAutoSize } from './hubs';
+import { hubRange, nextLevel, startUpgrade, upgradeCost } from './levels';
 import { assign, hire, managerAt, managerSalary } from './managers';
 import { newestModel } from './models';
-import type { Manager } from './types';
+import type { HubLeg, Manager } from './types';
 
 /**
  * Phase 4b spec section 9: the Baron and the regional firms adopt levels, hubs and managers through the
@@ -25,12 +26,14 @@ import type { Manager } from './types';
  *
  * Balance (Task 8 soak): the Baron's chains are demand-bound, so a level adds upkeep and workers without
  * adding sales. With the spec's 6-month gap and a 2x reserve he spent his cushion on upgrades and went
- * insolvent late in the century on seeds 7 and 42; a 24-month gap and a 20x reserve (he upgrades, opens
- * his hub and hires only from surplus) keep his 2000 real net worth at 0.9-1.9x of the pre-4b base.
+ * insolvent late in the century on seeds 7 and 42; a 36-month gap and a 20x reserve (he upgrades, opens
+ * his hub and hires only from surplus) keep him solvent on all three seeds once his hub works his legs
+ * (review fix A). His late-century economy stays fragile: 24 or 30 months left him insolvent on one or
+ * two seeds.
  */
 
 /** Months between two of the Baron's upgrades (the spec's 6, tuned for balance: see above), and a firm's. */
-export const BARON_UPGRADE_GAP_MONTHS = 24;
+export const BARON_UPGRADE_GAP_MONTHS = 36;
 export const FIRM_UPGRADE_GAP_MONTHS = 12;
 /** A works must be this many years old (since built or renewed) before the AI upgrades it. */
 export const UPGRADE_MIN_AGE = 2;
@@ -49,6 +52,14 @@ export const AI_MIN_LOGISTICS = 2;
 /** The cash the AI keeps after any logistics purchase, as a multiple of its own reserve: the Baron's rivalReserve (the brief's 2, tuned: see above), a firm's REGIONAL_RESERVE. */
 export const BARON_RESERVE_MULTIPLE = 20;
 export const FIRM_RESERVE_MULTIPLE = 2;
+/**
+ * A hub takes over the owner's legs only under a manager of at least this logistics skill: a lower one
+ * plans every 5-7 days over a third or half of the range, slower than the route trucks it would replace
+ * (soak: a firm's income fell by a third under a logistics-2 hub). Below it, the legs stay routes.
+ */
+export const AI_LEG_MIN_LOGISTICS = 3;
+/** Months a company waits after its warehouse could not be placed or linked by road before it tries again. */
+export const HUB_RETRY_MONTHS = 12;
 /** It hires only when it can pay this many months of salary and keep its reserve. */
 const SALARY_MONTHS = 12;
 /** findPlacement radius around the centroid of the owner's buildings. */
@@ -59,6 +70,11 @@ export function aiReserve(state: GameState, owner: OwnerId): number {
   return state.companies[owner]?.kind === 'baron'
     ? BARON_RESERVE_MULTIPLE * rivalReserve(state)
     : FIRM_RESERVE_MULTIPLE * atPrices(state, REGIONAL_RESERVE);
+}
+
+/** The cash hub auto-sizing keeps (hubAutoSizeMonth): HUB_RESERVE for the player, aiReserve for the Baron and the firms. */
+export function hubReserveOf(state: GameState, owner: OwnerId): number {
+  return state.companies[owner]?.kind === 'player' ? atPrices(state, HUB_RESERVE) : aiReserve(state, owner);
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +176,10 @@ function placeWarehouse(ctx: SimContext, owner: OwnerId, mine: Building[], reser
 function aiHub(ctx: SimContext, owner: OwnerId): void {
   const { state } = ctx;
   if (hubOf(state, owner) || !wantsHub(state, owner)) return;
+  const blockedKey = `hubBlocked:${owner}`;
+  const blocked = state.flags[blockedKey];
+  const now = monthIndex(state.date);
+  if (typeof blocked === 'number' && now - blocked < HUB_RETRY_MONTHS) return;
   const mine = ownedBy(state, owner);
   if (mine.length === 0) return;
   const existing = mine.find((b) => b.typeId === 'warehouse' && accessTiles(state, b).length > 0) ?? null;
@@ -167,11 +187,16 @@ function aiHub(ctx: SimContext, owner: OwnerId): void {
   const company = state.companies[owner];
   if (company.money - hubCostEstimate(state, !existing) < reserve) return;
   const wh = existing ?? placeWarehouse(ctx, owner, mine, reserve);
-  if (!wh) return;
+  // no site or no road: the same deterministic search would fail again next month, so back off
+  if (!wh) {
+    state.flags[blockedKey] = now;
+    return;
+  }
   const others = mine.filter((b) => b.id !== wh.id && b.typeId !== 'warehouse' && accessTiles(state, b).length > 0);
   const link = nearest(others, centre(wh));
   if (link && !ensureRoadLink(ctx, owner, wh, link, reserve).ok) {
     if (!existing) demolishBuilding(ctx, wh.id, owner);
+    state.flags[blockedKey] = now;
     return;
   }
   // every purchase keeps the reserve (the roads above pass it too)
@@ -195,9 +220,27 @@ function cheapestCandidate(state: GameState): Manager | null {
 }
 
 /**
+ * The best candidate `owner` can afford (spec §9): logistics AI_MIN_LOGISTICS+, a year of salary paid
+ * with its reserve kept; highest logistics, then lowest salary, then lowest id. Null when none.
+ */
+function bestAffordable(state: GameState, owner: OwnerId): Manager | null {
+  const budget = state.companies[owner].money - aiReserve(state, owner);
+  let best: Manager | null = null;
+  for (const m of state.logistics.market) {
+    if (m.skills.logistics < AI_MIN_LOGISTICS || SALARY_MONTHS * atPrices(state, m.salary) > budget) continue;
+    if (
+      !best ||
+      m.skills.logistics > best.skills.logistics ||
+      (m.skills.logistics === best.skills.logistics && (m.salary < best.salary || (m.salary === best.salary && m.id < best.id)))
+    ) best = m;
+  }
+  return best;
+}
+
+/**
  * January (spec §9, D8): fills the company's unmanned hub, and for the Baron also his busiest unmanned
- * works: first with a manager it already employs and has not posted, else by hiring the cheapest candidate
- * with logistics 2+ whose year of salary it can pay and keep its reserve, up to its manager cap.
+ * works: first with a manager it already employs and has not posted, else by hiring the best affordable
+ * candidate (bestAffordable), up to its manager cap.
  */
 function aiHire(ctx: SimContext, owner: OwnerId): void {
   const { state } = ctx;
@@ -218,11 +261,130 @@ function aiHire(ctx: SimContext, owner: OwnerId): void {
       continue;
     }
     if (mine.length >= max) return;
-    const cand = cheapestCandidate(state);
+    const cand = bestAffordable(state, owner);
     if (!cand) return;
-    if (state.companies[owner].money - SALARY_MONTHS * atPrices(state, cand.salary) < aiReserve(state, owner)) return;
     const hired = hire(ctx, owner, cand.id);
     if (hired.ok) assign(ctx, owner, hired.value.id, post);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// legs handed to the hub (review fix A)
+
+/**
+ * Stores: rivalSupply and the firms' townsSelling read who sells where from routes. (Stations and
+ * warehouses, which rivalSupply traces back through by route, are never hub-attached.)
+ */
+const isRetail = (state: GameState, id: number): boolean => BUILDINGS[state.buildings[id]?.typeId]?.category === 'retail';
+
+/** Buildings whose legs stay routed: the Baron's project in progress and his railway project, which their state machines still look after. */
+function sparedIds(state: GameState, owner: OwnerId): Set<number> {
+  if (owner !== BARON_ID) return new Set();
+  const out = new Set(projectIds(state));
+  const rail = state.rivalRail;
+  if (rail) for (const id of [rail.sourceId, rail.destId, rail.stationA, rail.stationB]) if (id !== null) out.add(id);
+  return out;
+}
+
+/**
+ * A route of `owner` the hub can take over: a manual two-stop truck route loading only at its first stop
+ * and unloading only at its second, both ends attached within the manager's range. Legs touching a
+ * store stay routed (isRetail), and so do those of sparedIds.
+ */
+function convertible(state: GameState, owner: OwnerId, attached: Set<number>, spared: Set<number>, r: GameState['routes'][number]): boolean {
+  if (r.ownerId !== owner || r.kind !== 'truck' || r.mode !== 'manual' || r.stops.length !== 2) return false;
+  const [a, b] = r.stops;
+  if (a.unload.length > 0 || b.load.length > 0 || a.load.length === 0 || b.unload.length === 0) return false;
+  if (a.minLoad || b.minLoad) return false;
+  if (!attached.has(a.buildingId) || !attached.has(b.buildingId)) return false;
+  if (isRetail(state, a.buildingId) || isRetail(state, b.buildingId)) return false;
+  return !spared.has(a.buildingId) && !spared.has(b.buildingId);
+}
+
+/**
+ * With a manager posted, the hub takes over the owner's convertible legs whose trucks all fit in its
+ * fleet (hubRoom): the trucks move to the hub (moveToHub, no sale) and the route is deleted. Each leg is kept
+ * on the hub state to be rebuilt should the hub lose its manager. Routes in id order.
+ */
+function convertLegs(ctx: SimContext, owner: OwnerId, hub: Building, attached: Set<number>): void {
+  const { state } = ctx;
+  if (attached.size < 2 || !hub.hub) return;
+  const spared = sparedIds(state, owner);
+  for (const r of Object.values(state.routes)) {
+    if (!convertible(state, owner, attached, spared, r)) continue;
+    const trucks = Object.values(state.vehicles).filter((v) => v.routeId === r.id);
+    // a leg converts only when the hub has room for all of its trucks: none is sold, no haulage is lost
+    if (trucks.length > hubRoom(state, hub)) continue;
+    for (const v of trucks) moveToHub(ctx, v.id, hub.id);
+    const leg: HubLeg = { from: r.stops[0].buildingId, to: r.stops[1].buildingId, load: [...r.stops[0].load], unload: [...r.stops[1].unload], trucks: trucks.length };
+    (hub.hub.legs ??= []).push(leg);
+    deleteRoute(ctx, r.id);
+  }
+}
+
+/** Rebuilds `leg` as a route of `owner` (createRoute); null when one of its buildings is gone. */
+function legRoute(ctx: SimContext, owner: OwnerId, leg: HubLeg): number | null {
+  const r = createRoute(ctx, owner, `${GOODS[leg.load[0]]?.name ?? 'Goods'} line`, [
+    { buildingId: leg.from, load: leg.load, unload: [] },
+    { buildingId: leg.to, load: [], unload: leg.unload },
+  ]);
+  return r.ok ? r.value.id : null;
+}
+
+/**
+ * The hub has lost its manager: its legs become routes again the same month, the hub's trucks go back
+ * onto them round-robin in id order, and a leg left without a truck gets a new one when the owner can
+ * pay for it (a chain is never left to stall). Legs whose buildings are gone are dropped.
+ */
+function restoreLegs(ctx: SimContext, owner: OwnerId, hub: Building): void {
+  const { state } = ctx;
+  const legs = hub.hub?.legs ?? [];
+  if (legs.length === 0) return;
+  const routes = legs.map((leg) => legRoute(ctx, owner, leg)).filter((id): id is number => id !== null);
+  hub.hub!.legs = [];
+  if (routes.length === 0) return;
+  const trucks = hubTrucks(state, hub.id);
+  trucks.forEach((v, i) => moveToRoute(ctx, v.id, routes[i % routes.length]));
+  for (let i = trucks.length; i < routes.length; i++) buyTruck(ctx, owner, routes[i]);
+}
+
+/**
+ * A new, less able manager sees less of the range: the legs whose ends fall outside it become routes
+ * again, each with one of the hub's trucks (one without a job first, lowest id) while the hub keeps one
+ * per remaining leg, else a new truck when the owner can pay for it.
+ */
+function restoreOutOfRange(ctx: SimContext, owner: OwnerId, hub: Building, attached: Set<number>): void {
+  const { state } = ctx;
+  const h = hub.hub!;
+  const legs = h.legs ?? [];
+  const out = legs.filter((l) => !attached.has(l.from) || !attached.has(l.to));
+  if (out.length === 0) return;
+  h.legs = legs.filter((l) => !out.includes(l));
+  for (const leg of out) {
+    const id = legRoute(ctx, owner, leg);
+    if (id === null) continue;
+    const trucks = hubTrucks(state, hub.id);
+    const spare = trucks.find((v) => !v.job) ?? trucks[0];
+    if (spare && trucks.length > Math.max(1, h.legs.length)) moveToRoute(ctx, spare.id, id);
+    else buyTruck(ctx, owner, id);
+  }
+}
+
+/** Each AI hub: rebuild its legs if it has lost its manager (or has one below AI_LEG_MIN_LOGISTICS), else fit them to its manager's range and take over the legs in it. */
+function aiLegs(ctx: SimContext, owner: OwnerId): void {
+  const { state } = ctx;
+  for (const hub of ownedBy(state, owner)) {
+    if (!hub.hub) continue;
+    const tier = hubTier(state, hub);
+    const boss = managerAt(state, hub.id);
+    if (!tier || !boss || boss.skills.logistics < AI_LEG_MIN_LOGISTICS) {
+      restoreLegs(ctx, owner, hub);
+      continue;
+    }
+    if (hub.works) continue;
+    const attached = new Set(hubAttached(state, hub, hubRange(hub) * tier.rangeShare).map((b) => b.id));
+    restoreOutOfRange(ctx, owner, hub, attached);
+    convertLegs(ctx, owner, hub, attached);
   }
 }
 
@@ -235,5 +397,6 @@ export function aiLogisticsMonth(ctx: SimContext): void {
     aiUpgrade(ctx, id, id === BARON_ID ? BARON_UPGRADE_GAP_MONTHS : FIRM_UPGRADE_GAP_MONTHS);
     aiHub(ctx, id);
     if (state.date.month === 1) aiHire(ctx, id);
+    aiLegs(ctx, id);
   }
 }

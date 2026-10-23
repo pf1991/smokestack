@@ -265,28 +265,50 @@ export function buyVehicle(
  * Adds a new idle vehicle of `model` at `spawn` (no charge: the caller spends under 'vehicles'). Used by
  * buyVehicle and by hub truck purchases (logistics/hubs.ts), which pass `routeId: null`.
  */
-export function newVehicle(state: GameState, owner: OwnerId, kind: Vehicle['kind'], model: VehicleModelId, spawn: Vec2, routeId: number | null): Vehicle {
+/** `like` (reissueVehicle) carries over its capacity, age, speed and last position instead of a new vehicle's. */
+export function newVehicle(
+  state: GameState, owner: OwnerId, kind: Vehicle['kind'], model: VehicleModelId, spawn: Vec2, routeId: number | null, like?: Vehicle,
+): Vehicle {
+  const prev = like?.prevPos ?? spawn;
   const vehicle: Vehicle = {
     id: nextId(state),
     kind,
     ownerId: owner,
     routeId,
     pos: { x: spawn.x, y: spawn.y },
-    prevPos: { x: spawn.x, y: spawn.y },
+    prevPos: { x: prev.x, y: prev.y },
     path: [],
     pathIndex: 0,
     stopIndex: 0,
     cargo: {},
-    capacity: modelSpec(model).capacity,
+    capacity: like?.capacity ?? modelSpec(model).capacity,
     state: 'idle',
     waitTicks: 0,
     stuckNotified: false,
-    builtYear: state.date.year,
+    builtYear: like?.builtYear ?? state.date.year,
     model,
-    speed: modelSpec(model).speed,
+    speed: like?.speed ?? modelSpec(model).speed,
   };
   state.vehicles[vehicle.id] = vehicle;
   return vehicle;
+}
+
+/**
+ * Re-issues vehicle `id` as a fresh object (a new id) of the same owner, kind, model, kits, speed,
+ * capacity, age and position, with no route, an empty hold and no trip log, and removes the old one
+ * without a refund (no sale, no charge). For a truck changing between a route and a hub
+ * (logistics/hubs.ts moveToHub): every vehicle object then keeps the property order newVehicle gives
+ * it, as a truck that had run a route and then gained the hub fields would not, and the vehicle tick
+ * stays on its fast path. Null when there is no such vehicle.
+ */
+export function reissueVehicle(state: GameState, id: number): Vehicle | null {
+  const old = state.vehicles[id];
+  if (!old) return null;
+  const v = newVehicle(state, old.ownerId, old.kind, old.model, old.pos, null, old);
+  if (old.kits) v.kits = { ...old.kits };
+  delete state.vehicles[id];
+  fleetRemovals++;
+  return v;
 }
 
 /** Spawns at the first stop's first access tile and heads for that stop. */

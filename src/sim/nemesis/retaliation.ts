@@ -341,8 +341,10 @@ function apply(ctx: SimContext, kind: RetaliationKind): Strike {
     case 'poach_manager': {
       const m = managerTarget(state)!;
       const was = m.post === null ? undefined : state.buildings[m.post];
-      // spec §7.3: his unmanned hub, else his busiest unmanned works, else unposted
-      poach(ctx, m.id, BARON_ID, aiPostFor(state, BARON_ID), POACH_SALARY_FACTOR);
+      // spec §7.3: his unmanned hub, else his busiest unmanned works, else unposted (should the post
+      // ever be refused, he still takes the manager, unposted; the target guarantees that cannot fail)
+      const lured = poach(ctx, m.id, BARON_ID, aiPostFor(state, BARON_ID), POACH_SALARY_FACTOR);
+      if (!lured.ok && !poach(ctx, m.id, BARON_ID, null, POACH_SALARY_FACTOR).ok) throw new Error(`poach_manager: ${lured.error}`);
       return {
         cityId: was?.cityId ?? null,
         headline: `SMOGSWORTH LURES ${m.name.toUpperCase()} FROM ${firm.toUpperCase()}`,

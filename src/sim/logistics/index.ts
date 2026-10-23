@@ -1,5 +1,5 @@
 import type { SimContext } from '../types';
-import { aiLogisticsMonth } from './ai';
+import { aiLogisticsMonth, hubReserveOf } from './ai';
 import { autoRoutesDay } from './autoRoutes';
 import { autoSizeRoutesMonth } from './autoSize';
 import { hubAutoSizeMonth, hubsDay } from './hubs';
@@ -15,7 +15,7 @@ export function logisticsDay(ctx: SimContext): void {
 }
 export function logisticsMonth(ctx: SimContext): void {
   autoSizeRoutesMonth(ctx);
-  hubAutoSizeMonth(ctx);
+  hubAutoSizeMonth(ctx, hubReserveOf);
   salariesMonth(ctx);
   aiLogisticsMonth(ctx);
 }
