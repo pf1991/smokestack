@@ -12,13 +12,14 @@ import {
   AI_HUB_TRUCKS, aiLogisticsMonth, aiReserve, BARON_RESERVE_MULTIPLE, BARON_UPGRADE_GAP_MONTHS, FIRM_RESERVE_MULTIPLE, FIRM_UPGRADE_GAP_MONTHS, hubCostEstimate, HUB_RETRY_MONTHS, hubReserveOf,
 } from './ai';
 import { outputValue } from './aiPost';
-import { hubAttached, hubAutoSizeMonth, hubCap, hubTrucks } from './hubs';
+import { HUB_RESERVE, hubAutoSizeMonth, hubTrucks } from './hubs';
+import { newestModel } from './models';
 import { upgradeCost } from './levels';
-import { fire, managerAt, managerSalary, refreshMarket } from './managers';
-import type { Skill } from './types';
+import { managerAt, managerSalary, refreshMarket } from './managers';
+import type { Manager, Skill } from './types';
 import { checkInvariants } from '../invariants';
 import { runDays } from '../simulation';
-import { buyTruck, createRoute } from '../vehicles';
+import { vehiclePrice } from '../vehicles';
 
 const FIRM: OwnerId = 'regional_1';
 
@@ -226,165 +227,79 @@ describe('aiHub and aiHire', () => {
   });
 });
 
-describe('AI hub legs (review fix A)', () => {
-  /** A firm with a dairy farm and a creamery on the road, a milk route between them with `trucks` trucks; the hub opens in December. */
-  function firmChain(trucks = 1) {
+describe('AI hubs at work', () => {
+  /** A firm with a dairy farm and a creamery on the road and no route between them; the hub opens in December and a logistics-5 manager is on January's market (the only one, so the AI hires it). */
+  function firmChain() {
     const ctx = setup(1915, 12);
     addFirm(ctx, 1e7, 1910);
-    const farm = works(ctx, FIRM, 'dairy_farm', 22, 'r_milk', 1);
+    works(ctx, FIRM, 'dairy_farm', 22, 'r_milk', 1);
     const cream = must(placeBuilding(ctx, FIRM, 'creamery', { x: 34, y: 10 }, 'r_cheese'));
-    const route = must(createRoute(ctx, FIRM, 'Milk line', [
-      { buildingId: farm.id, load: ['milk'], unload: [] },
-      { buildingId: cream.id, load: [], unload: ['milk'] },
-    ]));
-    for (let i = 0; i < trucks; i++) must(buyTruck(ctx, FIRM, route.id));
     aiLogisticsMonth(ctx);
     const [hub] = hubs(ctx, FIRM);
     expect(hub).toBeDefined();
-    // January: a logistics-5 candidate on the market sees the whole range
     refreshMarket(ctx.state, 1916);
     const m = ctx.state.logistics.market[0];
     m.skills = { logistics: 5, production: 1, frugality: 1 };
     m.salary = managerSalary(m.skills);
+    ctx.state.logistics.market = [m];
     nextMonth(ctx);
-    return { ctx, farm, cream, route, hub };
+    aiLogisticsMonth(ctx);
+    expect(managerAt(ctx.state, hub.id)?.employer).toBe(FIRM);
+    return { ctx, cream, hub };
   }
 
-  it('a managed AI hub takes over the in-range leg and logs hub jobs over 60 days', () => {
-    const { ctx, farm, cream, route, hub } = firmChain();
-    aiLogisticsMonth(ctx);
-    expect(managerAt(ctx.state, hub.id)?.employer).toBe(FIRM);
-    expect(ctx.state.routes[route.id]).toBeUndefined();
-    expect(hub.hub!.legs).toEqual([{ from: farm.id, to: cream.id, load: ['milk'], unload: ['milk'], trucks: 1 }]);
-    expect(hubTrucks(ctx.state, hub.id).length).toBe(AI_HUB_TRUCKS + 1);
-    runDays(ctx, 60);
-    expect(ctx.state.logistics.stats.hubJobs[FIRM] ?? 0).toBeGreaterThan(0);
-    expect((cream.input.milk ?? 0) + (cream.output.cheese ?? 0) + (cream.producedThisMonth.cheese ?? 0)).toBeGreaterThan(0);
-    expect(checkInvariants(ctx.state)).toEqual([]);
-  });
-
-  it('over a year the converted hub keeps working its leg and keeps its two trucks (auto-sizing does not shrink it)', () => {
-    const { ctx, hub } = firmChain();
-    aiLogisticsMonth(ctx);
-    expect(managerAt(ctx.state, hub.id)?.employer).toBe(FIRM);
+  it('over a year an AI hub with unrouted work in range does jobs every month and keeps its two trucks', () => {
+    const { ctx, cream, hub } = firmChain();
     let last = ctx.state.logistics.stats.hubJobs[FIRM] ?? 0;
+    let cheese = 0;
     for (let month = 0; month < 12; month++) {
       runDays(ctx, 30);
+      cheese += cream.producedThisMonth.cheese ?? 0;
       const jobs = ctx.state.logistics.stats.hubJobs[FIRM] ?? 0;
-      // jobs every month once the farm has a load (from the second), and the fleet never below the
-      // hub's two plus the leg's truck: busy, auto-sizing grows it (to the cap here) instead of selling
+      // jobs every month once the farm has a load (from the second); busy, auto-sizing never sells below 2
       if (month > 0) expect(jobs, `month ${month}`).toBeGreaterThan(last);
-      expect(hubTrucks(ctx.state, hub.id).length, `month ${month}`).toBeGreaterThanOrEqual(AI_HUB_TRUCKS + 1);
+      expect(hubTrucks(ctx.state, hub.id).length, `month ${month}`).toBeGreaterThanOrEqual(AI_HUB_TRUCKS);
       last = jobs;
     }
-    expect(hubTrucks(ctx.state, hub.id).length).toBe(hubCap(hub));
-    expect(Object.values(ctx.state.routes).filter((r) => r.ownerId === FIRM)).toEqual([]);
+    expect(cheese).toBeGreaterThan(0);
     expect(checkInvariants(ctx.state)).toEqual([]);
   });
 
-  it('a leg into a store stays a route', () => {
-    const { ctx, farm, cream, route, hub } = firmChain();
-    // a corner of Ashford next to the creamery
-    for (const [x, y] of [[38, 13], [39, 13], [38, 14], [39, 14]]) ctx.state.map.tiles[y * ctx.state.map.width + x].cityId = 0;
-    const store = must(placeBuilding(ctx, FIRM, 'store', { x: 38, y: 13 }));
-    // the store is in the hub's range, so only its kind keeps its leg routed
-    expect(hubAttached(ctx.state, hub, 12).map((b) => b.id)).toEqual(expect.arrayContaining([farm.id, cream.id, store.id]));
-    const sell = must(createRoute(ctx, FIRM, 'Cheese line', [
-      { buildingId: cream.id, load: ['cheese'], unload: [] },
-      { buildingId: store.id, load: [], unload: ['cheese'] },
-    ]));
-    aiLogisticsMonth(ctx);
-    expect(ctx.state.routes[route.id]).toBeUndefined();
-    expect(ctx.state.routes[sell.id]).toBeDefined();
-    expect(hub.hub!.legs).toHaveLength(1);
+  it('hub auto-sizing buys an AI hub truck only while the owner keeps its AI reserve', () => {
+    const { ctx, hub } = firmChain();
+    const reserve = aiReserve(ctx.state, FIRM);
+    const price = vehiclePrice(ctx.state, newestModel(ctx.state));
+    expect(reserve).toBeGreaterThan(atPrices(ctx.state, HUB_RESERVE));
+    const n = hubTrucks(ctx.state, hub.id).length;
+    // above HUB_RESERVE, $1 short of the AI reserve: no purchase
+    ctx.state.companies[FIRM].money = reserve + price - 1;
+    hub.hub!.month = { jobs: 40, idleTruckDays: 0, backlogDays: 12 };
+    hubAutoSizeMonth(ctx, hubReserveOf);
+    expect(hubTrucks(ctx.state, hub.id).length).toBe(n);
+    ctx.state.companies[FIRM].money = reserve + price;
+    hub.hub!.month = { jobs: 40, idleTruckDays: 0, backlogDays: 12 };
+    hubAutoSizeMonth(ctx, hubReserveOf);
+    expect(hubTrucks(ctx.state, hub.id).length).toBe(n + 1);
   });
 
-  it('moves all of a leg\'s trucks to the hub, keeping their age, with no sale or charge', () => {
-    const { ctx, route, hub } = firmChain(2);
-    expect(hubCap(hub) - AI_HUB_TRUCKS).toBe(2);
-    const before = Object.values(ctx.state.vehicles).filter((v) => v.ownerId === FIRM).map((v) => v.id);
-    const legTrucks = Object.values(ctx.state.vehicles).filter((v) => v.routeId === route.id).map((v) => v.id);
-    // the leg's trucks are a year older than the hub's: a moved truck keeps its age and model
-    for (const id of legTrucks) ctx.state.vehicles[id].builtYear -= 1;
-    const legYear = ctx.state.vehicles[legTrucks[0]].builtYear;
-    const fleetBooks = () =>
-      ctx.state.companies[FIRM].ledger.reduce(([i, e], m) => [i + (m.income.vehicles ?? 0), e + (m.expense.vehicles ?? 0)], [0, 0]);
-    const books = fleetBooks();
-    aiLogisticsMonth(ctx);
-    expect(ctx.state.routes[route.id]).toBeUndefined();
-    const after = hubTrucks(ctx.state, hub.id);
-    expect(after.length).toBe(AI_HUB_TRUCKS + 2);
-    // the hub's own two stay; the leg's are re-issued onto it (new ids), idle and without a job
-    const own = before.filter((id) => !legTrucks.includes(id));
-    expect(after.slice(0, AI_HUB_TRUCKS).map((v) => v.id)).toEqual(own);
-    const moved = after.slice(AI_HUB_TRUCKS);
-    expect(moved.map((v) => v.builtYear)).toEqual([legYear, legYear]);
-    expect(moved.every((v) => !legTrucks.includes(v.id) && v.job === null && v.routeId === null && v.state === 'idle')).toBe(true);
-    expect(Object.keys(ctx.state.vehicles).map(Number).sort((a, b) => a - b)).toEqual(after.map((v) => v.id));
-    // nothing sold or bought (the month's other spending is the manager's hire)
-    expect(fleetBooks()).toEqual(books);
-    expect(checkInvariants(ctx.state)).toEqual([]);
-  });
-
-  it('hub auto-sizing never sells the trucks a converted leg brought, idle or not', () => {
-    const { ctx, hub } = firmChain(2);
-    aiLogisticsMonth(ctx);
-    expect(hubTrucks(ctx.state, hub.id).length).toBe(AI_HUB_TRUCKS + 2);
-    // a month of nothing but idle trucks: it sells down to the leg's two plus one, and no further
-    for (let i = 0; i < 3; i++) {
-      hub.hub!.month = { jobs: 0, idleTruckDays: 30 * 4, backlogDays: 0 };
-      hubAutoSizeMonth(ctx, hubReserveOf);
-    }
-    expect(hubTrucks(ctx.state, hub.id).length).toBe(3);
-  });
-
-  it('a leg with more trucks than the hub has room for stays a route, and none is sold', () => {
-    const { ctx, route, hub } = firmChain(3);
-    const trucks = Object.keys(ctx.state.vehicles).length;
-    aiLogisticsMonth(ctx);
-    expect(managerAt(ctx.state, hub.id)?.employer).toBe(FIRM);
-    expect(ctx.state.routes[route.id]).toBeDefined();
-    expect(hub.hub!.legs ?? []).toEqual([]);
-    expect(hubTrucks(ctx.state, hub.id).length).toBe(AI_HUB_TRUCKS);
-    expect(Object.keys(ctx.state.vehicles).length).toBe(trucks);
-  });
-
-  it('a hub that loses its manager rebuilds its legs as routes that month, and the chain keeps delivering', () => {
-    const { ctx, farm, cream, hub } = firmChain();
-    aiLogisticsMonth(ctx);
-    const m = managerAt(ctx.state, hub.id)!;
-    must(fire(ctx, FIRM, m.id, false));
-    nextMonth(ctx);
-    aiLogisticsMonth(ctx);
-    const routes = Object.values(ctx.state.routes).filter((r) => r.ownerId === FIRM);
-    expect(routes.map((r) => r.stops.map((s) => [s.buildingId, s.load, s.unload]))).toEqual([
-      [[farm.id, ['milk'], []], [cream.id, [], ['milk']]],
-    ]);
-    expect(hub.hub!.legs).toEqual([]);
-    expect(hubTrucks(ctx.state, hub.id)).toEqual([]);
-    expect(Object.values(ctx.state.vehicles).filter((v) => v.routeId === routes[0].id).length).toBe(AI_HUB_TRUCKS + 1);
-    cream.input = {};
-    cream.output = {};
-    runDays(ctx, 30);
-    expect((cream.input.milk ?? 0) + (cream.output.cheese ?? 0) + (cream.producedThisMonth.cheese ?? 0)).toBeGreaterThan(0);
-    expect(checkInvariants(ctx.state)).toEqual([]);
-  });
-
-  it('hires the best affordable candidate: highest logistics, then lowest salary, then lowest id', () => {
-    const ctx = setup(1915, 12);
-    addFirm(ctx, 1e7, 1910);
-    works(ctx, FIRM, 'sawmill', 5, 'r_lumber', 1);
-    aiLogisticsMonth(ctx);
-    const [hub] = hubs(ctx, FIRM);
-    nextMonth(ctx);
-    refreshMarket(ctx.state, 1916);
-    const L = ctx.state.logistics;
-    const base = L.market[0];
-    const cand = (id: number, logistics: Skill, salary: number) => ({ ...base, id, skills: { logistics, production: 1 as Skill, frugality: 1 as Skill }, salary });
-    // the firm can pay a year of at most (money - reserve) / 12
-    const budget = (ctx.state.companies[FIRM].money - FIRM_RESERVE_MULTIPLE * atPrices(ctx.state, REGIONAL_RESERVE)) / 12;
-    L.market = [cand(901, 5, budget + 1), cand(902, 3, 400), cand(903, 3, 300), cand(904, 3, 300), cand(905, 2, 100), cand(906, 1, 50)];
-    aiLogisticsMonth(ctx);
-    expect(managerAt(ctx.state, hub.id)?.id).toBe(903);
+  it('hires the cheapest candidate with logistics 2+ (lowest id on a tie), and nobody when it cannot pay a year of it and keep its reserve', () => {
+    const run = (market: (c: (id: number, logistics: Skill, salary: number) => Manager) => Manager[], money?: (ctx: SimContext) => number) => {
+      const ctx = setup(1915, 12);
+      addFirm(ctx, 1e7, 1910);
+      works(ctx, FIRM, 'sawmill', 5, 'r_lumber', 1);
+      aiLogisticsMonth(ctx);
+      const [hub] = hubs(ctx, FIRM);
+      nextMonth(ctx);
+      refreshMarket(ctx.state, 1916);
+      const L = ctx.state.logistics;
+      const base = L.market[0];
+      L.market = market((id, logistics, salary) => ({ ...base, id, skills: { logistics, production: 1 as Skill, frugality: 1 as Skill }, salary }));
+      if (money !== undefined) ctx.state.companies[FIRM].money = money(ctx);
+      aiLogisticsMonth(ctx);
+      return managerAt(ctx.state, hub.id)?.id ?? null;
+    };
+    expect(run((c) => [c(901, 5, 900), c(902, 3, 400), c(903, 2, 100), c(904, 2, 100), c(905, 1, 50)])).toBe(903);
+    // a year of the cheapest is $1 more than the firm can pay above its reserve: no hire
+    expect(run((c) => [c(901, 2, 100)], (ctx) => FIRM_RESERVE_MULTIPLE * atPrices(ctx.state, REGIONAL_RESERVE) + 12 * atPrices(ctx.state, 100) - 1)).toBeNull();
   });
 });

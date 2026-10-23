@@ -8,10 +8,9 @@ import { acceptsGood, handlesCargo, storageLeft } from '../inventory';
 import { buildingList, buildingsNear } from '../spatial';
 import { accessTiles } from '../state';
 import type { Building, GameState, GoodId, OwnerId, SimContext, Vehicle } from '../types';
-import { assignVehicle, newVehicle, reissueVehicle, sellVehicle, vehiclePrice } from '../vehicles';
+import { newVehicle, sellVehicle, vehiclePrice } from '../vehicles';
 import { atPrices } from '../society/economy';
 import { buildingStorage, hubRange, levelDef, levelRate } from './levels';
-import { joinHub } from './jobRoute';
 import { managerAt, managerRate } from './managers';
 import { newestModel } from './models';
 import type { HubJob, HubJobKind, HubState, Skill } from './types';
@@ -128,55 +127,6 @@ export function buyHubTruck(ctx: SimContext, owner: OwnerId, warehouseId: number
   v.job = null;
   v.state = 'idle';
   return ok(v);
-}
-
-/** Free room in hub `b`'s fleet: its cap (the level's, or the owner's lower one) less its trucks. */
-export function hubRoom(state: GameState, b: Building): number {
-  const cap = Math.min(b.hub?.maxTrucks ?? hubCap(b), hubCap(b));
-  return Math.max(0, cap - hubTrucks(state, b.id).length);
-}
-
-/**
- * Moves an owned truck onto the hub at `warehouseId` (no sale, no charge): it leaves its route as on any
- * reassignment (assignVehicle(null): the hold empties), is re-issued under a new id in newVehicle's
- * shape (vehicles.ts reissueVehicle) and joins the hub idle, without a job, dispatched from where it
- * stands. Refused when the hub's fleet is at its cap. Returns the truck as re-issued.
- */
-export function moveToHub(ctx: SimContext, vehicleId: number, warehouseId: number): Result<Vehicle> {
-  const { state } = ctx;
-  const v = state.vehicles[vehicleId];
-  const b = state.buildings[warehouseId];
-  if (!v) return err('No such vehicle');
-  if (!b || !b.hub) return err('No such hub');
-  if (b.ownerId !== v.ownerId) return err('Not your building');
-  if (v.kind !== 'truck') return err('Only trucks can join a hub');
-  if (v.hubId === b.id) return ok(v);
-  if (hubRoom(state, b) === 0) return err('Hub fleet is full');
-  const off = assignVehicle(ctx, vehicleId, null);
-  if (!off.ok) return off;
-  const moved = reissueVehicle(state, vehicleId)!;
-  joinHub(moved, b.id);
-  moved.state = 'idle';
-  return ok(moved);
-}
-
-/**
- * The reverse of moveToHub: hub truck `vehicleId` leaves its hub (the hold empties, its job is dropped),
- * is re-issued in newVehicle's shape and runs route `routeId` of its owner. Returns the truck as re-issued.
- */
-export function moveToRoute(ctx: SimContext, vehicleId: number, routeId: number): Result<Vehicle> {
-  const { state } = ctx;
-  const v = state.vehicles[vehicleId];
-  if (!v) return err('No such vehicle');
-  const route = state.routes[routeId];
-  if (!route) return err('No such route');
-  if (route.ownerId !== v.ownerId) return err('Not your route');
-  if (route.kind !== v.kind) return err('Trucks cannot run rail lines');
-  const off = assignVehicle(ctx, vehicleId, null);
-  if (!off.ok) return off;
-  const moved = reissueVehicle(state, vehicleId)!;
-  const on = assignVehicle(ctx, moved.id, routeId);
-  return on.ok ? ok(moved) : on;
 }
 
 /** Turns hub auto-sizing on or off (spec §8.4). */
@@ -596,20 +546,13 @@ export function hubsDay(ctx: SimContext): void {
   }
 }
 
-/** The fewest trucks auto-sizing leaves a hub: one, plus every truck the AI's converted legs brought (logistics/ai.ts). */
-function keepTrucks(h: HubState): number {
-  let n = 1;
-  for (const l of h.legs ?? []) n += l.trucks;
-  return n;
-}
-
 /** HUB_RESERVE at today's prices: the cash hub auto-sizing keeps by default. */
 const hubReserve = (state: GameState): number => atPrices(state, HUB_RESERVE);
 
 /**
  * Monthly, hubs in id order (spec section 8.4): a hub with auto-sizing on buys one truck after 10+ backlog days
  * (below its cap, keeping the reserve), else sells its oldest when its trucks idled 1.5+ a day (never the
- * last one, nor those an AI hub's converted legs brought: keepTrucks); its month counters then reset. Free when nobody runs a hub. `reserveOf` is the cash each owner
+ * last one); its month counters then reset. Free when nobody runs a hub. `reserveOf` is the cash each owner
  * keeps after a purchase: HUB_RESERVE by default; logistics/index.ts passes the AI's own reserve for the
  * Baron and the firms (ai.ts hubReserveOf).
  */
@@ -628,7 +571,7 @@ export function hubAutoSizeMonth(ctx: SimContext, reserveOf: (state: GameState, 
         ) {
           buyHubTruck(ctx, hub.ownerId, hub.id);
         }
-      } else if (h.month.idleTruckDays / 30 >= HUB_IDLE_PER_DAY && trucks.length > keepTrucks(h)) {
+      } else if (h.month.idleTruckDays / 30 >= HUB_IDLE_PER_DAY && trucks.length > 1) {
         // only a truck at home, empty and without a job is sold, so no cargo is ever lost
         let oldest: Vehicle | undefined;
         for (const v of trucks) {

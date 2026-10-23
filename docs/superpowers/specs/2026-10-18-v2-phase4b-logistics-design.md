@@ -356,10 +356,13 @@ The AI uses the same public functions as the player.
   he keeps 2× his reserve after paying. He makes at most one upgrade every 6 months. Each regional
   firm does the same at most once a year with its own reserve.
 - **Hubs:** from 1910, a Baron with 3+ chains and no hub places a warehouse at the free site nearest
-  his buildings' centroid, buys 2 hub trucks and hires the best affordable market candidate with
+  his buildings' centroid, buys 2 hub trucks and hires the cheapest affordable market candidate with
   logistics 2+ (at the end of January, D8) to run it. A regional firm founded 5+ years ago does the
   same for its chain once it can pay for the warehouse, 2 trucks and a year of salary above its
-  reserve. Hub auto-sizing grows their fleets.
+  reserve. Hub auto-sizing grows their fleets. In practice AI hubs mostly sit idle: the AI's chains
+  are fully routed, and under D2 a hub never moves what a route already carries. The AI hires the
+  cheapest candidate with logistics 2+, not the best affordable one, because an idle AI hub gains
+  nothing from a dearer manager.
 - **Managers:** the Baron employs at most 2 (his hub and his busiest works), each firm at most 1.
   The AI replaces a retired or poached hub manager at the next end of January.
 

@@ -256,11 +256,5 @@ function hubProblems(state: GameState): string[] {
     const cap = h?.typeId === 'warehouse' ? (WAREHOUSE_LEVELS[h.level - 1]?.hubTrucks ?? 0) : 0;
     if (h && n > cap) out.push(`building ${id}: ${n} hub trucks over the cap of ${cap}`);
   }
-  // legs handed to a hub (logistics/ai.ts) are the AI's alone: the player's routes are never converted
-  for (const b of Object.values(state.buildings)) {
-    if (!b.hub?.legs?.length) continue;
-    if (state.companies[b.ownerId]?.kind === 'player') out.push(`building ${b.id}: a player hub holds converted legs`);
-    for (const l of b.hub.legs) if (!Number.isInteger(l.from) || !Number.isInteger(l.to)) out.push(`building ${b.id}: hub leg ends ${l.from}/${l.to} are not integers`);
-  }
   return out;
 }
