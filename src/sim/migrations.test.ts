@@ -15,6 +15,7 @@ const phase1 = fixtures['./__fixtures__/phase1.save.json'];
 const phase2 = fixtures['./__fixtures__/phase2.save.json'];
 const phase3 = fixtures['./__fixtures__/phase3.save.json'];
 const phase4 = fixtures['./__fixtures__/phase4.save.json'];
+const phase4b = fixtures['./__fixtures__/phase4b.save.json'];
 
 describe('migrateSave', () => {
   it('rejects a SMOKESTACK I save', () => {
@@ -270,6 +271,23 @@ describe('v6 -> v7: nemesis', () => {
     expect(s.dynasty.generation).toBeGreaterThanOrEqual(2);
     expect(Object.values(s.companies).filter((c) => c.kind === 'regional' && c.active).length).toBeGreaterThanOrEqual(2);
     for (const l of Object.values(s.exchange.listings)) expect(Number.isFinite(l.price) && l.price > 0).toBe(true);
+    expect(checkInvariants(s)).toEqual([]);
+    const ctx = testCtx(s);
+    runDays(ctx, 360);
+    expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+  it('phase4b.save.json (1950: levels, hubs, managers, auto routes, motor trucks) loads, holds invariants and plays a year', () => {
+    const raw = JSON.parse(phase4b) as { version: number };
+    expect(raw.version).toBe(8);
+    const r = unpackState(phase4b);
+    if (!r.ok) throw new Error(r.error);
+    const s = r.value;
+    expect(s.date.year).toBe(1950);
+    expect(Object.values(s.buildings).some((b) => (b.level ?? 1) >= 2)).toBe(true);
+    expect(Object.values(s.vehicles).some((v) => v.hubId != null)).toBe(true);
+    expect(Object.values(s.vehicles).some((v) => v.model === 'motor_truck')).toBe(true);
+    expect(s.logistics.managers.some((m) => m.employer != null)).toBe(true);
+    expect(Object.values(s.routes).some((rt) => rt.mode !== 'manual')).toBe(true);
     expect(checkInvariants(s)).toEqual([]);
     const ctx = testCtx(s);
     runDays(ctx, 360);

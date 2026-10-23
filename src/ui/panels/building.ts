@@ -170,7 +170,7 @@ export function statusReason(state: GameState, b: Building, routes: Route[]): st
     default: {
       if (def.category === 'retail') return 'Open for business';
       if (def.category === 'logistics') return 'Handling cargo';
-      return `Producing — ${Math.round(b.progress * 100)}% of this batch`;
+      return `Producing — ${Math.min(100, Math.round(b.progress * 100))}% of this batch`;
     }
   }
 }

@@ -58,6 +58,14 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - **The 1929 crash:** in October 1929 the exchange collapses and demand falls for a year and a half. Crash cards ask whether to buy back your shares, outbid the Baron at a fire sale of bankrupt works (or hire their sacked men), take a bailout or ride out a run on the bank.
 - **Legacy score:** the end screen and the Legacy window total your fortune (in 1900 dollars), landmarks raised where you lead the retail trade, your reputation with the factions, and your dynasty's prestige and generations.
 
+## What's new in SMOKESTACK II (Phase 4b)
+
+- **Building levels:** upgrade a works through levels for more output, with a scaffold while the work is under way.
+- **Truck models:** steam lorries give way to motor trucks and diesel trucks, which are faster and carry more.
+- **Automatic routes:** let a route plan itself instead of fixing every leg by hand.
+- **Warehouse hubs:** a warehouse can run as a hub with its own trucks and a range circle, balancing stock to the works around it.
+- **Managers:** hire logistics managers from a yearly market and post them to hubs. Press J for the Managers window.
+
 ## Scenarios
 
 | Scenario | Goal |
@@ -86,6 +94,7 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 | R / V / F / N / C | Routes / Fleet / Finance / Newspaper / Contracts |
 | G / O / X | Goals / Politics / Rival |
 | E / Y / L | Exchange / Family / Legacy |
+| J | Managers |
 | B | Show or hide the build bar |
 | M / K | Smog map / Faction map |
 | P | Photo mode |

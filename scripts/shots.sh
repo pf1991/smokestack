@@ -143,6 +143,10 @@ tab-building 55 inspect2=1
 tab-city 55 inspectcity=1
 tab-vehicle 55 inspectvehicle=1
 exchangebid 55 bid=1&panel=exchange
+hub 55 inspecthub=1
+managers 55 panel=managers
+upgrade 25 inspect2=1&upgrading=1
+route-auto 55 panel=routes
 end 101 end=1"
 for size in 1366,768 1920,1080; do
   w="${size%,*}"; h="${size#*,}"
