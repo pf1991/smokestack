@@ -8,7 +8,7 @@ import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
-import { autoplayDefend, autoplayNameHeir, runAutoplay } from './game/autoplay';
+import { autoplayDefend, autoplayLogistics, autoplayNameHeir, runAutoplay } from './game/autoplay';
 import { addGrudge, FURIOUS_AT, grudgeTotal } from './sim/nemesis/grudges';
 import { bidOpen, startBid } from './sim/nemesis/bid';
 import { moveShares } from './sim/exchange/shares';
@@ -45,7 +45,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint; with
  *    `autoplay=1` the years run as the soak runs them (scripts/soak.ts): the heir named each year and
- *    the Baron's hostile bid answered at each 30-day month end, so the company is still the player's
+ *    the Baron's hostile bid answered and autoplayLogistics run at each 30-day month end, so the company is still the player's
  *  - `baron=furious` (dev) give the Baron grudges up to FURIOUS_AT and forget his last strike, so his
  *    portrait (rival panel) is furious rather than gloating
  *  - `bid=1` (dev) hand the Baron a majority of the player's shares and open his hostile bid (the
@@ -118,6 +118,7 @@ if (debugStart) {
         if (d % 360 === 0) autoplayNameHeir(setup);
         runDays(setup, 30);
         autoplayDefend(setup);
+        autoplayLogistics(setup);
       }
     }
   }

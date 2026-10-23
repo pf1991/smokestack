@@ -196,8 +196,10 @@ When an auto truck finishes its dwell:
 
 1. **If it carries cargo**, it heads for its job's drop stop while that has room. Otherwise it heads
    for the nearest stop (by distance, then stop index) that unloads a carried good and has room for it.
-   If no stop has room, it heads for the nearest stop that unloads it and waits there. It never drops
-   cargo back at the stop it loaded it from, nor from one pool stop at another (§6.2).
+   If no stop has room, it heads for the nearest stop that unloads it and waits there; while it waits
+   with room to spare it also takes the first board job that loads at that stop (so a lone truck holding
+   wood at a sawmill full of lumber carries the lumber away instead of deadlocking the chain). It never
+   drops a good back at the stop it loaded it from, nor from one pool stop at another (§6.2).
 2. **Otherwise** it takes the first board job with `qty > 0`, lowers that job's `qty` by its
    capacity, and heads for the job's pickup stop. At the pickup it loads only the job's good; the
    job then becomes a delivery (no longer promised cargo) that remembers its pickup and drop.

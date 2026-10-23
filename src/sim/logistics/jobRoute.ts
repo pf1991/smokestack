@@ -8,6 +8,18 @@ import type { HubJob } from './types';
  * With hubs.ts, autoRoutes.ts and release.ts, the only writers of a vehicle's `job` and `hubId`.
  */
 
+/**
+ * Bumped whenever a vehicle joins or leaves a route or a hub, or is sold (assignVehicle, sellVehicle,
+ * joinHub, leaveHub, release.ts, buyHubTruck). With `state.nextId` (a new vehicle takes a new id) and the
+ * vehicles record's identity (a load makes a new one) it keys the daily by-route and by-hub truck lists
+ * (autoRoutes.ts, hubs.ts), so the daily systems do not enumerate the whole fleet. Lives outside GameState.
+ */
+let fleetRev = 0;
+export function fleetChanged(): void {
+  fleetRev++;
+}
+export const fleetRevision = (): number => fleetRev;
+
 /** Every good: a stop at the hub takes back whatever the truck carries (as storage allows). */
 const ALL_GOODS = Object.keys(GOODS) as GoodId[];
 const NONE: GoodId[] = [];
@@ -98,6 +110,7 @@ export function hubLoadCap(veh: Vehicle): number | undefined {
 export function joinHub(veh: Vehicle, hubId: number, job: HubJob | null = null): void {
   veh.hubId = hubId;
   veh.job = job;
+  fleetChanged();
 }
 
 /** The truck leaves its hub (reassigned to a route or to none). */
@@ -105,4 +118,5 @@ export function leaveHub(veh: Vehicle): void {
   if (veh.hubId == null) return;
   veh.hubId = null;
   veh.job = null;
+  fleetChanged();
 }

@@ -227,6 +227,41 @@ describe('picking a job (spec §6.3)', () => {
     expect(s.routes[route.id]).toBeDefined();
   });
 
+  it('a lone truck waiting with wood at a full sawmill takes the lumber that blocks it, so the chain never deadlocks', () => {
+    const { s, ctx, camp, mill, route } = chain();
+    const v = must(buyTruck(ctx, 'player', route.id));
+    // the mill's wood and lumber are both full: only this truck can move the lumber, and it holds wood
+    camp.output.wood = 0;
+    mill.input.wood = 120;
+    mill.output.lumber = 120;
+    v.cargo = { wood: 7 };
+    v.stopIndex = 1;
+    autoRoutesDay(ctx);
+    const r = s.routes[route.id];
+    const before = r.jobs![0].qty;
+    expect(r.jobs![0]).toMatchObject({ from: 1, to: 2, good: 'lumber' });
+    expect(departAuto(s, v, r)).toBe(1); // the pickup is here
+    expect(v.job).toEqual({ kind: 'collect', from: 1, to: 2, good: 'lumber', qty: Math.min(v.capacity - 7, before) });
+    expect(r.jobs![0].qty).toBe(Math.max(0, before - (v.capacity - 7)));
+    // a full truck (no spare room) still just waits, as before
+    v.cargo = { wood: v.capacity };
+    v.job = null;
+    expect(departAuto(s, v, r)).toBe('wait');
+  });
+
+  it('driven, a lone auto truck holding wood at a full sawmill keeps the chain moving', () => {
+    const { s, ctx, camp, mill, factory, route } = chain();
+    const v = must(buyTruck(ctx, 'player', route.id));
+    camp.output.wood = 0;
+    mill.input.wood = 120;
+    mill.output.lumber = 120;
+    v.cargo = { wood: 7 }; // room to spare
+    runDays(ctx, 20);
+    expect(factory.input.lumber ?? 0).toBeGreaterThan(0); // the lumber left the mill
+    expect(v.cargo.wood ?? 0).toBe(0); // and the wood was unloaded once the mill had room
+    expect(s.vehicles[v.id]).toBe(v);
+  });
+
   it('with no job the truck stays put and rechecks after 24 ticks', () => {
     const { s, ctx, camp, route } = chain();
     const v = must(buyTruck(ctx, 'player', route.id));

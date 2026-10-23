@@ -1,6 +1,7 @@
 import type { GameState, OwnerId } from '../types';
+import { fleetChanged } from './jobRoute';
 
-/** Leaf helpers that let a manager's post or employment end when what it hangs on goes (no sim imports). */
+/** Leaf helpers that let a manager's post or employment end when what it hangs on goes (no sim imports but the leaf jobRoute.ts). */
 
 /** The building `id` is gone or gives up its manager: the post clears at once (the manager stays on the payroll). */
 export function releaseBuilding(state: GameState, id: number): void {
@@ -27,6 +28,7 @@ function releaseHubTrucks(state: GameState, hubId: number): void {
     v.pathIndex = 0;
     v.waitTicks = 0;
     v.stuckNotified = false;
+    fleetChanged();
   }
 }
 

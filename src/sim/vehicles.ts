@@ -11,7 +11,7 @@ import { hasNewerModel, modelSpec, newestModel } from './logistics/models';
 import {
   AUTO_RECHECK_TICKS, autoPickup, autoRoutesChanged, clampMaxTrucks, departAuto, dropAutoJobs, leaveAutoRoute, MIN_LOAD_MAX_WAIT_TICKS, noteDeparture,
 } from './logistics/autoRoutes';
-import { advanceHubJob, hubLoadCap, hubRoute, joinHub, leaveHub } from './logistics/jobRoute';
+import { advanceHubJob, fleetChanged, hubLoadCap, hubRoute, joinHub, leaveHub } from './logistics/jobRoute';
 import type { AutoSize, HubJob, RouteMode, VehicleModelId } from './logistics/types';
 import type { Building, GameState, GoodId, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -284,9 +284,33 @@ export function newVehicle(state: GameState, owner: OwnerId, kind: Vehicle['kind
     builtYear: state.date.year,
     model,
     speed: modelSpec(model).speed,
+    // declared up front (undefined is not saved) so every vehicle shares one object shape: a vehicle that
+    // gained these later, in its own order, made the per-tick vehicle code megamorphic (several x slower)
+    trips30: undefined,
+    kits: undefined,
+    hubId: undefined,
+    job: undefined,
+    dwell: undefined,
   };
   state.vehicles[vehicle.id] = vehicle;
   return vehicle;
+}
+
+/** Every Vehicle key in newVehicle's order. */
+const VEHICLE_KEYS: readonly (keyof Vehicle)[] = [
+  'id', 'kind', 'ownerId', 'routeId', 'pos', 'prevPos', 'path', 'pathIndex', 'stopIndex', 'cargo', 'capacity', 'state',
+  'waitTicks', 'stuckNotified', 'builtYear', 'model', 'speed', 'trips30', 'kits', 'hubId', 'job', 'dwell',
+];
+
+/**
+ * A loaded vehicle rebuilt with newVehicle's key order and shape (deserialize): a save then reloads into
+ * the same objects, and serializes the same, as the game that wrote it.
+ */
+export function canonicalVehicle(v: Vehicle): Vehicle {
+  const out: Record<string, unknown> = {};
+  for (const k of VEHICLE_KEYS) out[k] = v[k];
+  for (const k of Object.keys(v)) if (!(k in out)) out[k] = (v as unknown as Record<string, unknown>)[k];
+  return out as unknown as Vehicle;
 }
 
 /** Spawns at the first stop's first access tile and heads for that stop. */
@@ -302,6 +326,7 @@ export function sellVehicle(ctx: SimContext, id: number): Result {
   earn(state.companies[veh.ownerId], 'vehicles', sellRefund(state, veh), state.date);
   delete state.vehicles[id];
   fleetRemovals++;
+  fleetChanged();
   return ok();
 }
 
@@ -428,6 +453,7 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
   }
   if (veh.dwell) veh.dwell = 0;
   veh.routeId = routeId;
+  fleetChanged();
   veh.stopIndex = 0;
   veh.path = [];
   veh.pathIndex = 0;

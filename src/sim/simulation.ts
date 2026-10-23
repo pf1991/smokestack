@@ -3,7 +3,8 @@ import { err, ok } from '../core/result';
 import { migrateSave, type Migration } from './migrations';
 import { advanceHour, TICKS_PER_DAY } from './clock';
 import { FINANCE_SYSTEM_ID, SYSTEMS, type SimSystem } from './systems';
-import type { GameState, SimContext } from './types';
+import type { GameState, SimContext, Vehicle } from './types';
+import { canonicalVehicle } from './vehicles';
 
 export { SAVE_VERSION } from './version';
 const END_YEAR = 2001;
@@ -125,5 +126,10 @@ export function deserialize(json: string): Result<Deserialized> {
   // saves from before scenarios existed lack these; they play as sandbox
   if (typeof parsed.scenarioId !== 'string') parsed.scenarioId = 'sandbox';
   if (!isObject(parsed.flags)) parsed.flags = {};
+  // one object shape for every vehicle (vehicles.ts newVehicle): the per-tick vehicle code stays fast
+  if (isObject(parsed.vehicles)) {
+    const vehicles = parsed.vehicles as Record<string, Vehicle>;
+    for (const id in vehicles) if (isObject(vehicles[id])) vehicles[id] = canonicalVehicle(vehicles[id]);
+  }
   return ok({ state: parsed as unknown as GameState, applied });
 }

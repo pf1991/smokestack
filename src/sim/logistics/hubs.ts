@@ -13,6 +13,7 @@ import { atPrices } from '../society/economy';
 import { buildingStorage, hubRange, levelDef, levelRate } from './levels';
 import { managerAt, managerRate } from './managers';
 import { newestModel } from './models';
+import { fleetChanged, fleetRevision } from './jobRoute';
 import type { HubJob, HubJobKind, HubState, Skill } from './types';
 
 /**
@@ -125,6 +126,7 @@ export function buyHubTruck(ctx: SimContext, owner: OwnerId, warehouseId: number
   const v = newVehicle(state, owner, 'truck', model, accessTiles(state, b)[0], null);
   v.hubId = b.id;
   v.job = null;
+  fleetChanged();
   v.state = 'idle';
   return ok(v);
 }
@@ -495,6 +497,24 @@ function assign(hub: Building, cands: Candidate[], idle: Vehicle[], p: Promises)
   return { jobs, backlog };
 }
 
+const hubFleets = new WeakMap<GameState['vehicles'], { nextId: number; rev: number; all: Vehicle[]; byHub: Map<number, Vehicle[]> }>();
+
+/** Every hub truck in id order, and by hub (cached until a vehicle is bought, sold or moved: jobRoute.ts fleetChanged). */
+function hubFleet(state: GameState): { all: Vehicle[]; byHub: Map<number, Vehicle[]> } {
+  const c = hubFleets.get(state.vehicles);
+  if (c && c.nextId === state.nextId && c.rev === fleetRevision()) return c;
+  const all = Object.values(state.vehicles).filter((v) => v.hubId != null);
+  const byHub = new Map<number, Vehicle[]>();
+  for (const v of all) {
+    let list = byHub.get(v.hubId!);
+    if (!list) byHub.set(v.hubId!, (list = []));
+    list.push(v);
+  }
+  const fresh = { nextId: state.nextId, rev: fleetRevision(), all, byHub };
+  hubFleets.set(state.vehicles, fresh);
+  return fresh;
+}
+
 /** Daily, in hub id order (spec §8.2): free when nobody runs a hub. */
 export function hubsDay(ctx: SimContext): void {
   const { state } = ctx;
@@ -508,15 +528,7 @@ export function hubsDay(ctx: SimContext): void {
   for (const hub of hubs) {
     const h = hub.hub;
     if (!h || state.buildings[hub.id] !== hub) continue;
-    if (!byHub) {
-      all = Object.values(state.vehicles).filter((v) => v.hubId != null);
-      byHub = new Map();
-      for (const v of all) {
-        let list = byHub.get(v.hubId!);
-        if (!list) byHub.set(v.hubId!, (list = []));
-        list.push(v);
-      }
-    }
+    if (!byHub) ({ all, byHub } = hubFleet(state));
     const trucks = byHub.get(hub.id) ?? [];
     const tier = hubTier(state, hub);
     if (hub.works || !tier) {

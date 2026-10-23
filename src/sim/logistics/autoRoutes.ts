@@ -2,6 +2,7 @@ import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import { acceptsGood, loadSource, storageLeft } from '../inventory';
 import type { Building, GameState, GoodId, Route, RouteStop, SimContext, Vehicle } from '../types';
+import { fleetRevision } from './jobRoute';
 import { modelSpec, newestModel } from './models';
 import type { AutoJob, HubJob, RouteStats } from './types';
 
@@ -149,9 +150,14 @@ function manualBacklog(state: GameState, route: Route, trucks: Vehicle[]): void 
   }
 }
 
-/** Each route's vehicles in ascending id order. */
+const byRouteCache = new WeakMap<GameState['vehicles'], { nextId: number; rev: number; map: Map<number, Vehicle[]> }>();
+
+/** Each route's vehicles in ascending id order (cached until a vehicle is bought, sold or reassigned: jobRoute.ts fleetChanged). */
 function vehiclesByRoute(state: GameState): Map<number, Vehicle[]> {
+  const c = byRouteCache.get(state.vehicles);
+  if (c && c.nextId === state.nextId && c.rev === fleetRevision()) return c.map;
   const out = new Map<number, Vehicle[]>();
+  byRouteCache.set(state.vehicles, { nextId: state.nextId, rev: fleetRevision(), map: out });
   for (const v of Object.values(state.vehicles)) {
     if (v.routeId === null) continue;
     let list = out.get(v.routeId);
@@ -204,8 +210,9 @@ export function autoRoutesDay(ctx: SimContext): void {
 
 /**
  * Spec §6.3, at the end of an auto truck's dwell at stop `veh.stopIndex`: cargo first (its job's drop
- * while that has room; else the nearest stop that unloads a carried good and has room; else the
- * nearest that unloads it; never back to the pickup, nor from a pool to a pool), then the board (the
+ * while that has room; else the nearest stop that unloads a carried good and has room; else, with room
+ * to spare, a board job that loads here; else the nearest that unloads it; never a good back to its
+ * pickup, nor from a pool to a pool), then the board (the
  * first job with qty left: the truck promises up to its capacity), else `'wait'`. Returns the next
  * stop index, or `'wait'` when the truck should stay where it is (the caller retries the transfer
  * and checks again later). Sets or clears `veh.job`.
@@ -234,7 +241,8 @@ export function departAuto(state: GameState, veh: Vehicle, route: Route): number
       let room = false;
       for (const g in veh.cargo) {
         if (!stops[j].unload.includes(g) || !acceptsGood(b, g)) continue;
-        if (j === origin || (origin >= 0 && isPool(stops[origin], g) && isPool(stops[j], g))) continue;
+        // never back to where this good was picked up (other goods aboard came from elsewhere)
+        if ((j === origin && g === dj?.good) || (origin >= 0 && isPool(stops[origin], g) && isPool(stops[j], g))) continue;
         unloads = true;
         if (storageLeft(b, g) > 0) room = true;
       }
@@ -247,6 +255,20 @@ export function departAuto(state: GameState, veh: Vehicle, route: Route): number
       if (d < fallbackD) {
         fallback = j;
         fallbackD = d;
+      }
+    }
+    // No stop has room for the cargo. Waiting with it must not block the chain (a lone truck holding wood
+    // at a sawmill whose lumber only it can move would wait forever): with room left it also takes a
+    // job that loads here, so the stop it waits for can clear.
+    if (best < 0) {
+      const spare = veh.capacity - cargoTotal(veh);
+      if (spare > 0 && at) {
+        for (const job of route.jobs ?? []) {
+          if (job.qty <= 0 || job.from !== here || job.to >= n || !stops[here].load.includes(job.good)) continue;
+          veh.job = { kind: 'collect', from: here, to: job.to, good: job.good, qty: Math.min(spare, job.qty) };
+          job.qty = Math.max(0, job.qty - spare);
+          return here;
+        }
       }
     }
     const next = best >= 0 ? best : fallback;
