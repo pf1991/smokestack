@@ -3,7 +3,7 @@ import { GOODS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { err, ok, type Result } from '../../core/result';
 import { dateToDays } from '../clock';
-import { aiLosingYear, canAfford, spend } from '../finance';
+import { canAfford, spend } from '../finance';
 import { acceptsGood, handlesCargo, storageLeft } from '../inventory';
 import { buildingList, buildingsNear } from '../spatial';
 import { accessTiles } from '../state';
@@ -578,8 +578,7 @@ export function hubAutoSizeMonth(ctx: SimContext, reserveOf: (state: GameState, 
       const company = state.companies[hub.ownerId];
       if (h.month.backlogDays >= HUB_BACKLOG_DAYS) {
         if (
-          // an AI hub buys none in a losing year (finance.ts aiLosingYear); it may still sell below
-          company && company.money > 0 && trucks.length < Math.min(h.maxTrucks, hubCap(hub)) && !aiLosingYear(state, hub.ownerId) &&
+          company && company.money > 0 && trucks.length < Math.min(h.maxTrucks, hubCap(hub)) &&
           company.money - vehiclePrice(state, newestModel(state)) >= reserveOf(state, hub.ownerId)
         ) {
           buyHubTruck(ctx, hub.ownerId, hub.id);

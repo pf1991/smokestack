@@ -1,6 +1,6 @@
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
-import type { Company, GameDate, GameState, LedgerCategory, LedgerMonth, OwnerId } from './types';
+import type { Company, GameDate, LedgerCategory, LedgerMonth, OwnerId } from './types';
 
 export const STARTING_MONEY = 300000;
 export const LOAN_STEP = 50000;
@@ -155,34 +155,4 @@ export function monthProfit(m: Pick<LedgerMonth, 'income' | 'expense'>): number 
   for (let i = 0; i < INCOME_CATEGORIES.length; i++) p += m.income[INCOME_CATEGORIES[i]] ?? 0;
   for (let i = 0; i < EXPENSE_CATEGORIES.length; i++) p -= m.expense[EXPENSE_CATEGORIES[i]] ?? 0;
   return p;
-}
-
-/** Ledger months summed for an AI company's trailing operating profit (aiLosingYear). */
-export const AI_TRAILING_MONTHS = 12;
-
-/**
- * `owner`'s operating profit over its last AI_TRAILING_MONTHS ledger months: monthProfit with
- * construction added back, since building is investment, not operations. Vehicle purchases stay in:
- * the ledger books them with vehicle upkeep under 'vehicles' and cannot split the two. The months are
- * the ledger's last entries, as the exchange's trailing profit (exchange/prices.ts) takes them.
- */
-export function trailingOperatingProfit(state: GameState, owner: OwnerId): number {
-  const ledger = state.companies[owner]?.ledger ?? [];
-  let p = 0;
-  for (let i = Math.max(0, ledger.length - AI_TRAILING_MONTHS); i < ledger.length; i++) {
-    p += monthProfit(ledger[i]) + (ledger[i].expense.construction ?? 0);
-  }
-  return p;
-}
-
-/**
- * True when an AI company (the Baron or a regional firm) lost money on its operations over the trailing
- * year: it then makes no discretionary spend (spec §9: levels, hubs, hub trucks, new chain or rail
- * projects, top-up trucks). Always false for the player. A leaf, so rival/, regional/ and logistics/
- * can all import it.
- */
-export function aiLosingYear(state: GameState, owner: OwnerId): boolean {
-  const kind = state.companies[owner]?.kind;
-  if (kind !== 'baron' && kind !== 'regional') return false;
-  return trailingOperatingProfit(state, owner) < 0;
 }

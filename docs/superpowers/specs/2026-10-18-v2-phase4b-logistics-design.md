@@ -356,16 +356,7 @@ The AI uses the same public functions as the player.
 - **Levels:** once a month the Baron may upgrade one works: his works with the highest output value
   this month that is below the highest available level, not under works, at least 2 years old, when
   he keeps 2× his reserve after paying. He makes at most one upgrade every 6 months. Each regional
-  firm does the same at most once a year with its own reserve. The AI upgrades only a works that is
-  not backing up: not output_full at month end and every output stock below 50% of its level's
-  storage (`AI_BACKED_UP_SHARE`), since a level adds output, not sales.
-- **Losing years:** the Baron and each firm make no upgrade, place no warehouse and buy no hub truck
-  while their operating profit over the last 12 ledger months (`AI_TRAILING_MONTHS`; finance.ts
-  `monthProfit` with construction added back) is negative. The same rule (finance.ts
-  `aiLosingYear`) holds for every discretionary AI spend: in a losing year the Baron starts no new
-  chain or rail project (one under way goes on), and neither the Baron's nor a firm's legs gain
-  top-up trucks (rival `topUpTrucks`) nor their hubs auto-sized trucks; upkeep, salaries and sales
-  of idle trucks go on.
+  firm does the same at most once a year with its own reserve.
 - **Hubs:** from 1910, a Baron with 3+ chains and no hub places a warehouse at the free site nearest
   his buildings' centroid, buys 2 hub trucks and hires the cheapest affordable market candidate with
   logistics 2+ (at the end of January, D8) to run it. A regional firm founded 5+ years ago does the

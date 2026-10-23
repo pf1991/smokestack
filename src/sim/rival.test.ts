@@ -6,16 +6,9 @@ import { chainFor, chooseProject, MAX_STALL_MONTHS, maxRivalChains, netWorth, RI
 import { deserialize, runDays, serialize } from './simulation';
 import { buildRoad, createGame, lPath, placeBuilding } from './state';
 import { must, testCtx, testState } from './testkit';
-import type { GameState, OwnerId, SimContext } from './types';
+import type { GameState, SimContext } from './types';
 import { buyTruck, createRoute, deleteRoute, sellVehicle } from './vehicles';
 import { buildRail, buyTrain, stationAccess } from './rail';
-import { currentLedger, spend, trailingOperatingProfit } from './finance';
-
-/** Books `amount` of sales in `owner`'s current ledger month without moving cash: a trading year, so the losing-year rule (finance.ts aiLosingYear) stays out of a test about something else. */
-function trading(s: GameState, owner: OwnerId = 'rival', amount = 1e7): void {
-  const inc = currentLedger(s.companies[owner], s.date).income;
-  inc.sales = (inc.sales ?? 0) + amount;
-}
 
 function rivalGame(seed = 7): SimContext {
   return { state: createGame({ seed, companyName: 'Acme Works', rival: true }), bus: new EventBus() };
@@ -157,7 +150,6 @@ describe('rivalMonth', () => {
       ]),
     );
     must(buyTruck(ctx, 'rival', route.id));
-    trading(ctx.state);
     const count = () => Object.values(ctx.state.vehicles).filter((v) => v.routeId === route.id).length;
     rivalMonth(ctx);
     expect(count()).toBe(1);
@@ -224,34 +216,6 @@ describe('rival projects never deadlock', () => {
     expect(r.stall).toBeLessThanOrEqual(8);
     expect(r.routes).toBeGreaterThanOrEqual(3);
   }, 120000);
-
-  it('in a losing year the Baron starts no chain or rail project; one under way goes on', () => {
-    const fresh = rivalGame(7);
-    rivalMonth(fresh);
-    expect(fresh.state.rivalProject).not.toBeNull();
-
-    const losing = rivalGame(7);
-    const rival = losing.state.companies.rival;
-    const money = rival.money;
-    spend(rival, 'maintenance', 1 - trailingOperatingProfit(losing.state, 'rival') + 0, losing.state.date);
-    rival.money = money;
-    expect(trailingOperatingProfit(losing.state, 'rival')).toBeLessThan(0);
-    for (let i = 0; i < 3; i++) rivalMonth(losing);
-    expect(losing.state.rivalProject).toBeNull();
-    expect(losing.state.rivalRail ?? null).toBeNull();
-
-    // a project already started keeps building
-    const going = rivalGame(7);
-    rivalMonth(going);
-    const before = going.state.flags.rivalBuildings;
-    const r2 = going.state.companies.rival;
-    const m2 = r2.money;
-    spend(r2, 'maintenance', 1 - trailingOperatingProfit(going.state, 'rival'), going.state.date);
-    r2.money = m2;
-    rivalMonth(going);
-    expect(going.state.rivalProject).not.toBeNull();
-    expect(going.state.flags.rivalBuildings).not.toBe(before);
-  });
 
   it('a project waiting for money is abandoned after MAX_STALL_MONTHS when legs lack trucks', () => {
     const ctx = rivalGame(7);
@@ -347,7 +311,6 @@ describe('rival railways', () => {
       ]),
     );
     const trucks = [0, 1, 2].map(() => must(buyTruck(ctx, 'rival', route.id)).id);
-    trading(s);
     return { s, ctx, mill, fac, route, trucks };
   }
 
