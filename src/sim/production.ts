@@ -150,12 +150,18 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     b.status = 'ok';
+    // the rate multiplies the day's recipe progress (spec §4.1): a levelled or managed works may
+    // finish several batches in a day, each while its inputs cover a batch and its outputs have room
     b.progress += rate / recipe.days;
-    if (b.progress >= 1 - 1e-9) {
+    while (b.progress >= 1 - 1e-9 && fed && !full) {
       for (const g of ins) b.input[g] -= recipe.inputs[g];
       for (const g of outs) addOutput(b, g, recipe.outputs[g], storage);
       b.progress = Math.max(0, b.progress - 1);
+      for (const g of ins) if (!((b.input[g] ?? 0) >= recipe.inputs[g])) fed = false;
+      for (const g of outs) if ((b.output[g] ?? 0) + recipe.outputs[g] > storage) full = true;
     }
+    // starved or full: at most one ready batch carries over to the next day
+    if (b.progress > 1) b.progress = 1;
   }
 }
 

@@ -131,5 +131,13 @@ export function deserialize(json: string): Result<Deserialized> {
     const vehicles = parsed.vehicles as Record<string, Vehicle>;
     for (const id in vehicles) if (isObject(vehicles[id])) vehicles[id] = canonicalVehicle(vehicles[id]);
   }
+  // a works carries at most one ready batch (production.ts); saves made before that rule held a backlog
+  if (isObject(parsed.buildings)) {
+    const buildings = parsed.buildings as Record<string, { progress?: unknown }>;
+    for (const id in buildings) {
+      const b = buildings[id];
+      if (isObject(b) && typeof b.progress === 'number' && b.progress > 1) b.progress = 1;
+    }
+  }
   return ok({ state: parsed as unknown as GameState, applied });
 }
