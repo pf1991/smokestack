@@ -265,10 +265,11 @@ if (debugStart) {
       if (r) g.openPanel('routes', r.id);
     }
     if (import.meta.env.DEV && upgradedId !== null && params.get('inspectup') === '1') g.openPanel('building', upgradedId);
-    if (import.meta.env.DEV && upgradingId !== null) g.openPanel('building', upgradingId);
     if (import.meta.env.DEV && params.get('inspect2') === '1') {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
     }
+    // after inspect2, so the upgrading works is the building panel on screen (its scaffold is centred)
+    if (import.meta.env.DEV && upgradingId !== null) g.openPanel('building', upgradingId);
     if (import.meta.env.DEV && params.get('inspectcity') === '1') g.openPanel('city', 0);
     // `inspecthub=1` opens a hub (one truck) on the player's first warehouse, if any, and selects it
     if (import.meta.env.DEV && params.get('inspecthub') === '1') {
