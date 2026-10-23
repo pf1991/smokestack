@@ -367,6 +367,11 @@ The AI uses the same public functions as the player.
   nothing from a dearer manager.
 - **Managers:** the Baron employs at most 2 (his hub and his busiest works), each firm at most 1.
   The AI replaces a retired or poached hub manager at the next end of January.
+- **Losing lines:** once a month the Baron closes every line of a good whose sales over the last 12
+  closed ledger months (with a sale in each, and every building on its lines at least 12 months old)
+  fall short of a year of those lines' building and vehicle upkeep at today's prices: he deletes its
+  store routes, demolishes each works or station no route of his hauls from any more, back up the
+  chain, and never plans that good again (rival/lines.ts).
 
 ## 10. Save format
 

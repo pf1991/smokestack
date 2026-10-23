@@ -113,7 +113,7 @@ export function chooseProject(state: GameState): Candidate | null {
     if (blockedKeys.includes(`${city.id}:*`)) continue;
     const storeCost = rivalStoreIn(state, city.id) ? 0 : BUILDINGS.store.cost;
     for (const [goodId, { cost, upkeep, capacity }] of plans) {
-      if (blockedKeys.includes(`${city.id}:${goodId}`)) continue;
+      if (blockedKeys.includes(`${city.id}:${goodId}`) || blockedKeys.includes(`*:${goodId}`)) continue;
       if (atPrices(state, cost + storeCost) > money - rivalReserve(state)) continue;
       const demand = monthlyDemand(city, goodId, state.date.year, demandModifier(state, city.id, goodId));
       const unmet = demand - rivalSupply(state, city.id, goodId);
