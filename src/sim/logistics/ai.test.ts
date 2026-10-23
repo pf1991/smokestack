@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addCompany } from '../companies';
 import { listCompany } from '../exchange/shares';
-import { spend } from '../finance';
+import { earn, spend } from '../finance';
 import { rivalReserve } from '../rival/shared';
 import { REGIONAL_RESERVE } from '../regional/firms';
 import { atPrices } from '../society/economy';
@@ -9,12 +9,12 @@ import { buildRoad, lPath, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Building, OwnerId, SimContext } from '../types';
 import {
-  AI_HUB_TRUCKS, aiLogisticsMonth, aiReserve, BARON_RESERVE_MULTIPLE, BARON_UPGRADE_GAP_MONTHS, FIRM_RESERVE_MULTIPLE, FIRM_UPGRADE_GAP_MONTHS, hubCostEstimate, HUB_RETRY_MONTHS, hubReserveOf,
+  AI_BACKED_UP_SHARE, AI_HUB_TRUCKS, AI_TRAILING_MONTHS, aiLogisticsMonth, backedUp, trailingOperatingProfit, aiReserve, BARON_RESERVE_MULTIPLE, BARON_UPGRADE_GAP_MONTHS, FIRM_RESERVE_MULTIPLE, FIRM_UPGRADE_GAP_MONTHS, hubCostEstimate, HUB_RETRY_MONTHS, hubReserveOf,
 } from './ai';
 import { outputValue } from './aiPost';
 import { HUB_RESERVE, hubAutoSizeMonth, hubTrucks } from './hubs';
 import { newestModel } from './models';
-import { upgradeCost } from './levels';
+import { buildingStorage, upgradeCost } from './levels';
 import { managerAt, managerSalary, refreshMarket } from './managers';
 import type { Manager, Skill } from './types';
 import { checkInvariants } from '../invariants';
@@ -109,6 +109,8 @@ describe('aiUpgrade', () => {
     expect(FIRM_RESERVE_MULTIPLE).toBe(2);
     const ctx = setup(1915);
     addFirm(ctx, 1e7, 1906);
+    // trading at a profit, so its hub trucks (booked as 'vehicles') leave no losing year
+    earn(ctx.state.companies[FIRM], 'sales', 1e6, ctx.state.date);
     works(ctx, FIRM, 'sawmill', 5, 'r_lumber');
     works(ctx, FIRM, 'furniture_factory', 15, 'r_furniture');
     const seen: number[] = [];
@@ -126,6 +128,100 @@ describe('aiUpgrade', () => {
     ctx2.state.companies[FIRM].money = FIRM_RESERVE_MULTIPLE * atPrices(ctx2.state, REGIONAL_RESERVE) + upgradeCost(ctx2.state, mill) - 1;
     aiLogisticsMonth(ctx2);
     expect(upgrading(ctx2, FIRM)).toEqual([]);
+  });
+});
+
+describe('AI spending rules', () => {
+  it('skips a backed-up works (output_full, or a stock at 50% of its storage) and upgrades the next busiest', () => {
+    expect(AI_BACKED_UP_SHARE).toBe(0.5);
+    const ctx = setup(1905);
+    const [, b] = baronChains(ctx);
+    const half = AI_BACKED_UP_SHARE * buildingStorage(b);
+    // just below half: not backed up, the busiest goes
+    b.output.furniture = half - 0.01;
+    expect(backedUp(b)).toBe(false);
+    aiLogisticsMonth(ctx);
+    expect(upgrading(ctx, 'rival')).toEqual([b.id]);
+
+    const at = setup(1905);
+    const [, b2, c2] = baronChains(at);
+    b2.output.furniture = half; // exactly half: backed up
+    expect(backedUp(b2)).toBe(true);
+    aiLogisticsMonth(at);
+    expect(upgrading(at, 'rival')).toEqual([c2.id]);
+
+    const full = setup(1905);
+    const [, b3, c3] = baronChains(full);
+    b3.status = 'output_full'; // full by status, whatever its stock
+    expect(backedUp(b3)).toBe(true);
+    aiLogisticsMonth(full);
+    expect(upgrading(full, 'rival')).toEqual([c3.id]);
+  });
+
+  it('a level-2 works is backed up at half of its larger level storage', () => {
+    const ctx = setup(1905);
+    const [, b] = baronChains(ctx);
+    b.level = 2;
+    b.output.furniture = 0.5 * buildingStorage({ ...b, level: 1 } as Building); // half of level 1 only
+    expect(backedUp(b)).toBe(false);
+    b.output.furniture = 0.5 * buildingStorage(b);
+    expect(backedUp(b)).toBe(true);
+  });
+
+  it('a company whose trailing 12 months of operations lost money buys no level and no hub', () => {
+    expect(AI_TRAILING_MONTHS).toBe(12);
+    const ctx = setup(1910, 12);
+    baronChains(ctx);
+    const rival = ctx.state.companies.rival;
+    earn(rival, 'sales', 10_000, { year: 1910, month: 3, day: 1, hour: 0 });
+    spend(rival, 'maintenance', 10_001, { year: 1910, month: 6, day: 1, hour: 0 });
+    expect(trailingOperatingProfit(ctx.state, 'rival')).toBe(-1);
+    aiLogisticsMonth(ctx);
+    expect(upgrading(ctx, 'rival')).toEqual([]);
+    expect(hubs(ctx, 'rival')).toEqual([]);
+    expect(Object.values(ctx.state.vehicles).filter((v) => v.ownerId === 'rival')).toEqual([]);
+
+    // a firm alike
+    const firm = setup(1915);
+    addFirm(firm, 1e7, 1906);
+    works(firm, FIRM, 'sawmill', 5, 'r_lumber');
+    spend(firm.state.companies[FIRM], 'salaries', 1, { year: 1915, month: 5, day: 1, hour: 0 });
+    aiLogisticsMonth(firm);
+    expect(upgrading(firm, FIRM)).toEqual([]);
+    expect(hubs(firm, FIRM)).toEqual([]);
+  });
+
+  it('boundaries: a trailing profit of exactly 0 buys, construction is not operating, and month 13 back does not count', () => {
+    const zero = setup(1910, 12);
+    baronChains(zero);
+    earn(zero.state.companies.rival, 'sales', 5_000, { year: 1910, month: 3, day: 1, hour: 0 });
+    spend(zero.state.companies.rival, 'maintenance', 5_000, { year: 1910, month: 4, day: 1, hour: 0 });
+    expect(trailingOperatingProfit(zero.state, 'rival')).toBe(0);
+    aiLogisticsMonth(zero);
+    expect(upgrading(zero, 'rival')).toHaveLength(1);
+    expect(hubs(zero, 'rival')).toHaveLength(1);
+
+    const built = setup(1910, 12);
+    baronChains(built);
+    spend(built.state.companies.rival, 'construction', 1e6, { year: 1910, month: 4, day: 1, hour: 0 });
+    expect(trailingOperatingProfit(built.state, 'rival')).toBe(0);
+    aiLogisticsMonth(built);
+    expect(upgrading(built, 'rival')).toHaveLength(1);
+
+    // a loss in the oldest of 13 ledger months is out of the window
+    const old = setup(1910, 12);
+    baronChains(old);
+    const rival = old.state.companies.rival;
+    rival.ledger = [];
+    for (let i = 0; i < AI_TRAILING_MONTHS + 1; i++) {
+      const m = ((11 + i) % 12) + 1;
+      const y = 1909 + Math.floor((11 + i) / 12);
+      spend(rival, 'maintenance', i === 0 ? 1_000 : 0, { year: y, month: m, day: 1, hour: 0 });
+    }
+    expect(rival.ledger).toHaveLength(AI_TRAILING_MONTHS + 1);
+    expect(trailingOperatingProfit(old.state, 'rival')).toBe(0);
+    aiLogisticsMonth(old);
+    expect(upgrading(old, 'rival')).toHaveLength(1);
   });
 });
 
