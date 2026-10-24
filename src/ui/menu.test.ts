@@ -6,6 +6,12 @@ import { createGame } from '../sim/state';
 import { closeModal, MainMenu, openPauseMenu, showEndScreen } from './menu';
 import { buildGoals } from './panels/goals';
 import { testState } from '../sim/testkit';
+import * as aiClient from '../ai/client';
+
+vi.mock('../ai/client', async (orig) => {
+  const m = await orig<typeof import('../ai/client')>();
+  return { ...m, aiStatus: vi.fn(m.aiStatus) };
+});
 
 beforeEach(() => {
   localStorage.clear();
@@ -156,6 +162,17 @@ describe('settings: Smart events', () => {
     const { ui, menu } = mount();
     menu.show('settings');
     expect(ui.querySelector('.mn-ai-status')?.textContent).toBe('JEV: not checked yet');
+  });
+
+  it('explains an offline JEV as needing the self-hosted server', () => {
+    vi.mocked(aiClient.aiStatus).mockReturnValue('offline');
+    try {
+      const { ui, menu } = mount();
+      menu.show('settings');
+      expect(ui.querySelector('.mn-ai-status')?.textContent).toBe('Needs the self-hosted server (see README)');
+    } finally {
+      vi.mocked(aiClient.aiStatus).mockReset();
+    }
   });
 });
 

@@ -108,6 +108,18 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 - The top bar groups the panels: Company (Finance, Goals, Exchange, Family, Legacy), Operations (Routes, Fleet, Contracts) and World (Newspaper, Politics, Rival).
 - Settings include a UI scale (makes the whole interface larger or smaller), a ticker mode (scrolling, single headline or off), the side panel width (drag the panel's edge; Reset in Settings) and Smart events (JEV).
 
+## Play online / Publish to GitHub Pages
+
+The game is a static site, so GitHub Pages can host it. The workflow in `.github/workflows/pages.yml` runs the tests, builds, checks that `dist` has no absolute asset paths (`npm run check-dist`) and deploys on every push to `main`.
+
+```
+gh repo create <name> --public --source . --push
+```
+
+Then open Settings -> Pages and set Source to "GitHub Actions". The site appears at `https://<user>.github.io/<name>/`.
+
+Note: Smart events (JEV) are off on Pages, because they need the self-hosted proxy (see below). The game plays normally without them.
+
 ## Run it
 
 ### Development

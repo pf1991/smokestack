@@ -127,7 +127,10 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
   });
   const status = h('p', { class: 'mn-note mn-ai-status' });
   const showStatus = () => {
-    status.textContent = `JEV: ${s.smartEvents ? (aiStatus() === 'unknown' ? 'not checked yet' : aiStatus()) : 'off'}`;
+    const st = aiStatus();
+    status.textContent = s.smartEvents && st === 'offline'
+      ? 'Needs the self-hosted server (see README)'
+      : `JEV: ${s.smartEvents ? (st === 'unknown' ? 'not checked yet' : st) : 'off'}`;
   };
   showStatus();
   // the health check may resolve while the screen is open; stop listening once it leaves the page

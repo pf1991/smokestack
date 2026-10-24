@@ -12,7 +12,8 @@
     "ai-proxy": "node server/ai-proxy.mjs",
     "jev-smoke": "tsx scripts/jev-smoke.ts",
     "soak": "tsx scripts/soak.ts",
-    "fixture": "tsx scripts/make-fixture.ts"
+    "fixture": "tsx scripts/make-fixture.ts",
+    "check-dist": "node scripts/check-dist.mjs"
   },
   "devDependencies": {
     "jsdom": "25.0.1",
