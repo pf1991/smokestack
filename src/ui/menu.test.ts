@@ -194,14 +194,15 @@ describe('settings: Smart events', () => {
   });
 
   it('explains an offline JEV as needing the self-hosted server', () => {
-    vi.mocked(aiClient.aiStatus).mockReturnValue('offline');
-    try {
-      const { ui, menu } = mount();
-      menu.show('settings');
-      expect(ui.querySelector('.mn-ai-status')?.textContent).toBe('Needs the self-hosted server (see README)');
-    } finally {
-      vi.mocked(aiClient.aiStatus).mockReset();
-    }
+    // once only: later tests keep the real aiStatus (mockReset would leave it returning undefined)
+    vi.mocked(aiClient.aiStatus).mockReturnValueOnce('offline');
+    const { ui, menu } = mount();
+    menu.show('settings');
+    expect(ui.querySelector('.mn-ai-status')?.textContent).toBe('Needs the self-hosted server (see README)');
+  });
+
+  it('the offline case leaves the real aiStatus in place for later tests', () => {
+    expect(aiClient.aiStatus()).toBeDefined();
   });
 });
 
