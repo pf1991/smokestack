@@ -1,6 +1,6 @@
 /**
- * The event card modal: a pending card shown as a newspaper clipping, answered with one of its
- * choices. It must be answered (Esc does nothing), pauses the game while open and restores the
+ * The event card modal: a pending card shown on a paper card, answered with one of its choices
+ * (click, or keys 1-4). It must be answered (Esc does nothing), pauses the game while open and restores the
  * previous speed once the last pending card is answered. Several pending cards show one at a time,
  * oldest first. It waits for the cold open, photo mode and the pause/end menus to finish, and a
  * loaded save with a pending card shows it again (the watcher reads state every frame).
@@ -13,7 +13,8 @@ import type { GameState, SimContext, Speed } from '../sim/types';
 import { addDays, dateToDays, formatDate } from '../sim/clock';
 import { h } from './dom';
 import { formatMoney } from './format';
-import { iconEl } from './icon';
+import { pill } from './kit';
+import type { IconId } from '../render/icons';
 import './cardModal.css';
 
 /** What the modal needs from the GameController. */
@@ -27,7 +28,7 @@ export interface CardHost {
 }
 
 /** Atlas glyph for each faction's chip. */
-export const FACTION_ICON: Record<FactionId, string> = {
+export const FACTION_ICON: Record<FactionId, IconId> = {
   workers: 'tools',
   oldmoney: 'top_hat',
   reformers: 'park',
@@ -54,11 +55,14 @@ function usedAi(state: GameState, inst: CardInstance): boolean {
   return last.id === `card:${year}` && last.picked === inst.cardId;
 }
 
+/** One faction effect as a kit pill, toned by its sign; the faction's colour marks its edge. */
 function chip(state: GameState, e: CardEffect, cityName: string | null): HTMLElement {
   const year = state.date.year;
   const where = e.scope === 'national' ? 'all towns' : (cityName ?? 'here');
-  const el = h('span', { class: `card-chip ${e.delta >= 0 ? 'card-up' : 'card-down'}`, title: `${factionName(e.faction, year)} opinion ${signed(e.delta)} in ${where}` },
-    iconEl(FACTION_ICON[e.faction], 14),
+  const el = pill('', e.delta >= 0 ? 'positive' : 'negative', FACTION_ICON[e.faction]);
+  el.classList.add('card-chip', e.delta >= 0 ? 'card-up' : 'card-down');
+  el.title = `${factionName(e.faction, year)} opinion ${signed(e.delta)} in ${where}`;
+  el.append(
     h('span', { class: 'card-chip-name' }, factionName(e.faction, year)),
     h('b', { class: 'card-chip-delta' }, signed(e.delta)),
     h('span', { class: 'card-chip-where' }, where));
@@ -66,14 +70,16 @@ function chip(state: GameState, e: CardEffect, cityName: string | null): HTMLEle
   return el;
 }
 
-/** The choice's cost in today's dollars (choiceCost: the same scaled figure resolveCard books). */
+/** The choice's cost in today's dollars (choiceCost: the same scaled figure resolveCard books), as a pill. */
 function costEl(state: GameState, c: CardChoice): HTMLElement {
   const cost = choiceCost(state, c);
-  if (cost === 0) return h('span', { class: 'card-cost card-free' }, 'No cost');
-  const earns = cost < 0;
-  return h('span', { class: `card-cost ${earns ? 'card-earn' : 'card-spend'}` },
-    iconEl('money', 14),
-    earns ? `+${formatMoney(-cost)}` : formatMoney(cost));
+  const el = cost === 0
+    ? pill('No cost', 'neutral')
+    : cost < 0
+      ? pill(`+${formatMoney(-cost)}`, 'positive', 'money')
+      : pill(`\u2212${formatMoney(cost)}`, 'negative', 'money');
+  el.classList.add('card-cost', cost === 0 ? 'card-free' : cost < 0 ? 'card-earn' : 'card-spend');
+  return el;
 }
 
 /**
@@ -96,6 +102,12 @@ export function attachCardModal(host: CardHost): () => void {
     // habitual Space to unpause neither picks an answer nor reaches the game
     else if ((e.key === ' ' || e.key === 'Enter') && !(document.activeElement instanceof HTMLButtonElement && root.contains(document.activeElement))) e.preventDefault();
     else if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // 1-4 pick that choice (an unaffordable or missing one does nothing)
+    else if (/^[1-4]$/.test(e.key)) {
+      e.preventDefault();
+      const b = root.querySelectorAll<HTMLButtonElement>('.card-choice')[Number(e.key) - 1];
+      if (b && !b.disabled) b.click();
+    }
     e.stopImmediatePropagation();
   };
   /** Tab and Shift+Tab cycle through the clipping's enabled choices and never leave it. */
@@ -139,25 +151,27 @@ export function attachCardModal(host: CardHost): () => void {
         class: `card-choice${ok ? '' : ' card-blocked'}`,
         type: 'button',
         disabled: !ok,
+        title: i < 4 ? `${c.label} (${i + 1})` : c.label,
         onClick: () => choose(inst.uid, i),
       },
-      h('span', { class: 'card-choice-head' },
+      i < 4 ? h('kbd', { class: 'card-key', 'aria-hidden': 'true' }, String(i + 1)) : h('span', { class: 'card-key card-key--none' }),
+      h('span', { class: 'card-choice-main' },
         h('span', { class: 'card-choice-label' }, c.label),
-        costEl(state, c)),
-      chips.length > 0 || c.note ? h('span', { class: 'card-effects' }, ...chips, c.note ? h('span', { class: 'card-note' }, c.note) : null) : null,
-      ok ? null : h('span', { class: 'card-reason' }, 'Not enough money'));
+        h('span', { class: 'card-effects' }, costEl(state, c), ...chips),
+        c.note ? h('span', { class: 'card-note' }, c.note) : null,
+        ok ? null : h('span', { class: 'card-reason' }, 'Not enough money')));
     });
-    const clipping = h('article', { class: 'card-clipping', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'card-title', tabindex: '-1' },
-      h('div', { class: 'card-masthead' },
-        h('span', null, 'The Daily Smokestack'),
-        h('span', null, formatDate(state.date))),
+    const clipping = h('article', { class: 'card-clipping', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'card-title', 'aria-describedby': 'card-body', tabindex: '-1' },
+      h('header', { class: 'card-masthead' },
+        h('span', { class: 'card-paper' }, 'The Daily Smokestack'),
+        h('span', { class: 'card-date' }, formatDate(state.date))),
       h('h2', { class: 'card-title', id: 'card-title' }, text.title),
-      h('p', { class: 'card-body' }, text.body),
+      h('p', { class: 'card-body', id: 'card-body' }, text.body),
       h('div', { class: 'card-rule' }, 'Your answer'),
       h('div', { class: 'card-choices' }, ...choices),
       usedAi(state, inst) ? h('p', { class: 'card-why' }, "Chosen by the editor's instinct (JEV)") : null,
       error ? h('p', { class: 'card-error', role: 'alert' }, error) : null);
-    const next = h('div', { class: 'card-modal' }, h('div', { class: 'card-backdrop' }), h('div', { class: 'card-shadow' }, clipping));
+    const next = h('div', { class: 'card-modal' }, h('div', { class: 'card-backdrop' }), h('div', { class: 'card-frame' }, clipping));
     if (root) root.replaceWith(next);
     // on body like the pause menu, above every window (their z-index climbs with each raise)
     else document.body.appendChild(next);

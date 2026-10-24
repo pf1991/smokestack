@@ -141,14 +141,37 @@ describe('Toasts', () => {
     expect(toasts[0].textContent).toBe('Sold!');
   });
 
-  it('keeps at most four toasts and removes each after four seconds', () => {
+  it('each toast carries a tone icon and its text', () => {
+    const root = document.createElement('div');
+    const bus = new EventBus();
+    Toasts.attach(root, bus);
+    bus.emit({ type: 'toast', message: 'Sold!', tone: 'good' });
+    bus.emit({ type: 'toast', message: 'Broke!', tone: 'bad' });
+    bus.emit({ type: 'toast', message: 'Note', tone: 'info' });
+    const toasts = [...root.querySelectorAll<HTMLElement>('.toast')];
+    expect(toasts.map((t) => t.dataset.tone)).toEqual(['positive', 'negative', 'info']);
+    expect(toasts.map((t) => (t.querySelector('img.icon') as HTMLElement).dataset.icon)).toEqual(['positive', 'negative', 'info']);
+    expect(toasts[1].querySelector('.toast-text')!.textContent).toBe('Broke!');
+  });
+
+  it('a fourth toast removes the first', () => {
+    const root = document.createElement('div');
+    const bus = new EventBus();
+    Toasts.attach(root, bus);
+    for (let i = 0; i < 3; i++) bus.emit({ type: 'toast', message: `m${i}`, tone: 'info' });
+    expect(root.querySelectorAll('.toast').length).toBe(3);
+    bus.emit({ type: 'toast', message: 'm3', tone: 'info' });
+    expect([...root.querySelectorAll('.toast')].map((t) => t.textContent)).toEqual(['m1', 'm2', 'm3']);
+  });
+
+  it('keeps at most three toasts and removes each after four seconds', () => {
     vi.useFakeTimers();
     const root = document.createElement('div');
     const bus = new EventBus();
     Toasts.attach(root, bus);
     for (let i = 0; i < 6; i++) bus.emit({ type: 'toast', message: `m${i}`, tone: 'info' });
-    expect(root.querySelectorAll('.toast').length).toBe(4);
-    expect(root.querySelector('.toast')?.textContent).toBe('m2');
+    expect(root.querySelectorAll('.toast').length).toBe(3);
+    expect(root.querySelector('.toast')?.textContent).toBe('m3');
     vi.advanceTimersByTime(4000);
     expect(root.querySelectorAll('.toast').length).toBe(0);
   });
@@ -159,7 +182,7 @@ describe('Toasts', () => {
     const bus = new EventBus();
     Toasts.attach(root, bus);
     for (let i = 0; i < 6; i++) bus.emit({ type: 'toast', message: `m${i}`, tone: 'info' });
-    expect(vi.getTimerCount()).toBe(4);
+    expect(vi.getTimerCount()).toBe(3);
   });
 
   it('returned unsubscribe stops toasts and clears all timers', () => {

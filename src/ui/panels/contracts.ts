@@ -7,82 +7,98 @@ import type { Contract, GameState } from '../../sim/types';
 import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
+import { button, card, dataTable, emptyState, meter, panelHeader, pill, section, type Tone } from '../kit';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
-
-const CSS = `
-.cb-board{min-width:0;padding:10px 12px 4px;border:6px solid #5a3b21;border-radius:4px;color:#1d1a16;
- background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.07) 0 2px,transparent 3px),
- radial-gradient(circle at 70% 60%,rgba(0,0,0,.12) 0 2px,transparent 3px),
- radial-gradient(circle at 40% 80%,rgba(0,0,0,.10) 0 1px,transparent 2px),
- linear-gradient(135deg,#b98a56,#a67846 50%,#b58450);background-size:23px 23px,31px 31px,17px 17px,100% 100%;
- box-shadow:inset 0 0 22px rgba(0,0,0,.45)}
-.cb-board h3{margin:0 0 2px;color:#f6e7c3;text-shadow:0 1px 2px #000}
-.cb-grid{display:flex;flex-wrap:wrap;gap:10px 12px}
-.cb-card{position:relative;flex:1 1 170px;max-width:240px;padding:14px 10px 8px;background-color:#f3e9d2;box-shadow:2px 4px 8px rgba(0,0,0,.45);
- background-image:linear-gradient(transparent 23px,rgba(120,90,50,.18) 24px);background-size:100% 24px}
-.cb-card:nth-child(odd){transform:rotate(-1.2deg)}.cb-card:nth-child(even){transform:rotate(1deg)}
-.cb-card::before{content:"";position:absolute;top:-5px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;
- background:radial-gradient(circle at 35% 30%,#ff8a7a,#a52a1c 70%);box-shadow:1px 2px 3px rgba(0,0,0,.5)}
-.cb-card.done{background-color:#dcebd0}.cb-card.failed{background-color:#ecd0cb}
-.cb-title{font-weight:bold;font-size:14px}.cb-line{font-size:12px;margin:2px 0}
-.cb-reward{font-weight:bold;color:#2d6a2d}
-.cb-bar{height:10px;border:1px solid #5a3b21;background:#e4d5b2;margin:6px 0 2px}
-.cb-bar>i{display:block;height:100%;background:linear-gradient(#5aa65a,#3c8d3c)}
-.cb-btn{margin-top:6px;padding:4px 14px;background:#c9a227;border:2px solid #8a6d17;color:#1d1a16;font-family:inherit;font-weight:bold;cursor:pointer}
-.cb-btn:hover{background:#e8c75a}
-.cb-empty{color:#f6e7c3;font-style:italic;text-shadow:0 1px 2px #000}
-`;
+import './contracts.css';
 
 function daysLeft(state: GameState, c: Contract): number {
   return dateToDays(c.deadline) - dateToDays(state.date);
 }
 
-function card(game: GameController, c: Contract, rerender: () => void): HTMLElement {
+/** "3 open contracts": notices on the board plus contracts being delivered. */
+export function contractsHeadline(state: GameState): string {
+  const n = state.contracts.filter((c) => c.status === 'offered' || c.status === 'active').length;
+  return `${n} open ${n === 1 ? 'contract' : 'contracts'}`;
+}
+
+const goodName = (c: Contract) => GOODS[c.goodId]?.name ?? c.goodId;
+const townName = (state: GameState, c: Contract) => state.cities[c.cityId]?.name ?? 'Unknown town';
+
+function line(label: string, value: string | HTMLElement, cls = ''): HTMLElement {
+  return h('div', { class: `cb-line ${cls}`.trim() }, h('span', { class: 'cb-label' }, label), h('span', { class: 'cb-value' }, value));
+}
+
+function contractCard(game: GameController, c: Contract, rerender: () => void): HTMLElement {
   const state = game.state;
-  const good = GOODS[c.goodId];
-  const city = state.cities[c.cityId];
-  const head = h('div', { class: 'cb-title' }, iconEl(c.goodId, 16), ` ${formatNumber(c.qty)} ${good?.name ?? c.goodId}`);
-  const where = h('div', { class: 'cb-line' }, `for ${city?.name ?? '?'}`);
-  const reward = h('div', { class: 'cb-line' }, 'Reward ', h('span', { class: 'cb-reward' }, formatMoney(c.reward)), ' + 5% growth');
-  const body: (HTMLElement | null)[] = [head, where, reward];
+  const body: HTMLElement[] = [line('For', townName(state, c)), line('Reward', h('span', { class: 'cb-reward' }, `${formatMoney(c.reward)} + 5% growth`))];
+  const actions: HTMLElement[] = [];
+  let tone: Tone = 'neutral';
   if (c.status === 'offered') {
-    body.push(h('div', { class: 'cb-line' }, `Due ${formatDate(c.deadline)}`));
-    body.push(
-      h('button', {
-        class: 'cb-btn',
-        onClick: () => {
-          const r = acceptContract(game.ctx, c.id);
-          if (!r.ok) game.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
-          rerender();
-        },
-      }, 'Accept'),
-    );
-  } else if (c.status === 'active') {
-    const pct = Math.min(100, (c.delivered / Math.max(1, c.qty)) * 100);
-    body.push(h('div', { class: 'cb-bar' }, h('i', { style: { width: `${pct}%` } })));
-    body.push(h('div', { class: 'cb-line' }, `${formatNumber(c.delivered)} / ${formatNumber(c.qty)} delivered`));
-    const d = daysLeft(state, c);
-    body.push(h('div', { class: 'cb-line' }, d >= 0 ? `${d} days left` : 'Overdue'));
+    body.push(line('Due', formatDate(c.deadline)));
+    const accept = button('Accept', {
+      variant: 'secondary',
+      title: `Deliver ${formatNumber(c.qty)} ${goodName(c)} to ${townName(state, c)} by ${formatDate(c.deadline)}`,
+      onClick: () => {
+        const r = acceptContract(game.ctx, c.id);
+        if (!r.ok) game.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+        rerender();
+      },
+    });
+    accept.classList.add('cb-btn');
+    accept.dataset.act = 'accept';
+    actions.push(accept);
+    tone = 'info';
   } else {
-    body.push(h('div', { class: 'cb-line' }, c.status === 'done' ? 'Delivered. The town thanks you.' : 'Failed. The mayor is displeased.'));
+    const d = daysLeft(state, c);
+    tone = d < 0 ? 'negative' : d <= 30 ? 'warning' : 'neutral';
+    const label = `${formatNumber(c.delivered)} of ${formatNumber(c.qty)} delivered`;
+    body.push(h('div', { class: 'cb-progress' }, meter(c.delivered, Math.max(1, c.qty), { label, tone: d < 0 ? 'negative' : 'positive' }), h('span', { class: 'cb-progress-text' }, label)));
+    body.push(line('Time', d >= 0 ? `${d} ${d === 1 ? 'day' : 'days'} left` : 'Overdue', d < 0 ? 'cb-overdue' : ''));
   }
-  return h('div', { class: `cb-card ${c.status}` }, ...body);
+  const el = card({ title: `${formatNumber(c.qty)} ${goodName(c)}`, children: body, actions, tone });
+  el.classList.add('cb-card', c.status);
+  el.dataset.contract = String(c.id);
+  el.querySelector('.kit-card-title')?.prepend(iconEl(c.goodId, 16, goodName(c)), ' ');
+  return el;
+}
+
+function resultsTable(state: GameState, list: Contract[]): HTMLElement {
+  const t = dataTable<Contract>({
+    columns: [
+      { key: 'good', label: 'Contract', render: (c) => h('span', { class: 'cb-good' }, iconEl(c.goodId, 16), ` ${formatNumber(c.qty)} ${goodName(c)}`), title: (c) => `${formatNumber(c.qty)} ${goodName(c)}` },
+      { key: 'town', label: 'Town', render: (c) => townName(state, c), title: (c) => townName(state, c) },
+      { key: 'result', label: 'Result', render: (c) => (c.status === 'done' ? pill('Delivered', 'positive') : pill('Failed', 'negative')) },
+      { key: 'reward', label: 'Reward', align: 'right', render: (c) => formatMoney(c.reward) },
+    ],
+    rows: list,
+    rowKey: (c) => String(c.id),
+    emptyText: '',
+  });
+  t.classList.add('cb-results');
+  return t;
+}
+
+function none(title: string, body: string): HTMLElement {
+  const el = emptyState({ title, body });
+  el.classList.add('cb-empty', 'p-empty-sm');
+  return el;
 }
 
 export function buildBoard(game: GameController, rerender: () => void): HTMLElement {
-  const cs = game.state.contracts;
-  const section = (title: string, list: Contract[], empty: string) =>
-    h('section', { class: 'p-section' },
-      h('h3', { class: 'p-head' }, title),
-      list.length ? h('div', { class: 'cb-grid' }, list.map((c) => card(game, c, rerender))) : h('div', { class: 'cb-empty' }, empty));
+  const state = game.state;
+  const cs = state.contracts;
+  const offered = cs.filter((c) => c.status === 'offered');
+  const active = cs.filter((c) => c.status === 'active');
+  const results = cs.filter((c) => c.status === 'done' || c.status === 'failed').slice(-6).reverse();
+  const cards = (list: Contract[]) => h('div', { class: 'cb-grid' }, list.map((c) => contractCard(game, c, rerender)));
   return h(
     'div',
-    { class: 'cb-board' },
-    h('style', null, CSS),
-    section('Wanted', cs.filter((c) => c.status === 'offered'), 'No notices pinned. Mayors post every other month.'),
-    section('In progress', cs.filter((c) => c.status === 'active'), 'Accept a notice to start delivering.'),
-    section('Recent results', cs.filter((c) => c.status === 'done' || c.status === 'failed').slice(-6).reverse(), 'Nothing yet.'),
+    { class: 'contracts-panel' },
+    h('div', { class: 'contracts-header' }, panelHeader({ title: 'Contracts', summary: contractsHeadline(state), tone: offered.length > 0 ? 'info' : 'neutral' })),
+    section('Wanted', [offered.length ? cards(offered) : none('No notices pinned', 'Mayors post every other month.')]),
+    section('In progress', [active.length ? cards(active) : none('Nothing in progress', 'Accept a notice to start delivering.')]),
+    section('Recent results', [results.length ? resultsTable(state, results) : none('No results yet', 'Delivered and failed contracts are listed here.')]),
   );
 }
 

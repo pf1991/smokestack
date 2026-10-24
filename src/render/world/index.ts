@@ -3,7 +3,7 @@
  *
  * Layer order: terrain → roads → houses → sun shadows → vehicles → smog protesters (render/protesters.ts)
  * → buildings (y-sorted, strike pickets interleaved by depth: render/protesters.ts) → particles →
- * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
+ * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → status badges (render/statusBadges.ts) → overlays →
  * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts) → overlay
  * legends (screen space, unfiltered overlay canvas when attached).
  * Vehicles go under buildings: they never drive on a footprint, so the only overlap is a raised roof
@@ -48,6 +48,7 @@ import { scrubberEmission } from '../../sim/society/upgrades';
 import { drawNightLights } from './night';
 import { paintRailTile } from './rails';
 import { hasLamp, paintBridgeTile, paintRoadTile, roadEra, roadMask } from './roads';
+import { drawStatusBadges } from '../statusBadges';
 import { drawGhost, drawGhostLabel, drawSelection } from './selection';
 import { CityLabelCache, type ScreenRect, UrbanWatch, applySurveyNight, drawCityLabels, drawSurveySymbols, hudRects } from './survey';
 import { type ChunkMeta, type Ctx, HOUSE_STRIDE, type Dir, SPRITE_MARGIN, type Surface, type TileRange, h01, makeSurface } from './shared';
@@ -165,6 +166,8 @@ export class WorldRenderer {
   private readonly protesters = new Protesters();
   /** keep the tilt-shift on even when frames are slow (DEV `tiltshift=1`, for screenshots) */
   forceTiltShift = false;
+  /** draw town names on the survey map (off for the title screen's backdrop, where one sat under the title) */
+  cityLabels = true;
   private readonly labels = new CityLabelCache();
   /** city urban discs, so month end only redraws survey chunks whose town tint changed */
   private urban: UrbanWatch;
@@ -432,7 +435,7 @@ export class WorldRenderer {
       o.restore();
       this.drawUi(o, state, cam, alpha, nowMs);
     }
-    if (survey) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud, this.labels);
+    if (survey && this.cityLabels) drawCityLabels(this.overlay?.ctx ?? ctx, state, cam, 1 - blend, this.hud, this.labels);
     // overlay legends last, after every post effect (no night grade, no tilt-shift) and unfiltered
     // when there is an overlay canvas; photo mode hides them with the rest of the UI
     if (!this.uiHidden) {
@@ -478,6 +481,7 @@ export class WorldRenderer {
     drawGhost(ctx, this.ghost, z);
     ctx.restore();
     drawGhostLabel(ctx, this.ghost, cam);
+    drawStatusBadges(ctx, state, cam, { photo: this.uiHidden, nowMs });
     this.floaters.draw(ctx, cam);
   }
 

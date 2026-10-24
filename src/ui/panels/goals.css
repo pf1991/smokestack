@@ -1,0 +1,8 @@
+/* Scenario goals: a kit card per goal with its progress meter. Tokens only (see cssGate.test.ts). */
+.goals-panel .gl-note { margin: 0; color: var(--text-muted); opacity: 1; font-size: var(--fs-sm); }
+.goals-panel .gl-list { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; }
+.goals-panel .gl-goal .kit-card-body { display: flex; flex-direction: column; gap: var(--sp-1); }
+.goals-panel .gl-line { display: flex; justify-content: space-between; gap: var(--sp-2); font-size: var(--fs-sm); }
+.gl-progress { min-width: 0; }
+.gl-by { color: var(--text-muted); white-space: nowrap; }
+.goals-panel .kit-stat { flex: 1 1 0; }

@@ -58,3 +58,8 @@ export function storageLeft(b: Building, goodId: GoodId): number {
   } else used = b.input[goodId] ?? 0;
   return Math.max(0, Math.floor(cap - used));
 }
+
+/** A store has something to sell: any good on its shelves. */
+export function storeStocked(b: Building): boolean {
+  return Object.values(loadSource(b)).some((q) => q > 0.5);
+}

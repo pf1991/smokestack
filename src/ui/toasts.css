@@ -1,0 +1,59 @@
+/* Toasts stack in the top-right corner, below the HUD bar (--hud-height is set by the game) and left of
+   the side panel (--side-panel-w is set by sidePanel.ts). A surface-2 card with a 3 px edge in the
+   tone (data-tone, kit.css sets --tone), the tone icon and the text. At most three (toasts.ts). */
+.toast-stack {
+  position: fixed;
+  pointer-events: auto;
+  top: calc(var(--hud-height, env(safe-area-inset-top, 0px)) + var(--sp-3));
+  right: calc(var(--sp-3) + var(--side-panel-w, 0px) / var(--ui-scale, 1));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  z-index: 1000;
+  max-width: min(360px, calc((100 * var(--uvw)) - 32px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  box-sizing: border-box;
+  max-width: 360px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--accent-quiet);
+  border-left: 3px solid var(--tone, var(--info));
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.toast > .icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.toast-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast-action {
+  margin-left: var(--sp-2);
+  padding: 0 var(--sp-2);
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  color: var(--accent-strong);
+  background: transparent;
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+}
+
+.toast-action:hover {
+  background: var(--surface-3);
+}

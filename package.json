@@ -12,9 +12,12 @@
     "ai-proxy": "node server/ai-proxy.mjs",
     "jev-smoke": "tsx scripts/jev-smoke.ts",
     "soak": "tsx scripts/soak.ts",
-    "fixture": "tsx scripts/make-fixture.ts"
+    "fixture": "tsx scripts/make-fixture.ts",
+    "check-dist": "node scripts/check-dist.mjs"
   },
   "devDependencies": {
+    "@fontsource/playfair-display": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.1",
     "jsdom": "25.0.1",
     "tsx": "4.19.2",
     "typescript": "5.6.3",

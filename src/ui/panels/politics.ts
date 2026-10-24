@@ -18,8 +18,9 @@ import type { CompanyEdicts, PoliticsLogEntry } from '../../sim/politics/types';
 import type { GameState, SimContext } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
+import { dataTable, emptyState, meter, panelHeader, section } from '../kit';
 import { createWindow } from '../window';
-import { bar, type Bar, setText } from './inspect';
+import { setMeter, setText, swap } from './inspect';
 import type { PanelDef } from './index';
 import './panels.css';
 import './politics.css';
@@ -65,6 +66,15 @@ export function costText(opt: EdictOption, delta: number): string {
   return `Upkeep ×${opt.cost} (${delta >= 0 ? '+' : '−'}${formatMoney(Math.abs(Math.round(delta)))}/mo)`;
 }
 
+/** "Next election: Ashford in 5 months" (the soonest town), or a quiet line when no town votes. */
+export function nextElectionText(state: GameState): string {
+  let next: GameState['cities'][number] | undefined;
+  for (const c of state.cities) if (!next || c.politics.nextElection < next.politics.nextElection) next = c;
+  if (!next) return 'No town elections scheduled';
+  const months = Math.max(0, next.politics.nextElection - monthIndex(state.date));
+  return `Next election: ${next.name} ${months === 0 ? 'this month' : `in ${months} ${months === 1 ? 'month' : 'months'}`}`;
+}
+
 function when(e: PoliticsLogEntry): string {
   return `${MONTHS[(e.date.month - 1 + 12) % 12]} ${e.date.year}`;
 }
@@ -105,18 +115,66 @@ function edictControl(ctx: SimContext, key: keyof CompanyEdicts, refresh: () => 
 
 interface OpinionRow {
   f: FactionId;
-  el: HTMLElement;
   label: HTMLElement;
-  bar: Bar;
+  meter: HTMLElement;
+  value: HTMLElement;
   trend: HTMLElement;
 }
 
 function opinionRow(f: FactionId): OpinionRow {
-  const label = h('span');
-  const b = bar(FACTIONS[f].color);
+  const label = h('span', { class: 'pol-faction' });
+  const m = meter(50, 100, { tone: 'info' });
+  // each faction's bar wears its own colour (kit meters fill with --tone)
+  m.style.setProperty('--tone', FACTIONS[f].color);
+  const value = h('span', { class: 'pol-opinion-val' });
   const trend = h('span', { class: 'pol-trend' });
-  const el = h('div', { class: 'p-row p-grid pol-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el, trend);
-  return { f, el, label, bar: b, trend };
+  return { f, label, meter: m, value, trend };
+}
+
+/** The opinion table: one row per faction, its cells the live elements `update()` refreshes. */
+function opinionTable(rows: OpinionRow[]): HTMLElement {
+  const table = dataTable<OpinionRow>({
+    columns: [
+      { key: 'faction', label: 'Faction', render: (r) => r.label },
+      { key: 'opinion', label: 'Opinion', render: (r) => h('span', { class: 'pol-opinion-bar' }, r.meter, r.value) },
+      { key: 'trend', label: 'Trend', align: 'right', render: (r) => r.trend },
+    ],
+    rows,
+    rowKey: (r) => r.f,
+    emptyText: 'No factions',
+  });
+  table.classList.add('pol-opinions');
+  table.querySelectorAll<HTMLElement>('tbody tr').forEach((tr, i) => {
+    const f = rows[i].f;
+    tr.classList.add('pol-opinion');
+    tr.dataset.faction = f;
+    tr.title = `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.`;
+  });
+  return table;
+}
+
+interface LawRow {
+  id: (typeof LAW_IDS)[number];
+  status: HTMLElement;
+  detail: HTMLElement;
+}
+
+function lawTable(rows: LawRow[]): HTMLElement {
+  const table = dataTable<LawRow>({
+    columns: [
+      { key: 'law', label: 'Law', render: (r) => h('span', { class: 'pol-law-name' }, h('strong', null, LAWS[r.id].title), r.detail) },
+      { key: 'status', label: 'Status', align: 'right', render: (r) => r.status },
+    ],
+    rows,
+    rowKey: (r) => r.id,
+    emptyText: 'No laws on the books',
+  });
+  table.classList.add('pol-law-table');
+  table.querySelectorAll<HTMLElement>('tbody tr').forEach((tr, i) => {
+    tr.classList.add('pol-law');
+    tr.dataset.law = rows[i].id;
+  });
+  return table;
 }
 
 /** Builds the window body; `update()` refreshes it in place from state. */
@@ -155,13 +213,16 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
         );
       }
     }
+    const head = nextElectionText(state);
+    swap(header, head, () => panelHeader({ title: 'Politics', summary: head }));
     for (const r of rows) {
       const v = nationalOpinion(state, r.f);
       setText(r.label, factionName(r.f, year));
-      r.bar.set(v / 100, String(Math.round(v)));
+      setMeter(r.meter, v, 100, 'info', `${factionName(r.f, year)}: ${Math.round(v)} of 100`);
+      setText(r.value, String(Math.round(v)));
       const t = opinionTrend(state, r.f);
       const dir = t === null || Math.abs(t.delta) < STEADY ? '' : t.delta > 0 ? 'up' : 'down';
-      setText(r.trend, t === null || dir === '' ? '–' : `${dir === 'up' ? '▲' : '▼'} ${signed(t.delta)}`);
+      setText(r.trend, t === null ? 'Too soon' : dir === '' ? 'Steady' : `${dir === 'up' ? '▲' : '▼'} ${signed(t.delta)}`);
       const cls = `pol-trend ${dir}`.trim();
       if (r.trend.className !== cls) r.trend.className = cls;
       const tip = t === null ? 'Not enough history yet' : `Change since ${t.since}`;
@@ -186,33 +247,43 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
     const sig = `${state.politics.log.length}|${entries.map((e) => `${e.date.year}.${e.date.month}.${e.faction}.${e.delta}`).join(',')}`;
     if (log.dataset.sig !== sig) {
       log.dataset.sig = sig;
+      log.hidden = entries.length === 0;
+      logEmpty.hidden = entries.length > 0;
       log.replaceChildren(
-        ...(entries.length
-          ? entries.map((e) => {
-              const place = e.scope === 'national' ? 'Nationwide' : state.cities.find((c) => c.id === e.scope)?.name ?? 'A town';
-              return h('li', null,
-                h('span', { class: 'when' }, when(e)),
-                h('span', { class: `delta ${e.delta > 0 ? 'pos' : 'neg'}` }, `${factionName(e.faction, e.date.year)} ${signed(e.delta)}`),
-                h('span', null, `${place}: ${e.reason}`));
-            })
-          : [h('li', { class: 'pol-none' }, 'Nothing yet. The factions are watching.')]),
+        ...entries.map((e) => {
+          const place = e.scope === 'national' ? 'Nationwide' : state.cities.find((c) => c.id === e.scope)?.name ?? 'A town';
+          return h('li', null,
+            h('span', { class: 'when' }, when(e)),
+            h('span', { class: `delta ${e.delta > 0 ? 'pos' : 'neg'}` }, `${factionName(e.faction, e.date.year)} ${signed(e.delta)}`),
+            h('span', { class: 'pol-log-text' }, `${place}: ${e.reason}`));
+        }),
       );
     }
   };
   for (const k of EDICT_KEYS) controls.push(edictControl(ctx, k, update));
   const rows = FACTION_IDS.map(opinionRow);
-  const lawRows = LAW_IDS.map((id) => ({ id, status: h('span', { class: 'pol-law-status' }), detail: h('span', { class: 'pol-law-detail' }) }));
+  const lawRows: LawRow[] = LAW_IDS.map((id) => ({ id, status: h('span', { class: 'pol-law-status' }), detail: h('span', { class: 'pol-law-detail' }) }));
+  const header = h('div', { class: 'pol-header' });
   const log = h('ul', { class: 'pol-log' });
+  const logEmpty = emptyState({ title: 'Nothing yet', body: 'The factions are watching. Contracts, gifts, smog and edicts all move them.' });
+  logEmpty.classList.add('pol-none');
   const blackLung = h('span', { class: 'pol-blacklung-count' });
+  const block = (title: string, cls: string, children: HTMLElement[]) => {
+    const el = section(title, children);
+    el.classList.add(...cls.split(' '));
+    return el;
+  };
+  const toll = block('Black Lung toll', 'pol-blacklung', [blackLung,
+    h('div', { class: 'pol-note' }, 'Deaths from smog in towns at smog tier 2 or worse, since records began')]);
+  toll.title = 'Deaths from smog in towns at smog tier 2 or worse, since records began';
   const el = h('div', { class: 'pol' },
-    h('div', { class: 'p-section pol-edicts' }, h('div', { class: 'p-head' }, 'Company edicts'), ...controls.map((c) => c.el),
-      h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)),
-    h('div', { class: 'p-section pol-national' }, h('div', { class: 'p-head' }, 'National opinion'), ...rows.map((r) => r.el)),
-    h('div', { class: 'p-section pol-blacklung', title: 'Deaths from smog in towns at smog tier 2 or worse, since records began' },
-      h('div', { class: 'p-head' }, 'Black Lung toll'), blackLung),
-    h('div', { class: 'p-section pol-laws' }, h('div', { class: 'p-head' }, 'Law of the land'),
-      ...lawRows.map((r) => h('div', { class: 'pol-law', 'data-law': r.id }, h('strong', null, LAWS[r.id].title), ' ', r.status, h('div', null, r.detail)))),
-    h('div', { class: 'p-section pol-news' }, h('div', { class: 'p-head' }, 'Recent political news'), log));
+    header,
+    block('Company edicts', 'pol-edicts', [...controls.map((c) => c.el),
+      h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)]),
+    block('National opinion', 'pol-national', [opinionTable(rows)]),
+    toll,
+    block('Law of the land', 'pol-laws', [lawTable(lawRows)]),
+    block('Recent political news', 'pol-news', [log, logEmpty]));
   update();
   return { el, update };
 }

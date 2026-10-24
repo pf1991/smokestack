@@ -57,3 +57,7 @@ PANELS.legacy = legacyPanel;
 import { managersPanel } from './managers';
 
 PANELS.managers = managersPanel;
+
+import { codexPanel } from './codex';
+
+PANELS.codex = codexPanel;

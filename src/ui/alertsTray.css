@@ -1,0 +1,168 @@
+/* Top-bar alerts bell and its tray (ui/alertsTray.ts). */
+
+.alerts-bell.active {
+  color: var(--accent-strong);
+  background: var(--surface-0);
+  border-color: var(--accent);
+}
+
+.alerts-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--sp-1);
+  box-sizing: border-box;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  color: var(--surface-0);
+  background: var(--info);
+  border: 1px solid var(--surface-0);
+  /* a full pill whatever the count's width */
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.alerts-badge[hidden] {
+  display: none;
+}
+
+.alerts-badge[data-tone='warning'] {
+  background: var(--warning);
+}
+
+.alerts-badge[data-tone='negative'] {
+  background: var(--negative);
+}
+
+/* Fixed under the bell; left, top, width and max-height are set by place() in zoomed px. */
+.alerts-tray {
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--surface-1);
+  border: 1px solid var(--accent-quiet);
+  border-top: 2px solid var(--accent);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  box-shadow: var(--shadow-2);
+}
+
+.alerts-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--accent-quiet);
+}
+
+.alerts-head-title {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.alerts-head-count {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.alerts-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.alerts-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid var(--info);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.alerts-row[data-tone='warning'] {
+  border-left-color: var(--warning);
+}
+
+.alerts-row[data-tone='negative'] {
+  border-left-color: var(--negative);
+}
+
+.alerts-row:hover,
+.alerts-row:focus-visible {
+  background: var(--surface-2);
+  outline: none;
+}
+
+.alerts-row:focus-visible {
+  box-shadow: var(--focus);
+}
+
+.alerts-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--surface-0);
+  border-radius: var(--r-sm);
+}
+
+.alerts-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.alerts-row-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  line-height: var(--lh-tight);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alerts-row-detail {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+.alerts-row-age {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding-top: var(--sp-1);
+}
+
+.alerts-tray .kit-empty {
+  padding: var(--sp-5) var(--sp-4);
+}

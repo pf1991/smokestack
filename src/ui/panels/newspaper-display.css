@@ -1,0 +1,12 @@
+/* The Daily Smokestack's display type: the only sizes in the game above the --fs-* scale.
+   A broadsheet masthead, its lead headline and the drop cap are drawn larger than any UI text,
+   and scale with the page width (container units). Kept apart from newspaper.css, which is held
+   to the tokens by cssGate.test.ts; nothing else belongs in this file. */
+.masthead { font-size: clamp(22px, 9cqi, 52px); }
+.paper h1.mast-deco { font-size: clamp(18px, 6.5cqi, 42px); }
+@container (max-width: 600px) {
+  .paper h1.mast-deco { font-size: clamp(18px, 7cqi, 30px); }
+  .paper h1.mast-slab { font-size: clamp(20px, 8cqi, 34px); }
+}
+.lead h2 { font-size: clamp(26px, (4 * var(--uvw)), 40px); }
+.lead p.drop::first-letter { font-size: 46px; }

@@ -1,7 +1,10 @@
 import type { Selection } from '../../render/world';
 import { isThirdOwner, ownerColor } from '../../render/ownerColors';
 import type { GameState, OwnerId, SimContext } from '../../sim/types';
-import { h } from '../dom';
+import { type Child, h } from '../dom';
+import { iconEl } from '../icon';
+import { card, type Tone } from '../kit';
+import type { IconId } from '../../render/icons';
 import { createWindow } from '../window';
 
 /** The slice of the GameController the inspectors need (lets tests use a small stub). */
@@ -79,6 +82,51 @@ export function setOwnerBadge(el: HTMLElement, state: GameState, ownerId: OwnerI
   }
 }
 
+/** What each box last showed, so a refresh rebuilds a kit block only when its content changed (see finance.ts). */
+const shownKey = new WeakMap<HTMLElement, string>();
+
+/**
+ * Replaces `box`'s children with `build()` when `key` differs from the last one shown, keeping the
+ * box's own vertical scroll and, when `inner` names one, the horizontal scroll of that inner scroller
+ * (a wide table's wrapper).
+ */
+export function swap(box: HTMLElement, key: string, build: () => HTMLElement, inner?: string): void {
+  if (shownKey.get(box) === key) return;
+  shownKey.set(box, key);
+  const top = box.scrollTop;
+  const left = inner ? (box.querySelector<HTMLElement>(inner)?.scrollLeft ?? 0) : 0;
+  box.replaceChildren(build());
+  if (top) box.scrollTop = top;
+  const next = inner && left ? box.querySelector<HTMLElement>(inner) : null;
+  if (next) next.scrollLeft = left;
+}
+
+/** Updates a kit `meter` in place (value clamped to 0..max), touching only what changed. */
+export function setMeter(el: HTMLElement, value: number, max: number, tone: Tone = 'neutral', label?: string): void {
+  const top = Number.isFinite(max) && max > 0 ? max : 0;
+  const v = Number.isFinite(value) ? Math.min(Math.max(value, 0), top) : 0;
+  const attrs: [string, string][] = [['aria-valuenow', String(v)], ['aria-valuemax', String(top)]];
+  if (label !== undefined) attrs.push(['aria-label', label], ['title', label]);
+  for (const [k, x] of attrs) if (el.getAttribute(k) !== x) el.setAttribute(k, x);
+  if (el.dataset.tone !== tone) el.dataset.tone = tone;
+  const fill = el.firstElementChild as HTMLElement | null;
+  const w = `${top > 0 ? Number(((v / top) * 100).toFixed(1)) : 0}%`;
+  if (fill && fill.style.width !== w) fill.style.width = w;
+}
+
+/**
+ * A kit card for an inspector section: the title doubles as the section overline (`.p-head`, which
+ * tests and the tutorial look for), `cls` names the card.
+ */
+export function inspCard(title: string, cls: string, children: Child[], icon?: IconId): HTMLElement {
+  const c = card({ title, children });
+  c.classList.add(...cls.split(' ').filter(Boolean));
+  const t = c.querySelector<HTMLElement>('.kit-card-title')!;
+  t.classList.add('p-head');
+  if (icon) t.prepend(iconEl(icon, 14), ' ');
+  return c;
+}
+
 export interface Bar {
   el: HTMLElement;
   set(fraction: number, label: string): void;
@@ -106,6 +154,8 @@ export class KeyedList<T extends { el: HTMLElement }> {
   constructor(
     private readonly container: HTMLElement,
     private readonly make: (key: string) => T,
+    /** called for each item a sync drops (dispose its tooltips and listeners) */
+    private readonly drop?: (item: T) => void,
   ) {}
 
   sync(keys: string[]): void {
@@ -114,6 +164,7 @@ export class KeyedList<T extends { el: HTMLElement }> {
     this.sig = sig;
     const next = new Map<string, T>();
     for (const k of keys) next.set(k, this.items.get(k) ?? this.make(k));
+    if (this.drop) for (const [k, item] of this.items) if (!next.has(k)) this.drop(item);
     this.items = next;
     this.container.replaceChildren(...keys.map((k) => next.get(k)!.el));
   }

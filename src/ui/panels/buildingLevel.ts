@@ -7,7 +7,7 @@ import { levelDef, nextLevel, upgradeCost, upgradeRefusal, startUpgrade } from '
 import type { Building, SimContext } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
-import { setText } from './inspect';
+import { inspCard, setText } from './inspect';
 import { assign, managerAt } from '../../sim/logistics/managers';
 import { payText, skillChips } from './managers';
 import { buyHubTruck, hubAttached, hubCap, hubTier, hubTruckRefusal, hubTrucks, balancingWith, setHubAutoSize, setHubMaxTrucks } from '../../sim/logistics/hubs';
@@ -24,7 +24,8 @@ export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLEle
   const range = h('div', { class: 'p-row insp-hub-range' });
   const trucks = h('div', { class: 'p-row insp-hub-trucks' });
   const buy = h('button', {
-    class: 'btn insp-hub-truck',
+    class: 'btn kit-btn kit-btn--secondary insp-hub-truck',
+    type: 'button',
     'data-act': 'hub-truck',
     onClick: () => {
       const r = buyHubTruck(host.ctx, 'player', id);
@@ -57,7 +58,7 @@ export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLEle
   const balancing = h('div', { class: 'p-row insp-muted insp-hub-balance' });
   const yesterday = h('div', { class: 'p-row insp-muted insp-hub-yesterday' });
   const warn = h('div', { class: 'insp-warn insp-hub-warn' }, iconEl('warning', 14), ' Hire a manager to run this hub');
-  const el = h('div', { class: 'p-section insp-hub' }, h('div', { class: 'p-head' }, iconEl('hub', 14), ' Hub'), range, trucks, buy, autoRow, yesterday, balancing, warn);
+  const el = inspCard('Hub', 'insp-hub', [range, trucks, buy, autoRow, yesterday, balancing, warn], 'hub');
 
   function refresh(): void {
     const { state } = host.ctx;
@@ -120,7 +121,7 @@ export function levelLines(ctx: SimContext, b: Building, lv: LevelDef): string[]
   ];
 }
 
-/** The "Level" inspector section: current and next level side by side, and the upgrade button. */
+/** The "Level" inspector card (current and next level side by side, and the upgrade button), then the Manager and Hub cards. */
 export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLElement; refresh(): void } {
   const id = b.id;
   const cur = h('div', { class: 'lv-col' });
@@ -129,7 +130,8 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
   const progress = h('div', { class: 'insp-muted lv-progress' });
   const why = h('div', { class: 'insp-muted lv-why' });
   const btn = h('button', {
-    class: 'btn insp-upgrade-level',
+    class: 'btn kit-btn kit-btn--primary insp-upgrade-level',
+    type: 'button',
     'data-act': 'upgrade-level',
     onClick: () => {
       const r = startUpgrade(host.ctx, id, 'player');
@@ -154,16 +156,19 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
     },
   }) as HTMLSelectElement;
   const mgrUnassign = h('button', {
-    class: 'btn insp-manager-unassign',
+    class: 'btn kit-btn kit-btn--quiet insp-manager-unassign',
+    type: 'button',
     onClick: () => {
       const m = managerAt(host.ctx.state, id);
       if (m) assign(host.ctx, 'player', m.id, null);
       refresh();
     },
   }, 'Unassign') as HTMLButtonElement;
-  const mgrBox = h('div', { class: 'p-section insp-manager' }, h('div', { class: 'p-head' }, 'Manager'), mgrInfo, h('div', { class: 'mgr-acts' }, mgrSelect, mgrUnassign));
+  const mgrBox = inspCard('Manager', 'insp-manager', [mgrInfo, h('div', { class: 'mgr-acts' }, mgrSelect, mgrUnassign)]);
   const hub = hubSection(host, id);
-  const el = h('div', { class: 'p-section insp-section insp-level' }, h('div', { class: 'p-head' }, 'Level'), cols, progress, btn, why, mgrBox, hub.el);
+  const levelEl = inspCard('Level', 'insp-level', [cols, progress, btn, why]);
+  // the level, its manager post and (for a warehouse) the hub: three cards that come and go together
+  const el = h('div', { class: 'insp-cards' }, levelEl, mgrBox, hub.el);
 
   const fill = (col: HTMLElement, title: string, lines: string[]): void => {
     const sig = [title, ...lines].join('|');

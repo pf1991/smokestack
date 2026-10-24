@@ -9,6 +9,7 @@ import { createRoute, deleteRoute, insertStop, ROUTE_COLORS, sellRefund, sellVeh
 import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
+import { button, emptyState, panelHeader, pill, type Tone } from '../kit';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
 import { buildingIcon, buildingName, KIND_INFO, type Kind, stopAccess, stopPickSet, stopProblem, stopSummary } from './routeActions';
@@ -66,6 +67,31 @@ export function routeWarnings(state: GameState, route: Route): string[] {
   return out;
 }
 
+export type LineStatusLabel = 'Flowing' | 'Starved' | 'Backed up' | 'No vehicles';
+
+/**
+ * What a line card's pill says is wrong, most urgent first: nothing running on it, a stop that
+ * unloads is waiting for input (Starved), a stop that loads is full and waiting to be emptied
+ * (Backed up), or nothing wrong (Flowing).
+ */
+export function lineStatus(state: GameState, route: Route): { label: LineStatusLabel; tone: Tone } {
+  if (routeTrucks(state, route.id).length === 0) return { label: 'No vehicles', tone: 'negative' };
+  const at = (pick: (s: RouteStop) => GoodId[]) =>
+    route.stops.filter((s) => pick(s).length > 0).map((s) => state.buildings[s.buildingId]).filter((b): b is Building => !!b);
+  if (at((s) => s.unload).some((b) => b.status === 'no_input')) return { label: 'Starved', tone: 'warning' };
+  if (at((s) => s.load).some((b) => b.status === 'output_full')) return { label: 'Backed up', tone: 'warning' };
+  return { label: 'Flowing', tone: 'positive' };
+}
+
+const STATUS_TITLES: Record<LineStatusLabel, string> = {
+  Flowing: 'Goods are moving: no stop is starved or backed up',
+  Starved: 'A stop that unloads here has run out of input: bring more, or load more at the source',
+  'Backed up': 'A stop that loads here is full: add vehicles so its output is carried away',
+  'No vehicles': 'Nothing runs on this line: buy a vehicle',
+};
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 /** Singleton panel instance (the window is a singleton too); reset when the window closes. */
 class RoutesPanel {
   private readonly root = h('div', { class: 'rt' });
@@ -99,6 +125,7 @@ class RoutesPanel {
       if (this.draft) return;
       if (this.root.contains(document.activeElement) && isTyping(document.activeElement)) return;
       if (this.signature() !== this.sig) this.render();
+      else this.refreshStatus();
     }, 1000);
     this.render();
   }
@@ -327,24 +354,71 @@ class RoutesPanel {
     return [this.selected, this.confirmDelete, this.adding ? `${this.adding.routeId}:${this.adding.after}` : '', ...parts].join('\n');
   }
 
+  private playerRoutes(): Route[] {
+    return Object.values(this.state.routes).filter((r) => r.ownerId === 'player');
+  }
+
+  /** "3 lines, 1 needs attention": a line needs attention when it is not flowing or has a warning. */
+  private summary(): { summary: string; tone: Tone } {
+    const routes = this.playerRoutes();
+    const bad = routes.filter((r) => lineStatus(this.state, r).label !== 'Flowing' || routeWarnings(this.state, r).length > 0).length;
+    return {
+      summary: `${plural(routes.length, 'line', 'lines')}, ${bad} ${bad === 1 ? 'needs' : 'need'} attention`,
+      tone: bad > 0 ? 'warning' : 'neutral',
+    };
+  }
+
+  /** The 1 s refresh when nothing structural changed: the pills and the header summary, in place. */
+  private refreshStatus(): void {
+    const head = this.root.querySelector<HTMLElement>('.rt-header .kit-ph-summary');
+    if (head) {
+      const s = this.summary();
+      head.textContent = s.summary;
+      head.title = s.summary;
+      head.dataset.tone = s.tone;
+    }
+    for (const r of this.playerRoutes()) {
+      const old = this.root.querySelector<HTMLElement>(`[data-route="${r.id}"] .rt-status`);
+      if (!old) continue;
+      const next = this.statusPill(r);
+      if (next.textContent !== old.textContent) old.replaceWith(next);
+    }
+  }
+
+  private statusPill(route: Route): HTMLElement {
+    const st = lineStatus(this.state, route);
+    const el = pill(st.label, st.tone);
+    el.classList.add('rt-status');
+    el.title = STATUS_TITLES[st.label];
+    return el;
+  }
+
   private listView(): HTMLElement {
-    const routes = Object.values(this.state.routes).filter((r) => r.ownerId === 'player');
+    const routes = this.playerRoutes();
     if (this.selected !== null && !routes.some((r) => r.id === this.selected)) this.selected = null;
+    const newRoute = button('+ New route', { variant: 'primary', onClick: () => this.startDraft('truck') });
+    newRoute.dataset.act = 'new';
+    const newRail = button('+ New rail line', {
+      variant: 'secondary',
+      title: 'A train line between your train stations (lay rail first)',
+      onClick: () => this.startDraft('train'),
+    });
+    newRail.dataset.act = 'new-train';
+    const emptyAction = button('New route', { variant: 'primary', onClick: () => this.startDraft('truck') });
+    emptyAction.dataset.act = 'empty-new';
     return h(
       'div',
       null,
-      h('div', { class: 'p-section rt-top' },
-        h('button', { class: 'btn', 'data-act': 'new', onClick: () => this.startDraft('truck') }, '+ New route'),
-        ' ',
-        h('button', {
-          class: 'btn',
-          'data-act': 'new-train',
-          title: 'A train line between your train stations (lay rail first)',
-          onClick: () => this.startDraft('train'),
-        }, '+ New rail line')),
-      routes.length === 0 && h('p', { class: 'rt-empty' },
-        'No routes yet. Press New route, then click your buildings on the map in the order trucks should visit them. Rail lines link train stations joined by track.'),
-      h('div', { class: 'p-section' }, routes.map((r) => this.routeCard(r))),
+      h('div', { class: 'rt-header' }, panelHeader({ title: 'Routes', ...this.summary() })),
+      h('div', { class: 'p-section rt-top' }, newRoute, newRail),
+      routes.length === 0
+        ? emptyState({
+          icon: 'truck',
+          title: 'No routes yet',
+          body: 'Routes carry goods between your works and stores. Pick a start and an end on the map.',
+          action: emptyAction,
+        })
+        : h('div', { class: 'p-section rt-list' }, routes.map((r) => this.routeCard(r))),
     );
   }
 
@@ -368,6 +442,8 @@ class RoutesPanel {
         this.render();
       },
     });
+    const info = KIND_INFO[route.kind] ?? KIND_INFO.truck;
+    const goods = [...new Set(route.stops.flatMap((s) => s.load))];
     const head = h('div', { class: 'rt-head', onClick: () => this.select(route.id) },
       h('button', {
         class: 'rt-swatch',
@@ -386,10 +462,15 @@ class RoutesPanel {
       }),
       h('div', { class: 'rt-title' },
         nameInput,
-        h('div', { class: 'rt-stops-line', title: names }, names || 'no stops')),
-      h('div', { class: 'rt-stat' },
-        h('b', null, `${trucks.length} `, iconEl((KIND_INFO[route.kind] ?? KIND_INFO.truck).icon, 16, (KIND_INFO[route.kind] ?? KIND_INFO.truck).many)),
-        h('span', null, `~${formatNumber(thr)}/mo`)));
+        h('div', { class: 'rt-flow' },
+          goods.length > 0 && h('span', { class: 'rt-goods' },
+            goods.map((g) => h('span', { 'data-good': g, title: GOODS[g]?.name ?? g }, iconEl(g, 16, GOODS[g]?.name ?? g)))),
+          h('span', { class: 'rt-stops-line', title: names }, names || 'no stops')),
+        h('div', { class: 'rt-meta' },
+          this.statusPill(route),
+          h('span', { class: 'rt-meta-item', title: `${plural(trucks.length, info.one, info.many)} on this ${route.kind === 'train' ? 'line' : 'route'}` },
+            iconEl(info.icon, 16), h('span', { class: 'rt-vehicles' }, plural(trucks.length, info.one, info.many))),
+          h('span', { class: 'rt-meta-item rt-rate', title: 'Goods carried per month at the current pace' }, `~${formatNumber(thr)}/mo`))));
     const children: (HTMLElement | false)[] = [head];
     if (warnings.length > 0) {
       children.push(h('ul', { class: 'rt-warn' }, warnings.map((w) => h('li', null, iconEl('warning', 14), ` ${w}`))));
@@ -413,20 +494,20 @@ class RoutesPanel {
           h('span', null, this.adding.after < route.stops.length - 1
             ? `Click a green building to insert after stop ${this.adding.after + 1}.`
             : 'Click green buildings on the map to add stops.'),
-          h('button', { class: 'btn', 'data-act': 'add-done', onClick: () => this.leavePick(true) }, 'Done adding'))
+          h('button', { class: 'btn kit-btn kit-btn--secondary', 'data-act': 'add-done', onClick: () => this.leavePick(true) }, 'Done adding'))
         : h('button', {
-          class: 'btn rt-add',
+          class: 'btn kit-btn kit-btn--secondary rt-add',
           'data-act': 'add-stop',
           onClick: () => this.startAdding(route, route.stops.length - 1),
         }, '+ Add stop'),
       h('div', { class: 'rt-actions' },
         h('span', { class: 'rt-trucks' },
-          h('button', { class: 'btn rt-sq', 'data-act': 'truck-minus', title: `Sell an idle ${info.one} first (50% refund)`, disabled: trucks === 0, onClick: () => this.truckMinus(route) }, '−'),
+          h('button', { class: 'btn kit-btn kit-btn--secondary rt-sq', 'data-act': 'truck-minus', title: `Sell an idle ${info.one} first (50% refund)`, disabled: trucks === 0, onClick: () => this.truckMinus(route) }, '−'),
           ` ${trucks} ${trucks === 1 ? info.one : info.many} `,
-          h('button', { class: 'btn rt-sq', 'data-act': 'truck-plus', title: `Buy a ${info.one} (${formatMoney(price)})`, onClick: () => this.truckPlus(route) }, '+'),
+          h('button', { class: 'btn kit-btn kit-btn--secondary rt-sq', 'data-act': 'truck-plus', title: `Buy a ${info.one} (${formatMoney(price)})`, onClick: () => this.truckPlus(route) }, '+'),
           h('small', null, ` ${formatMoney(price)} each`)),
         h('button', {
-          class: `btn rt-del${confirming ? ' confirm' : ''}`,
+          class: `btn kit-btn kit-btn--danger rt-del${confirming ? ' confirm' : ''}`,
           'data-act': 'delete',
           onClick: () => this.deleteClick(route),
         }, confirming ? `Really delete? (+${formatMoney(refund)})` : 'Delete route')),
@@ -472,8 +553,8 @@ class RoutesPanel {
         }),
         ` Buy first ${KIND_INFO[d.kind].one} (${formatMoney(vehiclePrice(this.state, d.kind))})`),
       h('div', { class: 'rt-actions p-actions' },
-        h('button', { class: 'btn', 'data-act': 'done', onClick: () => this.saveDraft() }, 'Done'),
-        h('button', { class: 'btn rt-cancel', 'data-act': 'cancel', onClick: () => this.endDraft(true) }, 'Cancel')),
+        h('button', { class: 'btn kit-btn kit-btn--primary', 'data-act': 'done', onClick: () => this.saveDraft() }, 'Done'),
+        h('button', { class: 'btn kit-btn kit-btn--quiet rt-cancel', 'data-act': 'cancel', onClick: () => this.endDraft(true) }, 'Cancel')),
     );
   }
 

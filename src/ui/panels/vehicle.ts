@@ -11,13 +11,19 @@ import type { Vehicle } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
-import { openInspector, setOwnerBadge, setText, type InspectorHost, type InspectorView } from './inspect';
+import { openInspector, setMeter, setOwnerBadge, setText, swap, type InspectorHost, type InspectorView } from './inspect';
+import { meter, panelHeader, pill, section, type Tone } from '../kit';
 import type { PanelDef } from './index';
 
 const STATE_LABEL = { moving: 'Driving', loading: 'Loading / unloading', stuck: 'Stuck — no path', idle: 'Idle' } as const;
+const STATE_TONE: Record<Vehicle['state'], Tone> = { moving: 'positive', loading: 'info', stuck: 'negative', idle: 'warning' };
+
+const btnClass = (variant: 'primary' | 'secondary' | 'quiet' | 'danger', extra: string) => `btn kit-btn kit-btn--${variant} ${extra}`;
 
 function buildView(host: InspectorHost, id: number): InspectorView {
+  const headerBox = h('div', { class: 'insp-header' });
   const owner = h('span', { class: 'insp-badge' });
+  const routePillBox = h('span', { class: 'insp-route-pill-box' });
   const game = host as unknown as GameController;
   const routeSel = h('select', {
     class: 'insp-route-sel',
@@ -29,10 +35,10 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       view.update();
     },
   }) as HTMLSelectElement;
-  const routeText = h('span');
   let optSig = '\0';
   const follow = h('button', {
-    class: 'btn insp-follow',
+    class: btnClass('secondary', 'insp-follow'),
+    type: 'button',
     'data-act': 'follow',
     'aria-pressed': 'false',
     title: 'Keep the camera on this vehicle (panning stops it)',
@@ -41,14 +47,17 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       view.update();
     },
   }, 'Follow');
-  const state = h('span');
   const next = h('span');
   const job = h('span');
-  const cargo = h('span');
+  const cargoText = h('span', { class: 'insp-cargo-text' });
+  const cargoMeter = meter(0, 1, { label: 'Cargo' });
+  const cargo = h('div', { class: 'insp-cargo' }, h('div', { class: 'insp-cargo-line' }, h('span', { class: 'insp-label' }, 'Cargo'), cargoText), cargoMeter);
   const stat = (label: string, v: HTMLElement) => h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, label), v);
   const jobRow = stat('Job', job);
+  const routeRow = stat('Assign', routeSel);
   const sell = h('button', {
-    class: 'btn insp-sell',
+    class: btnClass('danger', 'insp-sell'),
+    type: 'button',
     onClick: () => {
       const veh = host.ctx.state.vehicles[id];
       if (!veh) return;
@@ -62,12 +71,12 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     },
   });
   const age = h('span');
-  const model = h('span');
   const kitRows = (['body', 'engine'] as const).map((kit) => {
     const label = kit === 'body' ? 'Bigger body' : 'Tuned engine';
-    const effect = h('span');
+    const effect = h('span', { class: 'insp-kit-effect' });
     const fit = h('button', {
-      class: 'btn insp-fit',
+      class: btnClass('secondary', 'insp-fit'),
+      type: 'button',
       'data-kit': kit,
       onClick: () => {
         const r = fitKit(host.ctx, id, kit, 'player');
@@ -75,11 +84,12 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         view.update();
       },
     }) as HTMLButtonElement;
-    return { kit, label, row: h('div', { class: 'p-row insp-stat insp-kit' }, h('span', { class: 'insp-label' }, label), effect, fit), effect, fit };
+    return { kit, label, row: h('div', { class: 'p-row insp-stat insp-kit' }, h('span', { class: 'insp-label' }, label), h('span', { class: 'insp-kit-right' }, effect, fit)), effect, fit };
   });
   // sell and rebuy at today's price for the same route (sim/vehicles.ts replaceVehicle); the new vehicle has a new id
   const replace = h('button', {
-    class: 'btn insp-replace',
+    class: btnClass('secondary', 'insp-replace'),
+    type: 'button',
     onClick: () => {
       const veh = host.ctx.state.vehicles[id];
       if (!veh) return;
@@ -91,9 +101,14 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       );
     },
   });
+  const kitSection = section('Kit', kitRows.map((k) => k.row));
   const view: InspectorView = {
-    el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner),
-      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), jobRow, stat('Next stop', next), stat('Cargo', cargo), stat('Model', model), ...kitRows.map((k) => k.row), stat('Age', age)),
+    el: h('div', { class: 'insp insp-vehicle' },
+      headerBox,
+      h('div', { class: 'insp-head' }, owner, routePillBox),
+      cargo,
+      h('div', { class: 'p-section' }, routeRow, jobRow, stat('Next stop', next), stat('Age', age)),
+      kitSection,
       h('div', { class: 'p-actions' }, follow, replace, sell)),
     update() {
       const s = host.ctx.state;
@@ -104,8 +119,21 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const hubbed = v.hubId != null;
       const targetId = hubbed ? hubTarget(v) : stop?.buildingId;
       const target = targetId != null ? s.buildings[targetId] : undefined;
+      const modelName = modelRow(v.model).name;
+      swap(headerBox, `${modelName}|${v.state}`, () => panelHeader({ title: modelName, summary: STATE_LABEL[v.state], tone: STATE_TONE[v.state], icon: v.kind }));
       setOwnerBadge(owner, s, v.ownerId);
       const opts = routeOptions(s, v);
+      const routeName = hubbed ? (opts.find((o) => o.value === HUB_VALUE)?.label ?? 'Hub') : route ? route.name : 'No route';
+      const color = !hubbed && route ? route.color : '';
+      swap(routePillBox, `${routeName}|${color}`, () => {
+        const p = pill('', hubbed || route ? 'info' : 'warning', hubbed ? 'hub' : undefined);
+        p.classList.add('insp-route-pill');
+        // the name truncates with an ellipsis inside the pill (a long route name never widens the panel)
+        p.append(h('span', { class: 'insp-route-pill-text' }, routeName));
+        p.title = hubbed || route ? `Route: ${routeName}` : 'Not on a route: assign one below';
+        if (color) p.prepend(h('span', { class: 'swatch', style: { background: color } }));
+        return p;
+      });
       const sig = opts.map((o) => `${o.value}:${o.label}`).join('|');
       const focused = document.activeElement === routeSel;
       if (sig !== optSig && !focused) {
@@ -115,27 +143,23 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const want = hubbed ? HUB_VALUE : v.routeId === null ? '' : String(v.routeId);
       if (!focused && routeSel.value !== want) routeSel.value = want;
       const mine = v.ownerId === 'player';
-      routeSel.hidden = !mine;
-      routeText.hidden = mine;
-      setText(routeText, hubbed ? (opts.find((o) => o.value === HUB_VALUE)?.label ?? 'Hub') : route ? route.name : 'No route');
+      routeRow.hidden = !mine;
       jobRow.hidden = !hubbed;
       if (hubbed) setText(job, jobText(v));
       const following = game.followId === id;
       follow.classList.toggle('active', following);
       follow.setAttribute('aria-pressed', String(following));
-      setText(state, STATE_LABEL[v.state]);
       setText(next, target ? `${BUILDINGS[target.typeId].name} #${target.id}` : '—');
       const items = Object.entries(v.cargo).filter(([, q]) => q > 0.5);
       const total = items.reduce((n, [, q]) => n + q, 0);
-      setText(
-        cargo,
-        items.length > 0
-          ? `${items.map(([g, q]) => `${formatNumber(q)} ${getGood(g).name}`).join(', ')} (${formatNumber(total)} / ${v.capacity})`
-          : `Empty (0 / ${v.capacity})`,
-      );
+      const cargoLine = items.length > 0
+        ? `${items.map(([g, q]) => `${formatNumber(q)} ${getGood(g).name}`).join(', ')} (${formatNumber(total)} / ${v.capacity})`
+        : `Empty (0 / ${v.capacity})`;
+      setText(cargoText, cargoLine);
+      setMeter(cargoMeter, Math.round(total), v.capacity, 'neutral', `Cargo: ${cargoLine}`);
       sell.hidden = v.ownerId !== 'player';
       setText(sell, `Sell (+${formatMoney(sellRefund(s, v))})`);
-      setText(model, modelRow(v.model).name);
+      kitSection.hidden = v.kind !== 'truck';
       for (const k of kitRows) {
         k.row.hidden = v.kind !== 'truck';
         const fitted = v.kits?.[k.kit as KitId] === true;

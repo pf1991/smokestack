@@ -44,6 +44,8 @@ export class MenuBackdrop {
       ? { x: (pts.reduce((a, p) => a + p.x, 0) / n + 0.5) * TILE, y: (pts.reduce((a, p) => a + p.y, 0) / n + 0.5) * TILE }
       : { x: 64 * TILE, y: 48 * TILE };
     this.renderer = new WorldRenderer(canvas, state);
+    // at zoom 1.2 this is the survey map, whose town labels would sit right under the SMOKESTACK title
+    this.renderer.cityLabels = false;
     this.renderer.attachEffects(this.ctx.bus);
     window.addEventListener('resize', this.onResize);
     this.resize();

@@ -224,9 +224,118 @@ export interface AiMailbox { pending: AiRequest[]; answers: Record<string, AiAns
 - [ ] **Step 2:** Run `docker compose build`. Then, when `.env` has a key, run `docker compose up -d`, check that `curl localhost:8080/api/health` returns `{"enabled":true}`, and run `node --env-file=.env scripts/jev-smoke.mjs`. Report the latency and the token usage. Without a key, report that and skip.
 - [ ] **Step 3: Commit** with `test: jev decision layer gate`.
 
-### Follow-up (after Phase 4 merges): the Baron's brain
-This is a separate task on top of merged `main`:
-- `retaliateMonth` posts `baron:<year>-<month>` a month ahead, listing the eligible retaliation kinds with target towns;
+## Follow-ups (Phase 4 and 4b have merged; these build on `main`)
+
+Added 2026-10-24 after a review of the shipped layer against the TypeSafe guidance and the JEV
+weak-spot list (https://docs.typesafe.ai/go/jaggedness.md). The shipped layer works, but its one
+question asks JEV to make the decision ("the most interesting, fitting story"), not to supply
+the judgments the decision rests on. That question also runs into three known weak spots:
+- **Choice order:** up to 32 options go in table order, and JEV leans toward the first.
+- **Raw numbers:** opinion and worker counts reach the state as raw numbers, which JEV reads poorly.
+- **Untrusted text:** the player's free-text company name reaches the state through the headlines.
+
+All the global constraints above still hold:
+- the sim stays deterministic;
+- answers arrive only through the mailbox;
+- the draw count doesn't depend on whether an answer arrived;
+- the game plays offline;
+- headless runs never call the network.
+
+Follow-ups 1 and 3 are independent. Follow-up 2 builds on Follow-up 1. Follow-up 4 is a candidate, not scheduled.
+
+### Follow-up 1: Ask about fit, not taste (spring cards as Nouls)
+
+**Files:**
+- Modify:
+  - `server/ai-proxy.mjs`;
+  - `src/sim/types.ts` (`AiRequest`);
+  - `src/sim/ai/mailbox.ts`;
+  - `src/sim/ai/context.ts`;
+  - `src/sim/politics/cards.ts`;
+  - `src/ai/client.ts`;
+  - `scripts/jev-smoke.ts`.
+- Test:
+  - `server/ai-proxy.test.ts`;
+  - `src/sim/ai/mailbox.test.ts`;
+  - `src/sim/ai/context.test.ts`;
+  - `src/sim/politics/cards.test.ts`;
+  - `src/ai/client.test.ts`.
+
+**Interfaces:**
+- **Proxy:**
+  - accepts `type: 'noul'` questions (`instructions`, plus optional `criteria: { true: string; false: string }`) alongside `choice`;
+  - raises `MAX_QUESTIONS` from 4 to 32;
+  - keeps the 16 KB question-bytes cap and every other guard.
+
+  Questions share the one state, so 32 Nouls cost little more than one Choice.
+- **`AiRequest`:**
+  - gains an optional `form?: 'choice' | 'fit'`;
+  - a missing value means `'choice'`, so saves holding a pending request still load and answer.
+- **A `'fit'` request:**
+  - sends one Noul per option, using the option key as the question id;
+  - the question asks: "Does this event follow on from something happening in `headlines`, `strikes` or `towns`?" followed by the card's filled title and body;
+  - the criteria: `true` is "the event continues or answers a story the state already shows"; `false` is "the event could happen in any year, unrelated to the state";
+  - the answer stores `probabilities[key] = p(yes)`, unnormalised.
+- **`takeDecision`:**
+  - gains a `fitBoost?: number` argument;
+  - for a fit answer, each final weight is `weight_i × (1 + fitBoost × p_i)`, renormalised and then capped by `maxShare`;
+  - the draw stays one `random(state)`, with the same fallback when there's no answer;
+  - the spring dealer starts with `fitBoost = 2` and keeps `SPRING_MAX_SHARE = 0.6`.
+- **`cardContext`:**
+  - turns numbers into words in code: opinion as `'weak' | 'middling' | 'strong'`, and the workforce as `'short' | 'enough' | 'surplus'`;
+  - replaces the player's company name in headlines with "the player's company", so a name like "Strike Now Ltd" can't steer the answer.
+- **Client:**
+  - shuffles the option order of each Choice request (answers come back keyed, so determinism is untouched);
+  - logs the exact request body with `console.debug` when `localStorage['jev.debug']` is set, never the key.
+
+- [ ] **Step 1: Write the failing tests:**
+  - The proxy accepts a 32-Noul body and still refuses 33 questions, an unknown type and oversized questions.
+  - A fit answer that is one-hot on card X lifts X's pick rate but never past 0.6 over 2,000 seeded draws.
+  - The no-answer pick and the rng state equal the pre-change ones for seeds 1–20 (snapshot first).
+  - Garbage Noul values (NaN, negative, above 1, unknown key) are sanitised or ignored, never thrown.
+  - An old save with a pending request that has no `form` answers as a Choice.
+  - The context has no raw opinion numbers and no company name on a 1925 fixture whose company is named after a card title.
+  - The client shuffles options, and the debug log fires only with the flag set.
+- [ ] **Step 2:** Run the tests. Expected: FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** Run `npm test`, then the soak (`npm run soak -- --seeds 7,42,1234 --years 101`). Card counts must equal main's.
+- [ ] **Step 5: Live probe.** Get the owner's go-ahead and budget first. The probe sends town names, headlines and card text. Extend `scripts/jev-smoke.ts` to run the fit request on the 1925 and 1990 fixtures plus one fixture with an active strike. Check by reading the answers, not by an exact probability: a strike card should score high only while a strike is on, and a timeless card should score low. Keep each payload for reruns.
+- [ ] **Step 6: Commit** with `feat(ai): spring cards ask JEV about fit, not taste`.
+
+### Follow-up 2: The Baron's brain and voice
+
+This task carries the original follow-up:
+- `retaliateMonth` posts `baron:<year>-<month>` a month ahead, listing the eligible retaliation kinds with their target towns;
 - `retaliate` picks through `takeDecision` with the trait weights.
 
-It gets its own plan when it is scheduled.
+That is the owner's decision ("JEV makes decisions"). The trait weights stay the base, and `maxShare` caps the blend at 0.6, as with the cards.
+
+Two additions make it safer:
+- **Judgments, not the move:** where possible, give `retaliateMonth`'s request Nouls about the world:
+  - "Does `headlines` show the player humiliating Smogsworth?"
+  - "Is the town in this option one where the player is newly strong?"
+
+  Code then turns them into multipliers on the trait weights, which keeps the move logic visible and testable in `retaliation.ts`. A single Choice of the move stays the fallback form if the Nouls don't separate in the live probe.
+- **His words: select, don't generate.** Ask speculatively in the same request: one Choice per eligible kind, asking which of `BARON_LINES.retaliation[kind]` Smogsworth would say about the grudge `cause()` describes, with `cause()`'s text in the question. `retaliate` reads only the answer for the kind it took.
+
+  Taunts work the same way: `taunt:<year>-<month>` is posted a month ahead with the voice lines and `TAUNTS` as options, and `rivalTaunt` picks through `takeDecision` with equal weights. With no answer, that makes the same single draw `pick` makes today; pin this with an rng-state snapshot.
+
+  The `{city}` filter (`l.includes('{city}')`) stays in code, since it is exact.
+
+- [ ] Steps as in Follow-up 1: failing tests (no-answer path identical to today, draw counts, the cap, garbage answers), implement, soak, live probe with the owner's go-ahead, then commit with `feat(ai): the Baron consults JEV`.
+
+### Follow-up 3: Company-name hygiene (code only, no JEV)
+
+- **The bug:** `crestInitials` (`src/render/portrait.ts`) splits on `[^A-Za-z0-9]`, so "Société Générale" gives "ST".
+- **The fix:** split on `[^\p{L}\p{N}]+` with the `u` flag, and take the first letter of each word.
+- **Test:** add cases for accented, all-stopword and single-word names.
+
+JEV isn't worth a call here.
+
+- [ ] Write the failing test, fix, run `npm test`, then commit with `fix(render): crest initials for non-ASCII company names`.
+
+### Follow-up 4 (candidate, not scheduled): the editor's lead story
+
+`leadStory` (`src/ui/panels/newspaper.ts`) picks the lead by a fixed ranking of story kinds. A Score per headline, "How big a story would a reader in {year} find this?", asked at month end, could be combined with `KIND_RANK` in code.
+
+This only becomes worth scheduling once Phase 5's world events and patent news make months crowded. It spends requests against the client's 30 a minute, so the panel must keep the code ranking as its fallback.

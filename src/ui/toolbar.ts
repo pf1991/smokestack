@@ -6,15 +6,16 @@ import { ROAD_COST } from '../sim/state';
 import { RAIL_COST } from '../sim/rail';
 import { TREE_COST } from '../sim/society/upgrades';
 import { priceIndex } from '../sim/society/economy';
-import type { GameState, Inventory } from '../sim/types';
-import type { IconId } from '../render/icons';
-import { type Child, h } from './dom';
+import type { GameState } from '../sim/types';
+import { ICON_IDS, type IconId } from '../render/icons';
+import { h } from './dom';
 import { iconEl } from './icon';
 import { shortcutFor, withShortcut } from './shortcuts';
 import { formatMoney } from './format';
+import { goodIcon, goodTip } from './goodTooltip';
 import type { ToolSpec } from './tools';
 import { currentUiScale } from './scale';
-import './hud.css';
+import './toolbar.css';
 
 type TabId = 'extract' | 'refine' | 'manufacture' | 'retail' | 'transport';
 
@@ -33,19 +34,33 @@ function tabOf(def: BuildingDef): TabId | null {
   return outs.length > 0 && outs.every((g) => GOODS[g]?.tier === 1) ? 'refine' : 'manufacture';
 }
 
-function goodsRow(inv: Inventory[]): HTMLElement[] {
-  const ids = new Set<string>();
-  for (const i of inv) for (const g of Object.keys(i)) ids.add(g);
-  return [...ids].map((g) => iconEl(g, 16, GOODS[g]?.name ?? g));
+/** One good in a recipe strip: its icon (or colour chip) with the good tooltip. `data-good` is the codex hook. */
+function goodEl(id: string): HTMLElement {
+  const el = h('span', { class: 'tc-good', 'data-good': id }, goodIcon(id, 16, GOODS[id]?.name ?? id));
+  // cards are built once, so the tooltip is never disposed
+  goodTip(el, id);
+  return el;
 }
 
-function flow(def: BuildingDef): Child[] {
-  const recipes = def.recipes.map((r) => RECIPES[r]).filter(Boolean);
-  if (def.id === 'company_housing') return [`Houses ${HOUSING_POOL} hands; must stand within ${HOUSING_RADIUS} tiles of a factory`];
-  if (recipes.length === 0) return [def.category === 'retail' ? 'Sells goods to the city' : 'Stores goods'];
-  const ins = goodsRow(recipes.map((r) => r.inputs));
-  const outs = goodsRow(recipes.map((r) => r.outputs));
-  return [ins.length > 0 ? ins : iconEl('pick', 16, 'Extracts'), ' → ', outs];
+/** Building icon: its own atlas glyph if painted, else a fitting one, else its category's. */
+const BUILDING_ICON: Record<string, IconId> = { lumber_camp: 'tree', train_station: 'train', warehouse: 'crate', store: 'shop', company_housing: 'city' };
+const CATEGORY_ICON: Record<BuildingDef['category'], IconId> = { extractor: 'pick', factory: 'factory', retail: 'shop', logistics: 'crate' };
+const buildingIcon = (def: BuildingDef): IconId =>
+  ICON_IDS.includes(def.id) ? def.id : (BUILDING_ICON[def.id] ?? CATEGORY_ICON[def.category] ?? 'factory');
+
+/** The recipe strip: input goods, →, output goods of the building's first recipe (text for non-producers). */
+function recipeStrip(def: BuildingDef): HTMLElement {
+  if (def.id === 'company_housing') return h('div', { class: 'tc-flow' }, `Houses ${HOUSING_POOL} hands within ${HOUSING_RADIUS} tiles of a factory`);
+  const recipe = def.recipes.map((r) => RECIPES[r]).find(Boolean);
+  if (!recipe) return h('div', { class: 'tc-flow' }, def.category === 'retail' ? 'Sells goods to the city' : def.id === 'train_station' ? 'Loads and unloads trains' : 'Stores goods');
+  const ins = Object.keys(recipe.inputs);
+  const outs = Object.keys(recipe.outputs);
+  const more = def.recipes.length - 1;
+  return h('div', { class: 'tc-recipe' },
+    ins.length > 0 ? h('span', { class: 'tc-in' }, ins.map(goodEl)) : null,
+    ins.length > 0 ? h('span', { class: 'tc-arrow', 'aria-label': 'makes' }, '→') : null,
+    h('span', { class: 'tc-out' }, outs.map(goodEl)),
+    more > 0 ? h('span', { class: 'tc-more', title: `${more} more recipe${more > 1 ? 's' : ''}` }, `+${more}`) : null);
 }
 
 /** Buildings shown but not yet buildable (their system arrives in a later task, e.g. railways). */
@@ -114,18 +129,19 @@ export class Toolbar {
       // base figures: town politics and company edicts move both (PRICE_NOTE, the build preview)
       const cost = h('span', { class: 'tc-cost' }, `base ${formatMoney(def.cost)}`);
       const maint = h('span', { class: 'tc-maint' }, `base +${formatMoney(def.maintenance)}/mo`);
+      cost.title = PRICE_NOTE;
       const soon = COMING_SOON.has(def.id);
-      const lock = h('div', { class: 'tc-lock' }, soon ? 'Coming soon' : `Invented in ${def.era}`);
+      const lock = h('div', { class: 'tc-lock' }, iconEl('lock', 12), soon ? 'Coming soon' : `From ${def.era}`);
       lock.hidden = !soon;
       const el = h('button', {
         class: 'tool-card',
         'data-building': def.id,
-        title: `${def.description}\n${PRICE_NOTE}`,
+        title: `${def.name}: ${def.description}\n${PRICE_NOTE}`,
         disabled: soon,
-        onClick: () => !soon && this.select({ kind: 'build', typeId: def.id }),
+        onClick: () => !el.disabled && this.select({ kind: 'build', typeId: def.id }),
       },
-        h('div', { class: 'tc-name' }, def.name),
-        h('div', { class: 'tc-flow' }, flow(def)),
+        h('div', { class: 'tc-head' }, iconEl(buildingIcon(def), 28), h('div', { class: 'tc-name' }, def.name)),
+        recipeStrip(def),
         h('div', { class: 'tc-nums' }, cost, maint),
         lock) as HTMLButtonElement;
       if (soon) el.classList.add('locked');
@@ -134,7 +150,7 @@ export class Toolbar {
     }
 
     const transport = this.panels.get('transport')!;
-    const toolCard = (key: string, name: string, desc: string, nums: string, spec: ToolSpec | null, price?: { base: number; text: (money: string) => string }) => {
+    const toolCard = (key: string, icon: IconId, name: string, desc: string, nums: string, spec: ToolSpec | null, price?: { base: number; text: (money: string) => string }) => {
       const numsEl = h('div', { class: 'tc-nums' }, nums);
       if (price) this.priced.push({ el: numsEl, ...price });
       const el = h('button', {
@@ -144,17 +160,17 @@ export class Toolbar {
         disabled: spec === null,
         onClick: () => spec && this.select(spec),
       },
-        h('div', { class: 'tc-name' }, name),
+        h('div', { class: 'tc-head' }, iconEl(icon, 28), h('div', { class: 'tc-name' }, name)),
         h('div', { class: 'tc-flow' }, desc),
         numsEl) as HTMLButtonElement;
       this.toolButtons.set(key, el);
       transport.appendChild(el);
     };
     const perTile = (m: string) => `${m}/tile`;
-    toolCard('road', 'Road', 'Drag to lay roads (bridges over water)', perTile(formatMoney(ROAD_COST)), { kind: 'road' }, { base: ROAD_COST, text: perTile });
-    toolCard('rail', 'Rail', 'Drag to lay track (level crossings over roads, never water)', perTile(formatMoney(RAIL_COST)), { kind: 'rail' }, { base: RAIL_COST, text: perTile });
-    toolCard('trees', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', perTile(formatMoney(TREE_COST)), { kind: 'trees' }, { base: TREE_COST, text: perTile });
-    toolCard('bulldoze', 'Bulldoze', `Demolish for a 25% refund (${shortcutFor('bulldoze') ?? 'Del'})`, 'Click a building, road or rail', { kind: 'bulldoze' });
+    toolCard('road', 'route', 'Road', 'Drag to lay roads (bridges over water)', perTile(formatMoney(ROAD_COST)), { kind: 'road' }, { base: ROAD_COST, text: perTile });
+    toolCard('rail', 'train', 'Rail', 'Drag to lay track (level crossings over roads, never water)', perTile(formatMoney(RAIL_COST)), { kind: 'rail' }, { base: RAIL_COST, text: perTile });
+    toolCard('trees', 'tree', 'Plant trees', 'Drag over open grass to plant forest: woods soak up smog', perTile(formatMoney(TREE_COST)), { kind: 'trees' }, { base: TREE_COST, text: perTile });
+    toolCard('bulldoze', 'close', 'Bulldoze', `Demolish for a 25% refund (${shortcutFor('bulldoze') ?? 'Del'})`, 'Click a building, road or rail', { kind: 'bulldoze' });
 
     this.bar = h('div', { class: 'toolbar' }, body, tabsRow);
     root.appendChild(this.bar);
@@ -258,11 +274,14 @@ export class Toolbar {
     }
     for (const c of this.cards) {
       if (c.soon) continue;
+      // era lock: state.unlocked gains each building in its era year (sim/eras.ts checkUnlocks; events can
+      // bring one forward), and the sim refuses to build anything not in it, so it is the source of truth
       const locked = !isUnlocked(state, c.def.id);
       if (locked === c.locked) continue;
       c.locked = locked;
       c.el.disabled = locked;
       c.el.classList.toggle('locked', locked);
+      c.el.setAttribute('aria-disabled', String(locked));
       (c.el.querySelector('.tc-lock') as HTMLElement).hidden = !locked;
     }
   }

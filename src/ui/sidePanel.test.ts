@@ -23,6 +23,26 @@ afterEach(() => {
   localStorage.clear();
 });
 
+describe('side panel frame', () => {
+  it('the active tab has aria-selected=true and the sp-tab class', () => {
+    open('finance', 'Finance');
+    open('politics', 'Politics');
+    const t = tabs();
+    expect(t.map((x) => x.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    expect(t.every((x) => x.classList.contains('sp-tab'))).toBe(true);
+  });
+
+  it('a window whose last child is .p-actions gets has-footer on its body', () => {
+    const w = createWindow({ id: 'f', title: 'F', content: h('div', null, h('p', null, 'x'), h('div', { class: 'p-actions' }, 'go')) });
+    const body = w.el.querySelector('.window-body')!;
+    expect(body.classList.contains('has-footer')).toBe(true);
+    w.setContent(h('div', null, h('p', null, 'no actions')));
+    expect(body.classList.contains('has-footer')).toBe(false);
+    w.setContent(h('div', { class: 'p-actions' }, 'go'));
+    expect(body.classList.contains('has-footer')).toBe(true);
+  });
+});
+
 describe('side panel tabs', () => {
   it('opening finance then politics shows politics active and finance hidden, with 2 tabs', () => {
     const fin = open('finance', 'Finance');

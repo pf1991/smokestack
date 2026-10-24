@@ -28,6 +28,13 @@ export interface GameWindow {
 /** Viewports this wide or narrower get compact panel layouts (fleet.ts). */
 export const COMPACT_WIDTH = 1366;
 
+/** Marks the body `has-footer` when its content ends in a `.p-actions` bar (the bar then pins to the foot, panels.css). */
+function syncFooter(body: HTMLElement): void {
+  const last = body.lastElementChild;
+  const inner = last && !last.classList.contains('p-actions') ? last.lastElementChild : last;
+  body.classList.toggle('has-footer', !!inner && inner.classList.contains('p-actions'));
+}
+
 const open = new Map<string, GameWindow>();
 
 /**
@@ -54,6 +61,9 @@ export function createWindow(opts: WindowOptions): GameWindow {
     onClick: () => win.close(),
   }, iconEl('close', 14));
   const titleBar = h('div', { class: 'window-title' }, h('span', null, opts.title), closeBtn);
+  syncFooter(body);
+  // panels that add their action bar after opening
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => syncFooter(body)).observe(body, { childList: true, subtree: true });
   const el = h('div', { class: 'window', role: 'tabpanel', 'aria-label': opts.title }, titleBar, body);
 
   let closed = false;
@@ -77,6 +87,7 @@ export function createWindow(opts: WindowOptions): GameWindow {
     },
     setContent(content: HTMLElement) {
       body.replaceChildren(content);
+      syncFooter(body);
     },
   };
 

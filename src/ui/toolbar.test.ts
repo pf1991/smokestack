@@ -29,8 +29,43 @@ describe('Toolbar', () => {
     tab(root, 'manufacture');
     const card = root.querySelector('[data-building="electronics_plant"]') as HTMLButtonElement;
     expect(card.disabled).toBe(true);
-    expect(card.textContent).toContain('Invented in 1925');
+    expect(card.textContent).toContain('From 1925');
     expect(root.querySelectorAll('.tool-card:not(.locked)').length).toBeGreaterThan(0);
+  });
+
+  it('the sawmill card shows the wood input icon and the lumber output icon', () => {
+    const { root } = setup();
+    tab(root, 'refine');
+    const card = root.querySelector('[data-building="sawmill"]') as HTMLElement;
+    const strip = card.querySelector('.tc-recipe')!;
+    expect(strip.querySelector('.tc-in [data-good="wood"] img.icon')).not.toBeNull();
+    expect(strip.querySelector('.tc-arrow')!.textContent).toBe('→');
+    expect(strip.querySelector('.tc-out [data-good="lumber"] img.icon')).not.toBeNull();
+    expect(card.querySelector('.tc-head img.icon')!.getAttribute('width')).toBe('28');
+  });
+
+  it('an extractor card shows only its output, no arrow', () => {
+    const { root } = setup();
+    const card = root.querySelector('[data-building="lumber_camp"]') as HTMLElement;
+    expect(card.querySelector('.tc-out [data-good="wood"]')).not.toBeNull();
+    expect(card.querySelector('.tc-arrow')).toBeNull();
+  });
+
+  it('an oil well card in 1900 is locked "From 1910", not clickable, and unlocks with the year', () => {
+    const { root, onSelect, tb, state } = setup();
+    expect(state.date.year).toBe(1900);
+    const card = root.querySelector('[data-building="oil_well"]') as HTMLButtonElement;
+    expect(card.classList.contains('locked')).toBe(true);
+    expect(card.querySelector('.tc-lock')!.textContent).toBe('From 1910');
+    expect(card.querySelector('.tc-lock img.icon[data-icon="lock"]')).not.toBeNull();
+    expect(card.disabled).toBe(true);
+    card.click();
+    expect(onSelect).not.toHaveBeenCalled();
+    state.date.year = 1910;
+    state.unlocked.push('oil_well');
+    tb.update(state);
+    expect(card.classList.contains('locked')).toBe(false);
+    expect((card.querySelector('.tc-lock') as HTMLElement).hidden).toBe(true);
   });
 
   it('cards show a base price and upkeep and say town politics can change them', () => {

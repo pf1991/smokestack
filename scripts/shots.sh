@@ -5,6 +5,9 @@
 # shots/showcase-<name>.png: the rival panel with Smogsworth Jr. furious (y55, baron=furious), the family
 # panel (y55), the exchange panel with the hostile bid banner (y55, bid=1) and the victory end screen's
 # Legacy table (y101, end=1). See src/main.ts for those debug parameters.
+# Release r1-r3 showcase shots (both 1366x768 and 1920x1080; the 1920 ones are showcase-<name>-1920.png):
+# the production codex on cars, the alerts tray open, the managers window, the main menu, an event
+# card (suffrage_march at y5) and a building inspector.
 # A shot under 2 KB (Chrome sometimes writes a blank PNG under parallel load) is retried up to 2 times.
 #
 # The URL uses speed=0 (deviation from the original brief's speed=1, approved): the game starts
@@ -24,7 +27,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 mkdir -p shots
 rm -f shots/*.png
-VLOG=/tmp/shots-vite.log
+# a fresh log per run (a stale /tmp/shots-vite.log may belong to another user)
+VLOG="${VLOG:-$(mktemp /tmp/shots-vite.XXXXXX)}"
 
 node_modules/.bin/vite --port "$PORT" --strictPort >"$VLOG" 2>&1 &
 VITE_PID=$!
@@ -56,10 +60,12 @@ shot() {
   # crop the empty strip below the viewport
   convert "$f" -crop "${w}x${h}+0+0" +repage "$f" 2>/dev/null
 }
-# showcase <name> <skipYears> <extra query>: one 1366x768 shot of a scene, shots/showcase-<name>.png
+# showcase <name> <skipYears> <extra query> [w h]: one shot of a scene (default 1366x768),
+# shots/showcase-<name>.png, or shots/showcase-<name>-<w>.png at another size
 showcase() {
-  local name="$1" skip="$2" extra="$3" w=1366 h=768
+  local name="$1" skip="$2" extra="$3" w="${4:-1366}" h="${5:-768}"
   local f="shots/showcase-${name}.png"
+  [ "$w" = 1366 ] || f="shots/showcase-${name}-${w}.png"
   local udd attempt
   for attempt in 1 2 3; do
     udd="$(mktemp -d /tmp/shots-chrome.XXXXXX)"
@@ -103,6 +109,13 @@ SHOWCASE="rival-furious 55 baron=furious&panel=rival
 family 55 panel=family
 exchange-bid 55 bid=1&panel=exchange
 end-legacy 101 end=1"
+# name skipYears query: shot at 1366x768 and 1920x1080
+SHOWCASE_R13="codex 25 panel=codex&panelarg=cars
+alerts 25 alerts=open
+managers 55 panel=managers
+menu 25 menu=1
+card 5 card=suffrage_march
+building 55 inspect2=1"
 MIN_SHOT_BYTES="${MIN_SHOT_BYTES:-2048}"
 export PORT CHROME_H_OFFSET MIN_SHOT_BYTES
 
@@ -113,7 +126,13 @@ for size in 1366,768 1920,1080; do
     done
   done
 done | xargs -P "$JOBS" -L 1 bash -c 'shot "$@"' _
-echo "$SHOWCASE" | xargs -P "$JOBS" -L 1 bash -c 'showcase "$@"' _
+{
+  echo "$SHOWCASE"
+  while read -r name skip extra; do
+    echo "$name $skip $extra 1366 768"
+    echo "$name $skip $extra 1920 1080"
+  done <<<"$SHOWCASE_R13"
+} | xargs -P "$JOBS" -L 1 bash -c 'showcase "$@"' _
 
 # UI matrix (DEV params): every side-panel tab, menus, help, settings, a flyout, ticker modes,
 # scaled UI, open panels under open dropdowns and the Legacy end screen. Name, skipYears, query.
@@ -175,5 +194,10 @@ while read -r name _; do
   f="shots/showcase-${name}.png"
   if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 51200 ]; then echo "BAD: $f" >&2; bad=1; fi
 done <<<"$SHOWCASE"
+while read -r name _; do
+  for f in "shots/showcase-${name}.png" "shots/showcase-${name}-1920.png"; do
+    if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 20480 ]; then echo "BAD: $f" >&2; bad=1; fi
+  done
+done <<<"$SHOWCASE_R13"
 echo "$(ls shots/*.png 2>/dev/null | wc -l) screenshots written"
 [ "$bad" = 0 ] || { echo "some shots missing or too small; vite log: $VLOG" >&2; exit 1; }

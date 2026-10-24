@@ -10,7 +10,7 @@ import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
 import { buyHubTruck } from '../../sim/logistics/hubs';
 import { startStrike } from '../../sim/society/strikes';
-import { ageLine, staffingText } from './building';
+import { ageLine, staffingText, statusAdvice } from './building';
 import { addDays, dateToDays, formatDate } from '../../sim/clock';
 
 function host(ctx: SimContext) {
@@ -266,9 +266,10 @@ describe('city panel opinion', () => {
     expect(text()).toContain('Opinion of your company');
     expect(rows.map((r) => r.dataset.faction)).toEqual(['workers', 'oldmoney', 'reformers', 'church', 'baron']);
     expect(rows.map((r) => r.querySelector('.insp-label')!.textContent)).toEqual(['Workers', 'Old Money', 'Greens', 'Church', "Baron's Circle"]);
-    const fill = rows[4].querySelector<HTMLElement>('.insp-bar-fill')!;
+    // Task 8: the factions are kit meters (was a labelled .insp-bar)
+    const fill = rows[4].querySelector<HTMLElement>('.kit-meter-fill')!;
     expect(fill.style.width).toBe('35%');
-    expect(rows[4].querySelector('.insp-bar-label')!.textContent).toBe('35');
+    expect(rows[4].querySelector('.insp-opinion-val')!.textContent).toBe('35');
     expect(fill.style.background).not.toBe('');
   });
 });
@@ -477,5 +478,271 @@ describe('warehouse hub section', () => {
     const b = place(ctx, 'sawmill', 10, 10);
     PANELS.building.open(host(ctx) as never, b.id);
     expect(document.querySelector<HTMLElement>('.insp-hub')!.hidden).toBe(true);
+  });
+});
+
+describe('statusAdvice (Task 8)', () => {
+  const setup = (typeId = 'sawmill') => {
+    const ctx = testCtx(testState({ year: 1950, money: 1e7 }));
+    ctx.state.date.year = 1950;
+    return { ctx, b: place(ctx, typeId, 10, 10) };
+  };
+
+  it('ok: Producing', () => {
+    const { ctx, b } = setup();
+    b.status = 'ok';
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Producing', tone: 'positive' });
+  });
+
+  it('no_input names the first missing input and the fix', () => {
+    const { ctx, b } = setup('steel_mill');
+    b.status = 'no_input';
+    b.input = { iron_ore: 20, coal: 0 };
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Starved of Coal: connect a route that delivers it', tone: 'warning' });
+    b.input = {};
+    expect(statusAdvice(ctx.state, b).text).toBe('Starved of Iron Ore: connect a route that delivers it');
+  });
+
+  it('output_full names the output and the fix', () => {
+    const { ctx, b } = setup();
+    b.status = 'output_full';
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Storage full: add a route to carry Lumber away', tone: 'warning' });
+  });
+
+  it('halted on strike gives the strike reason; otherwise plain Halted', () => {
+    const { ctx, b } = setup();
+    b.status = 'halted';
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Halted', tone: 'negative' });
+    const today = dateToDays(ctx.state.date);
+    b.strike = { since: today, until: today + 30, reason: 'Pay and hours', cityId: 0, cardUid: null } as never;
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'On strike: Pay and hours', tone: 'negative' });
+  });
+
+  it('idle asks for a recipe', () => {
+    const { ctx, b } = setup();
+    b.status = 'idle';
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Idle: choose a recipe', tone: 'neutral' });
+  });
+
+  it('upgrading counts the days left', () => {
+    const { ctx, b } = setup();
+    const today = dateToDays(ctx.state.date);
+    b.works = { toLevel: 2, startDay: today, untilDay: today + 30 };
+    b.status = 'upgrading';
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Upgrading: 30 days left', tone: 'info' });
+  });
+
+  it('is pure: leaves the building untouched', () => {
+    const { ctx, b } = setup();
+    b.status = 'no_input';
+    const before = JSON.stringify(b);
+    statusAdvice(ctx.state, b);
+    expect(JSON.stringify(b)).toBe(before);
+  });
+});
+
+describe('building panel layout (Task 8)', () => {
+  it('heads the panel with the building name and the status advice', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    b.status = 'no_input';
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(document.querySelector('.insp .kit-ph-title')!.textContent).toBe('Sawmill');
+    const sum = document.querySelector<HTMLElement>('.insp .kit-ph-summary')!;
+    expect(sum.textContent).toBe('Starved of Wood: connect a route that delivers it');
+    expect(sum.dataset.tone).toBe('warning');
+    b.status = 'ok';
+    vi.advanceTimersByTime(600);
+    expect(document.querySelector('.insp .kit-ph-summary')!.textContent).toBe('Producing');
+  });
+
+  it('has a danger Demolish button in the footer actions', () => {
+    const ctx = testCtx(testState());
+    const b = place(ctx, 'farm', 5, 5);
+    PANELS.building.open(host(ctx) as never, b.id);
+    const btn = document.querySelector<HTMLButtonElement>('.p-actions button.danger')!;
+    expect(btn).toBeTruthy();
+    expect(btn.textContent).toBe('Demolish');
+    expect(btn.classList.contains('insp-demolish')).toBe(true);
+    expect(document.querySelector('.insp')!.lastElementChild!.classList.contains('p-actions')).toBe(true);
+  });
+
+  it('shows a production card: input meters, an arrow, output meters and the month total', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    b.input = { wood: 30 };
+    b.output = { lumber: 120 };
+    b.producedThisMonth = { lumber: 42 };
+    PANELS.building.open(host(ctx) as never, b.id);
+    const flow = document.querySelector<HTMLElement>('.insp-production .insp-flow')!;
+    const parts = [...flow.children].map((c) => c.className);
+    expect(parts).toEqual(['insp-flow-side insp-flow-in', 'insp-flow-arrow', 'insp-flow-side insp-flow-out']);
+    const inRow = flow.querySelector<HTMLElement>('.insp-flow-in [data-good="wood"]')!;
+    expect(inRow.querySelector('img[data-icon="wood"]')).not.toBeNull();
+    expect(inRow.querySelector('.kit-meter')!.getAttribute('aria-valuenow')).toBe('30');
+    const outRow = flow.querySelector<HTMLElement>('.insp-flow-out [data-good="lumber"]')!;
+    expect(outRow.querySelector<HTMLElement>('.kit-meter')!.dataset.tone).toBe('warning'); // full
+    expect(document.querySelector('.insp-produced')!.textContent).toBe('Produced this month: 42');
+    // the meters update in place
+    const meterEl = inRow.querySelector('.kit-meter');
+    b.input.wood = 60;
+    vi.advanceTimersByTime(600);
+    expect(flow.querySelector('.insp-flow-in [data-good="wood"] .kit-meter')).toBe(meterEl);
+    expect(meterEl!.getAttribute('aria-valuenow')).toBe('60');
+  });
+
+  it('an extractor has no input side; a fresh store shows an empty stock', () => {
+    const ctx = testCtx(testState({ money: 1e7, cities: [{ x: 30, y: 20 }] }));
+    const farm = place(ctx, 'farm', 5, 5);
+    PANELS.building.open(host(ctx) as never, farm.id);
+    expect(document.querySelector<HTMLElement>('.insp-flow-in')!.hidden).toBe(true);
+    expect(document.querySelector<HTMLElement>('.insp-flow-arrow')!.hidden).toBe(true);
+    expect(document.querySelector('.insp-produced')!.textContent).toBe('Produced this month: 0');
+    const store = must(placeBuilding(ctx, 'player', 'store', { x: 30, y: 21 }));
+    PANELS.building.open(host(ctx) as never, store.id);
+    const win = [...document.querySelectorAll<HTMLElement>('.insp')].at(-1)!;
+    expect(win.querySelector('.insp-production')!.textContent).toContain('Nothing in stock');
+  });
+
+  it('shows staffing as a meter', () => {
+    const ctx = testCtx(testState({ width: 100, height: 40, cities: [{ x: 10, y: 20, population: 1000, name: 'Ashford' }] }));
+    const b = place(ctx, 'sawmill', 34, 20);
+    b.staffing = 0.85;
+    PANELS.building.open(host(ctx) as never, b.id);
+    const m = document.querySelector<HTMLElement>('.insp-staff-row .kit-meter')!;
+    expect(m.getAttribute('aria-valuenow')).toBe('0.85');
+    expect(m.dataset.tone).toBe('warning');
+  });
+
+  it('level, manager, upgrades and age read as cards', () => {
+    const ctx = testCtx(testState({ year: 1950, money: 1e7 }));
+    ctx.state.date.year = 1950;
+    const b = place(ctx, 'steel_mill', 10, 10);
+    PANELS.building.open(host(ctx) as never, b.id);
+    for (const sel of ['.insp-level', '.insp-manager', '.insp-upgrades', '.insp-age']) {
+      expect(document.querySelector(sel)!.classList.contains('kit-card'), sel).toBe(true);
+    }
+  });
+});
+
+describe('city panel layout (Task 8)', () => {
+  it('has a header with population and mayor, four stat tiles and a demand table', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+    state.cities[0].politics.mayor.name = 'Mabel Clogg';
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    expect(document.querySelector('.insp .kit-ph-title')!.textContent).toBe('Town 0');
+    const sum = document.querySelector('.insp .kit-ph-summary')!.textContent!;
+    expect(sum).toContain('6,000');
+    expect(sum).toContain('Mabel Clogg');
+    const tiles = [...document.querySelectorAll('.insp .kit-stat-row .kit-stat')];
+    expect(tiles).toHaveLength(4);
+    expect(tiles.map((t) => t.querySelector('.kit-stat-label')!.textContent)).toEqual(['Population', 'Workers', 'Smog tier', 'Happiness']);
+    expect(document.querySelector('.insp table.kit-table tr.insp-good')).not.toBeNull();
+    expect(document.querySelectorAll('.insp-opinion .kit-meter')).toHaveLength(5);
+  });
+});
+
+describe('vehicle panel layout (Task 8)', () => {
+  it('has a header, a cargo meter and the route as a pill', () => {
+    const ctx = testCtx(testState({ money: 1_000_000 }));
+    const a = place(ctx, 'farm', 5, 5);
+    const m = place(ctx, 'sawmill', 20, 5);
+    for (let x = 4; x < 25; x++) ctx.state.map.tiles[8 * 40 + x].road = true;
+    const route = must(
+      createRoute(ctx, 'player', 'Wood Run', [
+        { buildingId: a.id, load: ['grain'], unload: [] },
+        { buildingId: m.id, load: [], unload: ['grain'] },
+      ]),
+    );
+    const v = must(buyTruck(ctx, 'player', route.id));
+    v.cargo = { grain: 10 };
+    PANELS.vehicle.open(host(ctx) as never, v.id);
+    expect(document.querySelector('.insp .kit-ph-title')).not.toBeNull();
+    const cargo = document.querySelector<HTMLElement>('.insp-cargo .kit-meter')!;
+    expect(cargo.getAttribute('aria-valuenow')).toBe('10');
+    expect(cargo.getAttribute('aria-valuemax')).toBe(String(v.capacity));
+    expect(document.querySelector('.insp-route-pill')!.textContent).toBe('Wood Run');
+    expect(document.querySelector('.insp-route-pill')!.classList.contains('kit-pill')).toBe(true);
+  });
+});
+
+describe('inspectors in an empty game (Task 8)', () => {
+  it('a fresh works, a town with nothing unlocked and an empty truck read as designed empty states', () => {
+    const ctx = testCtx(testState({ money: 1_000_000, cities: [{ x: 30, y: 30, population: 2000 }] }));
+    const farm = place(ctx, 'farm', 5, 5);
+    PANELS.building.open(host(ctx) as never, farm.id);
+    expect(document.querySelector('.insp-produced')!.textContent).toBe('Produced this month: 0');
+    expect(document.querySelector('.insp-routes')!.textContent).toBe('Not on any route');
+    const unlocked = ctx.state.unlocked;
+    ctx.state.unlocked = [];
+    PANELS.city.open(host(ctx) as never, 0);
+    expect(document.querySelector('.insp-demand')!.textContent).toContain('No demand for manufactured goods yet');
+    ctx.state.unlocked = unlocked;
+    const m = place(ctx, 'sawmill', 20, 5);
+    for (let x = 4; x < 25; x++) ctx.state.map.tiles[8 * 40 + x].road = true;
+    const route = must(createRoute(ctx, 'player', 'Run', [
+      { buildingId: farm.id, load: ['grain'], unload: [] },
+      { buildingId: m.id, load: [], unload: ['grain'] },
+    ]));
+    const v = must(buyTruck(ctx, 'player', route.id));
+    PANELS.vehicle.open(host(ctx) as never, v.id);
+    expect(document.querySelector('.insp-cargo')!.textContent).toContain(`Empty (0 / ${v.capacity})`);
+    expect(document.querySelector('.insp-cargo .kit-meter')!.getAttribute('aria-valuenow')).toBe('0');
+  });
+});
+
+describe('statusAdvice for stores, depots and the last day (Task 8 fix)', () => {
+  it('a store reads its shelves, not its status', () => {
+    const ctx = testCtx(testState({ money: 1e7, cities: [{ x: 30, y: 20 }] }));
+    const store = must(placeBuilding(ctx, 'player', 'store', { x: 30, y: 21 }));
+    store.status = 'idle';
+    expect(statusAdvice(ctx.state, store)).toEqual({ text: 'Shelves empty: route goods here', tone: 'warning' });
+    store.input = { bread: 12 };
+    expect(statusAdvice(ctx.state, store)).toEqual({ text: 'Open for business', tone: 'positive' });
+    store.status = 'ok';
+    expect(statusAdvice(ctx.state, store).text).toBe('Open for business');
+    PANELS.building.open(host(ctx) as never, store.id);
+    expect(document.querySelector('.insp-reason')!.textContent).toBe('Open for business');
+  });
+
+  it('a depot is handling cargo whether ok or idle', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const wh = place(ctx, 'warehouse', 5, 5);
+    for (const st of ['ok', 'idle'] as const) {
+      wh.status = st;
+      expect(statusAdvice(ctx.state, wh)).toEqual({ text: 'Handling cargo', tone: 'neutral' });
+    }
+  });
+
+  it('says "1 day left" on the last day of works', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    const today = dateToDays(ctx.state.date);
+    b.works = { toLevel: 2, startDay: today - 29, untilDay: today + 1 };
+    b.status = 'upgrading';
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Upgrading: 1 day left', tone: 'info' });
+  });
+});
+
+describe('inspect swap', () => {
+  it('rebuilds only on a new key and keeps the box scroll and an inner scroller', async () => {
+    const { swap } = await import('./inspect');
+    const box = document.createElement('div');
+    const build = (n: number) => () => {
+      const el = document.createElement('div');
+      el.className = 'inner';
+      el.textContent = String(n);
+      return el;
+    };
+    swap(box, 'a', build(1), '.inner');
+    const first = box.firstElementChild;
+    swap(box, 'a', build(2), '.inner');
+    expect(box.firstElementChild).toBe(first);
+    box.scrollTop = 40;
+    (box.querySelector('.inner') as HTMLElement).scrollLeft = 30;
+    swap(box, 'b', build(3), '.inner');
+    expect(box.textContent).toBe('3');
+    expect(box.scrollTop).toBe(40);
+    expect((box.querySelector('.inner') as HTMLElement).scrollLeft).toBe(30);
   });
 });

@@ -21,6 +21,9 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+// jsdom has no canvas: the crest painter is skipped (and jsdom's "not implemented" noise with it)
+HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement['getContext'];
+
 function setup() {
   const root = document.createElement('div');
   document.body.appendChild(root);
@@ -63,7 +66,7 @@ describe('Hud', () => {
   it('speed click calls onSpeed(4)', () => {
     const { root, handlers, hud, state } = setup();
     hud.update(state);
-    (root.querySelector('[data-speed="4"]') as HTMLElement).click();
+    (root.querySelector('.hud-speed [role=radio][data-speed="4"]') as HTMLElement).click();
     expect(handlers.onSpeed).toHaveBeenCalledWith(4);
   });
 
@@ -71,8 +74,8 @@ describe('Hud', () => {
     const { root, handlers, hud, state } = setup();
     state.speed = 2;
     hud.update(state);
-    expect(root.querySelector('[data-speed="2"]')!.classList.contains('active')).toBe(true);
-    expect(root.querySelector('[data-speed="1"]')!.classList.contains('active')).toBe(false);
+    expect(root.querySelector('.hud-speed [role=radio][data-speed="2"]')!.getAttribute('aria-checked')).toBe('true');
+    expect(root.querySelector('.hud-speed [role=radio][data-speed="1"]')!.getAttribute('aria-checked')).toBe('false');
     (root.querySelector('[data-panel="finance"]') as HTMLElement).click();
     expect(handlers.onOpenPanel).toHaveBeenCalledWith('finance');
     expect(document.getElementById('ticker')).not.toBeNull();
@@ -92,7 +95,7 @@ describe('Hud', () => {
     const m = currentLedger(state.companies.player, state.date);
     m.income.sales = 12_340;
     bus.emit({ type: 'monthEnd', date: { ...state.date } });
-    const deltas = root.querySelectorAll('.hud-delta');
+    const deltas = root.querySelectorAll('.hud-pop');
     expect(deltas.length).toBe(1);
     expect(deltas[0].classList.contains('good')).toBe(true);
     expect(deltas[0].textContent).toBe('+$12,340');
@@ -105,7 +108,7 @@ describe('Hud', () => {
     hud.attach(bus);
     currentLedger(state.companies.player, state.date).expense.maintenance = 3_100;
     bus.emit({ type: 'monthEnd', date: { ...state.date } });
-    const d = root.querySelector('.hud-delta')!;
+    const d = root.querySelector('.hud-pop')!;
     expect(d.classList.contains('bad')).toBe(true);
     expect(d.textContent).toBe('\u2212$3,100');
   });
@@ -160,7 +163,7 @@ describe('one-row bar with grouped menus', () => {
     const bars = root.querySelectorAll('.hud-bar');
     expect(bars).toHaveLength(1);
     const bar = bars[0];
-    for (const sel of ['.hud-money', '.hud-date', '.hud-wind', '.hud-speeds', '.hud-groups', '.hud-more-btn']) {
+    for (const sel of ['.hud-money', '.hud-date', '.hud-wind', '.hud-speed', '.hud-groups', '.hud-more-btn']) {
       expect(bar.querySelector(sel), sel).not.toBeNull();
     }
     // the GROUPS data drives the group buttons
@@ -243,7 +246,7 @@ describe('one-row bar with grouped menus', () => {
       expect(el!.querySelector('.icon'), id).not.toBeNull();
     }
     for (const btn of root.querySelectorAll<HTMLElement>('.hud-bar button')) {
-      expect(btn.querySelector('.icon') ?? btn.closest('.hud-speeds'), btn.className).not.toBeNull();
+      expect(btn.querySelector('.icon') ?? btn.closest('.hud-speed'), btn.className).not.toBeNull();
       // icon-only bar buttons need an aria-label; dropdown items always show their label
       if (btn.getAttribute('role') === 'menuitem') expect(btn.querySelector('.hud-menu-label')?.textContent).toBeTruthy();
       else expect(btn.getAttribute('aria-label'), btn.className).toBeTruthy();
@@ -434,15 +437,111 @@ describe('one-row bar with grouped menus', () => {
     expect(ops.lastElementChild!.matches('[data-panel="routes"]')).toBe(true);
   });
 
-  it('speed buttons are atlas icons, no text glyphs', () => {
+  it('speed buttons are text radios, no glyph triangles', () => {
     const { root } = setup();
-    const counts: Record<string, number> = { 0: 1, 1: 1, 2: 2, 4: 3, 8: 2 };
-    for (const btn of root.querySelectorAll<HTMLElement>('.hud-speed')) {
-      expect(btn.textContent).toBe('');
-      expect(/[^\x00-\x7f]/.test(btn.innerHTML), btn.innerHTML).toBe(false);
-      expect(btn.querySelectorAll('.icon')).toHaveLength(counts[btn.dataset.speed!]);
+    const group = root.querySelector<HTMLElement>('.hud-speed[role=radiogroup]')!;
+    expect(group).not.toBeNull();
+    const radios = [...group.querySelectorAll<HTMLElement>('[role=radio]')];
+    expect(radios.map((b) => b.textContent)).toEqual(['II', '1\u00d7', '2\u00d7', '4\u00d7', '8\u00d7']);
+    for (const btn of radios) {
+      expect(btn.querySelector('.icon')).toBeNull();
       expect(btn.getAttribute('aria-label')).toBe(btn.title);
     }
-    expect(root.querySelector('[data-speed="0"] .icon')!.getAttribute('data-icon')).toBe('pause');
+  });
+});
+
+describe('top bar layout (release r1-r3)', () => {
+  it('has left, centre and right regions with the alerts slot before settings and More', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    new Hud(root, { onSpeed: vi.fn(), onOpenPanel: vi.fn(), onMenu: vi.fn() });
+    const bar = root.querySelector('.hud-bar')!;
+    expect([...bar.children].map((c) => c.className)).toEqual(['hud-left', 'hud-center', 'hud-right']);
+    expect(bar.querySelector('.hud-left canvas.hud-crest')).not.toBeNull();
+    expect(bar.querySelector('.hud-center .hud-money')).not.toBeNull();
+    expect(bar.querySelector('.hud-center .hud-speed')).not.toBeNull();
+    const right = bar.querySelector('.hud-right')!;
+    const alerts = right.querySelector('#hud-alerts')!;
+    expect(alerts.tagName).toBe('SPAN');
+    expect(alerts.childElementCount).toBe(0);
+    const kids = [...right.children];
+    const at = (el: Element) => kids.findIndex((k) => k === el || k.contains(el));
+    expect(at(right.querySelector('.hud-groups')!)).toBeLessThan(at(alerts));
+    expect(at(alerts)).toBeLessThan(at(right.querySelector('.hud-settings-btn')!));
+    expect(at(right.querySelector('.hud-settings-btn')!)).toBeLessThan(at(right.querySelector('.hud-more-btn')!));
+    // right region keeps the panel buttons
+    expect(right.querySelector('.hud-panel-btn[data-panel="routes"]')).not.toBeNull();
+  });
+
+  it('clicking 2x checks it alone and calls setSpeed', () => {
+    const { root, handlers, hud, state } = setup();
+    hud.update(state);
+    const radios = [...root.querySelectorAll<HTMLElement>('.hud-speed [role=radio]')];
+    expect(radios).toHaveLength(5);
+    const two = radios.find((r) => r.textContent === '2\u00d7')!;
+    two.click();
+    expect(handlers.onSpeed).toHaveBeenCalledWith(2);
+    expect(radios.filter((r) => r.getAttribute('aria-checked') === 'true')).toEqual([two]);
+  });
+
+  it('.hud-delta shows this month\'s profit so far as a positive pill', () => {
+    const { root, hud, state } = setup();
+    currentLedger(state.companies.player, state.date).income.sales = 4_077;
+    hud.update(state);
+    const d = root.querySelector<HTMLElement>('.hud-delta')!;
+    expect(d.classList.contains('kit-pill')).toBe(true);
+    expect(d.textContent).toBe('\u25b2 $4,077');
+    expect(d.classList.contains('kit-pill--positive')).toBe(true);
+    // it refreshes with the money
+    currentLedger(state.companies.player, state.date).expense.maintenance = 5_000;
+    hud.update(state);
+    expect(d.textContent).toBe('\u25bc $923');
+    expect(d.classList.contains('kit-pill--negative')).toBe(true);
+    expect(d.classList.contains('kit-pill--positive')).toBe(false);
+  });
+
+  it('.hud-delta is a neutral $0 before the month has a ledger entry', () => {
+    const { root, hud, state } = setup();
+    state.companies.player.ledger = [];
+    hud.update(state);
+    const d = root.querySelector<HTMLElement>('.hud-delta')!;
+    expect(d.textContent).toBe('$0');
+    expect(d.classList.contains('kit-pill--neutral')).toBe(true);
+  });
+
+  it('a 32-character name gets a full title and the hud-name class', () => {
+    const { root, hud, state } = setup();
+    const name = 'Bartholomew Smythe-Hargreaves Co';
+    expect(name).toHaveLength(32);
+    state.companies.player.name = name;
+    hud.update(state);
+    const el = root.querySelector<HTMLElement>('.hud-left .hud-name')!;
+    expect(el.textContent).toBe(name);
+    expect(el.title).toBe(name);
+  });
+
+  it('renders $1,234,567,890 in .hud-money', () => {
+    const { root, hud, state } = setup();
+    state.companies.player.money = 1_234_567_890;
+    hud.update(state, 0);
+    expect(root.querySelector('.hud-money')!.textContent).toBe('$1,234,567,890');
+  });
+
+  it('arrow keys move the speed selection', () => {
+    const { root, handlers, hud, state } = setup();
+    state.speed = 1;
+    hud.update(state);
+    const one = root.querySelector<HTMLElement>('.hud-speed [data-speed="1"]')!;
+    one.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    expect(handlers.onSpeed).toHaveBeenLastCalledWith(2);
+    expect(root.querySelector('.hud-speed [data-speed="2"]')!.getAttribute('aria-checked')).toBe('true');
+    // roving tabindex: only the checked radio is in the tab order
+    expect([...root.querySelectorAll('.hud-speed [role=radio]')].filter((r) => r.getAttribute('tabindex') === '0')).toHaveLength(1);
+  });
+
+  it('the stylesheet pins a 44 px bar and a 220 px ellipsised name', () => {
+    const css = hudCss.replace(/\s+/g, ' ');
+    expect(css).toMatch(/\.hud-bar \{[^}]*height: calc\(44px/);
+    expect(css).toMatch(/\.hud-name \{[^}]*max-width: 220px;[^}]*text-overflow: ellipsis;/);
   });
 });

@@ -6,6 +6,13 @@ import { must, testCtx, testState } from '../../sim/testkit';
 import { buyTruck, createRoute } from '../../sim/vehicles';
 import { closeAllWindows } from '../window';
 import { PANELS } from './index';
+import { EventBus } from '../../core/events';
+import { createGame } from '../../sim/state';
+import { baronMood } from '../../sim/nemesis/grudges';
+import { legacyScore } from '../../sim/legacy';
+import { moveShares } from '../../sim/exchange/shares';
+import type { GameState } from '../../sim/types';
+import { formatNumber } from '../format';
 
 /** Class presence only: every panel is built from the shared `.p-*` classes and keeps font sizes in CSS. */
 function setup() {
@@ -63,7 +70,8 @@ describe('panel density classes', () => {
       const t = setup();
       PANELS[id].open(t.game, arg(t));
       const body = document.querySelector('.window-body') as HTMLElement;
-      const sections = body.querySelectorAll('.p-section').length;
+      // titled blocks: shared sections, or kit cards (the inspectors' cards since Task 8)
+      const sections = body.querySelectorAll('.p-section, .kit-card').length;
       expect(sections).toBeGreaterThanOrEqual(MIN_SECTIONS[id] ?? 1);
       if (!INLINE_FONT_EXEMPT.has(id)) expect(body.querySelectorAll('[style*="font-size"]')).toHaveLength(0);
     });
@@ -76,5 +84,77 @@ describe('panel density classes', () => {
     expect(body.querySelectorAll('.p-section > .p-head').length).toBeGreaterThan(0);
     expect(body.querySelectorAll('.p-chips').length).toBe(3);
     expect(body.querySelectorAll('.p-row').length).toBeGreaterThan(0);
+  });
+});
+
+/* Task 9: every remaining panel opens on a fresh game with a kit header and a one-line summary. */
+function freshGame() {
+  const state = createGame({ seed: 7, companyName: 'Acme Works', rival: true });
+  const ctx = { state, bus: new EventBus() };
+  const game = { ctx, state, renderer: { setSelection: vi.fn() }, centerOn: vi.fn(), openPanel: vi.fn(), hud: { markNewsRead: vi.fn() },
+    tools: { onPick: null }, setTool: vi.fn(), onToolChange: () => () => {} };
+  return { state, game: game as unknown as GameController };
+}
+
+/** Table cells that show nothing: blank (no text and no control or picture) or a lone dash. */
+function blankCells(body: HTMLElement): string[] {
+  return [...body.querySelectorAll<HTMLElement>('tbody td, tbody th')]
+    .filter((td) => {
+      const t = (td.textContent ?? '').trim();
+      if (t === '–' || t === '-' || t === '—') return true;
+      return t === '' && !td.querySelector('svg, canvas, img, select, button, .icon, .kit-meter');
+    })
+    .map((td) => td.outerHTML);
+}
+
+describe('panels in an empty game (Task 9)', () => {
+  const SUMMARY: Record<string, (s: GameState) => RegExp | string> = {
+    fleet: () => '0 vehicles, 0 idle',
+    politics: () => /^Next election: .+ in \d+ months?$/,
+    rival: (s) => `${s.nemesis.head.name}: ${baronMood(s)}`,
+    exchange: () => 'No holdings yet',
+    family: (s) => `${s.dynasty.head.name}, ${s.date.year - s.dynasty.head.born}`,
+    contracts: () => /^\d+ open contracts?$/,
+    goals: () => /\S/,
+    legacy: (s) => `Legacy score ${formatNumber(legacyScore(s).total)}`,
+  };
+  for (const [id, want] of Object.entries(SUMMARY)) {
+    it(`${id}: a kit header with a summary, no blank table cells`, () => {
+      const { state, game } = freshGame();
+      PANELS[id].open(game);
+      const body = document.querySelector('.window-body') as HTMLElement;
+      expect(body.querySelector('.kit-ph'), 'kit header').not.toBeNull();
+      const summary = (body.querySelector('.kit-ph-summary')?.textContent ?? '').trim();
+      expect(summary).not.toBe('');
+      const w = want(state);
+      if (typeof w === 'string') expect(summary).toBe(w);
+      else expect(summary).toMatch(w);
+      expect(blankCells(body)).toEqual([]);
+    });
+  }
+
+  it('goals counts the goals met in a scenario that has some', () => {
+    const { game } = freshGame();
+    game.state.scenarioId = 'lumber_baron';
+    PANELS.goals.open(game);
+    expect(document.querySelector('.window-body .kit-ph-summary')?.textContent).toMatch(/^0 of 1 goals met$/);
+  });
+
+  it('exchange names the biggest stake the player holds in another company', () => {
+    const { state, game } = freshGame();
+    moveShares(state, 'rival', 'public', 'player', 120);
+    PANELS.exchange.open(game);
+    expect(document.querySelector('.window-body .kit-ph-summary')?.textContent).toBe(`Your shares: 12% of ${state.companies.rival.name}`);
+  });
+
+  it('every remaining panel uses at most one primary button', () => {
+    for (const id of Object.keys(SUMMARY)) {
+      const { game } = freshGame();
+      PANELS[id].open(game);
+      const body = document.querySelector('.window-body') as HTMLElement;
+      expect(body.querySelectorAll('.kit-btn--primary').length, id).toBeLessThanOrEqual(1);
+      closeAllWindows();
+      document.body.replaceChildren();
+    }
   });
 });

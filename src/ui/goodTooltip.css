@@ -1,0 +1,12 @@
+/* A good's colour chip (the icon fallback) and its tooltip (src/ui/goodTooltip.ts). */
+.good-chip {
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  background: var(--chip, var(--text-muted));
+  box-shadow: 0 0 0 1px var(--accent-quiet);
+}
+.cx-tip { display: flex; flex-direction: column; gap: var(--sp-1); }
+.cx-tip-head { display: flex; align-items: center; gap: var(--sp-2); }
+.cx-tip-price { margin-left: auto; padding-left: var(--sp-3); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cx-tip-line { color: var(--text-muted); }

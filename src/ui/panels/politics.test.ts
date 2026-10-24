@@ -81,7 +81,7 @@ describe('politics window', () => {
 
   it('shows five national opinion bars with trends against the yearly sample, and the latest log', () => {
     const ctx = testCtx(testState({ cities: [{ x: 10, y: 10, population: 6000 }] }));
-    // one sample of 1900, and no other: the trend shows "–" until it is 12 months old
+    // one sample of 1900, and no other: a trend below half a point reads "Steady" (no lone dash, Task 9)
     opinionHistoryYear(ctx);
     ctx.state.date = { ...ctx.state.date, year: 1902 };
     adjustOpinion(ctx.state, 'workers', 0, 10, 'Contract delivered');
@@ -94,7 +94,7 @@ describe('politics window', () => {
     expect(trend('workers').className).toBe('pol-trend up');
     expect(trend('workers').textContent).toBe('▲ +10');
     expect(trend('church').className).toBe('pol-trend down');
-    expect(trend('oldmoney').textContent).toBe('–');
+    expect(trend('oldmoney').textContent).toBe('Steady');
     expect(trend('workers').title).toBe('Change since 1900');
     const log = [...win().querySelectorAll<HTMLElement>('.pol-log li')];
     expect(log).toHaveLength(8);

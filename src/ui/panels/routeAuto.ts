@@ -37,13 +37,13 @@ export function autoControls(host: { ctx: SimContext }, routeId: number): { el: 
       h('div', { class: 'p-row' },
         h('span', null, 'Mode'),
         h('button', {
-          class: 'btn',
+          class: 'btn kit-btn kit-btn--secondary rt-mode',
           'data-act': 'mode',
           'aria-pressed': auto ? 'true' : 'false',
           title: auto ? 'Trucks follow the stops as written' : 'Trucks pick the most valuable job among the stops each time they leave',
           onClick: () => apply({ mode: auto ? 'manual' : 'auto' }),
         }, auto ? 'Auto' : 'Manual')),
-      h('div', { class: 'p-row' },
+      h('div', { class: 'p-row rt-autosize' },
         h('label', null,
           h('input', {
             type: 'checkbox',
@@ -63,7 +63,7 @@ export function autoControls(host: { ctx: SimContext }, routeId: number): { el: 
           onChange: (e: Event) => apply({ autoSize: { on: size.on, maxTrucks: clampMaxTrucks(Number((e.target as HTMLInputElement).value)) } }),
         }),
         h('span', null, ' trucks')),
-      h('div', { class: 'p-row insp-muted', 'data-stat': 'util' }, last === undefined ? 'Last month: no departures' : `Last month: ${last}% loaded`),
+      h('div', { class: 'p-row insp-muted rt-util', 'data-stat': 'util' }, last === undefined ? 'Last month: no departures' : `Last month: ${last}% loaded`),
     ];
     if (!auto) {
       r.stops.forEach((stop, i) => {

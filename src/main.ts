@@ -3,10 +3,15 @@ import { startUpgrade } from './sim/logistics/levels';
 import { buyHubTruck } from './sim/logistics/hubs';
 import { startUiScale } from './ui/scale';
 import { openHelp } from './ui/help';
+import '@fontsource/playfair-display/latin-700.css';
+import '@fontsource/source-sans-3/latin-400.css';
+import '@fontsource/source-sans-3/latin-700.css';
 import './ui/theme.css';
+import './ui/kit.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
+import { AlertTracker } from './game/alerts';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
 import { autoplayDefend, autoplayLogistics, autoplayNameHeir, runAutoplay } from './game/autoplay';
 import { addGrudge, FURIOUS_AT, grudgeTotal } from './sim/nemesis/grudges';
@@ -34,6 +39,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
  *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
  *  - `inspectcity=1` / `inspectvehicle=1` (dev) open the first city / vehicle inspector
+ *  - `inspectstore=1` (dev) opens the player's first store inspector
  *  - `inspecthub=1` (dev) opens a hub on the player's first warehouse (placing one by their first works when
  *    there is none), selects it and opens its inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
@@ -50,7 +56,7 @@ import { startStrike } from './sim/society/strikes';
  *    portrait (rival panel) is furious rather than gloating
  *  - `bid=1` (dev) hand the Baron a majority of the player's shares and open his hostile bid (the
  *    exchange panel's bid banner; add `panel=exchange`)
- *  - `end=1` (dev) show the victory end screen, with its Legacy table, on load
+ *  - `end=1|victory|gameOver` (dev) show the victory (or game over) end screen, with its Legacy table, on load
  *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
  *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
  *  - `classes=<cityId>:<working>,<middle>,<upper>` (dev) set a town's class mix (normalised), e.g. to
@@ -62,6 +68,7 @@ import { startStrike } from './sim/society/strikes';
  *    in the document title as `FPS <avg> (<frames> frames, worst <ms> ms)` (read it via CDP)
  *  - `tiltshift=1` (dev) keep the diorama tilt-shift on even when frames are slow (headless shots)
  *  - `coldopen=1` (dev, with a debug start) play the New Game cold open (game/coldOpen.ts)
+ *  - `alerts=open` (dev) open the top-bar alerts tray (its tracker warmed for 15 days)
  *  - `menu=1`          force the menu even when other parameters are present
  */
 const canvas = document.getElementById('world') as HTMLCanvasElement;
@@ -192,6 +199,18 @@ if (debugStart) {
       focus = { x: Math.round(mill.pos.x + size.w / 2), y: Math.round(mill.pos.y + size.h / 2) };
     }
   }
+  // `alerts=open` (dev) opens the top-bar alerts tray; the tracker first watches 15 days so the
+  // works and fleet alerts (7 and 14 days) are in it (screenshots)
+  let warmAlerts: AlertTracker | null = null;
+  if (import.meta.env.DEV && params.get('alerts') === 'open') {
+    warmAlerts = new AlertTracker();
+    warmAlerts.collect(state);
+    for (let d = 0; d < 15; d++) {
+      runDays(setup, 1);
+      warmAlerts.collect(state);
+    }
+  }
+
   const cardParam = params.get('card');
   // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen
   if (import.meta.env.DEV && (params.get('cards') === '0' || cardParam)) {
@@ -248,7 +267,8 @@ if (debugStart) {
     const at = params.get('at')?.split(',').map(Number);
     if (import.meta.env.DEV && at?.length === 2 && at.every(Number.isFinite)) g.centerOn({ x: at[0], y: at[1] });
     if (import.meta.env.DEV && params.get('tiltshift') === '1') g.renderer.forceTiltShift = true;
-    if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
+    // `panelarg=<id>` (dev) passes an argument to that panel, e.g. panel=codex&panelarg=cars selects a good
+    if (params.has('panel')) g.openPanel(params.get('panel') ?? '', import.meta.env.DEV ? params.get('panelarg') ?? undefined : undefined);
     // `hudmenu=<group id|more|factions>` opens a top-bar dropdown (screenshots of the menus)
     const hudMenu = params.get('hudmenu');
     if (import.meta.env.DEV && hudMenu) {
@@ -258,6 +278,9 @@ if (debugStart) {
     // `buildtab=<category id>` opens a build bar flyout; `ticker=scroll|headline|off` sets the news strip (screenshots)
     const buildTab = params.get('buildtab');
     if (import.meta.env.DEV && buildTab) document.querySelector<HTMLElement>(`.toolbar [data-tab="${CSS.escape(buildTab)}"]`)?.click();
+    // `hovergood=<good id>` (dev, with buildtab) hovers that good's recipe icon to show its codex tooltip
+    const hoverGood = params.get('hovergood');
+    if (import.meta.env.DEV && hoverGood) document.querySelector<HTMLElement>(`.toolbar .tc-good[data-good="${CSS.escape(hoverGood)}"]`)?.dispatchEvent(new Event('pointerenter'));
     const tickerParam = params.get('ticker');
     if (import.meta.env.DEV && (tickerParam === 'scroll' || tickerParam === 'headline' || tickerParam === 'off')) saveSettings({ ...loadSettings(), ticker: tickerParam });
     if (import.meta.env.DEV && params.get('openroute') === '1') {
@@ -271,6 +294,11 @@ if (debugStart) {
     // after inspect2, so the upgrading works is the building panel on screen (its scaffold is centred)
     if (import.meta.env.DEV && upgradingId !== null) g.openPanel('building', upgradingId);
     if (import.meta.env.DEV && params.get('inspectcity') === '1') g.openPanel('city', 0);
+    // `inspectstore=1` (dev) opens the player's first store (screenshots of the store inspector)
+    if (import.meta.env.DEV && params.get('inspectstore') === '1') {
+      const st = Object.values(g.ctx.state.buildings).find((b) => b.ownerId === 'player' && b.typeId === 'store');
+      if (st) g.openPanel('building', st.id);
+    }
     // `inspecthub=1` opens a hub (one truck) on the player's first warehouse, if any, and selects it
     if (import.meta.env.DEV && params.get('inspecthub') === '1') {
       const st = g.ctx.state;
@@ -311,7 +339,13 @@ if (debugStart) {
     // `help=1` opens the help overlay, `settings=1` the pause menu's Settings screen (dev, screenshots)
     if (import.meta.env.DEV && params.get('help') === '1') openHelp();
     if (import.meta.env.DEV && params.get('settings') === '1') g.onPause?.('settings');
-    if (import.meta.env.DEV && params.get('end') === '1') g.ctx.bus.emit({ type: 'victory', reason: 'The century is over' });
+    if (warmAlerts) {
+      g.useAlertTracker(warmAlerts);
+      g.toggleAlerts();
+    }
+    const endParam = params.get('end');
+    if (import.meta.env.DEV && (endParam === '1' || endParam === 'victory')) g.ctx.bus.emit({ type: 'victory', reason: 'The century is over' });
+    if (import.meta.env.DEV && endParam === 'gameOver') g.ctx.bus.emit({ type: 'gameOver', reason: 'The bank has called in your loans' });
   });
 } else {
   const menu = app.showMenu();

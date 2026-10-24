@@ -39,6 +39,8 @@ export interface InputHost {
    * ghost, and only Esc, P and the pan keys act (wheel zoom and right/middle-drag pan still work).
    */
   readonly photoActive?: boolean;
+  /** T: opens or closes the top-bar alerts tray */
+  toggleAlerts?(): void;
 }
 
 const PAN_KEYS: Record<string, Vec2> = {
@@ -275,6 +277,9 @@ export class Input {
         break;
       case 'help':
         toggleHelp();
+        break;
+      case 'alerts':
+        this.host.toggleAlerts?.();
         break;
     }
   }

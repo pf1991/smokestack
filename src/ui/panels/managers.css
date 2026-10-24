@@ -1,49 +1,32 @@
-/* Managers window and the inspector's manager slot */
-.mgr-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 3px 0;
-  border-bottom: 1px solid var(--brass-dark);
-}
+/* Managers window (a hiring board) and the inspector's manager slot. Tokens only (see cssGate.test.ts). */
+.managers-panel { display: flex; flex-direction: column; gap: var(--sp-2); color: var(--text); font-family: var(--font-body); font-size: var(--fs-sm); min-width: 0; }
+.managers-panel > .p-section { margin: 0; }
+.mgr-header .kit-ph { padding: 0 0 var(--sp-2); }
 
-.mgr-row:last-child {
-  border-bottom: 0;
-}
+.mgr-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.mgr-card { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--surface-1); border: 1px solid var(--accent-quiet); border-radius: var(--r-md); box-shadow: var(--shadow-1); min-width: 0; }
+.mgr-card-head { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.mgr-name { font-family: var(--font-display); font-size: var(--fs-md); font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mgr-sub { color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mgr-card-head .mgr-sub { flex: 1; }
+.mgr-card-head .kit-btn { margin-left: auto; flex: none; }
+.mgr-post { margin-left: auto; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mgr-post--none { color: var(--warning); }
 
-.mgr-skills {
-  display: inline-flex;
-  gap: 4px;
-  font-variant-numeric: tabular-nums;
-}
+/* three labelled skill meters */
+.mgr-meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); }
+.mgr-skill { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'label value' 'bar bar'; align-items: center; gap: 2px var(--sp-1); min-width: 0; cursor: help; border-radius: var(--r-sm); }
+.mgr-skill:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.mgr-skill-label { grid-area: label; font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mgr-skill-value { grid-area: value; font-size: var(--fs-xs); color: var(--text); font-variant-numeric: tabular-nums; }
+.mgr-skill .kit-meter { grid-area: bar; }
+.mgr-tip b { display: block; margin-bottom: 2px; }
 
-.mgr-skills > span {
-  padding: 0 4px;
-  border: 1px solid var(--brass-dark);
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.25);
-}
+.mgr-acts { display: flex; align-items: center; gap: var(--sp-2); }
+.mgr-acts select { flex: 1 1 auto; min-width: 0; font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--text); background: var(--surface-0); border: 1px solid var(--accent-quiet); border-radius: var(--r-sm); padding: 2px var(--sp-1); }
 
-.mgr-skills > span[data-skill='5'],
-.mgr-skills > span[data-skill='4'] {
-  color: var(--brass-light);
-}
-
-.mgr-name {
-  font-weight: bold;
-}
-
-.mgr-acts {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mgr-acts select {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.mgr-empty {
-  opacity: 0.7;
-}
+/* the inspector's compact L/P/F chips */
+.mgr-skills { display: inline-flex; gap: var(--sp-1); font-variant-numeric: tabular-nums; }
+.mgr-skills > span { padding: 0 var(--sp-1); border: 1px solid var(--accent-quiet); border-radius: var(--r-sm); background: var(--surface-0); }
+.mgr-skills > span[data-skill='5'], .mgr-skills > span[data-skill='4'] { color: var(--accent-strong); }
+.mgr-empty { color: var(--text-muted); }

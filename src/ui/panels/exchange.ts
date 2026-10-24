@@ -10,13 +10,14 @@
 import type { GameController } from '../../game/controller';
 import { companyIds } from '../../sim/companies';
 import { buyBack, buyBackNeed, buyBackQuote, buyQuote, buyShares, holding, sellerFor, sellQuote, sellShares, takeoverRefusal } from '../../sim/exchange/trading';
-import { CONTROL_SHARES, CONTROL_WEALTH_RATIO, PUBLIC_HOLDER } from '../../sim/exchange/types';
+import { CONTROL_SHARES, CONTROL_WEALTH_RATIO, PUBLIC_HOLDER, SHARES_OUTSTANDING } from '../../sim/exchange/types';
 import { bidMonthsLeft, bidOpen } from '../../sim/nemesis/bid';
 import type { GameState, OwnerId } from '../../sim/types';
 import { sparkline } from '../charts';
 import { h } from '../dom';
 import './panels.css';
 import { formatMoney } from '../format';
+import { button, emptyState, panelHeader, section } from '../kit';
 import { createWindow, type GameWindow } from '../window';
 import type { PanelDef } from './index';
 
@@ -56,6 +57,27 @@ function actionState(state: GameState, id: OwnerId, action: Action): { label: st
   return { label: `Sell ${n} · ${formatMoney(q.total)}`, enabled: holding(state, 'player', id) >= n };
 }
 
+/** "Your shares: 12% of Smogsworth Consolidated" (the biggest stake in another company), or "No holdings yet". */
+export function exchangeHeadline(state: GameState): string {
+  let best: { id: OwnerId; n: number } | null = null;
+  for (const id of companyIds(state)) {
+    if (id === 'player' || !state.exchange.listings[id]) continue;
+    const n = holding(state, 'player', id);
+    if (n > 0 && (!best || n > best.n)) best = { id, n };
+  }
+  if (!best) return 'No holdings yet';
+  const shares = state.exchange.listings[best.id].shares || SHARES_OUTSTANDING;
+  return `Your shares: ${Math.round((best.n / shares) * 100)}% of ${state.companies[best.id]?.name ?? best.id}`;
+}
+
+function noneListed(): HTMLElement {
+  const el = emptyState({ title: 'No company is listed', body: 'Companies list on the exchange as they are founded.' });
+  el.classList.add('p-empty-sm');
+  return el;
+}
+
+const labelOf = (b: HTMLElement) => b.querySelector('.kit-btn-label') as HTMLElement;
+
 function holdingsText(state: GameState, id: OwnerId): string {
   const you = holding(state, 'player', id);
   const baron = holding(state, 'rival', id);
@@ -74,9 +96,8 @@ function bidBanner(game: GameController, rerender: () => void): HTMLElement | nu
   const need = buyBackNeed(state);
   const q = buyBackQuote(state, need);
   const his = holding(state, 'rival', 'player');
-  const btn = h('button', {
-    class: 'btn',
-    type: 'button',
+  const btn = button(`Buy back ${need} · ${formatMoney(q.total)}`, {
+    variant: 'primary',
     onClick: () => {
       const r = buyBack(game.ctx);
       game.ctx.bus.emit(r.ok
@@ -84,7 +105,7 @@ function bidBanner(game: GameController, rerender: () => void): HTMLElement | nu
         : { type: 'toast', message: r.error, tone: 'bad' });
       rerender();
     },
-  }, `Buy back ${need} · ${formatMoney(q.total)}`);
+  });
   return h('div', { class: 'p-section exchange-bid', role: 'alert' },
   h('div', { class: 'exchange-bid-title' }, `Hostile bid: ${plural(months, 'month')} left`),
   h('div', { class: 'exchange-bid-text' },
@@ -131,14 +152,16 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
       for (const lot of LOTS) {
         const action: Action = `${side}-${lot}`;
         const s = actionState(state, id, action);
-        const b = h('button', { class: 'btn', type: 'button', 'data-action': action, disabled: !s.enabled, title: s.reason ?? undefined, onClick: () => trade(action) }, s.label) as HTMLButtonElement;
+        const b = button(s.label, { variant: side === 'buy' ? 'secondary' : 'quiet', disabled: !s.enabled, title: s.reason ? `${s.label}. ${s.reason}` : s.label, onClick: () => trade(action) }) as HTMLButtonElement;
+        b.dataset.action = action;
         buttons.appendChild(b);
         updates.push(() => {
           const now = actionState(game.ctx.state, id, action);
-          if (b.textContent !== now.label) b.textContent = now.label;
+          if (b.textContent !== now.label) labelOf(b).textContent = now.label;
           b.disabled = !now.enabled;
-          if (now.reason) b.title = now.reason;
-          else b.removeAttribute('title');
+          // the label may be cut short in the narrow panel: the tooltip always has it whole
+          const tip = now.reason ? `${now.label}. ${now.reason}` : now.label;
+          if (b.title !== tip) b.title = tip;
         });
       }
     }
@@ -148,7 +171,7 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
     });
     rows.push(h('div', { class: 'exchange-row', 'data-company': id },
     h('div', { class: 'p-row' },
-      h('span', { class: 'exchange-name', style: { color } }, c.name),
+      h('span', { class: 'exchange-name', style: { color }, title: c.name }, c.name),
       h('span', { class: 'exchange-quote' }, canvas, price)),
     held,
     buttons,
@@ -164,13 +187,13 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
       }
     });
   }
+  const note = section('How the exchange works', [h('p', { class: 'exchange-note-text' }, `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes it costs a control premium as large again as 510 of its shares.`)]);
+  note.classList.add('exchange-note');
   const el = h('div', { class: 'exchange-panel' },
+    h('div', { class: 'exchange-header' }, panelHeader({ title: 'Exchange', summary: exchangeHeadline(state) })),
     bidBanner(game, rerender),
-    h('div', { class: 'p-section' },
-      h('div', { class: 'p-head' }, 'Listed companies'),
-      ...rows),
-    h('div', { class: 'p-section exchange-note' },
-      `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes it costs a control premium as large again as 510 of its shares.`));
+    section('Listed companies', rows.length > 0 ? rows : [noneListed()]),
+    note);
   return { el, live: { update: () => updates.forEach((u) => u()) } };
 }
 
