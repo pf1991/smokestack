@@ -85,11 +85,20 @@ export function setOwnerBadge(el: HTMLElement, state: GameState, ownerId: OwnerI
 /** What each box last showed, so a refresh rebuilds a kit block only when its content changed (see finance.ts). */
 const shownKey = new WeakMap<HTMLElement, string>();
 
-/** Replaces `box`'s children with `build()` when `key` differs from the last one shown. */
-export function swap(box: HTMLElement, key: string, build: () => HTMLElement): void {
+/**
+ * Replaces `box`'s children with `build()` when `key` differs from the last one shown, keeping the
+ * box's own vertical scroll and, when `inner` names one, the horizontal scroll of that inner scroller
+ * (a wide table's wrapper).
+ */
+export function swap(box: HTMLElement, key: string, build: () => HTMLElement, inner?: string): void {
   if (shownKey.get(box) === key) return;
   shownKey.set(box, key);
+  const top = box.scrollTop;
+  const left = inner ? (box.querySelector<HTMLElement>(inner)?.scrollLeft ?? 0) : 0;
   box.replaceChildren(build());
+  if (top) box.scrollTop = top;
+  const next = inner && left ? box.querySelector<HTMLElement>(inner) : null;
+  if (next) next.scrollLeft = left;
 }
 
 /** Updates a kit `meter` in place (value clamped to 0..max), touching only what changed. */

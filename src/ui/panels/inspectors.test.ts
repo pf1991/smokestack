@@ -723,3 +723,26 @@ describe('statusAdvice for stores, depots and the last day (Task 8 fix)', () => 
     expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Upgrading: 1 day left', tone: 'info' });
   });
 });
+
+describe('inspect swap', () => {
+  it('rebuilds only on a new key and keeps the box scroll and an inner scroller', async () => {
+    const { swap } = await import('./inspect');
+    const box = document.createElement('div');
+    const build = (n: number) => () => {
+      const el = document.createElement('div');
+      el.className = 'inner';
+      el.textContent = String(n);
+      return el;
+    };
+    swap(box, 'a', build(1), '.inner');
+    const first = box.firstElementChild;
+    swap(box, 'a', build(2), '.inner');
+    expect(box.firstElementChild).toBe(first);
+    box.scrollTop = 40;
+    (box.querySelector('.inner') as HTMLElement).scrollLeft = 30;
+    swap(box, 'b', build(3), '.inner');
+    expect(box.textContent).toBe('3');
+    expect(box.scrollTop).toBe(40);
+    expect((box.querySelector('.inner') as HTMLElement).scrollLeft).toBe(30);
+  });
+});

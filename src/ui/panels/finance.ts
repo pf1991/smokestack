@@ -17,6 +17,7 @@ import { openMonth } from '../ledger';
 import { iconEl } from '../icon';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
+import { swap } from './inspect';
 import './finance.css';
 
 const REFRESH_MS = 1000;
@@ -199,19 +200,6 @@ const NET_WORTH_TITLE = 'Cash minus loans, plus works, vehicles and shares held'
 /** Windows that already have a refresh timer running (so a second open just re-raises them). */
 const timed = new WeakSet<HTMLElement>();
 
-/** What each box last showed, so a refresh only rebuilds the parts whose figures moved. */
-const shownKey = new WeakMap<HTMLElement, string>();
-
-/** Replaces `box`'s children when `key` changed, keeping any horizontal table scroll where it was. */
-function swap(box: HTMLElement, key: string, build: () => HTMLElement): void {
-  if (shownKey.get(box) === key) return;
-  shownKey.set(box, key);
-  const scroll = box.querySelector<HTMLElement>('.finance-scroll')?.scrollLeft ?? 0;
-  box.replaceChildren(build());
-  const next = box.querySelector<HTMLElement>('.finance-scroll');
-  if (next && scroll) next.scrollLeft = scroll;
-}
-
 const labelOf = (btn: HTMLElement) => btn.querySelector('.kit-btn-label') as HTMLElement;
 
 export const financePanel: PanelDef = {
@@ -336,13 +324,13 @@ export const financePanel: PanelDef = {
 
       // 5. and 6. The statement and the companies (the sections themselves stay, so an open statement stays open).
       const shown = player.ledger.slice(-STATEMENT_MONTHS);
-      swap(statementBox, JSON.stringify(shown.map((m) => [m.year, m.month, m.income, m.expense])), () => statement(player.ledger));
+      swap(statementBox, JSON.stringify(shown.map((m) => [m.year, m.month, m.income, m.expense])), () => statement(player.ledger), '.finance-scroll');
       const firms = companyIds(state).map((id) => {
         const c = state.companies[id];
         // net worth moves with works, vehicles and shares too, not only cash and loan
         return [c.name, c.active, c.money, c.loan, wealth(state, id)];
       });
-      swap(companiesBox, JSON.stringify(firms), () => companiesTable(state));
+      swap(companiesBox, JSON.stringify(firms), () => companiesTable(state), '.finance-scroll');
 
       // Sales by product this year (closed by default; the section stays, so its open state does too).
       const sold = yearSales(player.ledger, state.date.year);

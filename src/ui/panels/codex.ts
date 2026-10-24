@@ -14,6 +14,7 @@ import { card, dataTable, emptyState, panelHeader, pill } from '../kit';
 import { createWindow } from '../window';
 import { cityDemand } from './city';
 import type { PanelDef } from './index';
+import { swap } from './inspect';
 
 type Kind = 'raw' | 'processed' | 'consumer';
 
@@ -98,7 +99,6 @@ class CodexPanel {
   private readonly detailBox = h('div', { class: 'cx-detail-box' });
   private filter: FilterId = 'all';
   private selected: GoodId | null = null;
-  private readonly shown = new WeakMap<HTMLElement, string>();
   private timer = 0;
 
   constructor(private readonly game: GameController) {
@@ -147,21 +147,12 @@ class CodexPanel {
     if (r.top < box.top || r.bottom > box.bottom) this.listBox.scrollTop += r.top - box.top - (box.height - r.height) / 2;
   }
 
-  /** Replaces `box`'s children when `key` changed, keeping its scroll where it was. */
-  private swap(box: HTMLElement, key: string, build: () => HTMLElement): void {
-    if (this.shown.get(box) === key) return;
-    this.shown.set(box, key);
-    const top = box.scrollTop;
-    box.replaceChildren(build());
-    box.scrollTop = top;
-  }
-
   update(): void {
     const state = this.game.state;
     const made = goodsMade(state);
     const all = Object.values(GOODS);
     const summary = `${all.length} goods · you make ${made.size}`;
-    this.swap(this.headerBox, summary, () => panelHeader({ title: 'Production codex', summary, icon: 'chain' }));
+    swap(this.headerBox, summary, () => panelHeader({ title: 'Production codex', summary, icon: 'chain' }));
 
     for (const b of this.filterBar.querySelectorAll<HTMLElement>('.cx-filter')) {
       const on = String(b.dataset.filter === this.filter);
@@ -172,11 +163,11 @@ class CodexPanel {
     const rows: Row[] = all
       .filter((g) => (this.filter === 'all' ? true : this.filter === 'mine' ? made.has(g.id) : kindOf(g) === this.filter))
       .map((g) => ({ id: g.id, price: g.basePrice, demand: Math.round(demand.get(g.id) ?? 0) }));
-    this.swap(this.listBox, JSON.stringify([this.filter, this.selected, rows]), () => this.list(rows));
+    swap(this.listBox, JSON.stringify([this.filter, this.selected, rows]), () => this.list(rows));
 
     const year = state.date.year;
     const sel = this.selected;
-    this.swap(this.detailBox, `${sel}|${sel && GOODS[sel].era > year}`, () => (sel ? this.detail(sel, year) : emptyState({
+    swap(this.detailBox, `${sel}|${sel && GOODS[sel].era > year}`, () => (sel ? this.detail(sel, year) : emptyState({
       icon: 'chain',
       title: 'Pick a good',
       body: 'Its recipe tree, the works that make it and what it goes into appear here.',
