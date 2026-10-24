@@ -664,12 +664,19 @@
 }
 
 .exchange-row {
-  padding: 3px 0 4px;
-  border-top: 1px solid rgba(138, 109, 23, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  background: var(--surface-1);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
 }
 
-.p-head + .exchange-row {
-  border-top: 0;
+.exchange-row:last-child {
+  margin-bottom: 0;
 }
 
 .exchange-name {
@@ -694,15 +701,37 @@
 }
 
 .exchange-holdings {
-  font-size: var(--fs-sm);
-  opacity: 0.85;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
 .exchange-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 3px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+.exchange-buttons .kit-btn {
+  justify-content: center;
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+
+.exchange-buttons .kit-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exchange-bid .kit-btn {
+  align-self: flex-start;
+}
+
+.exchange-note-text {
+  margin: 0;
+  color: var(--text-muted);
 }
 
 .exchange-gate {
@@ -712,7 +741,6 @@
 
 .exchange-note {
   font-size: var(--fs-sm);
-  opacity: 0.8;
 }
 
 /* ---- Legacy table (Legacy panel and the end screen) ---- */
