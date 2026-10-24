@@ -1,37 +1,43 @@
-/* Fleet manager window. */
-.fl { font-size: 13px; min-width: 680px; }
-.fl-body { margin: 0; gap: 2px; }
-.fl-summary { color: var(--paper-shade); }
-.fl-filters { display: flex; gap: 4px; flex-wrap: wrap; }
-.fl-routebar { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
-.fl-route-filter { font: inherit; min-width: 0; color: var(--paper); background: var(--walnut-light); border: 1px solid var(--brass-dark); border-radius: 2px; padding: 2px; }
-.fl-model { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fl-filter { padding: 1px 9px; }
-.fl-filter.active { background: var(--brass-light); color: var(--walnut); }
-.fl-row { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px 104px minmax(60px, 1fr) 34px 70px auto; gap: 6px; align-items: center; padding: 2px 6px; min-height: 28px; background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; }
-.fl-row.problem { border-color: #f0a35a; }
-.fl-route { font: inherit; min-width: 0; width: 100%; color: var(--paper); background: var(--walnut-light); border: 1px solid var(--brass-dark); border-radius: 2px; padding: 2px; }
-.fl-status.st-stuck { color: #f0a35a; font-weight: bold; }
-.fl-status.st-idle { color: var(--paper-shade); font-style: italic; }
-.fl-trips { text-align: right; }
-.fl-head { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px 104px minmax(60px, 1fr) 34px 70px auto; gap: 6px; padding: 2px 6px; position: sticky; top: -8px; z-index: 1; background: var(--walnut-light); border-bottom: 1px solid var(--brass-dark); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--paper-shade); }
-.fl-head span:nth-child(6) { text-align: right; }
-.fl-head span:last-child { width: 160px; }
-.fl-actions { display: flex; gap: 3px; }
-.fl-btn { padding: 1px 7px; font-size: 12px; }
-.fl-sell { background: var(--walnut-light); color: var(--paper); }
-.fl-empty { color: var(--paper-shade); font-style: italic; margin: 6px 0; }
-.fl-age { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Fleet window: a kit header, the filters and the vehicle table. Tokens only (see cssGate.test.ts). */
+.fl { display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text); min-width: 0; }
+.fl > .p-section { margin: 0; }
+.fl-header .kit-ph { padding: 0 0 var(--sp-2); }
+.fl-controls { gap: var(--sp-2); }
+.fl-summary { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.fl-filters { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+.fl-filter { display: inline-flex; align-items: center; gap: var(--sp-1); font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--text); background: transparent; border: 1px solid var(--accent-quiet); border-radius: var(--r-sm); padding: 2px var(--sp-2); cursor: pointer; }
+.fl-filter:hover { background: var(--surface-2); }
+.fl-filter[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--paper-ink); }
+.fl-filter:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.fl-routebar { display: flex; gap: var(--sp-2); align-items: center; min-width: 0; }
+.fl-routebar .kit-btn[hidden] { display: none; }
+.fl-route-filter,
+.fl-route { font-family: var(--font-ui); font-size: var(--fs-sm); min-width: 0; color: var(--text); background: var(--surface-0); border: 1px solid var(--accent-quiet); border-radius: var(--r-sm); padding: 2px var(--sp-1); }
+.fl-route-filter { flex: 1 1 auto; max-width: 240px; }
+.fl-route { width: 100%; }
 
-/* compact viewports (window capped at 420px): no cargo or trips, the actions wrap under the row */
-.fl-compact { min-width: 0; }
-.fl-compact .fl-row,
-.fl-compact .fl-head { grid-template-columns: 24px minmax(90px, 1fr) 62px 74px; }
-.fl-compact .fl-cargo,
-.fl-compact .fl-trips,
-.fl-compact .fl-model,
-.fl-compact .fl-head span:nth-child(4),
-.fl-compact .fl-head span:nth-child(5),
-.fl-compact .fl-head span:nth-child(6),
-.fl-compact .fl-head span:last-child { display: none; }
-.fl-compact .fl-actions { grid-column: 2 / -1; justify-content: flex-end; }
+.fl-body { margin: 0; padding: 0; }
+.fl-table th[data-col='kind'] { width: 28px; }
+.fl-table th[data-col='route'] { width: 30%; }
+.fl-table th[data-col='status'] { width: 64px; }
+.fl-table th[data-col='model'] { width: 96px; }
+.fl-table th[data-col='trips'] { width: 48px; }
+.fl-table th[data-col='age'] { width: 76px; }
+.fl-table th[data-col='actions'] { width: 176px; }
+.fl-table td { vertical-align: middle; }
+.fl-table tr.problem td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+.fl-icon { display: inline-flex; }
+.fl-status.st-stuck { color: var(--warning); font-weight: 700; }
+.fl-status.st-idle { color: var(--text-muted); font-style: italic; }
+.fl-cargo { display: inline-flex; align-items: center; gap: 2px; }
+.fl-age { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fl-actions { display: inline-flex; gap: var(--sp-1); justify-content: flex-end; }
+.fl-btn.kit-btn { padding: 2px var(--sp-2); font-size: var(--fs-sm); gap: var(--sp-1); }
+
+/* compact viewports (the panel is narrow): no model, cargo or trips columns */
+.fl-compact .fl-table [data-col='model'],
+.fl-compact .fl-table [data-col='cargo'],
+.fl-compact .fl-table [data-col='trips'] { display: none; }
+.fl-compact .fl-table th[data-col='route'] { width: auto; }
+.fl-compact .fl-table th[data-col='age'] { width: 70px; }
+.fl-compact .fl-table th[data-col='actions'] { width: 168px; }

@@ -9,9 +9,11 @@ import type { IconId } from '../../render/icons';
 import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
+import { button, dataTable, emptyState, panelHeader, type Column } from '../kit';
 import { COMPACT_WIDTH, createWindow } from '../window';
 import type { PanelDef } from './index';
 import './fleet.css';
+import { swap } from './inspect';
 import { buildingName } from './routeActions';
 
 /** The slice of the GameController this panel needs (lets tests use a small stub). */
@@ -61,6 +63,13 @@ export function fleetSummary(state: GameState): string {
   return `${trucks} ${trucks === 1 ? 'truck' : 'trucks'} · ${trains} ${trains === 1 ? 'train' : 'trains'} · ${idle} idle · ${stuck} stuck · ${formatMoney(upkeep)}/mo upkeep`;
 }
 
+/** The header line: "12 vehicles, 2 idle" (exported for tests). */
+export function fleetHeadline(state: GameState): string {
+  const vs = playerVehicles(state);
+  const idle = vs.filter((v) => v.state === 'idle').length;
+  return `${vs.length} ${vs.length === 1 ? 'vehicle' : 'vehicles'}, ${idle} idle`;
+}
+
 /** Cargo as icon + quantity pairs ("Empty" when nothing aboard); `sig` changes only when the display would. */
 export function cargoView(v: Vehicle): { sig: string; nodes: (string | HTMLElement)[] } {
   const items = Object.entries(v.cargo).filter(([, q]) => q > 0.5);
@@ -86,7 +95,9 @@ export const HUB_VALUE = 'hub';
 
 interface Row {
   vehicle: Vehicle;
+  /** the table row; rebuilt with the table when the set of rows changes */
   el: HTMLElement;
+  icon: HTMLElement;
   select: HTMLSelectElement;
   optSig: string;
   status: HTMLElement;
@@ -95,7 +106,19 @@ interface Row {
   trips: HTMLElement;
   age: HTMLElement;
   replace: HTMLButtonElement;
+  actions: HTMLElement;
 }
+
+const COLUMNS: Column<Row>[] = [
+  { key: 'kind', label: '', render: (r) => r.icon },
+  { key: 'route', label: 'Route', render: (r) => r.select },
+  { key: 'status', label: 'Status', render: (r) => r.status },
+  { key: 'model', label: 'Model', render: (r) => r.model },
+  { key: 'cargo', label: 'Cargo', render: (r) => r.cargo },
+  { key: 'trips', label: 'Trips', align: 'right', render: (r) => r.trips },
+  { key: 'age', label: 'Age', align: 'right', render: (r) => r.age },
+  { key: 'actions', label: '', align: 'right', render: (r) => r.actions },
+];
 
 /** "41 yr" with the efficiency when it has started to slip (exported for tests). */
 export function ageText(state: GameState, v: Vehicle): string {
@@ -106,6 +129,7 @@ export function ageText(state: GameState, v: Vehicle): string {
 
 class FleetPanel {
   private readonly root = h('div', { class: 'fl' });
+  private readonly header = h('div', { class: 'fl-header' });
   private filter: FleetFilter = 'all';
   private routeFilter: number | null = null;
   private readonly summary = h('div', { class: 'fl-summary' });
@@ -119,9 +143,8 @@ class FleetPanel {
     },
   }) as HTMLSelectElement;
   private routeSig = '\0';
-  private readonly upgradeBtn = h('button', { class: 'btn fl-btn', 'data-act': 'upgrade-route', onClick: () => this.upgradeRoute() }, 'Upgrade all trucks on this route') as HTMLButtonElement;
+  private readonly upgradeBtn = fleetButton('Upgrade all trucks on this route', 'upgrade-route', 'secondary', () => this.upgradeRoute());
   private readonly body = h('div', { class: 'p-section fl-body' });
-  private readonly empty = h('p', { class: 'fl-empty' }, 'No vehicles to show.');
   private readonly rows = new Map<number, Row>();
   private listSig = '\0';
   private timer = 0;
@@ -132,8 +155,10 @@ class FleetPanel {
     for (const f of FILTERS) {
       this.filterBar.append(
         h('button', {
-          class: 'btn fl-filter',
+          class: 'fl-filter',
+          type: 'button',
           'data-filter': f.id,
+          'aria-pressed': 'false',
           onClick: () => {
             this.filter = f.id;
             this.update();
@@ -142,8 +167,8 @@ class FleetPanel {
       );
     }
     this.root.append(
-      h('div', { class: 'p-section' }, this.summary, this.filterBar, h('div', { class: 'fl-routebar' }, this.routeSel, this.upgradeBtn)),
-      h('div', { class: 'fl-head' }, h('span'), h('span', null, 'Route'), h('span', null, 'Status'), h('span', null, 'Model'), h('span', null, 'Cargo'), h('span', { title: 'Completed unloading stops in the last 30 days' }, 'Trips'), h('span', { title: 'Years since bought; old vehicles run slower and cost more to keep' }, 'Age'), h('span')),
+      this.header,
+      h('div', { class: 'p-section fl-controls' }, this.summary, this.filterBar, h('div', { class: 'fl-routebar' }, this.routeSel, this.upgradeBtn)),
       this.body,
     );
     createWindow({ id: 'fleet', title: 'Fleet', content: this.root, width: 740, onClose: () => this.dispose() });
@@ -181,20 +206,15 @@ class FleetPanel {
     const cargo = h('span', { class: 'fl-cargo' });
     const trips = h('span', { class: 'fl-trips', title: 'Completed unloading stops in the last 30 days' });
     const age = h('span', { class: 'fl-age' });
-    const replace = h('button', { class: 'btn fl-btn', 'data-act': 'replace', onClick: () => this.replace(v.id) }, 'Replace') as HTMLButtonElement;
-    const el = h('div', { class: 'fl-row', 'data-vehicle': v.id },
-      h('span', { class: 'fl-icon', title: v.kind === 'train' ? 'Train' : 'Truck' }, iconEl(v.kind === 'train' ? 'train' : 'truck', 16, v.kind === 'train' ? 'Train' : 'Truck')),
-      select,
-      status,
-      model,
-      cargo,
-      trips,
-      age,
-      h('span', { class: 'fl-actions' },
-        h('button', { class: 'btn fl-btn', 'data-act': 'locate', title: 'Pan the camera here and select it', onClick: () => this.locate(v.id) }, 'Locate'),
-        replace,
-        h('button', { class: 'btn fl-btn fl-sell', 'data-act': 'sell', onClick: () => this.sell(v.id) }, 'Sell')));
-    return { vehicle: v, el, select, optSig: '\0', status, model, cargo, trips, age, replace };
+    const replace = fleetButton('Replace', 'replace', 'secondary', () => this.replace(v.id));
+    const locate = fleetButton('Locate', 'locate', 'quiet', () => this.locate(v.id));
+    locate.title = 'Pan the camera here and select it';
+    const sell = fleetButton('Sell', 'sell', 'danger', () => this.sell(v.id));
+    sell.classList.add('fl-sell');
+    const kind = v.kind === 'train' ? 'Train' : 'Truck';
+    const icon = h('span', { class: 'fl-icon', title: kind }, iconEl(v.kind === 'train' ? 'train' : 'truck', 16, kind));
+    const actions = h('span', { class: 'fl-actions' }, locate, replace, sell);
+    return { vehicle: v, el: h('tr'), icon, select, optSig: '\0', status, model, cargo, trips, age, replace, actions };
   }
 
   private locate(id: number): void {
@@ -245,18 +265,24 @@ class FleetPanel {
     const text = (el: HTMLElement, t: string) => {
       if (el.textContent !== t) el.textContent = t;
     };
+    const headline = fleetHeadline(state);
+    const trouble = all.some(isProblem);
+    swap(this.header, `${headline}|${trouble}`, () =>
+      panelHeader({ title: 'Fleet', icon: 'truck', summary: headline, tone: trouble ? 'warning' : 'neutral' }));
     text(this.summary, fleetSummary(state));
     for (const b of this.filterBar.children) {
-      b.classList.toggle('active', (b as HTMLElement).dataset.filter === this.filter);
+      const on = (b as HTMLElement).dataset.filter === this.filter;
+      b.classList.toggle('active', on);
+      if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', String(on));
     }
-    const sig = shown.map((v) => v.id).join(',');
+    const sig = `${all.length === 0}|${shown.map((v) => v.id).join(',')}`;
     if (sig !== this.listSig) {
       this.listSig = sig;
       const next = new Map<number, Row>();
       for (const v of shown) next.set(v.id, this.rows.get(v.id) ?? this.makeRow(v));
       this.rows.clear();
       for (const [id, row] of next) this.rows.set(id, row);
-      this.body.replaceChildren(...(shown.length > 0 ? shown.map((v) => this.rows.get(v.id)!.el) : [this.empty]));
+      this.body.replaceChildren(this.listView(all.length, [...next.values()]));
     }
     for (const v of shown) {
       const row = this.rows.get(v.id);
@@ -277,6 +303,31 @@ class FleetPanel {
       if (row.replace.title !== tip) row.replace.title = tip;
       this.syncSelect(row, v);
     }
+  }
+
+  /** The vehicle table, or an empty state: none bought yet, or none under the filters. */
+  private listView(total: number, rows: Row[]): HTMLElement {
+    if (total === 0) {
+      return emptyState({
+        icon: 'truck',
+        title: 'No vehicles yet',
+        body: 'Open Routes, draw a line between two works and buy a truck for it.',
+        action: button('Open Routes', { variant: 'primary', onClick: () => this.game.openPanel('routes') }),
+      });
+    }
+    if (rows.length === 0) return emptyState({ title: 'No vehicles match', body: 'Pick All, or another route, to see the rest of the fleet.' });
+    const table = dataTable<Row>({ columns: COLUMNS, rows, rowKey: (r) => String(r.vehicle.id), emptyText: '' });
+    table.classList.add('fl-table');
+    table.querySelector('th[data-col="trips"]')?.setAttribute('title', 'Completed unloading stops in the last 30 days');
+    table.querySelector('th[data-col="age"]')?.setAttribute('title', 'Years since bought; old vehicles run slower and cost more to keep');
+    const trs = table.querySelectorAll<HTMLElement>('tbody tr');
+    rows.forEach((r, i) => {
+      const tr = trs[i];
+      tr.classList.add('fl-row');
+      tr.dataset.vehicle = String(r.vehicle.id);
+      r.el = tr;
+    });
+    return h('div', { class: 'p-scroll fl-scroll' }, table);
   }
 
   /** Route filter options (the player's routes) and the bulk-upgrade button, shown when a route is selected. */
@@ -309,6 +360,14 @@ class FleetPanel {
     const want = v.hubId != null ? HUB_VALUE : v.routeId === null ? '' : String(v.routeId);
     if (!focused && row.select.value !== want) row.select.value = want;
   }
+}
+
+/** A compact kit button with the `data-act` the tests and the tutorial use. */
+function fleetButton(label: string, act: string, variant: 'secondary' | 'quiet' | 'danger', onClick: () => void): HTMLButtonElement {
+  const b = button(label, { variant, onClick }) as HTMLButtonElement;
+  b.classList.add('fl-btn');
+  b.dataset.act = act;
+  return b;
 }
 
 let current: FleetPanel | null = null;
