@@ -57,6 +57,21 @@ describe('kit', () => {
     expect(t.querySelector('tbody td')?.getAttribute('title')).toBe('Long name');
   });
 
+  it('row keydown ignores events from inner controls', () => {
+    const fn = vi.fn();
+    const t = dataTable({
+      columns: [{ key: 'a', label: 'A', render: () => document.createElement('button') }],
+      rows: [{}],
+      emptyText: 'x',
+      onRowClick: fn,
+    });
+    const btn = t.querySelector('button')!;
+    btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(fn).not.toHaveBeenCalled();
+    t.querySelector('tbody tr')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it('section', () => {
     const s = section('A', ['x'], { collapsible: true, open: false });
     expect(s.tagName).toBe('DETAILS');

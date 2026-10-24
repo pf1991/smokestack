@@ -127,6 +127,7 @@ export function dataTable<T>(o: {
               onClick: clickable ? () => o.onRowClick!(row) : undefined,
               onKeydown: clickable
                 ? (e: Event) => {
+                    if (e.target !== e.currentTarget) return;
                     const k = (e as KeyboardEvent).key;
                     if (k === 'Enter' || k === ' ') {
                       e.preventDefault();
@@ -194,6 +195,7 @@ function sharedTip(): HTMLElement {
   return tipEl;
 }
 
+/** Callers should call the returned disposer when removing the target from the DOM. */
 export function tooltip(target: HTMLElement, content: () => HTMLElement | string): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let shown = false;
@@ -210,6 +212,7 @@ export function tooltip(target: HTMLElement, content: () => HTMLElement | string
     if (e.key === 'Escape') hide();
   };
   const show = () => {
+    if (!target.isConnected) return;
     const tip = sharedTip();
     const c = content();
     tip.replaceChildren(typeof c === 'string' ? document.createTextNode(c) : c);
