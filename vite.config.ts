@@ -12,5 +12,8 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.ts', 'server/**/*.test.ts'],
+    // The 100-year CPU budget in balance.test.ts reads process.cpuUsage(), which counts every thread of
+    // its process: keep that file in a forked process of its own, never in a shared worker thread.
+    poolMatchGlobs: [['**/src/sim/balance.test.ts', 'forks']],
   },
 });

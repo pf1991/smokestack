@@ -18,8 +18,8 @@ body.photo-mode .window {
   pointer-events: none;
   z-index: 61;
   font-family: var(--font-display);
-  font-size: 22px;
-  color: #f3e7c9;
+  font-size: var(--fs-xl);
+  color: var(--text);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 .photo-bar {
@@ -32,7 +32,7 @@ body.photo-mode .window {
   gap: 8px;
   padding: 6px 10px;
   background: rgba(43, 29, 20, 0.9);
-  border: 1px solid #c9a227;
+  border: 1px solid var(--accent);
   border-radius: 4px;
 }
 .photo-bar button {

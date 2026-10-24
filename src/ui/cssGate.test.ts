@@ -4,17 +4,21 @@ import { describe, expect, it } from 'vitest';
 const FS = 'node:fs';
 const fs = (await import(/* @vite-ignore */ FS)) as {
   readFileSync(p: string, enc: string): string;
-  existsSync(p: string): boolean;
+  readdirSync(p: string, opts: { recursive: true }): string[];
 };
-const { readFileSync, existsSync } = fs;
+const { readFileSync, readdirSync } = fs;
 const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
 
 /**
- * CSS files already moved onto the design tokens. Each rework task appends its files here.
- * Deliberately absent: src/ui/panels/newspaper-display.css, the newspaper's masthead, lead headline
- * and drop cap, the only type in the game drawn above the --fs-* scale (see that file's header).
+ * Every CSS file under src/ui is on the design tokens, with one documented exemption:
+ * src/ui/panels/newspaper-display.css, the newspaper's masthead, lead headline and drop cap, the only
+ * type in the game drawn above the --fs-* scale (see that file's header).
  */
-export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css', 'src/ui/panels/finance.css', 'src/ui/panels/routes.css', 'src/ui/panels/managers.css', 'src/ui/panels/fleet.css', 'src/ui/panels/politics.css', 'src/ui/panels/contracts.css', 'src/ui/panels/goals.css', 'src/ui/panels/newspaper.css', 'src/ui/toolbar.css', 'src/ui/toasts.css', 'src/ui/cardModal.css', 'src/ui/menu.css', 'src/ui/coldOpen.css', 'src/ui/alertsTray.css', 'src/ui/panels/codex.css'];
+export const GATE_EXEMPT: string[] = ['src/ui/panels/newspaper-display.css'];
+export const MIGRATED_CSS: string[] = readdirSync(`${cwd}/src/ui`, { recursive: true })
+  .map((f) => `src/ui/${f.replace(/\\/g, '/')}`)
+  .filter((f) => f.endsWith('.css') && !GATE_EXEMPT.includes(f))
+  .sort();
 
 /** Strip comments and custom-property declarations (tokens are where raw values live). */
 function stripped(css: string): string {
@@ -45,9 +49,18 @@ describe('css gate', () => {
     expect(gateViolations('h1{font-size:var(--fs-huge)}')).toHaveLength(1);
   });
 
+  it('covers every UI stylesheet but the one exemption', () => {
+    expect(MIGRATED_CSS).toContain('src/ui/theme.css');
+    expect(MIGRATED_CSS).toContain('src/ui/panels/codex.css');
+    expect(MIGRATED_CSS).toContain('src/ui/help.css');
+    expect(MIGRATED_CSS).toContain('src/ui/tutorial.css');
+    expect(MIGRATED_CSS).toContain('src/ui/photoMode.css');
+    expect(MIGRATED_CSS).not.toContain('src/ui/panels/newspaper-display.css');
+    expect(MIGRATED_CSS.length).toBeGreaterThanOrEqual(23);
+  });
+
   for (const file of MIGRATED_CSS) {
     it(`${file} uses only tokens`, () => {
-      if (!existsSync(`${cwd}/${file}`)) return; // not written yet
       expect(gateViolations(readFileSync(`${cwd}/${file}`, 'utf8'))).toEqual([]);
     });
   }

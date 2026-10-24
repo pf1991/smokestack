@@ -95,6 +95,8 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 | G / O / X | Goals / Politics / Rival |
 | E / Y / L | Exchange / Family / Legacy |
 | J | Managers |
+| T | Alerts tray (works and stores that need you; click an alert to jump to it) |
+| I | Production codex (every good: recipe, inputs, price and demand) |
 | B | Show or hide the build bar |
 | M / K | Smog map / Faction map |
 | P | Photo mode |
@@ -105,6 +107,8 @@ Prices fall when you flood a market and rise when a town is starved. Towns grow 
 **Interface**
 
 - Panels open as tabs in one side panel; the tab bar switches between the open windows and Esc closes the active tab.
+- The alerts tray (T, or the bell in the top bar) lists idle, starved and full works and empty stores; the same troubles show as badges over the buildings on the map.
+- The production codex (I) explains every good: what makes it, what it needs, and what it sells for.
 - The top bar groups the panels: Company (Finance, Goals, Exchange, Family, Legacy), Operations (Routes, Fleet, Contracts) and World (Newspaper, Politics, Rival).
 - Settings include a UI scale (makes the whole interface larger or smaller), a ticker mode (scrolling, single headline or off), the side panel width (drag the panel's edge; Reset in Settings) and Smart events (JEV).
 

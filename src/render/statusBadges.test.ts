@@ -10,13 +10,19 @@ const b = (o: Partial<Building>): Building =>
 function mockCtx() {
   const arc = vi.fn();
   const target: Record<string, unknown> = { arc };
+  /** canvas methods fetched, roughly the draw calls made (a work count, not a wall-clock time) */
+  let ops = 0;
   const ctx = new Proxy(target, {
-    get: (t, k) => (k in t ? t[k as string] : (t[k as string] = vi.fn())),
+    get: (t, k) => {
+      const v = k in t ? t[k as string] : (t[k as string] = vi.fn());
+      if (typeof v === 'function') ops++;
+      return v;
+    },
     set: (t, k, v) => ((t[k as string] = v), true),
   }) as unknown as CanvasRenderingContext2D;
   /** badge discs are the only 9 px-radius arcs (icon painters draw in a scaled 16 box) */
   const discs = () => arc.mock.calls.filter((c) => c[2] === 9).length;
-  return { ctx, arc, discs };
+  return { ctx, arc, discs, ops: () => ops };
 }
 const cam = { x: 0, y: 0, viewW: 4000, viewH: 4000 } as never;
 const stateOf = (bs: Building[]) =>
@@ -69,12 +75,14 @@ describe('drawStatusBadges', () => {
     drawStatusBadges(ctx, stateOf(far), { x: 0, y: 0, zoom: 1.6, viewW: 800, viewH: 600 } as never, { photo: false, nowMs: 0 });
     expect(discs()).toBe(1);
   });
-  it('handles 300 buildings quickly', () => {
+  it('handles 300 buildings with bounded work per badge', () => {
+    // counts draw operations instead of timing them: wall-clock asserts flake under full-suite load
     const many = Array.from({ length: 300 }, (_, i) => b({ status: 'no_input', pos: { x: i % 50, y: Math.floor(i / 50) * 3 } }));
-    const { ctx } = mockCtx();
-    const st = stateOf(many);
-    const t = performance.now();
-    drawStatusBadges(ctx, st, cam, { photo: false, nowMs: 0 });
-    expect(performance.now() - t).toBeLessThan(20);
+    const one = mockCtx();
+    drawStatusBadges(one.ctx, stateOf(many.slice(0, 1)), cam, { photo: false, nowMs: 0 });
+    const all = mockCtx();
+    drawStatusBadges(all.ctx, stateOf(many), cam, { photo: false, nowMs: 0 });
+    expect(all.discs()).toBe(300);
+    expect(all.ops()).toBeLessThanOrEqual(300 * one.ops() + 20);
   });
 });

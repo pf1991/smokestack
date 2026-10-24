@@ -9,6 +9,8 @@
   --font-display: 'Playfair Display', Georgia, serif;
   --font-ui: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
   --font-body: var(--font-ui);
+  /* key caps in the help card (help.css): system monospace, no web font */
+  --font-mono: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
   --fs-xs: 11px;
   --fs-sm: 12.5px;
   --fs-md: 14px;
