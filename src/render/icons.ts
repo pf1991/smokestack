@@ -523,6 +523,14 @@ const UI_PAINTERS: Record<string, Painter> = {
     rect(g, 3.5, 2.5, 3.2, 11, C.brassLight);
     rect(g, 9.3, 2.5, 3.2, 11, C.brassLight);
   },
+  // map badge for a building being upgraded: scaffold frame with a cross brace
+  scaffold: (g) => {
+    bar(g, [3.5, 14.5, 3.5, 2], C.walnut, 1.6);
+    bar(g, [12.5, 14.5, 12.5, 2], C.walnut, 1.6);
+    bar(g, [3.5, 5, 12.5, 5], C.brassLight, 1.6);
+    bar(g, [3.5, 10, 12.5, 10], C.brassLight, 1.6);
+    bar(g, [3.5, 10, 12.5, 5], C.walnut, 1.2);
+  },
   fast: (g) => {
     poly(g, [1.5, 3, 8, 8, 1.5, 13], C.brassLight);
     poly(g, [8, 3, 14.5, 8, 8, 13], C.brassLight);

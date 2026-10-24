@@ -3,7 +3,7 @@
  *
  * Layer order: terrain → roads → houses → sun shadows → vehicles → smog protesters (render/protesters.ts)
  * → buildings (y-sorted, strike pickets interleaved by depth: render/protesters.ts) → particles →
- * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → overlays →
+ * smog haze (diorama only, render/smogHaze.ts) → selection / route polyline → ghost → status badges (render/statusBadges.ts) → overlays →
  * atmosphere → night lights (additive) → tilt-shift (diorama only, render/tiltShift.ts) → overlay
  * legends (screen space, unfiltered overlay canvas when attached).
  * Vehicles go under buildings: they never drive on a footprint, so the only overlap is a raised roof
@@ -48,6 +48,7 @@ import { scrubberEmission } from '../../sim/society/upgrades';
 import { drawNightLights } from './night';
 import { paintRailTile } from './rails';
 import { hasLamp, paintBridgeTile, paintRoadTile, roadEra, roadMask } from './roads';
+import { drawStatusBadges } from '../statusBadges';
 import { drawGhost, drawGhostLabel, drawSelection } from './selection';
 import { CityLabelCache, type ScreenRect, UrbanWatch, applySurveyNight, drawCityLabels, drawSurveySymbols, hudRects } from './survey';
 import { type ChunkMeta, type Ctx, HOUSE_STRIDE, type Dir, SPRITE_MARGIN, type Surface, type TileRange, h01, makeSurface } from './shared';
@@ -478,6 +479,7 @@ export class WorldRenderer {
     drawGhost(ctx, this.ghost, z);
     ctx.restore();
     drawGhostLabel(ctx, this.ghost, cam);
+    drawStatusBadges(ctx, state, cam, { photo: this.uiHidden, zoom: z, nowMs });
     this.floaters.draw(ctx, cam);
   }
 

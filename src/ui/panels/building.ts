@@ -20,7 +20,7 @@ import {
   type UpgradeKind,
 } from '../../sim/society/upgrades';
 import { isWorks, SLOWDOWN_FACTOR, SLOWDOWN_OPINION, strikeActive, strikeEnd } from '../../sim/society/strikeState';
-import { loadSource } from '../../sim/inventory';
+import { loadSource, storeStocked } from '../../sim/inventory';
 import { STATION_TYPE, stationAccess } from '../../sim/rail';
 import { accessTiles, demolishBuilding, demolitionRefund, footprint } from '../../sim/state';
 import { assetAge, assetEfficiency, assetUpkeep, renewBuilding, renewCost, renewRefusal } from '../../sim/society/aging';
@@ -133,10 +133,7 @@ export function ageLine(state: GameState, b: Building): string {
   return `${head}: ${Math.round(assetEfficiency(state, b) * 100)}% efficiency`;
 }
 
-/** A store has something to sell: any good on its shelves (exported for tests). */
-export function storeStocked(b: Building): boolean {
-  return Object.values(loadSource(b)).some((q) => q > 0.5);
-}
+export { storeStocked };
 
 /** Plain-language explanation of what the building is doing (exported for tests). */
 export function statusReason(state: GameState, b: Building, routes: Route[]): string {
