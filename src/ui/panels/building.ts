@@ -133,6 +133,11 @@ export function ageLine(state: GameState, b: Building): string {
   return `${head}: ${Math.round(assetEfficiency(state, b) * 100)}% efficiency`;
 }
 
+/** A store has something to sell: any good on its shelves (exported for tests). */
+export function storeStocked(b: Building): boolean {
+  return Object.values(loadSource(b)).some((q) => q > 0.5);
+}
+
 /** Plain-language explanation of what the building is doing (exported for tests). */
 export function statusReason(state: GameState, b: Building, routes: Route[]): string {
   const def = BUILDINGS[b.typeId];
@@ -142,6 +147,7 @@ export function statusReason(state: GameState, b: Building, routes: Route[]): st
   if (b.status === 'halted') return `Halted until ${b.haltedUntil ? formatDate(b.haltedUntil) : 'further notice'}`;
   const problem = extractorProblem(state, b);
   if (problem) return problem;
+  if (def.category === 'retail') return storeStocked(b) ? 'Open for business' : 'Shelves empty — route goods here';
   switch (b.status) {
     case 'no_input': {
       const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
@@ -155,10 +161,8 @@ export function statusReason(state: GameState, b: Building, routes: Route[]): st
     case 'output_full':
       return 'Storage full — needs a truck route';
     case 'idle':
-      if (def.category === 'retail') return 'No sales today';
       return routes.length === 0 ? 'Not on any route' : 'Idle';
     default: {
-      if (def.category === 'retail') return 'Open for business';
       if (def.category === 'logistics') return 'Handling cargo';
       return `Producing — ${Math.min(100, Math.round(b.progress * 100))}% of this batch`;
     }
@@ -173,9 +177,19 @@ export function statusAdvice(state: GameState, b: Building): { text: string; ton
   const def = BUILDINGS[b.typeId];
   const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
   const today = dateToDays(state.date);
+  const works = def?.category === 'extractor' || def?.category === 'factory';
+  if (!works && b.status !== 'halted' && b.status !== 'upgrading') {
+    // stores, depots and stations have no recipe: the sim leaves them 'idle' most days, so their
+    // line comes from what is on the shelves, not from the status
+    if (def?.category === 'retail') {
+      return storeStocked(b)
+        ? { text: 'Open for business', tone: 'positive' }
+        : { text: 'Shelves empty: route goods here', tone: 'warning' };
+    }
+    return { text: 'Handling cargo', tone: 'neutral' };
+  }
   switch (b.status) {
     case 'ok':
-      if (def?.category === 'retail') return { text: 'Open for business', tone: 'positive' };
       return { text: 'Producing', tone: 'positive' };
     case 'no_input': {
       const ins = Object.entries(recipe?.inputs ?? {});
@@ -199,9 +213,6 @@ export function statusAdvice(state: GameState, b: Building): { text: string; ton
     }
     case 'idle':
     default:
-      // stores, depots and stations have no recipe to choose: idle is their resting state
-      if (def?.category === 'retail') return { text: 'No sales today', tone: 'neutral' };
-      if (def && def.category !== 'extractor' && def.category !== 'factory') return { text: 'Handling cargo', tone: 'neutral' };
       return { text: 'Idle: choose a recipe', tone: 'neutral' };
   }
 }

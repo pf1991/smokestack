@@ -838,7 +838,7 @@
 .insp-flow-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-1);
   flex: 1;
   min-width: 0;
 }
@@ -916,9 +916,14 @@
 
 .insp-route-pill {
   max-width: 100%;
+  min-width: 0;
+}
+
+.insp-route-pill-text {
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .insp-route-pill .swatch {
@@ -1000,12 +1005,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .insp-crave {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--sp-1);
   font-size: var(--fs-xs);
 }
 

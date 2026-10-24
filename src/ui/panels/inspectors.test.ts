@@ -690,3 +690,36 @@ describe('inspectors in an empty game (Task 8)', () => {
     expect(document.querySelector('.insp-cargo .kit-meter')!.getAttribute('aria-valuenow')).toBe('0');
   });
 });
+
+describe('statusAdvice for stores, depots and the last day (Task 8 fix)', () => {
+  it('a store reads its shelves, not its status', () => {
+    const ctx = testCtx(testState({ money: 1e7, cities: [{ x: 30, y: 20 }] }));
+    const store = must(placeBuilding(ctx, 'player', 'store', { x: 30, y: 21 }));
+    store.status = 'idle';
+    expect(statusAdvice(ctx.state, store)).toEqual({ text: 'Shelves empty: route goods here', tone: 'warning' });
+    store.input = { bread: 12 };
+    expect(statusAdvice(ctx.state, store)).toEqual({ text: 'Open for business', tone: 'positive' });
+    store.status = 'ok';
+    expect(statusAdvice(ctx.state, store).text).toBe('Open for business');
+    PANELS.building.open(host(ctx) as never, store.id);
+    expect(document.querySelector('.insp-reason')!.textContent).toBe('Open for business');
+  });
+
+  it('a depot is handling cargo whether ok or idle', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const wh = place(ctx, 'warehouse', 5, 5);
+    for (const st of ['ok', 'idle'] as const) {
+      wh.status = st;
+      expect(statusAdvice(ctx.state, wh)).toEqual({ text: 'Handling cargo', tone: 'neutral' });
+    }
+  });
+
+  it('says "1 day left" on the last day of works', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    const today = dateToDays(ctx.state.date);
+    b.works = { toLevel: 2, startDay: today - 29, untilDay: today + 1 };
+    b.status = 'upgrading';
+    expect(statusAdvice(ctx.state, b)).toEqual({ text: 'Upgrading: 1 day left', tone: 'info' });
+  });
+});

@@ -99,7 +99,7 @@ describe('design tokens', () => {
         });
       }
     }
-    // panels.css .insp-badge status colours carry --surface-0 text
+    // dark text on a solid tone fill (a confirm button, a toned badge) stays legible
     for (const b of ['--positive', '--negative', '--warning']) {
       it(`--surface-0 on ${b} >= 4.5 (inspector badge)`, () => {
         expect(contrast(token('--surface-0')!, token(b)!)).toBeGreaterThanOrEqual(4.5);

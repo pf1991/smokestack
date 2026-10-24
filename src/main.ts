@@ -38,6 +38,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
  *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
  *  - `inspectcity=1` / `inspectvehicle=1` (dev) open the first city / vehicle inspector
+ *  - `inspectstore=1` (dev) opens the player's first store inspector
  *  - `inspecthub=1` (dev) opens a hub on the player's first warehouse (placing one by their first works when
  *    there is none), selects it and opens its inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
@@ -275,6 +276,11 @@ if (debugStart) {
     // after inspect2, so the upgrading works is the building panel on screen (its scaffold is centred)
     if (import.meta.env.DEV && upgradingId !== null) g.openPanel('building', upgradingId);
     if (import.meta.env.DEV && params.get('inspectcity') === '1') g.openPanel('city', 0);
+    // `inspectstore=1` (dev) opens the player's first store (screenshots of the store inspector)
+    if (import.meta.env.DEV && params.get('inspectstore') === '1') {
+      const st = Object.values(g.ctx.state.buildings).find((b) => b.ownerId === 'player' && b.typeId === 'store');
+      if (st) g.openPanel('building', st.id);
+    }
     // `inspecthub=1` opens a hub (one truck) on the player's first warehouse, if any, and selects it
     if (import.meta.env.DEV && params.get('inspecthub') === '1') {
       const st = g.ctx.state;

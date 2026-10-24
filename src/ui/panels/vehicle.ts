@@ -126,8 +126,10 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const routeName = hubbed ? (opts.find((o) => o.value === HUB_VALUE)?.label ?? 'Hub') : route ? route.name : 'No route';
       const color = !hubbed && route ? route.color : '';
       swap(routePillBox, `${routeName}|${color}`, () => {
-        const p = pill(routeName, hubbed || route ? 'info' : 'warning', hubbed ? 'hub' : undefined);
+        const p = pill('', hubbed || route ? 'info' : 'warning', hubbed ? 'hub' : undefined);
         p.classList.add('insp-route-pill');
+        // the name truncates with an ellipsis inside the pill (a long route name never widens the panel)
+        p.append(h('span', { class: 'insp-route-pill-text' }, routeName));
         p.title = hubbed || route ? `Route: ${routeName}` : 'Not on a route: assign one below';
         if (color) p.prepend(h('span', { class: 'swatch', style: { background: color } }));
         return p;
