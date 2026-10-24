@@ -18,7 +18,16 @@ export type AlertTarget =
   | { kind: 'building'; id: number }
   | { kind: 'vehicle'; id: number }
   | { kind: 'panel'; panel: string };
-export interface Alert { id: string; tone: AlertTone; icon: IconId; title: string; detail: string; target: AlertTarget }
+export interface Alert {
+  id: string;
+  tone: AlertTone;
+  icon: IconId;
+  title: string;
+  detail: string;
+  target: AlertTarget;
+  /** the day (dateToDays) the condition was first seen; the tray shows today minus this as its age */
+  since: number;
+}
 
 export const MAX_ALERTS = 50;
 const BUILDING_DAYS = 7;
@@ -26,7 +35,6 @@ const VEHICLE_DAYS = 14;
 const CONTRACT_WINDOW = 30;
 const TONE_RANK: Record<AlertTone, number> = { negative: 0, warning: 1, info: 2 };
 
-interface Found { alert: Alert; since: number }
 
 export class AlertTracker {
   private seen = new Map<string, number>();
@@ -35,14 +43,14 @@ export class AlertTracker {
   collect(state: GameState): Alert[] {
     const today = dateToDays(state.date);
     const now = new Map<string, number>();
-    const found: Found[] = [];
+    const found: Alert[] = [];
     /** records a live condition; returns the days it has lasted */
     const see = (id: string): number => {
       const first = this.seen.get(id) ?? today;
       now.set(id, first);
       return today - first;
     };
-    const add = (alert: Alert, since: number) => found.push({ alert, since });
+    const add = (alert: Omit<Alert, 'since'>, since: number) => found.push({ ...alert, since });
 
     for (const b of Object.values(state.buildings)) {
       if (b.ownerId !== 'player') continue;
@@ -112,8 +120,8 @@ export class AlertTracker {
     this.seen = now;
     return found
       .map((f, i) => ({ f, i }))
-      .sort((a, b) => TONE_RANK[a.f.alert.tone] - TONE_RANK[b.f.alert.tone] || a.f.since - b.f.since || a.i - b.i)
+      .sort((a, b) => TONE_RANK[a.f.tone] - TONE_RANK[b.f.tone] || a.f.since - b.f.since || a.i - b.i)
       .slice(0, MAX_ALERTS)
-      .map((x) => x.f.alert);
+      .map((x) => x.f);
   }
 }

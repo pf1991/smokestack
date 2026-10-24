@@ -18,6 +18,7 @@ export type ShortcutAction =
   | { kind: 'photo' }
   | { kind: 'help' }
   | { kind: 'escape' }
+  | { kind: 'alerts' }
   | { kind: 'overlay'; id: 'pollution' | 'factions' };
 
 export type ShortcutKind = ShortcutAction['kind'];
@@ -41,6 +42,7 @@ export const SHORTCUTS: readonly (Shortcut & { action: ShortcutAction })[] = [
   { key: 'Y', label: 'Family', group: 'Panels', action: { kind: 'panel', id: 'family' } },
   { key: 'L', label: 'Legacy', group: 'Panels', action: { kind: 'panel', id: 'legacy' } },
   { key: 'J', label: 'Managers', group: 'Panels', action: { kind: 'panel', id: 'managers' } },
+  { key: 'T', label: 'Alerts', group: 'Panels', action: { kind: 'alerts' } },
   { key: 'M', label: 'Smog map', group: 'Map', action: { kind: 'overlay', id: 'pollution' } },
   { key: 'K', label: 'Faction map', group: 'Map', action: { kind: 'overlay', id: 'factions' } },
   { key: 'P', label: 'Photo mode', group: 'Map', action: { kind: 'photo' } },

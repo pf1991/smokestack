@@ -169,7 +169,7 @@ function splitShortcut(title: string): { label: string; key: string | null } {
  * stays for assistive tech and tests, but is parked while the pointer is over the button so the
  * browser does not show a second, plain tooltip on top of ours.
  */
-function barTip(btn: HTMLElement): () => void {
+export function barTip(btn: HTMLElement): () => void {
   const park = () => {
     const t = btn.getAttribute('title');
     if (t === null) return;
@@ -229,6 +229,8 @@ export class Hud {
   private newsGroupButton: HTMLElement | null = null;
   private newsGroupLabel = '';
   private readonly tips: (() => void)[] = [];
+  /** the slot the alerts bell mounts into; empty (and hidden, with its divider) until then */
+  readonly alertsSlot: HTMLElement = h('span', { id: 'hud-alerts', class: 'hud-alerts' });
 
   constructor(root: HTMLElement, private readonly handlers: HudHandlers) {
     this.company = h('div', { class: 'hud-company hud-name' }, '');
@@ -341,8 +343,8 @@ export class Hud {
       h('div', { class: 'hud-right' },
         groups,
         layers,
-        // Task 13 mounts the alerts bell here
-        h('span', { id: 'hud-alerts', class: 'hud-alerts' }),
+        // the controller mounts the alerts bell here (ui/alertsTray.ts)
+        this.alertsSlot,
         settings,
         more.wrap));
 

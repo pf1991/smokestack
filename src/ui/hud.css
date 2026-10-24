@@ -229,6 +229,11 @@
   margin: var(--sp-2) 0;
 }
 
+/* no bell mounted: no divider either */
+.hud-alerts:empty {
+  display: none;
+}
+
 /* Quiet buttons: icon-only (title, aria-label and a tooltip name them) unless labelled below. */
 .hud-btn {
   position: relative;

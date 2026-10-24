@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays } from '../sim/clock';
+import { addDays, dateToDays } from '../sim/clock';
 import { testState } from '../sim/testkit';
 import type { Building, BuildingStatus, GameState } from '../sim/types';
 import { AlertTracker } from './alerts';
@@ -28,6 +28,18 @@ describe('AlertTracker', () => {
     expect(a[0].id).toBe('b:1:no_input');
     expect(a[0].tone).toBe('warning');
     expect(a[0].target).toEqual({ kind: 'building', id: 1 });
+  });
+
+  it('stamps each alert with the day its condition was first seen', () => {
+    const s = testState();
+    mk(s, 1, 'no_input');
+    const t = new AlertTracker();
+    const first = dateToDays(s.date);
+    t.collect(s);
+    advance(s, 9);
+    const a = t.collect(s);
+    expect(a[0].since).toBe(first);
+    expect(dateToDays(s.date) - a[0].since).toBe(9);
   });
 
   it('restarts the count when a status clears and returns', () => {

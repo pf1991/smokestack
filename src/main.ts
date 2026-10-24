@@ -11,6 +11,7 @@ import './ui/kit.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
+import { AlertTracker } from './game/alerts';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
 import { autoplayDefend, autoplayLogistics, autoplayNameHeir, runAutoplay } from './game/autoplay';
 import { addGrudge, FURIOUS_AT, grudgeTotal } from './sim/nemesis/grudges';
@@ -67,6 +68,7 @@ import { startStrike } from './sim/society/strikes';
  *    in the document title as `FPS <avg> (<frames> frames, worst <ms> ms)` (read it via CDP)
  *  - `tiltshift=1` (dev) keep the diorama tilt-shift on even when frames are slow (headless shots)
  *  - `coldopen=1` (dev, with a debug start) play the New Game cold open (game/coldOpen.ts)
+ *  - `alerts=open` (dev) open the top-bar alerts tray (its tracker warmed for 15 days)
  *  - `menu=1`          force the menu even when other parameters are present
  */
 const canvas = document.getElementById('world') as HTMLCanvasElement;
@@ -197,6 +199,18 @@ if (debugStart) {
       focus = { x: Math.round(mill.pos.x + size.w / 2), y: Math.round(mill.pos.y + size.h / 2) };
     }
   }
+  // `alerts=open` (dev) opens the top-bar alerts tray; the tracker first watches 15 days so the
+  // works and fleet alerts (7 and 14 days) are in it (screenshots)
+  let warmAlerts: AlertTracker | null = null;
+  if (import.meta.env.DEV && params.get('alerts') === 'open') {
+    warmAlerts = new AlertTracker();
+    warmAlerts.collect(state);
+    for (let d = 0; d < 15; d++) {
+      runDays(setup, 1);
+      warmAlerts.collect(state);
+    }
+  }
+
   const cardParam = params.get('card');
   // `cards=0` clears the pending cards; `card=<id>` does too, so the forced card is the one on screen
   if (import.meta.env.DEV && (params.get('cards') === '0' || cardParam)) {
@@ -321,6 +335,10 @@ if (debugStart) {
     // `help=1` opens the help overlay, `settings=1` the pause menu's Settings screen (dev, screenshots)
     if (import.meta.env.DEV && params.get('help') === '1') openHelp();
     if (import.meta.env.DEV && params.get('settings') === '1') g.onPause?.('settings');
+    if (warmAlerts) {
+      g.useAlertTracker(warmAlerts);
+      g.toggleAlerts();
+    }
     const endParam = params.get('end');
     if (import.meta.env.DEV && (endParam === '1' || endParam === 'victory')) g.ctx.bus.emit({ type: 'victory', reason: 'The century is over' });
     if (import.meta.env.DEV && endParam === 'gameOver') g.ctx.bus.emit({ type: 'gameOver', reason: 'The bank has called in your loans' });

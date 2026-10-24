@@ -31,6 +31,7 @@ function setup() {
     togglePhotoMode: vi.fn(),
     toggleOverlay: vi.fn(),
     tryOpenPanel: vi.fn(() => true),
+    toggleAlerts: vi.fn(),
   } satisfies InputHost;
   const input = new Input(canvas, host);
   live.push(() => {
@@ -64,6 +65,15 @@ describe('shortcut keys through Input', () => {
     expect(host.tryOpenPanel).toHaveBeenCalledWith('contracts');
     key('3');
     expect(host.setSpeed).toHaveBeenCalledWith(4);
+  });
+
+  it('T toggles the alerts tray through the host and A still pans', () => {
+    const host = setup();
+    key('t');
+    expect(host.toggleAlerts).toHaveBeenCalledTimes(1);
+    expect(withShortcut('Alerts', 'alerts')).toBe('Alerts (T)');
+    key('a');
+    expect(host.toggleAlerts).toHaveBeenCalledTimes(1);
   });
 
   it('M and K toggle the overlays through the host', () => {

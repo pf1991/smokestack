@@ -25,6 +25,9 @@ import { Input } from './input';
 import { ToolController } from './toolController';
 import { biggestCity } from './autoplay';
 import { attachCardModal } from '../ui/cardModal';
+import { mountAlerts } from '../ui/alertsTray';
+import { dateToDays } from '../sim/clock';
+import { AlertTracker, type Alert } from './alerts';
 
 /** Real milliseconds per game day at speed 1. */
 const MS_PER_DAY = 2000;
@@ -85,6 +88,13 @@ export class GameController {
   private toolListeners: ((t: ToolSpec) => void)[] = [];
   /** run at the start of every frame, before the sim step and render (e.g. the cold-open camera) */
   private frameHooks = new Set<(now: number) => void>();
+  /** first-seen memory for the alerts model; replaced on every load */
+  private alertTracker = new AlertTracker();
+  /** the alerts found by the last refresh (the top-bar bell shows them) */
+  alerts: readonly Alert[] = [];
+  private alertListeners = new Set<(alerts: readonly Alert[]) => void>();
+  /** the in-game day of the last alerts refresh */
+  private alertDay: number | null = null;
   /** vehicle the camera is following, if any */
   followId: number | null = null;
   private raf = 0;
@@ -136,6 +146,13 @@ export class GameController {
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
     this.input = new Input(canvas, this);
+    this.disposers.push(mountAlerts(this.hud.alertsSlot, this));
+    // the alerts are re-collected once per in-game day, not every frame
+    this.addFrameHook(() => {
+      if (!this.ctx) return;
+      const day = dateToDays(this.state.date);
+      if (day !== this.alertDay) this.refreshAlerts();
+    });
     this.trackHudHeight();
     window.addEventListener('resize', this.onResize);
     window.addEventListener('pointerdown', this.onGesture, true);
@@ -212,7 +229,38 @@ export class GameController {
     this.setTool({ kind: 'inspect' });
     this.hud.update(state);
     this.toolbar.update(state);
+    this.alertTracker = new AlertTracker();
+    this.refreshAlerts();
     this.start();
+  }
+
+  // ------------------------------------------------------------------ alerts
+
+  /** Re-collects the alerts now and tells the listeners (the bell and its tray). */
+  refreshAlerts(): readonly Alert[] {
+    this.alertDay = dateToDays(this.state.date);
+    this.alerts = this.alertTracker.collect(this.state);
+    for (const fn of this.alertListeners) fn(this.alerts);
+    return this.alerts;
+  }
+
+  /** Subscribes to alert refreshes; returns an unsubscribe. */
+  onAlerts(fn: (alerts: readonly Alert[]) => void): () => void {
+    this.alertListeners.add(fn);
+    return () => {
+      this.alertListeners.delete(fn);
+    };
+  }
+
+  /** T / the bell: opens or closes the alerts tray. */
+  toggleAlerts(): void {
+    this.hud.alertsSlot.querySelector<HTMLElement>('.alerts-bell')?.click();
+  }
+
+  /** DEV: swaps in a tracker that has already watched some days (main.ts `alerts=open` screenshots). */
+  useAlertTracker(tracker: AlertTracker): void {
+    this.alertTracker = tracker;
+    this.refreshAlerts();
   }
 
   /** Centres the view on a tile. */
