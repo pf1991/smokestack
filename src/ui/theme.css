@@ -4,20 +4,68 @@
   /* 1vw / 1vh in px of a zoomed UI root: viewport units are not compensated for zoom (ui/scale.ts) */
   --uvw: calc(1vw / var(--ui-scale, 1));
   --uvh: calc(1vh / var(--ui-scale, 1));
-  --walnut: #2b1d14;
-  --walnut-light: #3d2a1d;
-  --brass: #c9a227;
-  --brass-dark: #8a6d17;
-  --brass-light: #e8c75a;
+
+  /* Type */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-ui: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+  --font-body: var(--font-ui);
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-lg: 18px;
+  --fs-xl: 26px;
+  --lh-tight: 1.2;
+  --lh-body: 1.45;
+
+  /* Space and radius */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --r-sm: 3px;
+  --r-md: 6px;
+
+  /* Colour roles */
+  --surface-0: #1f150f;
+  --surface-1: #2b1d14;
+  --surface-2: #37261b;
+  --surface-3: #45301f;
   --paper: #f3e9d2;
   --paper-shade: #e4d5b2;
-  --ink: #1d1a16;
+  --paper-ink: #1d1a16;
+  --ink: var(--paper-ink);
+  --text: #f1e6cf;
+  --text-muted: #c3b394;
+  --text-faint: #9a8a6c;
+  --accent: #d4ab3a;
+  --accent-strong: #e8c75a;
+  --accent-quiet: rgba(212,171,58,0.35);
+  --positive: #7cc47c;
+  --negative: #ef7d6d;
+  --warning: #f0b44c;
+  --info: #6cc2c9;
+  --positive-bg: rgba(124, 196, 124, 0.16);
+  --negative-bg: rgba(239, 125, 109, 0.16);
+  --warning-bg: rgba(240, 180, 76, 0.16);
+  --info-bg: rgba(108, 194, 201, 0.16);
   --player: #2f6fb5;
   --rival: #b5302f;
-  --good: #3c8d3c;
-  --bad: #b5302f;
-  --font-display: Georgia, 'Times New Roman', serif;
-  --font-body: Georgia, 'Times New Roman', serif;
+
+  /* Elevation and focus */
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-2: 0 8px 24px rgba(0,0,0,.5);
+  --focus: 0 0 0 2px var(--accent-strong);
+
+  /* Old names, kept as aliases for the screens not yet migrated */
+  --walnut: var(--surface-1);
+  --walnut-light: var(--surface-2);
+  --brass: var(--accent);
+  --brass-light: var(--accent-strong);
+  --brass-dark: #8a6d17;
+  --good: var(--positive);
+  --bad: var(--negative);
 }
 
 *,
@@ -30,17 +78,18 @@ body {
   margin: 0;
   background: var(--walnut);
   color: var(--paper);
-  font-family: var(--font-body);
-  font-size: 14px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
 }
 
 h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--brass-light);
+  line-height: var(--lh-tight);
+  color: var(--accent-strong);
 }
 
 /* Atlas icons (src/ui/icon.ts) sit on the text baseline like a glyph. */
@@ -60,25 +109,28 @@ h3 {
   padding: 12px;
 }
 
-/* Brass button with a subtle bevel. */
+/* Secondary button: quiet surface with a brass edge. */
 .btn {
-  font-family: var(--font-display);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--walnut);
-  background: linear-gradient(180deg, var(--brass-light), var(--brass) 55%, var(--brass-dark));
-  border: 1px solid var(--brass-dark);
-  border-radius: 3px;
-  padding: 6px 12px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-3);
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
-    0 2px 3px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-1);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
 }
 
 .btn:hover {
-  filter: brightness(1.08);
+  background: var(--surface-3);
+  border-color: var(--accent);
 }
 
 .btn:active {
@@ -96,9 +148,9 @@ h3 {
 textarea,
 input[type='text'] {
   background: var(--paper);
-  color: var(--ink);
+  color: var(--paper-ink);
   border: 1px solid var(--brass-dark);
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   padding: 6px 8px;
 }
 
@@ -125,9 +177,8 @@ input[type='text'] {
   cursor: move;
   user-select: none;
   font-family: var(--font-display);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--walnut);
+  font-weight: 700;
+  color: var(--surface-1);
   background: linear-gradient(90deg, var(--brass-dark), var(--brass), var(--brass-dark));
   border-bottom: 2px solid var(--brass-dark);
 }
@@ -177,7 +228,7 @@ input[type='text'] {
   border-radius: 3px;
   padding: 8px 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
 }
 
 .toast.info {
@@ -214,17 +265,17 @@ input[type='text'] {
   right: 4px;
   top: 100%;
   pointer-events: none;
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: bold;
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 2px #000;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   animation: hud-delta-float 1500ms ease-out forwards;
   z-index: 1001;
 }
 
-.hud-delta.good { color: #8fe08a; }
-.hud-delta.bad { color: #ff6a5e; }
+.hud-delta.good { color: var(--positive); }
+.hud-delta.bad { color: var(--negative); }
 
 .stamp {
   position: fixed;
@@ -233,8 +284,8 @@ input[type='text'] {
   pointer-events: none;
   padding: 8px 22px;
   font-family: var(--font-display);
-  font-size: 34px;
-  font-weight: bold;
+  font-size: var(--fs-xl);
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   border: 4px double currentColor;
@@ -245,8 +296,8 @@ input[type='text'] {
   z-index: 1002;
 }
 
-.stamp.good { color: #e8c75a; }
-.stamp.bad { color: #ff6a5e; }
+.stamp.good { color: var(--accent-strong); }
+.stamp.bad { color: var(--negative); }
 
 @keyframes hud-delta-float {
   0% { opacity: 0; transform: translateY(0); }
