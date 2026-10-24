@@ -1,6 +1,7 @@
 import type { NemesisState } from './nemesis/types';
 import type { DynastyState } from './dynasty/types';
 import type { ExchangeState } from './exchange/types';
+import type { AutoJob, AutoSize, BuildingLevel, BuildingWorks, HubJob, HubState, LogisticsState, RouteMode, RouteStats, VehicleKits, VehicleModelId } from './logistics/types';
 import type { SocietyState } from '../data/laws';
 import type { EventBus } from '../core/events';
 import type { FactionId } from '../data/factions';
@@ -47,7 +48,7 @@ export interface GameDate {
   hour: number;
 }
 
-export type BuildingStatus = 'ok' | 'no_input' | 'output_full' | 'halted' | 'idle';
+export type BuildingStatus = 'ok' | 'no_input' | 'output_full' | 'halted' | 'idle' | 'upgrading';
 
 export interface Building {
   id: number;
@@ -76,6 +77,12 @@ export interface Building {
   salesThisMonth?: number;
   /** the Baron's buildings only: the last 12 months' earnings (sales or output value, less upkeep), oldest first */
   earnings12?: number[];
+  /** Phase 4b level (sim/logistics/levels.ts); 1 when placed and after the v8 migration */
+  level: BuildingLevel;
+  /** an upgrade in progress (sim/logistics); absent when none */
+  works?: BuildingWorks;
+  /** a warehouse run as a hub (sim/logistics); absent when it is not one */
+  hub?: HubState;
 }
 
 /** A works' smoke abatement (sim/society/upgrades.ts). */
@@ -159,6 +166,8 @@ export interface RouteStop {
   buildingId: number;
   load: GoodId[];
   unload: GoodId[];
+  /** manual routes: leave once the truck is this share full (0, 0.5 or 1); absent means the old behaviour */
+  minLoad?: number;
 }
 
 export interface Route {
@@ -168,6 +177,11 @@ export interface Route {
   color: string;
   stops: RouteStop[];
   kind: 'truck' | 'train';
+  /** 'manual' stops are followed as written; 'auto' routes are job-driven (sim/logistics) */
+  mode: RouteMode;
+  autoSize?: AutoSize;
+  jobs?: AutoJob[];
+  stats?: RouteStats;
 }
 
 export type VehicleState = 'moving' | 'loading' | 'stuck' | 'idle';
@@ -192,6 +206,16 @@ export interface Vehicle {
   trips30?: number[];
   /** the year it was bought (sim/society/aging.ts); set to the load year for old saves */
   builtYear: number;
+  /** Phase 4b truck model (sim/logistics) */
+  model: VehicleModelId;
+  /** tiles per tick; read by the vehicle mover instead of the catalogue speed */
+  speed: number;
+  kits?: VehicleKits;
+  /** the hub warehouse this truck serves, when it is a hub truck */
+  hubId?: number | null;
+  job?: HubJob | AutoJob | null;
+  /** ticks spent in a smart wait (a manual stop's `minLoad`); reset on departure */
+  dwell?: number;
 }
 
 export type LedgerCategory =
@@ -207,7 +231,9 @@ export type LedgerCategory =
   /** a regional firm's payout to its owners (regional/firms.ts): a distribution, not an operating expense */
   | 'dividends'
   /** share trades and takeover settlements (exchange/trading.ts): capital flows, not operating profit */
-  | 'shares';
+  | 'shares'
+  /** managers' pay (sim/logistics) */
+  | 'salaries';
 
 export interface LedgerMonth {
   year: number;
@@ -353,6 +379,8 @@ export interface GameState {
   dynasty: DynastyState;
   /** Phase 4 the stock exchange: a listing per company (sim/exchange); added by the v7 migration */
   exchange: ExchangeState;
+  /** Phase 4b logistics: managers, their market, hub statistics (sim/logistics); added by the v8 migration */
+  logistics: LogisticsState;
   /** JEV decision mailbox (sim/ai/mailbox.ts); created lazily, absent in older saves and until a decision is posted */
   ai?: AiMailbox;
 }

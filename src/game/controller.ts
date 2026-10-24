@@ -14,7 +14,7 @@ import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
 import { startAiClient } from '../ai/client';
 import { attachAchievements } from './achievements';
-import { attachBaronStrikeToasts, attachHostileBidToasts, attachMilestoneStamps, attachStrikeToasts, attachStuckToasts } from './feedback';
+import { attachBaronStrikeToasts, attachHostileBidToasts, attachManagerToasts, attachMilestoneStamps, attachStrikeToasts, attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
 import { enterPhotoMode } from './photoMode';
@@ -188,6 +188,7 @@ export class GameController {
       attachStrikeToasts(this.ctx, (id) => this.openPanel('building', id)),
       attachBaronStrikeToasts(this.ctx, () => this.openPanel('rival')),
       attachHostileBidToasts(this.ctx, () => this.openPanel('exchange')),
+      attachManagerToasts(this.ctx, () => this.openPanel('managers')),
       attachMilestoneStamps(this.ctx),
       this.hud.attach(bus),
       attachAutosave(this.ctx),

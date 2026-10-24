@@ -25,10 +25,16 @@ import { pick } from './rng';
 import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
 import { defaultExchange } from './exchange/types';
+import { newLogistics } from './logistics/types';
+import { releaseBuilding } from './logistics/release';
+import { refreshMarket } from './logistics/managers';
+import { modelSpec } from './logistics/models';
+import { levelCostShare } from './logistics/levels';
 import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
 import { TREE_COST } from './society/upgrades';
+import { dropAutoJobs } from './logistics/autoRoutes';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
 
 export const ROAD_COST = 500;
@@ -41,8 +47,6 @@ export const ROAD_UPKEEP = 5;
 export function roadTileCost(state: GameState, water: boolean): number {
   return Math.round(atPrices(state, water ? BRIDGE_COST : ROAD_COST));
 }
-/** Purchase prices used for asset valuation (Task 14/27 own the TRUCK/TRAIN specs). */
-const VEHICLE_COST = { truck: 8000, train: 60000 } as const;
 const RIVAL_NAME = 'Smogsworth Consolidated';
 
 // ---------------------------------------------------------------------------
@@ -322,6 +326,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     nemesis,
     dynasty,
     exchange: defaultExchange(opts.seed),
+    logistics: newLogistics(opts.seed, START_DATE.year),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {
@@ -340,6 +345,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
   // listed at the scenario's starting money; a game without the Baron delists him at once
   for (const id of ['player', 'rival']) listCompany(state, id);
   if (!rival.active) delist(state, 'rival');
+  refreshMarket(state, state.date.year); // the market's own rng stream, not state.rngState
   return state;
 }
 
@@ -456,6 +462,7 @@ export function placeBuilding(
     staffing: 1,
     strike: null,
     builtYear: state.date.year,
+    level: 1,
   };
   state.buildings[building.id] = building;
   invalidateSpatial(state);
@@ -528,6 +535,7 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
   if (!building) return err('No such building');
   if (owner !== undefined && building.ownerId !== owner) return err('Not your building');
   earn(state.companies[building.ownerId], 'demolition', demolitionRefund(state, building), state.date);
+  releaseBuilding(state, id);
   // a strike ends with its works: withdraw the strike card still waiting on it (as strikes.ts strikeOver)
   const strikeUid = building.strike?.cardUid;
   if (strikeUid !== null && strikeUid !== undefined) {
@@ -547,6 +555,7 @@ export function demolishBuilding(ctx: SimContext, id: number, owner?: OwnerId): 
     if (removed.length === 0) continue;
     const kept = route.stops.filter((s) => s.buildingId !== id);
     route.stops = kept;
+    if (route.mode === 'auto') dropAutoJobs(state, route); // the stop indices in its jobs moved
     for (const v of Object.values(state.vehicles)) {
       if (v.routeId !== route.id) continue;
       const targetRemoved = removed.includes(v.stopIndex);
@@ -716,19 +725,22 @@ export function plantForest(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Res
 // ---------------------------------------------------------------------------
 // valuation
 
-/** (Σ building cost × 0.5 + Σ vehicle purchase price × 0.5) at today's prices, rounded. */
+/** Book value of a building before the price index: half its catalogue cost and half of each completed upgrade's. */
+const buildingBook = (b: Building): number => BUILDINGS[b.typeId].cost * (1 + levelCostShare(b)) * 0.5;
+
+/** (Σ building cost (with its completed levels) × 0.5 + Σ vehicle purchase price × 0.5) at today's prices, rounded. */
 export function assetValue(state: GameState, owner: OwnerId): number {
   let v = 0;
-  for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += BUILDINGS[b.typeId].cost * 0.5;
-  for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += VEHICLE_COST[veh.kind] * 0.5;
+  for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += buildingBook(b);
+  for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += modelSpec(veh.model).cost * 0.5;
   return Math.round(atPrices(state, v));
 }
 
 /** assetValue of every owner at once (one pass over buildings and vehicles); owners with no assets are absent. */
 export function assetValues(state: GameState): Map<OwnerId, number> {
   const raw = new Map<OwnerId, number>();
-  for (const b of Object.values(state.buildings)) raw.set(b.ownerId, (raw.get(b.ownerId) ?? 0) + BUILDINGS[b.typeId].cost * 0.5);
-  for (const veh of Object.values(state.vehicles)) raw.set(veh.ownerId, (raw.get(veh.ownerId) ?? 0) + VEHICLE_COST[veh.kind] * 0.5);
+  for (const b of Object.values(state.buildings)) raw.set(b.ownerId, (raw.get(b.ownerId) ?? 0) + buildingBook(b));
+  for (const veh of Object.values(state.vehicles)) raw.set(veh.ownerId, (raw.get(veh.ownerId) ?? 0) + modelSpec(veh.model).cost * 0.5);
   for (const [k, v] of raw) raw.set(k, Math.round(atPrices(state, v)));
   return raw;
 }

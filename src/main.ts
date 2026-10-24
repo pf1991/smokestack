@@ -1,4 +1,6 @@
 import { loadSettings, saveSettings, UI_SCALES } from './game/settings';
+import { startUpgrade } from './sim/logistics/levels';
+import { buyHubTruck } from './sim/logistics/hubs';
 import { startUiScale } from './ui/scale';
 import { openHelp } from './ui/help';
 import './ui/theme.css';
@@ -6,13 +8,13 @@ import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './render/camera';
-import { autoplayDefend, autoplayNameHeir, runAutoplay } from './game/autoplay';
+import { autoplayDefend, autoplayLogistics, autoplayNameHeir, runAutoplay } from './game/autoplay';
 import { addGrudge, FURIOUS_AT, grudgeTotal } from './sim/nemesis/grudges';
 import { bidOpen, startBid } from './sim/nemesis/bid';
 import { moveShares } from './sim/exchange/shares';
 import { CONTROL_SHARES } from './sim/exchange/types';
 import { runDays, stepTick } from './sim/simulation';
-import { canPlaceBuilding, createGame, placeBuilding } from './sim/state';
+import { accessTiles, canPlaceBuilding, createGame, placeBuilding } from './sim/state';
 import { buyUpgrade } from './sim/society/upgrades';
 import type { SmogTier, Speed } from './sim/types';
 import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
@@ -32,6 +34,8 @@ import { startStrike } from './sim/society/strikes';
  *  - `send=1` (dev) press Send goods in an open building inspector (use with `inspect=building`)
  *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
  *  - `inspectcity=1` / `inspectvehicle=1` (dev) open the first city / vehicle inspector
+ *  - `inspecthub=1` (dev) opens a hub on the player's first warehouse (placing one by their first works when
+ *    there is none), selects it and opens its inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
  *  - `hudmenu=<id>` (dev) open a top-bar dropdown: company, operations, world, more
  *  - `scenario=<id>`   start a scenario
@@ -41,7 +45,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint; with
  *    `autoplay=1` the years run as the soak runs them (scripts/soak.ts): the heir named each year and
- *    the Baron's hostile bid answered at each 30-day month end, so the company is still the player's
+ *    the Baron's hostile bid answered and autoplayLogistics run at each 30-day month end, so the company is still the player's
  *  - `baron=furious` (dev) give the Baron grudges up to FURIOUS_AT and forget his last strike, so his
  *    portrait (rival panel) is furious rather than gloating
  *  - `bid=1` (dev) hand the Baron a majority of the player's shares and open his hostile bid (the
@@ -70,7 +74,7 @@ startUiScale();
 const app = new App(canvas, ui);
 
 // inspect2 does nothing outside DEV, so only there does it start a debug game
-const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', ...(import.meta.env.DEV ? ['inspect2', 'card'] : [])];
+const DEBUG_KEYS = ['seed', 'autoplay', 'hour', 'speed', 'panel', 'news', 'scenario', 'contracts', 'tutorial', 'skipYears', 'zoom', ...(import.meta.env.DEV ? ['inspect2', 'card', 'upgrading'] : [])];
 const debugStart = !params.has('menu') && DEBUG_KEYS.some((k) => params.has(k));
 
 if (debugStart) {
@@ -114,6 +118,7 @@ if (debugStart) {
         if (d % 360 === 0) autoplayNameHeir(setup);
         runDays(setup, 30);
         autoplayDefend(setup);
+        autoplayLogistics(setup);
       }
     }
   }
@@ -174,6 +179,17 @@ if (debugStart) {
       pb.value.status = 'ok';
       upgradedId = pb.value.id;
       focus = { x: pb.value.pos.x, y: pa.value.pos.y + 1 };
+    }
+  }
+  // `upgrading=1` (dev) starts a level-2 upgrade on the first player works (a sawmill when there is one; use with `autoplay=1`)
+  let upgradingId: number | null = null;
+  if (import.meta.env.DEV && params.get('upgrading') === '1') {
+    const works = Object.values(state.buildings).filter((b) => b.ownerId === 'player' && ['extractor', 'factory'].includes(BUILDINGS[b.typeId].category));
+    const mill = works.find((b) => b.typeId === 'sawmill') ?? works.find((b) => BUILDINGS[b.typeId].category === 'factory') ?? works[0];
+    if (mill && startUpgrade(setup, mill.id, 'player').ok) {
+      upgradingId = mill.id;
+      const size = BUILDINGS[mill.typeId].size;
+      focus = { x: Math.round(mill.pos.x + size.w / 2), y: Math.round(mill.pos.y + size.h / 2) };
     }
   }
   const cardParam = params.get('card');
@@ -252,7 +268,34 @@ if (debugStart) {
     if (import.meta.env.DEV && params.get('inspect2') === '1') {
       for (const b of Object.values(g.ctx.state.buildings).slice(0, 2)) g.openPanel('building', b.id);
     }
+    // after inspect2, so the upgrading works is the building panel on screen (its scaffold is centred)
+    if (import.meta.env.DEV && upgradingId !== null) g.openPanel('building', upgradingId);
     if (import.meta.env.DEV && params.get('inspectcity') === '1') g.openPanel('city', 0);
+    // `inspecthub=1` opens a hub (one truck) on the player's first warehouse, if any, and selects it
+    if (import.meta.env.DEV && params.get('inspecthub') === '1') {
+      const st = g.ctx.state;
+      let wh = Object.values(st.buildings).find((b) => b.ownerId === 'player' && b.typeId === 'warehouse');
+      // none yet: put one on the road nearest the player's first works, so the shot has a hub to show
+      const works = Object.values(st.buildings).find((b) => b.ownerId === 'player' && BUILDINGS[b.typeId].category !== 'retail');
+      for (let r = 1; !wh && works && r <= 12; r++) {
+        for (let dy = -r; dy <= r && !wh; dy++) {
+          for (let dx = -r; dx <= r && !wh; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const p = { x: works.pos.x + dx, y: works.pos.y + dy };
+            if (!canPlaceBuilding(st, 'player', 'warehouse', p).ok || accessTiles(st, { typeId: 'warehouse', pos: p }).length === 0) continue;
+            const placed = placeBuilding(g.ctx, 'player', 'warehouse', p);
+            if (placed.ok) wh = placed.value;
+          }
+        }
+      }
+      if (wh) {
+        if (!wh.hub) buyHubTruck(g.ctx, 'player', wh.id);
+        const size = BUILDINGS[wh.typeId].size;
+        g.centerOn({ x: wh.pos.x + size.w / 2, y: wh.pos.y + size.h / 2 });
+        g.renderer.setSelection({ buildingId: wh.id });
+        g.openPanel('building', wh.id);
+      }
+    }
     if (import.meta.env.DEV && params.get('inspectvehicle') === '1') {
       const v = Object.values(g.ctx.state.vehicles)[0];
       if (v) g.openPanel('vehicle', v.id);

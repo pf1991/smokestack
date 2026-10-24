@@ -15,7 +15,7 @@ export const BARON_TRAITS: Record<BaronTrait, BaronTraitDef> = {
   greedy: {
     label: 'Greedy',
     blurb: 'Counts every dollar you take from him, and answers with cheaper goods and bigger cheques.',
-    actionWeights: { price_war: 3, hostile_bid: 3, poach: 1 },
+    actionWeights: { price_war: 3, hostile_bid: 3, poach: 1, poach_manager: 1 },
   },
   vindictive: {
     label: 'Vindictive',
@@ -30,7 +30,7 @@ export const BARON_TRAITS: Record<BaronTrait, BaronTraitDef> = {
   cunning: {
     label: 'Cunning',
     blurb: 'Works behind the curtain, buying your foremen, your councillors and your shares.',
-    actionWeights: { poach: 3, fund_opponent: 2, hostile_bid: 2 },
+    actionWeights: { poach: 3, fund_opponent: 2, hostile_bid: 2, poach_manager: 3 },
   },
 };
 
@@ -68,6 +68,7 @@ export const RETALIATION_LABELS: Record<RetaliationKind, string> = {
   smear: 'Smear campaign',
   sabotage: 'Sabotage',
   hostile_bid: 'Hostile bid',
+  poach_manager: 'Poached a manager',
 };
 
 /** state.flags key set by the funeral card's wake choice; nemesisMonth turns it into a grudge (cards cannot import sim/nemesis/grudges without an import cycle) */

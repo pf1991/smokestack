@@ -3,7 +3,11 @@ import { EventBus } from '../core/events';
 import { runAutoplay } from '../game/autoplay';
 import { packState, unpackState } from '../game/saves';
 import { stateHash } from './hash';
-import { runDays } from './simulation';
+import { deserialize, runDays, runTicks, serialize } from './simulation';
+import { buyHubTruck } from './logistics/hubs';
+import { assign, hire, refreshMarket } from './logistics/managers';
+import { buildRoad, lPath, placeBuilding } from './state';
+import { must, testCtx, testState } from './testkit';
 import { createGame } from './state';
 import type { SimContext } from './types';
 
@@ -57,5 +61,38 @@ describe('determinism', () => {
     expect(c.state.politics).toEqual(a.state.politics);
     expect(c.state.cities.map((x) => x.opinion)).toEqual(a.state.cities.map((x) => x.opinion));
     expect(stateHash(c.state)).toBe(stateHash(a.state));
+  });
+
+  it('a hub saved and loaded mid-trip, then 30 days, matches an uninterrupted run', () => {
+    const make = (): SimContext => {
+      const s = testState({ width: 60, height: 30, money: 1e8 });
+      const ctx = testCtx(s);
+      refreshMarket(s, 1900);
+      must(buildRoad(ctx, 'player', lPath({ x: 2, y: 12 }, { x: 58, y: 12 })));
+      const hub = must(placeBuilding(ctx, 'player', 'warehouse', { x: 30, y: 9 }));
+      const mill = must(placeBuilding(ctx, 'player', 'sawmill', { x: 36, y: 9 }));
+      const factory = must(placeBuilding(ctx, 'player', 'furniture_factory', { x: 24, y: 9 }));
+      mill.output.lumber = 60;
+      hub.input.lumber = 40;
+      factory.input.lumber = 0;
+      must(buyHubTruck(ctx, 'player', hub.id));
+      must(buyHubTruck(ctx, 'player', hub.id));
+      const m = must(hire(ctx, 'player', s.logistics.market[0].id));
+      m.skills = { ...m.skills, logistics: 5 };
+      s.logistics.rev++;
+      must(assign(ctx, 'player', m.id, hub.id));
+      return ctx;
+    };
+    const a = make();
+    runTicks(a, 50); // day 3: both trucks are on the road to the factory
+    expect(Object.values(a.state.vehicles).some((v) => v.job && v.state === 'moving')).toBe(true);
+    const loaded = deserialize(serialize(a.state));
+    expect(loaded.ok ? 'ok' : loaded.error).toBe('ok');
+    if (!loaded.ok) return;
+    const b: SimContext = { state: loaded.value.state, bus: new EventBus() };
+    runDays(a, 30);
+    runDays(b, 30);
+    expect(a.state.logistics.stats.hubJobs.player).toBeGreaterThan(2);
+    expect(stateHash(b.state)).toBe(stateHash(a.state));
   });
 });

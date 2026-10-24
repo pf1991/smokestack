@@ -4,9 +4,15 @@ import type { GameController } from '../../game/controller';
 import { buildRoad, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import { buildRail, TRAIN } from '../../sim/rail';
-import { buyTruck, createRoute, TRUCK } from '../../sim/vehicles';
+import { buyTruck, createRoute, TRUCK, updateRoute } from '../../sim/vehicles';
 import type { ToolSpec } from '../tools';
 import { PANELS } from './index';
+
+// updateRoute stays real; the spy lets the automation controls prove they go through it
+vi.mock('../../sim/vehicles', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../sim/vehicles')>();
+  return { ...actual, updateRoute: vi.fn(actual.updateRoute) };
+});
 
 function setup() {
   const s = testState();
@@ -113,7 +119,7 @@ describe('routes panel', () => {
       { buildingId: camp.id, load: ['wood'], unload: [] },
       { buildingId: mill.id, load: [], unload: ['wood'] },
     ]));
-    s.routes[999] = { id: 999, ownerId: 'rival', name: 'Rival run', color: '#000', stops: [], kind: 'truck' };
+    s.routes[999] = { id: 999, ownerId: 'rival', name: 'Rival run', color: '#000', stops: [], kind: 'truck', mode: 'manual' };
     for (let x = 6; x <= 8; x++) s.map.tiles[10 * s.map.width + x].road = false;
     PANELS.routes.open(host);
     const names = [...win().querySelectorAll<HTMLInputElement>('.rt-name')].map((i) => i.value);
@@ -333,5 +339,82 @@ describe('routes panel', () => {
     toasts.find((t) => t.action)!.action!.run();
     expect(Object.keys(s.routes)).toHaveLength(1);
     expect(toasts.at(-1)!.message).toContain('changed');
+  });
+
+  it('automation: the Manual/Auto switch, auto-sizing and a Leave-at select per manual stop go through updateRoute', () => {
+    const { s, ctx, camp, mill, host } = setup();
+    const r = must(createRoute(ctx, 'player', 'Wood', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    must(buyTruck(ctx, 'player', r.id));
+    const spy = vi.mocked(updateRoute);
+    spy.mockClear();
+    PANELS.routes.open(host, r.id);
+    const auto = () => win().querySelector('.rt-auto') as HTMLElement;
+    expect(auto().classList.contains('p-section')).toBe(true);
+    expect(auto().querySelector('[data-act="mode"]')!.textContent).toBe('Manual');
+    expect(auto().textContent).toContain('Last month: no departures');
+    const selects = () => auto().querySelectorAll<HTMLSelectElement>('[data-act="minload"]');
+    expect(selects()).toHaveLength(1); // the mill stop loads nothing: no select
+
+    // Leave at 100% on the first stop
+    const sel = selects()[0];
+    sel.value = '1';
+    sel.dispatchEvent(new Event('change'));
+    expect(spy).toHaveBeenLastCalledWith(ctx, r.id, { stops: expect.any(Array) });
+    expect(s.routes[r.id].stops[0].minLoad).toBe(1);
+    expect(selects()[0].value).toBe('1');
+
+    // auto-sizing on, at most 4
+    const box = auto().querySelector('[data-act="autosize"]') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change'));
+    expect(spy).toHaveBeenLastCalledWith(ctx, r.id, { autoSize: { on: true, maxTrucks: 5 } });
+    const max = auto().querySelector('[data-act="max-trucks"]') as HTMLInputElement;
+    max.value = '4';
+    max.dispatchEvent(new Event('change'));
+    expect(s.routes[r.id].autoSize).toEqual({ on: true, maxTrucks: 4 });
+
+    // the switch: Auto hides the Leave-at selects
+    (auto().querySelector('[data-act="mode"]') as HTMLElement).click();
+    expect(spy).toHaveBeenLastCalledWith(ctx, r.id, { mode: 'auto' });
+    expect(s.routes[r.id].mode).toBe('auto');
+    expect(auto().querySelector('[data-act="mode"]')!.textContent).toBe('Auto');
+    expect(selects()).toHaveLength(0);
+
+    s.routes[r.id].stats = { loaded: 0, empty: 0, backlogDays: 0, last: 72 };
+    PANELS.routes.open(host, r.id);
+    click('.rt-head'); // collapse and reopen: the section is rebuilt from the route
+    click('.rt-head');
+    expect(auto().textContent).toContain('Last month: 72% loaded');
+  });
+
+  it('warns about a truck holding cargo that no stop unloads', () => {
+    const { ctx, camp, mill, host } = setup();
+    const r = must(createRoute(ctx, 'player', 'Wood', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    const v = must(buyTruck(ctx, 'player', r.id));
+    PANELS.routes.open(host, r.id);
+    expect(win().textContent).not.toContain('no stop unloads');
+    v.cargo = { coal: 5 };
+    PANELS.routes.open(host, r.id); // re-renders
+    expect(win().textContent).toContain('trucks holding cargo no stop unloads: 1');
+  });
+
+  it('rail lines have no automation section', () => {
+    const { ctx, host } = setup();
+    const a = must(placeBuilding(ctx, 'player', 'train_station', { x: 2, y: 20 }));
+    const b = must(placeBuilding(ctx, 'player', 'train_station', { x: 20, y: 20 }));
+    must(buildRail(ctx, 'player', lPath({ x: 2, y: 22 }, { x: 22, y: 22 })));
+    const r = must(createRoute(ctx, 'player', 'Line', [
+      { buildingId: a.id, load: [], unload: [] },
+      { buildingId: b.id, load: [], unload: [] },
+    ], 'train'));
+    PANELS.routes.open(host, r.id);
+    expect(win().querySelector('[data-route]')!.classList.contains('open')).toBe(true);
+    expect(win().querySelector('.rt-auto')).toBeNull();
   });
 });

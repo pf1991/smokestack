@@ -3,14 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameEvent } from '../../core/events';
 import { DEMAND_PER_1000 } from '../../data/goods';
 import { buyTruck, createRoute } from '../../sim/vehicles';
-import { demolishBuilding, placeBuilding } from '../../sim/state';
+import { buildRoad, demolishBuilding, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import type { Building, SimContext } from '../../sim/types';
 import { adjustOpinion } from '../../sim/politics/factions';
 import { PANELS } from './index';
+import { buyHubTruck } from '../../sim/logistics/hubs';
 import { startStrike } from '../../sim/society/strikes';
 import { ageLine, staffingText } from './building';
-import { addDays, formatDate } from '../../sim/clock';
+import { addDays, dateToDays, formatDate } from '../../sim/clock';
 
 function host(ctx: SimContext) {
   const selections: unknown[] = [];
@@ -294,6 +295,32 @@ describe('vehicle panel', () => {
   });
 });
 
+describe('vehicle panel hub truck', () => {
+  it('shows its hub, its job and its next stop; picking the hub entry changes nothing', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 13 }, { x: 38, y: 13 })));
+    const wh = place(ctx, 'warehouse', 10, 10);
+    const mill = place(ctx, 'sawmill', 15, 10);
+    const v = must(buyHubTruck(ctx, 'player', wh.id));
+    PANELS.vehicle.open(host(ctx) as never, v.id);
+    const sel = document.querySelector<HTMLSelectElement>('select.insp-route-sel')!;
+    expect(sel.value).toBe('hub');
+    expect(sel.selectedOptions[0].textContent).toBe('Hub: Warehouse');
+    expect(text()).toContain('Waiting at its hub');
+    v.job = { kind: 'collect', from: mill.id, to: wh.id, good: 'lumber', qty: 15 };
+    vi.advanceTimersByTime(1000);
+    expect(text()).toContain('Collect 15 Lumber');
+    expect(text()).toContain(`Sawmill #${mill.id}`);
+    const toasts: string[] = [];
+    ctx.bus.on('toast', (e: Extract<GameEvent, { type: 'toast' }>) => toasts.push(e.message));
+    sel.value = 'hub';
+    sel.dispatchEvent(new Event('change'));
+    expect(toasts).toEqual([]);
+    expect(v.hubId).toBe(wh.id);
+    expect(v.job).not.toBeNull();
+  });
+});
+
 describe('city panel smog tier', () => {
   it('shows the tier name, level, trend and what lowers it; tier-4 edicts say who forced them', () => {
     const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
@@ -355,5 +382,100 @@ describe('building age (Task 8)', () => {
     b.builtYear = 1912;
     ctx.state.date = { ...ctx.state.date, year: 1953 };
     expect(ageLine(ctx.state, b)).toBe('Built 1912 (age 41): upkeep +52%');
+  });
+});
+
+describe('building level card', () => {
+  it('shows both columns, the price and the refusal', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    PANELS.building.open(host(ctx) as never, b.id);
+    const card = document.querySelector<HTMLElement>('.insp-level')!;
+    expect(card.querySelector('.p-head')!.textContent).toBe('Level');
+    const cols = card.querySelectorAll('.lv-col');
+    expect(cols).toHaveLength(2);
+    expect(cols[0].textContent).toContain('Level 1');
+    expect(cols[1].textContent).toContain('Level 2');
+    expect(cols[1].textContent).toContain('Workers 78');
+    expect(cols[1].textContent).toContain('Smoke ×1.3');
+    const btn = card.querySelector<HTMLButtonElement>('button[data-act="upgrade-level"]')!;
+    expect(btn.textContent).toBe('Upgrade $10,000: 30 days, output paused');
+    expect(btn.disabled).toBe(false);
+    btn.click();
+    expect(b.works?.toLevel).toBe(2);
+    expect(text()).toContain('Upgrading to level 2: 30 days left');
+  });
+
+  it('says why a level 2 works cannot climb yet, and counts the days during works', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    b.level = 2;
+    PANELS.building.open(host(ctx) as never, b.id);
+    const btn = document.querySelector<HTMLButtonElement>('button[data-act="upgrade-level"]')!;
+    expect(btn.disabled).toBe(true);
+    expect(btn.title).toBe('Level 3 arrives in 1920');
+    expect(text()).toContain('Level 3 arrives in 1920');
+    ctx.state.date.year = 1920;
+    b.works = { toLevel: 3, startDay: dateToDays(ctx.state.date), untilDay: dateToDays(ctx.state.date) + 45 };
+    b.status = 'upgrading';
+    vi.advanceTimersByTime(2000);
+    document.querySelector<HTMLButtonElement>('.window-close')?.click();
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(text()).toContain('Upgrading to level 3: 45 days left');
+    b.works.untilDay = dateToDays(ctx.state.date) + 1;
+    document.querySelector<HTMLButtonElement>('.window-close')?.click();
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(text()).toContain('Upgrading to level 3: 1 day left');
+  });
+});
+
+describe('warehouse hub section', () => {
+  it('shows range, trucks and the buy button, and warns when no manager runs the hub', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 13 }, { x: 38, y: 13 })));
+    const wh = place(ctx, 'warehouse', 10, 10);
+    place(ctx, 'sawmill', 15, 10);
+    PANELS.building.open(host(ctx) as never, wh.id);
+    const sec = document.querySelector<HTMLElement>('.insp-hub')!;
+    expect(sec.querySelector('.p-head')!.textContent).toContain('Hub');
+    expect(sec.textContent).toContain('Range 12 tiles: 1 building attached');
+    expect(sec.textContent).toContain('Trucks 0 / 4');
+    // a plain warehouse is no hub yet: nothing to run
+    expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.hidden).toBe(true);
+    const buy = sec.querySelector<HTMLButtonElement>('button[data-act="hub-truck"]')!;
+    expect(buy.textContent).toBe('Buy hub truck $8,000');
+    buy.click();
+    expect(wh.hub).toBeDefined();
+    expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.hidden).toBe(false);
+    expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.textContent).toContain('Hire a manager to run this hub');
+    expect(sec.textContent).toContain('Trucks 1 / 4');
+    expect(sec.textContent).toContain('Yesterday: 0 jobs, 0 trucks idle');
+    const auto = sec.querySelector<HTMLInputElement>('input[data-act="hub-autosize"]')!;
+    expect(auto.checked).toBe(true);
+    auto.checked = false;
+    auto.dispatchEvent(new Event('change'));
+    expect(wh.hub!.autoSize).toBe(false);
+    const cap = sec.querySelector<HTMLInputElement>('input[data-act="hub-cap"]')!;
+    expect(cap.value).toBe('4');
+    cap.value = '2';
+    cap.dispatchEvent(new Event('change'));
+    expect(wh.hub!.maxTrucks).toBe(2);
+    cap.value = '9';
+    cap.dispatchEvent(new Event('change'));
+    expect(wh.hub!.maxTrucks).toBe(4);
+    const balancing = sec.querySelector<HTMLElement>('.insp-hub-balance')!;
+    expect(balancing.hidden).toBe(true);
+    const other = place(ctx, 'warehouse', 20, 10);
+    const truck = Object.values(ctx.state.vehicles)[0];
+    truck.job = { kind: 'balance', from: wh.id, to: other.id, good: 'bread', qty: 20 };
+    vi.advanceTimersByTime(600);
+    expect(balancing.textContent).toBe('Balancing with Warehouse at 20,10');
+  });
+
+  it('is absent for anything but a warehouse', () => {
+    const ctx = testCtx(testState({ money: 1e7 }));
+    const b = place(ctx, 'sawmill', 10, 10);
+    PANELS.building.open(host(ctx) as never, b.id);
+    expect(document.querySelector<HTMLElement>('.insp-hub')!.hidden).toBe(true);
   });
 });

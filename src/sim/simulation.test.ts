@@ -227,6 +227,19 @@ describe('saves', () => {
     expect(serialize(loaded.state)).toBe(serialize(ctx.state));
   });
 
+  it('a loaded save clamps a works backlog to one ready batch', () => {
+    const { ctx } = buildFurnitureChain(9, 1);
+    const o = JSON.parse(serialize(ctx.state)) as { buildings: Record<string, { progress: number }> };
+    const ids = Object.keys(o.buildings);
+    o.buildings[ids[0]].progress = 9770;
+    o.buildings[ids[1]].progress = 0.4;
+    const r = deserialize(JSON.stringify(o));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.state.buildings[Number(ids[0])].progress).toBe(1);
+    expect(r.value.state.buildings[Number(ids[1])].progress).toBe(0.4);
+  });
+
   it('rejects garbage and wrong versions', () => {
     const good = JSON.parse(serialize(testState())) as Record<string, unknown>;
     const variant = (patch: (o: Record<string, unknown>) => void): string => {
@@ -236,7 +249,7 @@ describe('saves', () => {
     };
     const corrupted = { ok: false, error: 'Save file is corrupted' };
     const incomplete = { ok: false, error: 'Save file is incomplete' };
-    expect(SAVE_VERSION).toBe(7);
+    expect(SAVE_VERSION).toBe(8);
     expect(deserialize('{')).toEqual(corrupted);
     expect(deserialize('')).toEqual(corrupted);
     expect(deserialize('null')).toEqual(corrupted);

@@ -1,13 +1,13 @@
 /**
  * Fixture save: `npm run fixture -- --name phase0 [--seed 7] [--days 720]`
  * createGame, autoplay chain, runDays, then writes packState to src/sim/__fixtures__/<name>.save.json.
- * The days run as the soak runs them (scripts/soak.ts): 30-day months with the autoplay bid defence at
- * each month end and the heir named at the start of each 360-day year, so a long fixture (phase4, 50
+ * The days run as the soak runs them (scripts/soak.ts): 30-day months with the autoplay bid defence and
+ * logistics (autoplayLogistics) at each month end and the heir named at the start of each 360-day year, so a long fixture (phase4, 50
  * years) is a living game rather than one lost to the Baron's first hostile bid. Exits 1 on game over.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { EventBus } from '../src/core/events';
-import { autoplayDefend, autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
+import { autoplayDefend, autoplayLogistics, autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
 import { packState } from '../src/game/saves';
 import { runDays } from '../src/sim/simulation';
 import { createGame } from '../src/sim/state';
@@ -37,7 +37,10 @@ for (let d = 0; d < days && !over; ) {
   if (d % 360 === 0) autoplayNameHeir(ctx);
   const n = Math.min(30, days - d);
   runDays(ctx, n);
-  if (n === 30) autoplayDefend(ctx);
+  if (n === 30) {
+    autoplayDefend(ctx);
+    autoplayLogistics(ctx);
+  }
   d += n;
 }
 if (over) {

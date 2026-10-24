@@ -133,7 +133,7 @@ describe('a v6 save dated 1960 (past the succession window)', () => {
     const r = unpackState(JSON.stringify(raw));
     if (!r.ok) throw new Error(r.error);
     const s = r.value;
-    expect(s.version).toBe(7);
+    expect(s.version).toBe(8);
     expect(s.date.year).toBe(1960);
     expect(checkInvariants(s)).toEqual([]);
     const ctx = testCtx(s);

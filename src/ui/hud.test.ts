@@ -427,8 +427,8 @@ describe('one-row bar with grouped menus', () => {
     expect(css).toMatch(/@media \(min-width: 1280px\) \{ \.hud-labelled \.hud-btn-label \{ display: inline; \}/);
     expect(css).toMatch(/\.hud-btn-label \{ display: none; \}/);
     // icon-only group buttons list what they hold
-    expect(group(root, 'operations').title).toBe('Operations: Fleet, Contracts');
-    expect(group(root, 'operations').getAttribute('aria-label')).toBe('Operations: Fleet, Contracts');
+    expect(group(root, 'operations').title).toBe('Operations: Fleet, Contracts, Managers');
+    expect(group(root, 'operations').getAttribute('aria-label')).toBe('Operations: Fleet, Contracts, Managers');
     // Routes sits right after the Operations dropdown, in the same set
     const ops = group(root, 'operations').closest('.hud-group-set')!;
     expect(ops.lastElementChild!.matches('[data-panel="routes"]')).toBe(true);

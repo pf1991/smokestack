@@ -12,6 +12,7 @@ import { formatMoney, formatNumber } from '../format';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
 import { buildingIcon, buildingName, KIND_INFO, type Kind, stopAccess, stopPickSet, stopProblem, stopSummary } from './routeActions';
+import { autoControls } from './routeAuto';
 import './routes.css';
 
 /** The slice of the GameController this panel needs (lets tests use a small stub). */
@@ -58,6 +59,10 @@ export function routeWarnings(state: GameState, route: Route): string[] {
   const stuck = routeTrucks(state, route.id).filter((v) => v.state === 'stuck').length;
   if (stuck > 0) out.push(`${info.many} stuck: ${stuck}`);
   if (routeTrucks(state, route.id).length === 0) out.push(`no ${info.many} assigned`);
+  // cargo that no stop of the route unloads would ride along forever
+  const unloads = new Set(route.stops.flatMap((s) => s.unload));
+  const stranded = routeTrucks(state, route.id).filter((v) => Object.keys(v.cargo).some((g) => v.cargo[g] > 0 && !unloads.has(g))).length;
+  if (stranded > 0) out.push(`${info.many} holding cargo no stop unloads: ${stranded}`);
   return out;
 }
 
@@ -318,7 +323,7 @@ class RoutesPanel {
     const state = this.state;
     const routes = Object.values(state.routes).filter((r) => r.ownerId === 'player');
     const parts = routes.map((r) =>
-      [r.id, r.name, r.color, r.kind, JSON.stringify(r.stops), routeTrucks(state, r.id).length, Math.round(routeThroughput(state, r.id)), routeWarnings(state, r).join(';')].join('|'));
+      [r.id, r.name, r.color, r.kind, r.mode, JSON.stringify(r.autoSize ?? null), r.stats?.last, JSON.stringify(r.stops), routeTrucks(state, r.id).length, Math.round(routeThroughput(state, r.id)), routeWarnings(state, r).join(';')].join('|'));
     return [this.selected, this.confirmDelete, this.adding ? `${this.adding.routeId}:${this.adding.after}` : '', ...parts].join('\n');
   }
 
@@ -397,7 +402,7 @@ class RoutesPanel {
     const confirming = this.confirmDelete === route.id;
     const info = KIND_INFO[route.kind] ?? KIND_INFO.truck;
     const price = vehiclePrice(this.state, route.kind);
-    const refund = routeTrucks(this.state, route.id).length * sellRefund(this.state, route.kind);
+    const refund = routeTrucks(this.state, route.id).reduce((n, v) => n + sellRefund(this.state, v), 0);
     return h(
       'div',
       { class: 'rt-detail' },
@@ -425,6 +430,7 @@ class RoutesPanel {
           'data-act': 'delete',
           onClick: () => this.deleteClick(route),
         }, confirming ? `Really delete? (+${formatMoney(refund)})` : 'Delete route')),
+      route.kind === 'truck' && autoControls(this.game, route.id).el,
     );
   }
 

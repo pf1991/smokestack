@@ -10,6 +10,7 @@ import { resolveCard } from '../sim/politics/cards';
 import { testCtx, testState } from '../sim/testkit';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
 import { BARON_TRAITS, GRUDGE_WEIGHTS } from './nemesis';
+import { BARON_LINES } from './baronLines';
 import { BARON_TRAIT_IDS, RETALIATION_KINDS } from '../sim/nemesis/types';
 
 describe('content catalog', () => {
@@ -184,7 +185,8 @@ describe('content catalog', () => {
     expect(by('invention').length).toBeGreaterThanOrEqual(2);
     for (const c of CARDS) {
       expect(c.choices.length, c.id).toBeLessThanOrEqual(3);
-      expect(c.years[0], c.id).toBeGreaterThanOrEqual(1901);
+      // the manager raise card can come in 1900: a manager may be hired on the first day
+      expect(c.years[0], c.id).toBeGreaterThanOrEqual(c.trigger === 'manager' ? 1900 : 1901);
       expect(c.years[1], c.id).toBeLessThanOrEqual(2000);
       expect(Number.isInteger(c.defaultChoice) && c.defaultChoice >= 0 && c.defaultChoice < c.choices.length, `${c.id} defaultChoice`).toBe(true);
       // ruling R-Q8: authored in 1900 dollars for a $300k company; the engine scales them
@@ -206,6 +208,15 @@ describe('content catalog', () => {
     for (const f of FACTION_IDS) expect(used.has(f), `no card touches ${f}`).toBe(true);
     const baronCards = CARDS.filter((c) => c.choices.some((ch) => ch.effects.some((e) => e.faction === 'baron')));
     expect(baronCards.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('the manager raise card: triggered by managers, free default, bonus 1,500', () => {
+    const c = CARDS.find((x) => x.id === 'manager_raise')!;
+    expect(c.trigger).toBe('manager');
+    expect(c.years).toEqual([1900, 2000]);
+    expect(c.choices.map((ch) => ch.cost)).toEqual([0, 1500, 0]);
+    expect(c.defaultChoice).toBe(0);
+    expect(c.title).toContain('{manager}');
   });
 
   it('every crash card resolves, in each choice, on a 1929 state', () => {
@@ -236,6 +247,15 @@ describe('content catalog', () => {
         expect(Number.isInteger(w) && w! >= 1 && w! <= 3, `${id}: ${kind} weight ${w}`).toBe(true);
       }
     }
+  });
+
+  it('poach_manager: cunning +3, greedy +1, and 4+ Baron lines without emoji, one naming no town', () => {
+    expect(BARON_TRAITS.cunning.actionWeights.poach_manager).toBe(3);
+    expect(BARON_TRAITS.greedy.actionWeights.poach_manager).toBe(1);
+    const lines = BARON_LINES.retaliation.poach_manager;
+    expect(lines.length).toBeGreaterThanOrEqual(4);
+    for (const l of lines) expect(l).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    expect(lines.some((l) => !l.includes('{city}'))).toBe(true);
   });
 
   it('grudge weights', () => {

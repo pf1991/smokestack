@@ -41,3 +41,5 @@
 .rt-summary { margin: 2px 0 0 24px; font-size: 11px; color: var(--paper-shade); }
 .rt-add { margin-top: 6px; }
 .rt-adding { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; padding: 5px 8px; border: 1px dashed #3fd05a; border-radius: 3px; color: #8fe6a0; font-size: 12px; }
+.rt-auto { margin-top: 8px; }
+.rt-auto .rt-max { width: 3.5em; }

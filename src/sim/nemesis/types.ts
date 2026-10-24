@@ -37,7 +37,7 @@ export const RETALIATE_AT = 6;
 /** the tag on the news item each retaliation prints (NewsItem.tag), which the rival panel lists */
 export const NEMESIS_NEWS_TAG = 'nemesis';
 
-export const RETALIATION_KINDS = ['price_war', 'poach', 'fund_opponent', 'smear', 'sabotage', 'hostile_bid'] as const;
+export const RETALIATION_KINDS = ['price_war', 'poach', 'fund_opponent', 'smear', 'sabotage', 'hostile_bid', 'poach_manager'] as const;
 export type RetaliationKind = (typeof RETALIATION_KINDS)[number];
 
 /** A live timed retaliation (Task 2); `untilDay` is a dateToDays() number. */

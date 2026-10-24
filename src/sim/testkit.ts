@@ -19,6 +19,7 @@ import type { Building, BuildingTypeId, City, GameMap, GameState, SimContext, Te
 import { buyTruck, createRoute } from './vehicles';
 import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
+import { newLogistics } from './logistics/types';
 import { defaultExchange } from './exchange/types';
 import { listCompany } from './exchange/shares';
 
@@ -118,6 +119,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     nemesis: newNemesis({ rngState: opts.seed ?? 1 }),
     dynasty: newDynasty({ rngState: opts.seed ?? 1 }, 'Test Co.', year),
     exchange: defaultExchange(opts.seed ?? 1),
+    logistics: newLogistics(opts.seed ?? 1, year),
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

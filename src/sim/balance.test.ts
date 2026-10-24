@@ -83,8 +83,10 @@ describe('economy balance', () => {
 
   it('the rival lays railways in real games and they run', () => {
     // seeds whose rival has a long, busy wood haul (seeds 7 and 42 have none worth railing);
-    // re-picked for save v3, where larger towns moved seed 3's rival chain off rail
-    for (const seed of [16, 19]) {
+    // re-picked for save v3, where larger towns moved seed 3's rival chain off rail; seed 19 swapped for
+    // 20 in Phase 4b: his seed-19 railway serves a cheese line it does not grow (sales stay ~32k a year,
+    // upkeep 16k -> 46k), so he closes that losing line in 1906 (spec §9 losing lines, rival/lines.ts)
+    for (const seed of [16, 20]) {
       const ctx: SimContext = { state: createGame({ seed, companyName: 'Acme Works', rival: true }), bus: new EventBus() };
       const headlines: string[] = [];
       ctx.bus.on('news', (e) => headlines.push(e.item.headline));

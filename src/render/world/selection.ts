@@ -8,12 +8,43 @@ import { HEADROOM, VEHICLE_SCALE, getBuildingSprite } from '../sprites';
 import type { Ghost, Selection } from './index';
 import type { Dir } from './shared';
 import { vehiclePose } from './vehicles';
+import { WAREHOUSE_LEVELS } from '../../data/levels';
+import { hubTier } from '../../sim/logistics/hubs';
+import { hubRange } from '../../sim/logistics/levels';
 
 const BRASS = '#c9a13a';
 
 function buildingCentre(b: Building): Vec2 {
   const def = BUILDINGS[b.typeId];
   return { x: (b.pos.x + def.size.w / 2) * TILE, y: (b.pos.y + def.size.h / 2) * TILE };
+}
+
+/**
+ * A hub's reach: the footprint grown by `range` tiles on every side (attachment is Chebyshev, footprint
+ * to footprint), drawn as a rounded square. `inner` dashes the radius the posted manager uses.
+ */
+function drawHubRange(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, range: number, px: number, inner: number | null): void {
+  const ring = (r: number, stroke: string, fill: string | null, dash: number[]) => {
+    const rad = Math.min(r, 3) * TILE;
+    ctx.beginPath();
+    const args = [(x - r) * TILE, (y - r) * TILE, (w + 2 * r) * TILE, (h + 2 * r) * TILE] as const;
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(...args, rad);
+    else ctx.rect(...args);
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = 'rgba(20,14,6,0.55)';
+    ctx.lineWidth = 4 * px;
+    ctx.stroke();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2 * px;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+  ring(range, BRASS, 'rgba(201,161,58,0.12)', []);
+  if (inner !== null && inner < range) ring(inner, '#f5ecd2', null, [8 * px, 5 * px]);
 }
 
 function drawPick(ctx: CanvasRenderingContext2D, state: GameState, pick: { valid: number[]; blocked: number[] }, nowMs: number, px: number): void {
@@ -108,6 +139,11 @@ export function drawSelection(ctx: CanvasRenderingContext2D, state: GameState, s
       ctx.fillStyle = 'rgba(201,161,58,0.25)';
       for (const a of accessTiles(state, b)) ctx.fillRect(a.x * TILE + 2, a.y * TILE + 2, TILE - 4, TILE - 4);
       if (b.typeId === STATION_TYPE) for (const a of stationAccess(state, b)) ctx.fillRect(a.x * TILE + 2, a.y * TILE + 2, TILE - 4, TILE - 4);
+      if (b.typeId === 'warehouse') {
+        const range = hubRange(b);
+        const tier = hubTier(state, b);
+        drawHubRange(ctx, b.pos.x, b.pos.y, def.size.w, def.size.h, range, px, tier ? range * tier.rangeShare : null);
+      }
     }
   }
   if (sel.vehicleId !== undefined) {
@@ -162,6 +198,8 @@ export function drawGhost(ctx: CanvasRenderingContext2D, g: Ghost | null, z: num
     ctx.fillRect(x, y, def.size.w * TILE, def.size.h * TILE);
     ctx.strokeStyle = line;
     ctx.strokeRect(x, y, def.size.w * TILE, def.size.h * TILE);
+    // a new warehouse would reach as far as a level-1 hub
+    if (g.typeId === 'warehouse') drawHubRange(ctx, g.pos.x, g.pos.y, def.size.w, def.size.h, WAREHOUSE_LEVELS[0].range ?? 0, 1 / z, null);
   } else {
     ctx.fillStyle = fill;
     ctx.strokeStyle = line;

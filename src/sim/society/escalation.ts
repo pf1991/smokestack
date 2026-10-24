@@ -26,6 +26,7 @@
  *
  * `city.smog` is written only here (and by the initialisers and the v6 migration).
  */
+import { levelSmoke } from '../logistics/levels';
 import { BUILDINGS } from '../../data/buildings';
 import { PLAYER_ID } from '../companies';
 import { publishNews } from '../news';
@@ -114,7 +115,7 @@ export function nationalBlackLung(state: GameState): number {
 
 /** Whether a player building is held to PROTEST_FACTOR: it pollutes and its zone town is at tier 3+. */
 function isProtested(state: GameState, b: Building): boolean {
-  if (b.ownerId !== PLAYER_ID || !(BUILDINGS[b.typeId]?.pollution > 0)) return false;
+  if (b.ownerId !== PLAYER_ID || !(BUILDINGS[b.typeId]?.pollution * levelSmoke(b) > 0)) return false;
   const city = siteCity(state, b.typeId, b.pos);
   return city !== null && city.smog.tier >= 3;
 }
@@ -137,9 +138,10 @@ export function protestSite(state: GameState, city: City): Building | null {
   for (const b of Object.values(state.buildings)) {
     if (b.ownerId !== PLAYER_ID) continue;
     const def = BUILDINGS[b.typeId];
-    if (!def || !(def.pollution > 0)) continue;
+    if (!def || !(def.pollution * levelSmoke(b) > 0)) continue;
     if (siteCity(state, b.typeId, b.pos)?.id !== city.id) continue;
-    const key = [def.pollution, def.size.w * def.size.h];
+    const smoke = def.pollution * levelSmoke(b);
+    const key = [smoke, def.size.w * def.size.h];
     if (key[0] > bestKey[0] || (key[0] === bestKey[0] && (key[1] > bestKey[1] || (key[1] === bestKey[1] && best !== null && b.id < best.id)))) {
       best = b;
       bestKey = key;

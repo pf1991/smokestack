@@ -84,6 +84,76 @@ describe('production', () => {
     expect(s.input.wood).toBe(20 - RECIPES.r_lumber.inputs.wood);
   });
 
+  it('a level-3 works completes every batch its rate allows: about 1.8 a day', () => {
+    const ctx = testCtx();
+    const s = place(ctx, 'sawmill', 5, 5);
+    s.level = 3;
+    let batches = 0;
+    for (let d = 0; d < 10; d++) {
+      s.input.wood = 1000;
+      s.output = {};
+      productionDay(ctx);
+      batches += (s.output.lumber ?? 0) / RECIPES.r_lumber.outputs.lumber;
+      expect(s.progress).toBeLessThan(1);
+    }
+    // 10 days x 1.8 = 18 batches (the last may sit at 1 - 1e-15 by float drift)
+    expect(batches).toBeGreaterThanOrEqual(17);
+    expect(batches).toBeLessThanOrEqual(18);
+    expect(s.status).toBe('ok');
+  });
+
+  it('an input-starved works holds at most one ready batch', () => {
+    const ctx = testCtx();
+    const s = place(ctx, 'sawmill', 5, 5);
+    s.level = 3;
+    s.progress = 0.9;
+    s.input.wood = RECIPES.r_lumber.inputs.wood; // one batch: 0.9 + 1.8 = 2.7 would make two
+    productionDay(ctx);
+    expect(s.output.lumber).toBe(RECIPES.r_lumber.outputs.lumber);
+    expect(s.input.wood).toBe(0);
+    expect(s.progress).toBe(1);
+    for (let d = 0; d < 20; d++) {
+      productionDay(ctx);
+      expect(s.progress).toBeLessThanOrEqual(1);
+    }
+    expect(s.status).toBe('no_input');
+    // the carried batch completes as soon as input arrives, with the day's own progress on top
+    s.input.wood = 3 * RECIPES.r_lumber.inputs.wood;
+    productionDay(ctx);
+    expect(s.output.lumber).toBe(3 * RECIPES.r_lumber.outputs.lumber); // 1 + 1.8 = 2.8: two more
+    expect(s.progress).toBeCloseTo(0.8);
+  });
+
+  it('an output-full works holds at most one ready batch', () => {
+    const ctx = testCtx();
+    const s = place(ctx, 'sawmill', 5, 5);
+    s.level = 3;
+    const cap = Math.round(BUILDINGS.sawmill.storage * 1.8);
+    const per = RECIPES.r_lumber.outputs.lumber;
+    s.progress = 0.9;
+    s.input.wood = 1000;
+    s.output.lumber = cap - per; // room for exactly one batch
+    productionDay(ctx);
+    expect(s.output.lumber).toBe(cap);
+    expect(s.input.wood).toBe(1000 - RECIPES.r_lumber.inputs.wood);
+    expect(s.progress).toBe(1);
+    for (let d = 0; d < 20; d++) {
+      productionDay(ctx);
+      expect(s.progress).toBeLessThanOrEqual(1);
+    }
+    expect(s.status).toBe('output_full');
+    expect(s.input.wood).toBe(1000 - RECIPES.r_lumber.inputs.wood);
+  });
+
+  it('a levelled extractor still yields rate x recipe a day', () => {
+    const ctx = testCtx(testState({ terrain: 'forest' }));
+    const b = place(ctx, 'lumber_camp', 5, 5);
+    b.level = 3;
+    productionDay(ctx);
+    expect(b.output.wood).toBeCloseTo(RECIPES.r_wood.outputs.wood * 1.8);
+    expect(b.progress).toBe(0);
+  });
+
   it('car plant takes 2 days per car', () => {
     const ctx = testCtx(testState({ year: 1930 }));
     const c = place(ctx, 'car_plant', 5, 5);

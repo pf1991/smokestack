@@ -1,15 +1,17 @@
 import { BUILDINGS } from '../../data/buildings';
+import { buildingStorage } from '../logistics/levels';
 import { GOODS } from '../../data/goods';
 import { loadSource, storageLeft } from '../inventory';
 import { publishNews } from '../news';
 import { buildDirectRoad, connectToRoads, ensureRoadLink } from '../roads';
-import { buyTrain, ensureRailLink, planRail, RAIL_COST, removeRail, STATION_TYPE, TRAIN } from '../rail';
+import { buyTrain, ensureRailLink, planRail, RAIL_COST, removeRail, stationAccess, STATION_TYPE, TRAIN } from '../rail';
 import { legLength } from '../routeHelpers';
 import { demolishBuilding, findPlacement, placeBuilding } from '../state';
 import type { Building, City, GameState, GoodId, Route, SimContext, Vec2 } from '../types';
 import { assignVehicle, buyTruck, createRoute, deleteRoute, TRUCK, updateRoute } from '../vehicles';
 import { affordable, centreOf, cityName, rivalChainCount, trucksOn, unwrap } from './projects';
 import { FULL_RATIO, MAX_STALL_MONTHS, rivalReserve } from './shared';
+import { modelSpec, newestModel } from '../logistics/models';
 import { atPrices } from '../society/economy';
 
 /** A leg is worth a railway from this many tiles of road... */
@@ -53,6 +55,48 @@ function scrapTrack(ctx: SimContext, tiles: number[]): void {
 export function retryScrap(ctx: SimContext): void {
   const pending = flagList(ctx.state, F_RAIL_SCRAP);
   if (pending.length > 0) scrapTrack(ctx, pending.map(Number));
+}
+
+/**
+ * After a closed product line's stations are demolished (rival/lines.ts): lifts every connected stretch
+ * of the Baron's track reached from `seeds` (tile indices) that no standing station's access tile and no
+ * railway under way touches, so dead track stops costing upkeep. Track another line still runs on stays.
+ */
+export function scrapOrphanRail(ctx: SimContext, seeds: number[]): void {
+  const { state } = ctx;
+  const { map } = state;
+  const w = map.width;
+  const mine = (i: number): boolean => map.tiles[i]?.rail === true && map.tiles[i].railOwner === 'rival';
+  const live = new Set<number>(state.rivalRail?.railTiles ?? []);
+  for (const b of Object.values(state.buildings)) {
+    if (b.typeId === STATION_TYPE) for (const p of stationAccess(state, b)) live.add(p.y * w + p.x);
+  }
+  const seen = new Set<number>();
+  const dead: number[] = [];
+  for (const s of seeds) {
+    if (seen.has(s) || !mine(s)) continue;
+    seen.add(s);
+    const stretch: number[] = [];
+    let used = false;
+    const stack = [s];
+    while (stack.length > 0) {
+      const i = stack.pop()!;
+      stretch.push(i);
+      if (live.has(i)) used = true;
+      const x = i % w;
+      const y = (i - x) / w;
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        if (nx < 0 || ny < 0 || nx >= w || ny >= map.height) continue;
+        const n = ny * w + nx;
+        if (!seen.has(n) && mine(n)) {
+          seen.add(n);
+          stack.push(n);
+        }
+      }
+    }
+    if (!used) dead.push(...stretch);
+  }
+  if (dead.length > 0) scrapTrack(ctx, [...flagList(state, F_RAIL_SCRAP).map(Number), ...dead.sort((a, b) => a - b)]);
 }
 
 /** The Baron's railway lines: his train routes. */
@@ -121,7 +165,7 @@ function railCandidates(state: GameState): { leg: Leg; length: number }[] {
     if (blockedLegs.includes(`${source.id}>${dest.id}`)) continue;
     // a full source only counts when the destination could take a truckload (haulage is the bottleneck)
     const full =
-      (loadSource(source)[good] ?? 0) >= FULL_RATIO * BUILDINGS[source.typeId].storage &&
+      (loadSource(source)[good] ?? 0) >= FULL_RATIO * buildingStorage(source) &&
       storageLeft(dest, good) >= TRUCK.capacity;
     if (!full && trucksOn(state, route.id) < RAIL_BUSY_TRUCKS) continue;
     const length = legLength(state, source, dest);
@@ -387,7 +431,7 @@ export function advanceRail(ctx: SimContext): void {
     .sort((x, y) => Number(Object.keys(x.cargo).length > 0) - Number(Object.keys(y.cargo).length > 0) || x.id - y.id);
   const moving = Math.floor(fleet.length / 2);
   for (const v of fleet.slice(0, moving)) assignVehicle(ctx, v.id, feeder.value.id);
-  if (moving === 0 && affordable(state, TRUCK.cost)) buyTruck(ctx, 'rival', feeder.value.id);
+  if (moving === 0 && affordable(state, modelSpec(newestModel(state)).cost)) buyTruck(ctx, 'rival', feeder.value.id);
 
   const city = railCity(state, dest);
   publishNews(

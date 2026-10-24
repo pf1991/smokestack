@@ -1,3 +1,4 @@
+import { clearRaise } from './logistics/release';
 import type { Company, CompanyKind, GameState, OwnerId, SimContext } from './types';
 
 export type { CompanyKind };
@@ -56,6 +57,12 @@ export function transferOwnership(
     // the Baron's insolvency bookkeeping (rival/insolvency.ts) does not travel with the building
     delete b.salesThisMonth;
     delete b.earnings12;
+  }
+  for (const m of state.logistics.managers) {
+    if (m.employer !== from) continue;
+    m.employer = to;
+    clearRaise(state, m.id);
+    state.logistics.rev++;
   }
   for (const r of Object.values(state.routes)) if (r.ownerId === from) (r.ownerId = to), routes++;
   for (const v of Object.values(state.vehicles)) if (v.ownerId === from) (v.ownerId = to), vehicles++;

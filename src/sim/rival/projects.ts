@@ -1,5 +1,6 @@
 import type { Result } from '../../core/result';
 import { BUILDINGS } from '../../data/buildings';
+import { buildingStorage } from '../logistics/levels';
 import { GOODS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { loanStep, repayLoan, repayStep, takeLoan } from '../finance';
@@ -9,7 +10,8 @@ import { connectToRoads, ensureRoadLink } from '../roads';
 import { demolishBuilding, findPlacement, placeBuilding } from '../state';
 import type { Building, City, GameState, GoodId, OwnerId, SimContext, Vec2 } from '../types';
 import { BARON_ID } from '../companies';
-import { buyTruck, createRoute, deleteRoute, replaceCost, replaceVehicle, TRUCK } from '../vehicles';
+import { modelSpec, newestModel } from '../logistics/models';
+import { buyTruck, createRoute, deleteRoute, replaceCost, replaceVehicle, TRUCK, vehiclePrice } from '../vehicles';
 import { assetAge, renewBuilding, renewCost } from '../society/aging';
 import { planChain } from './chains';
 import type { ChainEdge, ChainNode } from './chains';
@@ -262,8 +264,11 @@ export function advanceProject(ctx: SimContext): void {
     routes.push(route.id);
   }
   const before = routes.map((id) => trucksOn(state, id));
-  for (const target of [1, 2]) {
-    for (const id of routes) if (trucksOn(state, id) < target && affordable(state, TRUCK.cost)) buyTruck(ctx, 'rival', id);
+  // bigger trucks replace trucks: the legs' fleet is sized by capacity (2 steam lorries = 1 motor truck)
+  const newest = modelSpec(newestModel(state));
+  const perLeg = Math.max(1, Math.round((2 * TRUCK.capacity) / newest.capacity));
+  for (let target = 1; target <= perLeg; target++) {
+    for (const id of routes) if (trucksOn(state, id) < target && affordable(state, newest.cost)) buyTruck(ctx, 'rival', id);
   }
   const allServed = routes.every((id) => trucksOn(state, id) > 0);
   if (allServed) {
@@ -288,16 +293,16 @@ export function topUpTrucks(ctx: SimContext, owner: OwnerId = BARON_ID, reserve 
   for (const route of Object.values(state.routes)) {
     if (route.ownerId !== owner || route.kind !== 'truck') continue;
     const n = trucksOn(state, route.id);
-    if (n >= MAX_TRUCKS_PER_LEG || state.companies[owner].money - atPrices(state, TRUCK.cost) < reserve) continue;
+    if (n >= MAX_TRUCKS_PER_LEG || state.companies[owner].money - vehiclePrice(state, newestModel(state)) < reserve) continue;
     const backedUp = route.stops.some((s) => {
       const b = state.buildings[s.buildingId];
       if (!b || b.ownerId !== owner) return false;
-      const cap = BUILDINGS[b.typeId].storage;
+      const cap = buildingStorage(b);
       return s.load.some((g) => {
         if ((loadSource(b)[g] ?? 0) < FULL_RATIO * cap) return false;
         return route.stops.some((d) => {
           const dest = state.buildings[d.buildingId];
-          return d.unload.includes(g) && dest !== undefined && storageLeft(dest, g) >= TRUCK.capacity;
+          return d.unload.includes(g) && dest !== undefined && storageLeft(dest, g) >= modelSpec(newestModel(state)).capacity;
         });
       });
     });
@@ -322,8 +327,8 @@ export function renewOldAssets(ctx: SimContext, owner: OwnerId = BARON_ID, reser
       .sort((a, b) => a.builtYear - b.builtYear || a.id - b.id)[0];
   const b = oldest(Object.values(state.buildings));
   if (b && company.money - renewCost(state, b) >= reserve) renewBuilding(ctx, b.id, owner);
-  const v = oldest(Object.values(state.vehicles).filter((x) => x.routeId !== null));
-  if (v && company.money - replaceCost(state, v.kind) >= reserve) replaceVehicle(ctx, v.id, owner);
+  const v = oldest(Object.values(state.vehicles).filter((x) => x.routeId !== null || x.hubId != null));
+  if (v && company.money - replaceCost(state, v) >= reserve) replaceVehicle(ctx, v.id, owner);
 }
 
 /** Borrows a loan step while `owner` (the Baron by default) is short of cash and under the loan cap. */

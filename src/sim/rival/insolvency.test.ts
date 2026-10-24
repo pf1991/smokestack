@@ -69,11 +69,11 @@ describe('the Baron’s insolvency guard (R-S13)', () => {
       { buildingId: shop.id, load: [], unload: ['lumber'] },
     ];
     // route and vehicle by hand: these works have no road access
-    const route = { id: 998, ownerId: 'rival', name: 'Lumber', color: '#fff', stops, kind: 'truck' as const };
+    const route = { id: 998, ownerId: 'rival', name: 'Lumber', color: '#fff', stops, kind: 'truck' as const, mode: 'manual' as const };
     ctx.state.routes[route.id] = route;
     ctx.state.vehicles[999] = {
       id: 999, kind: 'truck', ownerId: 'rival', routeId: route.id, pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 }, path: [],
-      pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900,
+      pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false, builtYear: 1900, model: 'steam_lorry', speed: 0.5,
     };
     recordBaronEarnings(ctx);
     expect(mill.earnings12).toEqual([Math.round(-BUILDINGS.sawmill.maintenance - TRUCK.maintenance / 2)]);

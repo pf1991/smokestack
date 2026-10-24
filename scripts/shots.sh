@@ -77,6 +77,9 @@ showcase() {
 }
 # ui shot: name, w, h, skipYears, extra query params (zoom=1), shots/ui-<w>-<name>.png. The Phase 4
 # tabs start at skipYears 55 (a family, listed firms, grudges); the Legacy end screen at 101.
+# The extra params come first in the URL, so one may override a default (URLSearchParams.get takes
+# the first): the upgrade shot passes zoom=2, since an upgrade's scaffold is drawn in the diorama only
+# (zoom 1 is the survey map).
 ushot() {
   local name="$1" w="$2" h="$3" skip="$4" extra="$5"
   local f="shots/ui-${w}-${name}.png"
@@ -88,7 +91,7 @@ ushot() {
       --user-data-dir="$udd" --virtual-time-budget=10000 \
       --window-size="$w,$((h + CHROME_H_OFFSET))" \
       --screenshot="$f" \
-      "http://localhost:$PORT/?seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=1&hour=16&cards=0&$extra" >/dev/null 2>&1
+      "http://localhost:$PORT/?$extra&seed=7&autoplay=1&speed=0&skipYears=$skip&zoom=1&hour=16&cards=0" >/dev/null 2>&1
     rm -rf "$udd"
     if [ -f "$f" ] && [ "$(stat -c %s "$f")" -ge "$MIN_SHOT_BYTES" ]; then break; fi
     echo "blank or missing shot $f (attempt $attempt)" >&2
@@ -126,6 +129,7 @@ panelmore 25 panel=finance&hudmenu=more
 panelcompany 55 panel=exchange&hudmenu=company
 finance 25 panel=finance
 tab-routes 55 panel=routes
+tab-building-level 25 inspect2=1&upgrading=1
 tab-fleet 55 panel=fleet
 tab-finance 55 panel=finance
 tab-newspaper 55 panel=newspaper
@@ -136,10 +140,16 @@ tab-rival 55 panel=rival
 tab-exchange 55 panel=exchange
 tab-family 55 panel=family
 tab-legacy 55 panel=legacy
+tab-managers 25 panel=managers
+tab-hub 25 inspecthub=1
 tab-building 55 inspect2=1
 tab-city 55 inspectcity=1
 tab-vehicle 55 inspectvehicle=1
 exchangebid 55 bid=1&panel=exchange
+hub 55 inspecthub=1
+managers 55 panel=managers
+upgrade 25 zoom=2&inspect2=1&upgrading=1
+route-auto 55 panel=routes
 end 101 end=1"
 for size in 1366,768 1920,1080; do
   w="${size%,*}"; h="${size#*,}"

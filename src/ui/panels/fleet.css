@@ -1,18 +1,21 @@
 /* Fleet manager window. */
-.fl { font-size: 13px; min-width: 600px; }
+.fl { font-size: 13px; min-width: 680px; }
 .fl-body { margin: 0; gap: 2px; }
 .fl-summary { color: var(--paper-shade); }
 .fl-filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.fl-routebar { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.fl-route-filter { font: inherit; min-width: 0; color: var(--paper); background: var(--walnut-light); border: 1px solid var(--brass-dark); border-radius: 2px; padding: 2px; }
+.fl-model { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fl-filter { padding: 1px 9px; }
 .fl-filter.active { background: var(--brass-light); color: var(--walnut); }
-.fl-row { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px minmax(60px, 1fr) 34px 70px auto; gap: 6px; align-items: center; padding: 2px 6px; min-height: 28px; background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; }
+.fl-row { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px 104px minmax(60px, 1fr) 34px 70px auto; gap: 6px; align-items: center; padding: 2px 6px; min-height: 28px; background: var(--walnut); border: 1px solid var(--brass-dark); border-radius: 3px; }
 .fl-row.problem { border-color: #f0a35a; }
 .fl-route { font: inherit; min-width: 0; width: 100%; color: var(--paper); background: var(--walnut-light); border: 1px solid var(--brass-dark); border-radius: 2px; padding: 2px; }
 .fl-status.st-stuck { color: #f0a35a; font-weight: bold; }
 .fl-status.st-idle { color: var(--paper-shade); font-style: italic; }
 .fl-trips { text-align: right; }
-.fl-head { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px minmax(60px, 1fr) 34px 70px auto; gap: 6px; padding: 2px 6px; position: sticky; top: -8px; z-index: 1; background: var(--walnut-light); border-bottom: 1px solid var(--brass-dark); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--paper-shade); }
-.fl-head span:nth-child(5) { text-align: right; }
+.fl-head { display: grid; grid-template-columns: 24px minmax(110px, 1.4fr) 62px 104px minmax(60px, 1fr) 34px 70px auto; gap: 6px; padding: 2px 6px; position: sticky; top: -8px; z-index: 1; background: var(--walnut-light); border-bottom: 1px solid var(--brass-dark); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--paper-shade); }
+.fl-head span:nth-child(6) { text-align: right; }
 .fl-head span:last-child { width: 160px; }
 .fl-actions { display: flex; gap: 3px; }
 .fl-btn { padding: 1px 7px; font-size: 12px; }
@@ -26,7 +29,9 @@
 .fl-compact .fl-head { grid-template-columns: 24px minmax(90px, 1fr) 62px 74px; }
 .fl-compact .fl-cargo,
 .fl-compact .fl-trips,
+.fl-compact .fl-model,
 .fl-compact .fl-head span:nth-child(4),
 .fl-compact .fl-head span:nth-child(5),
+.fl-compact .fl-head span:nth-child(6),
 .fl-compact .fl-head span:last-child { display: none; }
 .fl-compact .fl-actions { grid-column: 2 / -1; justify-content: flex-end; }

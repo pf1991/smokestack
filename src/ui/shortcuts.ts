@@ -40,6 +40,7 @@ export const SHORTCUTS: readonly (Shortcut & { action: ShortcutAction })[] = [
   { key: 'E', label: 'Exchange', group: 'Panels', action: { kind: 'panel', id: 'exchange' } },
   { key: 'Y', label: 'Family', group: 'Panels', action: { kind: 'panel', id: 'family' } },
   { key: 'L', label: 'Legacy', group: 'Panels', action: { kind: 'panel', id: 'legacy' } },
+  { key: 'J', label: 'Managers', group: 'Panels', action: { kind: 'panel', id: 'managers' } },
   { key: 'M', label: 'Smog map', group: 'Map', action: { kind: 'overlay', id: 'pollution' } },
   { key: 'K', label: 'Faction map', group: 'Map', action: { kind: 'overlay', id: 'factions' } },
   { key: 'P', label: 'Photo mode', group: 'Map', action: { kind: 'photo' } },

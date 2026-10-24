@@ -4,7 +4,7 @@ import { err, ok } from '../core/result';
 import { GOODS } from '../data/goods';
 import { addDays, compareDates, dateToDays } from './clock';
 import { earn } from './finance';
-import { monthlyDemand, satisfaction } from './market';
+import { monthlyDemand, POP_CAP, satisfaction } from './market';
 import { publishNews } from './news';
 import { random } from './rng';
 import { nextId } from './state';
@@ -105,7 +105,7 @@ export function contractsDay(ctx: SimContext): void {
     if (c.delivered >= c.qty) {
       c.status = 'done';
       earn(state.companies.player, 'contracts', c.reward, state.date);
-      if (city) city.population = Math.round(city.population * 1.05);
+      if (city) city.population = Math.min(POP_CAP, Math.round(city.population * 1.05));
       recordContractDone(state);
       bus.emit({ type: 'contract', contractId: c.id, status: 'done' });
       bus.emit({ type: 'toast', message: `Contract complete: ${city?.name} thanks you for the ${name}! +${formatMoney(c.reward)}`, tone: 'good' });

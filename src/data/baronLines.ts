@@ -79,6 +79,12 @@ export const BARON_LINES: BaronLines = {
       'Every share you sell is a brick in my new wing.',
       'Shareholders love a generous man. I am feeling very generous.',
     ],
+    poach_manager: [
+      'A good manager is worth his weight in coal, {player}. I paid a little more than that.',
+      'Your man had ambitions. I merely gave them a salary.',
+      'I hear {player} is hiring. Do send me the next one as well.',
+      'He tells me your books in {city} were a fright. He is much happier with mine.',
+    ],
   },
   junior: [
     'Father built the empire. I intend to modernise it, starting with {player}.',

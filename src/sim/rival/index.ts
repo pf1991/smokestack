@@ -10,6 +10,7 @@ import {
 } from './projects';
 import { advanceRail, retryScrap, startRailProject } from './railways';
 import { baronInsolvent, insolvencyGuard } from './insolvency';
+import { closeLosingLines } from './lines';
 
 /** The Baron's monthly turn (no-op once he is inactive). */
 export function rivalMonth(ctx: SimContext): void {
@@ -18,6 +19,8 @@ export function rivalMonth(ctx: SimContext): void {
   if (!rival.active) return;
   // R-S13: below 0 at month end he sells off his worst earner and starts nothing new
   insolvencyGuard(ctx);
+  // spec §9: he closes the lines of a good whose year of sales does not cover their upkeep (rival/lines.ts)
+  closeLosingLines(ctx);
   const broke = baronInsolvent(state);
   manageLoans(ctx);
   retryScrap(ctx);

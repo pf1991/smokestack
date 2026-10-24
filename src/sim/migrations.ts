@@ -14,6 +14,8 @@ import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
 import { defaultExchange } from './exchange/types';
 import { delist, listCompany } from './exchange/shares';
+import { newLogistics } from './logistics/types';
+import { refreshMarket } from './logistics/managers';
 import { companyIds } from './companies';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -155,6 +157,28 @@ export const MIGRATIONS: Migration[] = [
         listCompany(state, id);
         if (!state.companies[id].active) delist(state, id);
       }
+    },
+  },
+  {
+    // v8: Phase 4b logistics. Every building is level 1, every truck a steam lorry at the old speed
+    // (trains keep theirs), every route manual, and the logistics state starts empty
+    from: 7,
+    migrate(o) {
+      // tolerant of partial raw objects: a missing table is simply empty
+      const each = (t: unknown, f: (r: Record<string, unknown>) => void) => {
+        if (t && typeof t === 'object') for (const r of Object.values(t as Record<string, Record<string, unknown>>)) f(r);
+      };
+      each(o.buildings, (b) => { b.level = 1; });
+      each(o.vehicles, (v) => {
+        const train = v.kind === 'train';
+        v.model = train ? 'train' : 'steam_lorry';
+        v.speed = train ? 1 : 0.5;
+      });
+      each(o.routes, (r) => { r.mode = 'manual'; });
+      const year = (o.date as { year?: unknown } | undefined)?.year;
+      const y = typeof year === 'number' ? year : 1900;
+      o.logistics = newLogistics(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0, y);
+      refreshMarket(o as unknown as GameState, y); // the market stocks once at load
     },
   },
 ];

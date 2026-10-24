@@ -1,4 +1,6 @@
 import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
+
+import { buildingStorage, levelSmoke } from '../../sim/logistics/levels';
 import { getGood } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { addDays, dateToDays, formatDate, isWinter } from '../../sim/clock';
@@ -33,6 +35,7 @@ import './panels.css';
 import { bar, type Bar, KeyedList, openInspector, setClass, setOwnerBadge, setText, type InspectorHost, type InspectorView } from './inspect';
 import type { PanelDef } from './index';
 import { startSendGoods } from './routeActions';
+import { levelCard } from './buildingLevel';
 
 const STATUS_LABEL: Record<Building['status'], string> = {
   ok: 'Running',
@@ -40,6 +43,7 @@ const STATUS_LABEL: Record<Building['status'], string> = {
   output_full: 'Full',
   halted: 'Halted',
   idle: 'Idle',
+  upgrading: 'Upgrading',
 };
 
 const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name}`];
@@ -123,7 +127,7 @@ export function complianceLines(state: GameState, b: Building): { text: string; 
     if (tier >= law.tier) return { text: `Compliant with the ${law.title}`, ok: true };
     if (fined) return { text: `Below the ${law.title}'s tier ${law.tier}`, ok: false };
     fined = true;
-    const fine = Math.round(BUILDINGS[b.typeId].pollution * FINE_RATE * priceIndex(state));
+    const fine = Math.round(BUILDINGS[b.typeId].pollution * levelSmoke(b) * FINE_RATE * priceIndex(state));
     return { text: `Fined ${formatMoney(fine)}/mo under the ${law.title}`, ok: false };
   });
 }
@@ -144,6 +148,7 @@ export function statusReason(state: GameState, b: Building, routes: Route[]): st
   const def = BUILDINGS[b.typeId];
   const strike = strikeText(state, b);
   if (strike) return strike;
+  if (b.works) return `Upgrading to level ${b.works.toLevel}: output paused`;
   if (b.status === 'halted') return `Halted until ${b.haltedUntil ? formatDate(b.haltedUntil) : 'further notice'}`;
   const problem = extractorProblem(state, b);
   if (problem) return problem;
@@ -165,7 +170,7 @@ export function statusReason(state: GameState, b: Building, routes: Route[]): st
     default: {
       if (def.category === 'retail') return 'Open for business';
       if (def.category === 'logistics') return 'Handling cargo';
-      return `Producing — ${Math.round(b.progress * 100)}% of this batch`;
+      return `Producing — ${Math.min(100, Math.round(b.progress * 100))}% of this batch`;
     }
   }
 }
@@ -263,6 +268,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const inList = new KeyedList<Row>(inBox, makeRow);
   const outList = new KeyedList<Row>(outBox, makeRow);
 
+  const level = levelCard(host, state0);
   const ageText = h('div', { class: 'insp-age-line' });
   const renew = h('button', {
     class: 'btn insp-renew',
@@ -319,6 +325,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     outSection,
     produced,
     routesSection,
+    level.el,
     upgradesSection,
     ageSection,
     demolish,
@@ -380,13 +387,14 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       inList.sync(inKeys);
       outList.sync(outKeys);
       if (shared && inKeys.length === 0) setText(inBox, 'Nothing in stock');
+      const cap = buildingStorage(b);
       for (const [g, row] of inList.items) {
         const q = b.input[g] ?? 0;
-        row.bar.set(q / def.storage, `${formatNumber(q)} / ${def.storage}`);
+        row.bar.set(q / cap, `${formatNumber(q)} / ${cap}`);
       }
       for (const [g, row] of outList.items) {
         const q = b.output[g] ?? 0;
-        row.bar.set(q / def.storage, `${formatNumber(q)} / ${def.storage}`);
+        row.bar.set(q / cap, `${formatNumber(q)} / ${cap}`);
       }
       const made = Object.entries(b.producedThisMonth).filter(([, q]) => q > 0);
       produced.hidden = shared;
@@ -451,6 +459,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
           );
         }
       }
+      level.refresh();
       // aging (sim/society/aging.ts): efficiency falls and upkeep rises after 15 years; renewing resets it
       setText(ageText, ageLine(state, b));
       const upkeepF = assetUpkeep(state, b);

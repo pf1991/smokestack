@@ -98,6 +98,7 @@ state.routes[900] = {
   name: 'Furniture line',
   color: '#e0a030',
   kind: 'truck',
+  mode: 'manual',
   stops: routeStops.map((b) => ({ buildingId: b.id, load: [], unload: [] })),
 };
 
@@ -136,6 +137,8 @@ pairs.forEach(([a, b], i) => {
     waitTicks: 0,
     stuckNotified: false,
     builtYear: state.date.year,
+    model: 'steam_lorry',
+    speed: 0.5,
   };
   state.vehicles[v.id] = v;
   movers.push({ v, path, t, dirn: 1, speed: 0.5 });

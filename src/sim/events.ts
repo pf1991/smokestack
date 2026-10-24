@@ -1,10 +1,12 @@
 import { BUILDINGS } from '../data/buildings';
+import { buildingStorage } from './logistics/levels';
 import { getGood } from '../data/goods';
 import { RECIPES, recipeEra } from '../data/recipes';
 import { addDays, compareDates, dateToDays } from './clock';
 import { currentLedger } from './finance';
 import { publishNews } from './news';
 import { exchangeShock } from './exchange/prices';
+import { POP_CAP } from './market';
 import { pushModifier } from './modifiers';
 import { triggerCard } from './politics/cards';
 import { chance, pick, random } from './rng';
@@ -139,7 +141,7 @@ export const RANDOM_EVENTS: RandomEvent[] = [
       if (farms.length === 0) return null;
       for (const b of farms) {
         const good = b.recipeId ? Object.keys(RECIPES[b.recipeId]?.outputs ?? {})[0] ?? 'grain' : 'grain';
-        const cap = BUILDINGS[b.typeId].storage;
+        const cap = buildingStorage(b);
         b.output[good] = Math.min(cap, (b.output[good] ?? 0) + 30);
       }
       return publishNews(ctx, 'random', `LOCAL BAKER'S DOUGH RISES TO OCCASION`,
@@ -163,7 +165,8 @@ export const RANDOM_EVENTS: RandomEvent[] = [
       const { state } = ctx;
       if (state.cities.length === 0) return null;
       const city = pick(state, state.cities);
-      city.population = Math.round(city.population * 1.15);
+      // never past the cap growthMonth keeps (the invariant's [500, POP_CAP])
+      city.population = Math.min(POP_CAP, Math.round(city.population * 1.15));
       return publishNews(ctx, 'random', `GOLD FEVER GRIPS ${city.name.toUpperCase()}! THOUSANDS ARRIVE WITH SHOVELS`,
         `A glint in a creek bed has swelled the town by a good fifteen percent. Landlords smile; the creek, it is rumoured, has hired a lawyer.`);
     },

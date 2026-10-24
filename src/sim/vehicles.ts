@@ -7,7 +7,14 @@ import { truckTollsMonth } from './politics/mayorEdicts';
 import { accessTiles, nextId } from './state';
 import { AGING_GRACE, agingEfficiency, assetAge, assetUpkeep, NO_WEAR } from './society/aging';
 import { atPrices } from './society/economy';
-import type { Building, GameState, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
+import { hasNewerModel, modelSpec, newestModel } from './logistics/models';
+import { managerUpkeep } from './logistics/managers';
+import {
+  AUTO_RECHECK_TICKS, autoPickup, autoRoutesChanged, clampMaxTrucks, departAuto, dropAutoJobs, leaveAutoRoute, MIN_LOAD_MAX_WAIT_TICKS, noteDeparture,
+} from './logistics/autoRoutes';
+import { advanceHubJob, fleetChanged, hubLoadCap, hubRoute, joinHub, leaveHub } from './logistics/jobRoute';
+import type { AutoSize, HubJob, RouteMode, VehicleModelId } from './logistics/types';
+import type { Building, GameState, GoodId, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
 export interface VehicleSpec {
   cost: number;
@@ -70,11 +77,19 @@ function validateStops(state: GameState, owner: OwnerId, kind: Route['kind'], st
     const bad = def.stopError?.(b);
     if (bad) return err(bad);
     if (def.access(state, b).length === 0) return err(def.noAccessError ?? 'Stop has no road access');
+    if (stop.minLoad !== undefined && !MIN_LOADS.includes(stop.minLoad)) return err('Leave at 0%, 50% or 100% load');
   }
   return ok();
 }
 
-const copyStop = (s: RouteStop): RouteStop => ({ buildingId: s.buildingId, load: [...s.load], unload: [...s.unload] });
+/** A manual stop's smart-wait shares (D10): leave at any load, half full or full. */
+export const MIN_LOADS: readonly number[] = [0, 0.5, 1];
+
+const copyStop = (s: RouteStop): RouteStop => {
+  const c: RouteStop = { buildingId: s.buildingId, load: [...s.load], unload: [...s.unload] };
+  if (s.minLoad) c.minLoad = s.minLoad;
+  return c;
+};
 
 export function createRoute(
   ctx: SimContext,
@@ -95,6 +110,7 @@ export function createRoute(
     color: ROUTE_COLORS[id % ROUTE_COLORS.length],
     stops: stops.map(copyStop),
     kind,
+    mode: 'manual',
   };
   state.routes[id] = route;
   return ok(route);
@@ -103,11 +119,13 @@ export function createRoute(
 /**
  * Stops may drop below two here (the route's vehicles then idle); new stops must be own buildings
  * with access. When stops change, every vehicle re-plans towards its (clamped) current stop index.
+ * `mode` and `autoSize` (spec §6) are for truck routes; the truck cap is clamped to 1–20. A change of
+ * stops or mode drops an auto route's jobs (the next daily rebuild starts afresh).
  */
 export function updateRoute(
   ctx: SimContext,
   routeId: number,
-  patch: Partial<Pick<Route, 'name' | 'stops' | 'color'>>,
+  patch: Partial<Pick<Route, 'name' | 'stops' | 'color'>> & { mode?: RouteMode; autoSize?: AutoSize },
 ): Result {
   const { state } = ctx;
   const route = state.routes[routeId];
@@ -116,11 +134,22 @@ export function updateRoute(
     const v = validateStops(state, route.ownerId, route.kind, patch.stops);
     if (!v.ok) return v;
   }
+  if ((patch.mode === 'auto' || patch.autoSize?.on) && route.kind !== 'truck') return err('Rail lines run as written');
+  if (patch.mode !== undefined && patch.mode !== 'manual' && patch.mode !== 'auto') return err('Unknown route mode');
   if (patch.name !== undefined) route.name = patch.name;
   if (patch.color !== undefined) route.color = patch.color;
+  if (patch.autoSize !== undefined || patch.mode !== undefined) autoRoutesChanged();
+  if (patch.autoSize !== undefined) route.autoSize = { on: patch.autoSize.on === true, maxTrucks: clampMaxTrucks(patch.autoSize.maxTrucks) };
+  if (patch.mode !== undefined && patch.mode !== route.mode) {
+    route.mode = patch.mode;
+    dropAutoJobs(state, route);
+    for (const v of Object.values(state.vehicles)) if (v.routeId === routeId && v.dwell) v.dwell = 0; // a smart wait starts afresh
+    if (route.mode === 'manual') delete route.jobs;
+  }
   if (patch.stops) {
     const oldStops = route.stops;
     route.stops = patch.stops.map(copyStop);
+    if (route.mode === 'auto') dropAutoJobs(state, route);
     const n = route.stops.length;
     for (const veh of Object.values(state.vehicles)) {
       if (veh.routeId !== routeId) continue;
@@ -171,6 +200,7 @@ export function insertStop(
   const next = base.map(copyStop);
   next.splice(afterIndex + 1, 0, copyStop(stop));
   route.stops = next;
+  if (route.mode === 'auto') dropAutoJobs(state, route);
   const n = next.length;
   for (const veh of Object.values(state.vehicles)) {
     if (veh.routeId !== routeId) continue;
@@ -205,7 +235,13 @@ export function deleteRoute(ctx: SimContext, routeId: number): Result {
 // purchases
 
 /** Buys a vehicle of `kind` for a route of the same kind (used by buyTruck and rail.ts's buyTrain). */
-export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kind: Vehicle['kind']): Result<Vehicle> {
+export function buyVehicle(
+  ctx: SimContext,
+  owner: OwnerId,
+  routeId: number,
+  kind: Vehicle['kind'],
+  model: VehicleModelId = kind === 'truck' ? newestModel(ctx.state) : 'train',
+): Result<Vehicle> {
   const { state } = ctx;
   const def = VEHICLE_KINDS[kind];
   if (!def) return err('Unknown vehicle kind');
@@ -217,9 +253,20 @@ export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kin
   const spawn = first ? def.access(state, first)[0] : undefined;
   if (!spawn) return err(def.noAccessError ?? 'Stop has no road access');
   const company = state.companies[owner];
-  const price = vehiclePrice(state, kind);
+  if ((model === 'train') !== (kind === 'train')) return err('Wrong vehicle for this route');
+  const price = vehiclePrice(state, model);
   if (!canAfford(company, price)) return err('Not enough money');
   spend(company, 'vehicles', price, state.date);
+  const vehicle = newVehicle(state, owner, kind, model, spawn, routeId);
+  if (route.stops.length >= 2) vehicle.state = 'moving';
+  return ok(vehicle);
+}
+
+/**
+ * Adds a new idle vehicle of `model` at `spawn` (no charge: the caller spends under 'vehicles'). Used by
+ * buyVehicle and by hub truck purchases (logistics/hubs.ts), which pass `routeId: null`.
+ */
+export function newVehicle(state: GameState, owner: OwnerId, kind: Vehicle['kind'], model: VehicleModelId, spawn: Vec2, routeId: number | null): Vehicle {
   const vehicle: Vehicle = {
     id: nextId(state),
     kind,
@@ -231,14 +278,40 @@ export function buyVehicle(ctx: SimContext, owner: OwnerId, routeId: number, kin
     pathIndex: 0,
     stopIndex: 0,
     cargo: {},
-    capacity: def.spec.capacity,
-    state: route.stops.length >= 2 ? 'moving' : 'idle',
+    capacity: modelSpec(model).capacity,
+    state: 'idle',
     waitTicks: 0,
     stuckNotified: false,
     builtYear: state.date.year,
+    model,
+    speed: modelSpec(model).speed,
+    // declared up front (undefined is not saved) so every vehicle shares one object shape: a vehicle that
+    // gained these later, in its own order, made the per-tick vehicle code megamorphic (several x slower)
+    trips30: undefined,
+    kits: undefined,
+    hubId: undefined,
+    job: undefined,
+    dwell: undefined,
   };
   state.vehicles[vehicle.id] = vehicle;
-  return ok(vehicle);
+  return vehicle;
+}
+
+/** Every Vehicle key in newVehicle's order. */
+const VEHICLE_KEYS: readonly (keyof Vehicle)[] = [
+  'id', 'kind', 'ownerId', 'routeId', 'pos', 'prevPos', 'path', 'pathIndex', 'stopIndex', 'cargo', 'capacity', 'state',
+  'waitTicks', 'stuckNotified', 'builtYear', 'model', 'speed', 'trips30', 'kits', 'hubId', 'job', 'dwell',
+];
+
+/**
+ * A loaded vehicle rebuilt with newVehicle's key order and shape (deserialize): a save then reloads into
+ * the same objects, and serializes the same, as the game that wrote it.
+ */
+export function canonicalVehicle(v: Vehicle): Vehicle {
+  const out: Record<string, unknown> = {};
+  for (const k of VEHICLE_KEYS) out[k] = v[k];
+  for (const k of Object.keys(v)) if (!(k in out)) out[k] = (v as unknown as Record<string, unknown>)[k];
+  return out as unknown as Vehicle;
 }
 
 /** Spawns at the first stop's first access tile and heads for that stop. */
@@ -251,9 +324,10 @@ export function sellVehicle(ctx: SimContext, id: number): Result {
   const { state } = ctx;
   const veh = state.vehicles[id];
   if (!veh) return err('No such vehicle');
-  earn(state.companies[veh.ownerId], 'vehicles', sellRefund(state, veh.kind), state.date);
+  earn(state.companies[veh.ownerId], 'vehicles', sellRefund(state, veh), state.date);
   delete state.vehicles[id];
   fleetRemovals++;
+  fleetChanged();
   return ok();
 }
 
@@ -269,17 +343,33 @@ export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Re
   const veh = state.vehicles[id];
   if (!veh) return err('No such vehicle');
   if (owner !== undefined && veh.ownerId !== owner) return err('Not your vehicle');
+  const hub = veh.hubId != null ? state.buildings[veh.hubId] : undefined;
   const route = veh.routeId !== null ? state.routes[veh.routeId] : undefined;
-  if (!route) return err('Assign it to a route first');
+  if (!route && !hub) return err('Assign it to a route first');
   const def = VEHICLE_KINDS[veh.kind];
-  const first = route.stops[0] ? state.buildings[route.stops[0].buildingId] : undefined;
+  const first = hub ?? (route!.stops[0] ? state.buildings[route!.stops[0].buildingId] : undefined);
   if (!def || !first || !def.access(state, first)[0]) return err(def?.noAccessError ?? 'Stop has no road access');
-  if (assetAge(state, veh) <= AGING_GRACE) return err(NO_WEAR);
-  if (!canAfford(state.companies[veh.ownerId], replaceCost(state, veh.kind))) return err('Not enough money');
+  if (assetAge(state, veh) <= AGING_GRACE && !hasNewerModel(state, veh.model)) return err(NO_WEAR);
+  if (!canAfford(state.companies[veh.ownerId], replaceCost(state, veh))) return err('Not enough money');
   const { ownerId, kind, stopIndex } = veh;
   const at = { x: Math.round(veh.pos.x), y: Math.round(veh.pos.y) };
+  if (hub) {
+    // a hub truck stays on its hub and carries on with its job from where the old one stood
+    // and keeps its cargo (taken from a hub or a producer, it has nowhere else to go)
+    const job = (veh.job ?? null) as HubJob | null;
+    const cargo = veh.cargo;
+    sellVehicle(ctx, id);
+    const model = newestModel(state);
+    spend(state.companies[ownerId], 'vehicles', vehiclePrice(state, model), state.date);
+    const fresh = newVehicle(state, ownerId, kind, model, at, null);
+    joinHub(fresh, hub.id, job);
+    fresh.cargo = cargo;
+    fresh.stopIndex = stopIndex;
+    if (job) fresh.state = 'moving';
+    return ok(fresh);
+  }
   sellVehicle(ctx, id);
-  const bought = buyVehicle(ctx, ownerId, route.id, kind);
+  const bought = buyVehicle(ctx, ownerId, route!.id, kind); // the newest model, no kits
   if (!bought.ok) return bought;
   const fresh = bought.value;
   fresh.pos = { ...at };
@@ -290,24 +380,56 @@ export function replaceVehicle(ctx: SimContext, id: number, owner?: OwnerId): Re
   return bought;
 }
 
-/** Price of a new vehicle of `kind` at today's prices, rounded. */
-export function vehiclePrice(state: GameState, kind: Vehicle['kind']): number {
-  return Math.round(atPrices(state, VEHICLE_KINDS[kind]?.spec.cost ?? 0));
+/** The model a kind or vehicle stands for when pricing: a kind means the newest of it on sale. */
+function modelFor(state: GameState, x: Vehicle | Vehicle['kind'] | VehicleModelId): VehicleModelId {
+  if (typeof x === 'object') return x.model;
+  return x === 'truck' ? newestModel(state) : x === 'train' ? 'train' : x;
 }
 
-/** What selling a vehicle of `kind` refunds: SELL_REFUND of today's price, rounded. */
-export function sellRefund(state: GameState, kind: Vehicle['kind']): number {
-  return Math.round(vehiclePrice(state, kind) * SELL_REFUND);
+/** Price of a new vehicle at today's prices, rounded; a bare kind prices the newest truck model. */
+export function vehiclePrice(state: GameState, kindOrModel: Vehicle['kind'] | VehicleModelId): number {
+  return Math.round(atPrices(state, modelSpec(modelFor(state, kindOrModel)).cost));
 }
 
-/** Net price of replacing a vehicle of `kind`: a new one less the old one's refund. */
-export function replaceCost(state: GameState, kind: Vehicle['kind']): number {
-  return vehiclePrice(state, kind) - sellRefund(state, kind);
+/** What selling `veh` refunds: SELL_REFUND of its own model's price today, rounded. */
+export function sellRefund(state: GameState, veh: Vehicle | Vehicle['kind']): number {
+  return Math.round(vehiclePrice(state, modelFor(state, veh)) * SELL_REFUND);
 }
 
-/** Monthly upkeep of `veh`: its kind's maintenance at today's prices × its age factor. */
+/** Net price of replacing `veh`: the newest model of its kind less its own refund. */
+export function replaceCost(state: GameState, veh: Vehicle | Vehicle['kind']): number {
+  const kind = typeof veh === 'object' ? veh.kind : veh;
+  return vehiclePrice(state, kind) - sellRefund(state, veh);
+}
+
+/**
+ * Monthly upkeep of `veh`: its model's maintenance at today's prices × its age factor, and for a hub
+ * truck × its hub manager's frugality factor (spec §7.2).
+ */
 export function vehicleUpkeep(state: GameState, veh: Vehicle): number {
-  return atPrices(state, VEHICLE_KINDS[veh.kind]?.spec.maintenance ?? 0) * assetUpkeep(state, veh);
+  const hub = veh.hubId == null ? undefined : state.buildings[veh.hubId];
+  return atPrices(state, modelSpec(veh.model).maintenance) * assetUpkeep(state, veh) * (hub ? managerUpkeep(state, hub) : 1);
+}
+
+/**
+ * Replaces, in id order, every truck of the route that is older than the newest model, stopping at
+ * the first one `owner` cannot afford.
+ */
+export function upgradeRouteTrucks(ctx: SimContext, routeId: number, owner: OwnerId): Result<{ replaced: number }> {
+  const { state } = ctx;
+  const route = state.routes[routeId];
+  if (!route) return err('No such route');
+  if (route.ownerId !== owner) return err('Not your route');
+  const ids = Object.values(state.vehicles)
+    .filter((v) => v.routeId === routeId && v.kind === 'truck' && hasNewerModel(state, v.model))
+    .map((v) => v.id)
+    .sort((a, b) => a - b);
+  let replaced = 0;
+  for (const id of ids) {
+    if (!replaceVehicle(ctx, id, owner).ok) break;
+    replaced++;
+  }
+  return ok({ replaced });
 }
 
 /**
@@ -326,8 +448,17 @@ export function assignVehicle(ctx: SimContext, vehicleId: number, routeId: numbe
     if (route.ownerId !== veh.ownerId) return err('Not your route');
     if (route.kind !== veh.kind) return err(veh.kind === 'train' ? 'Trains only run on rail lines' : 'Trucks cannot run rail lines');
   }
-  if (veh.routeId !== routeId) veh.cargo = {};
+  if (veh.hubId != null) {
+    leaveHub(veh); // off its hub: the hold empties as it would leaving a route
+    veh.cargo = {};
+  }
+  if (veh.routeId !== routeId) {
+    veh.cargo = {};
+    leaveAutoRoute(veh);
+  }
+  if (veh.dwell) veh.dwell = 0;
   veh.routeId = routeId;
+  fleetChanged();
   veh.stopIndex = 0;
   veh.path = [];
   veh.pathIndex = 0;
@@ -349,14 +480,20 @@ export function vehicleMaintenanceMonth(ctx: SimContext): void {
 // ---------------------------------------------------------------------------
 // state machine
 
+const NO_GOODS: GoodId[] = [];
+
 function cargoTotal(veh: Vehicle): number {
   let n = 0;
   for (const g in veh.cargo) n += veh.cargo[g];
   return n;
 }
 
-/** Unload `stop.unload` goods the building accepts (bounded by storageLeft), then load `stop.load`. */
-function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building): void {
+/**
+ * Unload `stop.unload` goods the building accepts (bounded by storageLeft), then load `stop.load`;
+ * with `onlyGood` (an auto route's pickup) load just that good if the stop loads it, and with null nothing.
+ * `max` caps the units loaded (a hub truck takes only its job's quantity).
+ */
+function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building, onlyGood?: GoodId | null, max?: number): void {
   let unloaded: string[] | null = null;
   for (const g of stop.unload) {
     const carried = veh.cargo[g] ?? 0;
@@ -376,9 +513,10 @@ function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building):
   }
 
   const src = loadSource(b);
-  const goods = stop.load;
+  const goods = onlyGood === undefined ? stop.load : onlyGood !== null && stop.load.includes(onlyGood) ? [onlyGood] : NO_GOODS;
   const k = goods.length;
   let free = veh.capacity - cargoTotal(veh);
+  if (max !== undefined && max < free) free = max;
   if (k === 0 || free <= 0) return;
   if (k === 1) {
     // single good: the unit-by-unit loop below takes min(free, floor(avail)) units, and subtracting
@@ -466,9 +604,61 @@ function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
     plan(ctx, veh, route, def);
     return;
   }
-  transfer(state, veh, stop, b);
+  transfer(state, veh, stop, b, route.mode === 'auto' ? autoPickup(veh) : undefined, route.id < 0 ? hubLoadCap(veh) : undefined);
   veh.state = 'loading';
   veh.waitTicks = def.spec.loadTicks;
+}
+
+/** Stays at the current stop for another recheck, retrying the transfer there (smart and auto waits). */
+function waitHere(state: GameState, veh: Vehicle, route: Route): void {
+  const stop = route.stops[veh.stopIndex];
+  const b = stop ? state.buildings[stop.buildingId] : undefined;
+  if (b) transfer(state, veh, stop, b, route.mode === 'auto' ? null : undefined);
+  veh.waitTicks = AUTO_RECHECK_TICKS;
+}
+
+/**
+ * The end of a dwell. An auto route asks departAuto where to go (or to wait); a manual stop with
+ * `minLoad` holds the truck until it is that full or has waited MIN_LOAD_MAX_WAIT_TICKS.
+ */
+function depart(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef): void {
+  const { state } = ctx;
+  const n = route.stops.length;
+  // A cleared path means the stops were re-indexed while we dwelt (demolition or edit):
+  // head for the current stop instead of skipping past it.
+  const atStop = veh.path.length > 0;
+  if (route.mode === 'auto' && atStop) {
+    const next = departAuto(state, veh, route);
+    if (next === 'wait') return waitHere(state, veh, route);
+    if (next === veh.stopIndex) return arrive(ctx, veh, route, def); // the job's pickup is here
+    noteDeparture(state, veh, route, route.stops[veh.stopIndex]);
+    veh.stopIndex = next;
+    plan(ctx, veh, route, def);
+    return;
+  }
+  const minLoad = route.mode === 'manual' && atStop ? route.stops[veh.stopIndex].minLoad : undefined;
+  if (minLoad && (veh.dwell ?? 0) < MIN_LOAD_MAX_WAIT_TICKS && cargoTotal(veh) < minLoad * veh.capacity && route.stops[veh.stopIndex].load.length > 0) {
+    waitHere(state, veh, route);
+    veh.dwell = (veh.dwell ?? 0) + AUTO_RECHECK_TICKS;
+    return;
+  }
+  if (veh.dwell) veh.dwell = 0;
+  noteDeparture(state, veh, route, atStop ? route.stops[veh.stopIndex] : undefined);
+  if (atStop) veh.stopIndex = (veh.stopIndex + 1) % n;
+  plan(ctx, veh, route, def);
+}
+
+/** A hub truck's dwell end: its job moves on (logistics/jobRoute.ts), then it heads for the next stop or idles. */
+function departHub(ctx: SimContext, veh: Vehicle, def: VehicleKindDef): void {
+  advanceHubJob(ctx.state, veh);
+  const next = hubRoute(ctx.state, veh);
+  if (next) {
+    plan(ctx, veh, next, def);
+    return;
+  }
+  veh.state = 'idle';
+  veh.path = [];
+  veh.pathIndex = 0;
 }
 
 const EPS = 1e-9;
@@ -478,7 +668,7 @@ function move(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef, 
   const { map } = ctx.state;
   // an old vehicle is slower (society/aging.ts); the hot path skips the call while it is young
   const age = ctx.state.date.year - veh.builtYear;
-  let remaining = age > grace ? def.spec.speed * agingEfficiency(age) : def.spec.speed;
+  let remaining = age > grace ? veh.speed * agingEfficiency(age) : veh.speed;
   let replanned = false;
   for (;;) {
     if (veh.pathIndex >= veh.path.length) {
@@ -528,7 +718,8 @@ function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined, gr
   if (!def) return;
   if (def.halted?.(state)) return;
   const n = route ? route.stops.length : 0;
-  if (!route || n < 2) {
+  // a hub truck's return trip is a one-stop route (its hub); any other route needs two stops
+  if (!route || n < (route.id < 0 ? 1 : 2)) {
     veh.state = 'idle';
     veh.stuckNotified = false;
     if (veh.path.length > 0) {
@@ -548,10 +739,8 @@ function tickVehicle(ctx: SimContext, veh: Vehicle, route: Route | undefined, gr
     case 'loading': {
       if (--veh.waitTicks > 0) return;
       veh.waitTicks = 0;
-      // A cleared path means the stops were re-indexed while we dwelt (demolition or edit):
-      // head for the current stop instead of skipping past it.
-      if (veh.path.length > 0) veh.stopIndex = (veh.stopIndex + 1) % n;
-      plan(ctx, veh, route, def);
+      if (route.id < 0) return departHub(ctx, veh, def);
+      depart(ctx, veh, route, def);
       return;
     }
     case 'stuck': {
@@ -575,7 +764,7 @@ export function vehiclesTick(ctx: SimContext): void {
   const grace = AGING_GRACE;
   for (let k = 0; k < list.length; k++) {
     const veh = list[k];
-    tickVehicle(ctx, veh, veh.routeId !== null ? routeOf(state, c, k, veh.routeId) : undefined, grace);
+    tickVehicle(ctx, veh, veh.routeId !== null ? routeOf(state, c, k, veh.routeId) : veh.hubId != null ? hubRoute(state, veh) : undefined, grace);
   }
 }
 

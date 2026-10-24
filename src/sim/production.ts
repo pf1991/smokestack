@@ -10,6 +10,8 @@ import { strikeOver } from './society/strikes';
 import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
+import { buildingStorage, levelRate } from './logistics/levels';
+import { managerRate } from './logistics/managers';
 import { RECIPES, type RecipeDef } from '../data/recipes';
 import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
@@ -97,20 +99,25 @@ export function productionDay(ctx: SimContext): void {
   for (const b of buildingList(state)) {
     const def = BUILDINGS[b.typeId];
     // a striking works produces nothing; on the day it ends the strike is cleared and an unanswered
-    // strike card withdrawn (society/strikes.ts)
+    // strike card withdrawn (society/strikes.ts), even while an upgrade's works is under way
     if (b.strike) {
       if (strikeActive(b.strike, today)) {
-        b.status = 'halted';
+        b.status = b.works ? 'upgrading' : 'halted';
         continue;
       }
       strikeOver(ctx, b);
     }
     if (b.haltedUntil) {
       if (compareDates(b.haltedUntil, state.date) > 0) {
-        b.status = 'halted';
+        b.status = b.works ? 'upgrading' : 'halted';
         continue;
       }
       b.haltedUntil = null;
+    }
+    // an upgrade's works halts the building; the strike and halt timers above keep running (sim/logistics/levels.ts)
+    if (b.works) {
+      b.status = 'upgrading';
+      continue;
     }
     const recipe = b.recipeId && unlocked.has(b.recipeId) ? RECIPES[b.recipeId] : undefined;
     if (!recipe || (def.category !== 'extractor' && def.category !== 'factory')) {
@@ -119,18 +126,19 @@ export function productionDay(ctx: SimContext): void {
     }
     const { outs, ins } = keysOf(recipe);
     // staffing and age (society/aging.ts) scale every works' rate alike
-    const rate = b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
+    const storage = buildingStorage(b);
+    const rate = levelRate(b) * managerRate(state, b) * b.staffing * assetEfficiency(state, b) * (limited.has(b.id) ? SMOG_LIMIT_FACTOR : 1) * (protested.has(b.id) ? PROTEST_FACTOR : 1) * (slowed.has(b.id) ? SLOWDOWN_FACTOR : 1);
     if (def.category === 'extractor') {
       // staffing (sim/politics/workforce.ts) scales the day's yield like terrain efficiency does
       const eff = extractorEfficiency(state, b, outs) * rate;
-      for (const g of outs) addOutput(b, g, recipe.outputs[g] * eff, def.storage);
+      for (const g of outs) addOutput(b, g, recipe.outputs[g] * eff, storage);
       let full = false;
-      for (const g of outs) if ((b.output[g] ?? 0) >= def.storage) full = true;
+      for (const g of outs) if ((b.output[g] ?? 0) >= storage) full = true;
       b.status = full ? 'output_full' : 'ok';
       continue;
     }
     let full = false;
-    for (const g of outs) if ((b.output[g] ?? 0) + recipe.outputs[g] > def.storage) full = true;
+    for (const g of outs) if ((b.output[g] ?? 0) + recipe.outputs[g] > storage) full = true;
     if (full) {
       b.status = 'output_full';
       continue;
@@ -142,12 +150,18 @@ export function productionDay(ctx: SimContext): void {
       continue;
     }
     b.status = 'ok';
+    // the rate multiplies the day's recipe progress (spec §4.1): a levelled or managed works may
+    // finish several batches in a day, each while its inputs cover a batch and its outputs have room
     b.progress += rate / recipe.days;
-    if (b.progress >= 1 - 1e-9) {
+    while (b.progress >= 1 - 1e-9 && fed && !full) {
       for (const g of ins) b.input[g] -= recipe.inputs[g];
-      for (const g of outs) addOutput(b, g, recipe.outputs[g], def.storage);
+      for (const g of outs) addOutput(b, g, recipe.outputs[g], storage);
       b.progress = Math.max(0, b.progress - 1);
+      for (const g of ins) if (!((b.input[g] ?? 0) >= recipe.inputs[g])) fed = false;
+      for (const g of outs) if ((b.output[g] ?? 0) + recipe.outputs[g] > storage) full = true;
     }
+    // starved or full: at most one ready batch carries over to the next day
+    if (b.progress > 1) b.progress = 1;
   }
 }
 

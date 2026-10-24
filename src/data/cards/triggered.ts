@@ -8,6 +8,7 @@
 import { city, DAYS_PER_MONTH, demand, haltNearestWorks, mayorIs, nation, strikeResolution } from './helpers';
 import { FOUNDER } from '../../sim/nemesis/types';
 import { WAKE_FLAG } from '../nemesis';
+import { answerRaise, raiseManager } from '../../sim/logistics/managers';
 import { cityOf, type CardDef } from './types';
 
 const ANY: [number, number] = [1901, 2000];
@@ -396,6 +397,28 @@ export const DYNASTY_CARDS: readonly CardDef[] = [
   },
 ];
 
+/** Opened by raiseYear (sim/logistics/raises.ts) when one of the player's managers asks for more pay. */
+export const MANAGER_CARDS: readonly CardDef[] = [
+  {
+    id: 'manager_raise',
+    title: '{manager} Wants a Word',
+    body: '{manager}, who runs things for you, has stood in your doorway for ten minutes holding a hat. It is about money. It is always about money.',
+    vars: (state) => ({ manager: raiseManager(state)?.name ?? 'Your manager' }),
+    trigger: 'manager',
+    years: [1900, 2000],
+    weight: 1,
+    cooldownYears: 0,
+    needsCity: false,
+    condition: (state) => raiseManager(state) !== null,
+    choices: [
+      { label: 'Grant the raise', cost: 0, effects: [], apply: (ctx) => answerRaise(ctx, 'grant'), note: 'Salary up by a fifth' },
+      { label: 'Pay a one-off bonus', cost: 1500, effects: [], apply: (ctx) => answerRaise(ctx, 'bonus'), note: 'No raise; the clock restarts' },
+      { label: 'Refuse', cost: 0, effects: [], apply: (ctx) => answerRaise(ctx, 'refuse'), note: 'They may quit' },
+    ],
+    defaultChoice: 0,
+  },
+];
+
 export const TRIGGERED_CARDS: readonly CardDef[] = [
   ...ELECTION_CARDS,
   ...SCANDAL_CARDS,
@@ -403,4 +426,5 @@ export const TRIGGERED_CARDS: readonly CardDef[] = [
   ...STRIKE_CARDS,
   ...INVENTION_CARDS,
   ...DYNASTY_CARDS,
+  ...MANAGER_CARDS,
 ];

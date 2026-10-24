@@ -88,6 +88,14 @@ describe('single-writer funnels', () => {
     expect(writers(re)).toEqual(['migrations.ts', 'society/aging.ts']);
     expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
+  it('building level and works are written only by logistics/levels.ts and the v8 migration', () => {
+    // `.level` is narrowed to building receivers: the smog tier EMA writes `s.level` (society/escalation.ts)
+    const re = /\b(?:b|building)\.level\s*(?:[-+*/]?=(?!=)|\+\+|--)|\.works\s*=(?!=)/;
+    for (const w of ['b.level = 2;', 'b.level++', 'b.works = { toLevel: 2 };', 'b.level += 1']) expect(re.test(w), w).toBe(true);
+    for (const w of ['b.level === 2', 'if (b.works) return', 'const l = b.level;', 'level: 1,']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['logistics/levels.ts', 'migrations.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
   it('weather is written only by weather.ts (and the v6 migration that adds it)', () => {
     const re = /\.(?:weather|windX|windY|rain|rainDays)\s*(?:[-+*/]?=(?!=)|\+\+|--)/;
     for (const w of ['w.windX = 1;', 'state.weather = x', 'o.weather = defaultWeather(1);', 'w.rainDays++']) expect(re.test(w), w).toBe(true);
@@ -153,6 +161,27 @@ describe('single-writer funnels', () => {
   it('fresh opinion maps (defaultOpinion()) are created only by the initialisers', () => {
     const re = /\bopinion\s*[:=]\s*defaultOpinion\(\)/;
     expect(writers(re)).toEqual(['mapgen.ts', 'migrations.ts', 'testkit.ts']);
+  });
+  it('a vehicle\'s model and speed are written only by logistics/models.ts (kits), migrations.ts and vehicles.ts (state.speed, the game speed, is excluded)', () => {
+    const re = /(?<!\bstate)\.(?:model|speed)\s*=(?!=)/;
+    for (const w of ['v.model = "motor_truck";', 'veh.speed=0.69', 'fresh.speed = s.speed * 1.15']) expect(re.test(w), w).toBe(true);
+    for (const w of ['state.speed = 0;', 'ctx.state.speed = 2', 'v.model === "train"', 'v.speed == 1', 'speed: 0.5,']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['logistics/models.ts', 'migrations.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
+  it('a manager\'s employer, post and salary are written only by logistics/managers.ts, logistics/release.ts and companies.ts', () => {
+    const re = /\.(?:employer|post)\s*=(?!=)|\.salary\s*(?:[-+*\/]?=(?!=))/;
+    for (const w of ['m.employer = "player";', 'm.post=null', 'm.salary *= 1.2;', 'm.salary = 5']) expect(re.test(w), w).toBe(true);
+    for (const w of ['m.employer === owner', 'm.post == 3', 'm.salary >= 5', 'employer: null,', 'post: null,']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['companies.ts', 'logistics/managers.ts', 'logistics/release.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
+  });
+  it('a vehicle\'s job and hubId are written only by logistics/hubs.ts, jobRoute.ts, autoRoutes.ts and release.ts', () => {
+    const re = /\.(?:job|hubId)\s*=(?!=)/;
+    for (const w of ['veh.job = null;', 'v.hubId=3', 'v.job = { kind: "return" }']) expect(re.test(w), w).toBe(true);
+    for (const w of ['v.job === null', 'v.hubId == null', 'hubId: null,', 'job: null,']) expect(re.test(w), w).toBe(false);
+    expect(writers(re)).toEqual(['logistics/autoRoutes.ts', 'logistics/hubs.ts', 'logistics/jobRoute.ts', 'logistics/release.ts']);
+    expect(outside.filter((f) => re.test(f.src)).map((f) => f.rel)).toEqual([]);
   });
 });
 

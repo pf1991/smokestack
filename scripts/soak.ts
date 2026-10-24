@@ -45,11 +45,20 @@
  * `bidLoan` across autoplayDefend), both companies' wealth (state.ts), the first month end the player's wealth
  * reached 1.5x the Baron's (the takeover gate), the first month end it could also pay for control (the
  * lot and its control premium) and the year, if ever, the Baron was taken over.
+ * A `logistics` line (Phase 4b) reports each company's logistics adoption: upgrades started and completed
+ * (`buildingUpgraded`), the highest works level seen at any month end, whether it ever had a hub, hub jobs,
+ * loaded auto-route departures, managers hired (`managerHired`) and employed at the end; then the player's
+ * highest truck model, managers who left by reason (`managerLeft`), the Σ hub jobs, retirements and how many
+ * player managers the Baron poached (poach_manager). Autoplay runs its logistics at every month end
+ * (autoplayLogistics: hires, the furniture auto line, the cheese hub, upgrades, truck models).
+ * Phase 4b gate (years >= 100, spec §12): player 3+ upgrades completed, 2+ hires, 300+ hub jobs, 300+ loaded
+ * auto departures, a motor_truck or later; the Baron a works at level 2+, a hub and a hire; some firm with a
+ * works at level 2+ and some firm with a hub; Σ hub jobs >= 1,000; at least one retirement.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
  */
 import { EventBus } from '../src/core/events';
-import { autoplayDefend, autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
+import { autoplayDefend, autoplayLogistics, autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
 import { CARDS_BY_ID } from '../src/data/cards';
 import { FACTION_IDS } from '../src/data/factions';
 import { checkInvariants } from '../src/sim/invariants';
@@ -65,6 +74,9 @@ import { assetAge, renewBuilding } from '../src/sim/society/aging';
 import { grudgeTotal } from '../src/sim/nemesis/grudges';
 import { companyIds } from '../src/sim/companies';
 import { legacyScore } from '../src/sim/legacy';
+import { insolvencyDemolitions } from '../src/sim/rival/insolvency';
+import { TRUCK_MODEL_ORDER, type TruckModelId } from '../src/data/vehicleModels';
+import { isWorks } from '../src/sim/logistics/aiPost';
 
 const END_YEAR = 2001;
 
@@ -127,6 +139,22 @@ for (const seed of seeds) {
   });
   const bids = { started: 0, repelled: 0, lost: 0 };
   ctx.bus.on('hostileBid', (e) => bids[e.stage]++);
+  const upgraded: Record<string, number> = {};
+  ctx.bus.on('buildingUpgraded', (e) => (upgraded[e.ownerId] = (upgraded[e.ownerId] ?? 0) + 1));
+  const hired: Record<string, number> = {};
+  ctx.bus.on('managerHired', (e) => (hired[e.ownerId] = (hired[e.ownerId] ?? 0) + 1));
+  // the Baron's losing-line closures (rival/lines.ts), which now shed more than the insolvency guard
+  const closures: string[] = [];
+  ctx.bus.on('news', (e) => {
+    const m = /^Smogsworth quits (.+)$/.exec(e.item.headline);
+    if (m) closures.push(`${m[1]} ${e.item.date.year}`);
+  });
+  const left: Record<string, number> = {};
+  ctx.bus.on('managerLeft', (e) => (left[e.reason] = (left[e.reason] ?? 0) + 1));
+  // sampled at every month end: each company's highest works level and whether it has had a hub, the player's newest truck
+  const maxWorks: Record<string, number> = {};
+  const hadHub: Record<string, boolean> = {};
+  let topModel = -1;
   let slowMonths = 0;
   let strikeRiskMonths = 0;
   let minWorkers = 100;
@@ -139,6 +167,7 @@ for (const seed of seeds) {
   if (edictsArg) ctx.state.politics.edicts = { ...EDICT_SETS[edictsArg] };
   const pinned: Record<string, number> = {};
   const pinFails = new Set<string>();
+  const demolitions0 = insolvencyDemolitions();
   let baronBuilt = false;
   const endYear = Math.min(END_YEAR, ctx.state.date.year + years);
   let problems: string[] = [];
@@ -181,6 +210,14 @@ for (const seed of seeds) {
       // a hostile bid is answered at each month end, through the public API
       const bidLoanBefore = ctx.state.companies.player.bidLoan ?? 0;
       autoplayDefend(ctx);
+      autoplayLogistics(ctx);
+      for (const b of Object.values(ctx.state.buildings)) {
+        if (isWorks(b)) maxWorks[b.ownerId] = Math.max(maxWorks[b.ownerId] ?? 0, b.level);
+        if (b.hub) hadHub[b.ownerId] = true;
+      }
+      for (const v of Object.values(ctx.state.vehicles)) {
+        if (v.ownerId === 'player' && v.kind === 'truck') topModel = Math.max(topModel, TRUCK_MODEL_ORDER.indexOf(v.model as TruckModelId));
+      }
       const drawn = (ctx.state.companies.player.bidLoan ?? 0) - bidLoanBefore;
       if (drawn > 0) {
         bidLoans++;
@@ -290,6 +327,17 @@ for (const seed of seeds) {
   });
   const activeFirms = firms.filter((id) => state.companies[id].active).length;
   console.log(`  regional ${seed}: ${firmText.join(' | ') || 'none'} | active ${activeFirms}`);
+  // Phase 4b: logistics adoption. Counts are cumulative; managers are those employed at the end
+  const L = state.logistics;
+  const adoption = companyIds(state).map((id) => {
+    const mgrs = L.managers.filter((m) => m.employer === id).length;
+    return `${id} upgrades ${L.stats.upgrades[id] ?? 0}/${upgraded[id] ?? 0} done, max works level ${maxWorks[id] ?? 'n/a'}, hub ${hadHub[id] ? 'yes' : 'no'}, hub jobs ${L.stats.hubJobs[id] ?? 0}, auto loaded ${L.stats.autoLoaded[id] ?? 0}, hires ${hired[id] ?? 0}, managers ${mgrs}`;
+  });
+  const hubJobsTotal = Object.values(L.stats.hubJobs).reduce((t, n) => t + n, 0);
+  const topModelName = topModel >= 0 ? TRUCK_MODEL_ORDER[topModel] : 'none';
+  console.log(
+    `  logistics ${seed}: ${adoption.join(' | ')} | player top truck ${topModelName} | left ${Object.entries(left).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | hub jobs total ${hubJobsTotal} | retirements ${L.stats.retirements} | player managers poached ${retaliations.poach_manager ?? 0} | baron line closures ${closures.join(', ') || 'none'}`,
+  );
   console.log(
     `  phase4 ${seed}: crash cards ${crashCards.join(', ') || 'none'} | workers 2000 ${Number.isFinite(workers2000) ? workers2000.toFixed(1) : 'n/a'} | regional active 2000 ${Number.isFinite(firms2000) ? firms2000 : 'n/a'} | player loan ${money(state.companies.player.loan)} (bid loan ${money(state.companies.player.bidLoan ?? 0)}) | emergency bid loans ${bidLoans} (${money(bidLoanTotal)}) | wealth player ${money(wealth(state, 'player'))}, baron ${money(wealth(state, 'rival'))} | 1.5x gate first open ${gateOpen || 'never'} | control first affordable ${affordable || 'never'} | baron taken over ${takenOver || 'never'} | ${victory ? `victory: ${victory}` : 'no victory'}`,
   );
@@ -309,11 +357,28 @@ for (const seed of seeds) {
     if (elections < 100) gate.push(`only ${elections} elections (need 100)`);
     if (pinFails.size > 0) gate.push(`opinion pinned 10+ years: ${[...pinFails].join(', ')}`);
     if (!baronBuilt) gate.push('the Baron never built anything');
+    // Phase 4b: the Baron's economy must survive the truck models (real 1900 $, and never forced to sell off)
+    if (!(netWorth(state, 'rival') / state.economy.priceIndex > 0)) gate.push(`the Baron's real net worth is ${money(netWorth(state, 'rival') / state.economy.priceIndex)} (need > 0)`);
+    if (insolvencyDemolitions() > demolitions0) gate.push(`the Baron was forced to demolish ${insolvencyDemolitions() - demolitions0} buildings for insolvency`);
     if (maxTier < 2) gate.push(`smog never reached tier 2 (max ${maxTier})`);
     if (!Object.values(laws).some((l) => l.passed != null)) gate.push('no regulation law passed');
     if (!(index2000 >= 14 && index2000 <= 22)) gate.push(`priceIndex 2000 ${index2000} outside [14, 22] (R-S12)`);
     if (smogNaN) gate.push('NaN in the smog field');
     if (netWorth(state, 'player') <= 0) gate.push('player not solvent at the end');
+    // Phase 4b (spec §12): the logistics features are used, not just present
+    if ((upgraded.player ?? 0) < 3) gate.push(`player completed ${upgraded.player ?? 0} upgrades (need 3)`);
+    if ((hired.player ?? 0) < 2) gate.push(`player hired ${hired.player ?? 0} managers (need 2)`);
+    if ((L.stats.hubJobs.player ?? 0) < 300) gate.push(`player hub jobs ${L.stats.hubJobs.player ?? 0} (need 300)`);
+    if ((L.stats.autoLoaded.player ?? 0) < 300) gate.push(`player loaded auto departures ${L.stats.autoLoaded.player ?? 0} (need 300)`);
+    if (topModel < TRUCK_MODEL_ORDER.indexOf('motor_truck')) gate.push(`player's newest truck ${topModelName} (need motor_truck or later)`);
+    if ((maxWorks.rival ?? 0) < 2) gate.push(`the Baron's highest works level ${maxWorks.rival ?? 0} (need 2)`);
+    if (!hadHub.rival) gate.push('the Baron never had a hub');
+    if ((hired.rival ?? 0) < 1) gate.push('the Baron never hired a manager');
+    const firmIds = companyIds(state).filter((id) => state.companies[id].kind === 'regional');
+    if (!firmIds.some((id) => (maxWorks[id] ?? 0) >= 2)) gate.push('no regional firm had a works at level 2+');
+    if (!firmIds.some((id) => hadHub[id])) gate.push('no regional firm had a hub');
+    if (hubJobsTotal < 1000) gate.push(`hub jobs in all ${hubJobsTotal} (need 1,000)`);
+    if (L.stats.retirements < 1) gate.push('no manager retired');
     if (gate.length > 0) {
       failed = true;
       for (const g of gate) console.log(`  GATE FAIL (${seed}): ${g}`);

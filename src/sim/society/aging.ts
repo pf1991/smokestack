@@ -57,6 +57,11 @@ export function renewRefusal(state: GameState, b: Building, owner?: OwnerId): st
   return null;
 }
 
+/** Makes `b` new again: the one place a building's `builtYear` is reset (renewal and finished upgrades). */
+export function markRenewed(state: GameState, b: Building): void {
+  b.builtYear = state.date.year;
+}
+
 /** Overhauls building `id`: pays renewCost under 'construction' and sets `builtYear` to this year. */
 export function renewBuilding(ctx: SimContext, id: number, owner?: OwnerId): Result<{ cost: number }> {
   const { state } = ctx;
@@ -66,6 +71,6 @@ export function renewBuilding(ctx: SimContext, id: number, owner?: OwnerId): Res
   if (why) return err(why);
   const cost = renewCost(state, b);
   spend(state.companies[b.ownerId], 'construction', cost, state.date);
-  b.builtYear = state.date.year;
+  markRenewed(state, b);
   return ok({ cost });
 }

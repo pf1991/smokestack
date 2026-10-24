@@ -46,7 +46,7 @@ function addVehicle(s: GameState, routeId: number | null, pos: Vec2): Vehicle {
     capacity: 20,
     state: 'moving',
     waitTicks: 0,
-    stuckNotified: false, builtYear: 1900,
+    stuckNotified: false, builtYear: 1900, model: 'steam_lorry', speed: 0.5,
   };
   s.vehicles[v.id] = v;
   return v;
@@ -282,6 +282,7 @@ describe('demolition', () => {
       name: `R${id}`,
       color: '#fff',
       kind: 'truck',
+      mode: 'manual',
       stops: stops.map((buildingId) => ({ buildingId, load: [], unload: [] })),
     });
     const r1 = mk(nextId(s), [a.value.id, b.value.id]);
@@ -334,6 +335,7 @@ describe('demolition', () => {
       name: 'R',
       color: '#fff',
       kind: 'truck',
+      mode: 'manual',
       stops: ids.map((buildingId) => ({ buildingId, load: [], unload: [] })),
     };
     s.routes[route.id] = route;

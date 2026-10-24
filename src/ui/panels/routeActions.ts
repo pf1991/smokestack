@@ -162,8 +162,8 @@ function undoSendGoods(
   if (JSON.stringify(route.stops) !== made.stops || onRoute.length !== 1 || onRoute[0].id !== made.vehicleId) {
     return bad('The route has changed since — delete it in the Routes window');
   }
-  const kind = state.vehicles[made.vehicleId].kind;
+  const sold = state.vehicles[made.vehicleId];
   deleteRoute(ctx, made.routeId); // refunds half
-  earn(state.companies.player, 'vehicles', vehiclePrice(state, kind) - sellRefund(state, kind), state.date); // the rest: a full refund
+  earn(state.companies.player, 'vehicles', vehiclePrice(state, sold.model) - sellRefund(state, sold), state.date); // the rest: a full refund
   ctx.bus.emit({ type: 'toast', message: 'Route undone, vehicle refunded', tone: 'info' });
 }

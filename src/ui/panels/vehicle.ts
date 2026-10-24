@@ -2,8 +2,12 @@ import { BUILDINGS } from '../../data/buildings';
 import { getGood } from '../../data/goods';
 import type { GameController } from '../../game/controller';
 import { assignVehicle, replaceCost, replaceVehicle, sellRefund, sellVehicle } from '../../sim/vehicles';
+import { fitKit, hasNewerModel, kitCost, kitRefusal, modelRow, newestModel, type KitId } from '../../sim/logistics/models';
 import { assetAge, assetEfficiency } from '../../sim/society/aging';
-import { routeOptions } from './fleet';
+import { HUB_VALUE, routeOptions } from './fleet';
+import { hubTarget } from '../../sim/logistics/jobRoute';
+import type { HubJob } from '../../sim/logistics/types';
+import type { Vehicle } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
@@ -19,6 +23,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     class: 'insp-route-sel',
     'aria-label': 'Route',
     onChange: () => {
+      if (routeSel.value === HUB_VALUE) return; // already on its hub
       const r = assignVehicle(host.ctx, id, routeSel.value === '' ? null : Number(routeSel.value));
       if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
       view.update();
@@ -38,14 +43,16 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   }, 'Follow');
   const state = h('span');
   const next = h('span');
+  const job = h('span');
   const cargo = h('span');
   const stat = (label: string, v: HTMLElement) => h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, label), v);
+  const jobRow = stat('Job', job);
   const sell = h('button', {
     class: 'btn insp-sell',
     onClick: () => {
       const veh = host.ctx.state.vehicles[id];
       if (!veh) return;
-      const refund = sellRefund(host.ctx.state, veh.kind);
+      const refund = sellRefund(host.ctx.state, veh);
       const r = sellVehicle(host.ctx, id);
       host.ctx.bus.emit(
         r.ok
@@ -55,6 +62,21 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     },
   });
   const age = h('span');
+  const model = h('span');
+  const kitRows = (['body', 'engine'] as const).map((kit) => {
+    const label = kit === 'body' ? 'Bigger body' : 'Tuned engine';
+    const effect = h('span');
+    const fit = h('button', {
+      class: 'btn insp-fit',
+      'data-kit': kit,
+      onClick: () => {
+        const r = fitKit(host.ctx, id, kit, 'player');
+        if (!r.ok) host.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
+        view.update();
+      },
+    }) as HTMLButtonElement;
+    return { kit, label, row: h('div', { class: 'p-row insp-stat insp-kit' }, h('span', { class: 'insp-label' }, label), effect, fit), effect, fit };
+  });
   // sell and rebuy at today's price for the same route (sim/vehicles.ts replaceVehicle); the new vehicle has a new id
   const replace = h('button', {
     class: 'btn insp-replace',
@@ -71,7 +93,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   });
   const view: InspectorView = {
     el: h('div', { class: 'insp' }, h('div', { class: 'insp-head' }, owner),
-      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), stat('Next stop', next), stat('Cargo', cargo), stat('Age', age)),
+      h('div', { class: 'p-section' }, stat('Route', h('span', null, routeSel, routeText)), stat('State', state), jobRow, stat('Next stop', next), stat('Cargo', cargo), stat('Model', model), ...kitRows.map((k) => k.row), stat('Age', age)),
       h('div', { class: 'p-actions' }, follow, replace, sell)),
     update() {
       const s = host.ctx.state;
@@ -79,7 +101,9 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       if (!v) return false;
       const route = v.routeId !== null ? s.routes[v.routeId] : undefined;
       const stop = route?.stops[v.stopIndex];
-      const target = stop ? s.buildings[stop.buildingId] : undefined;
+      const hubbed = v.hubId != null;
+      const targetId = hubbed ? hubTarget(v) : stop?.buildingId;
+      const target = targetId != null ? s.buildings[targetId] : undefined;
       setOwnerBadge(owner, s, v.ownerId);
       const opts = routeOptions(s, v);
       const sig = opts.map((o) => `${o.value}:${o.label}`).join('|');
@@ -88,12 +112,14 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         optSig = sig;
         routeSel.replaceChildren(...opts.map((o) => h('option', { value: o.value }, o.label)));
       }
-      const want = v.routeId === null ? '' : String(v.routeId);
+      const want = hubbed ? HUB_VALUE : v.routeId === null ? '' : String(v.routeId);
       if (!focused && routeSel.value !== want) routeSel.value = want;
       const mine = v.ownerId === 'player';
       routeSel.hidden = !mine;
       routeText.hidden = mine;
-      setText(routeText, route ? route.name : 'No route');
+      setText(routeText, hubbed ? (opts.find((o) => o.value === HUB_VALUE)?.label ?? 'Hub') : route ? route.name : 'No route');
+      jobRow.hidden = !hubbed;
+      if (hubbed) setText(job, jobText(v));
       const following = game.followId === id;
       follow.classList.toggle('active', following);
       follow.setAttribute('aria-pressed', String(following));
@@ -108,10 +134,19 @@ function buildView(host: InspectorHost, id: number): InspectorView {
           : `Empty (0 / ${v.capacity})`,
       );
       sell.hidden = v.ownerId !== 'player';
-      setText(sell, `Sell (+${formatMoney(sellRefund(s, v.kind))})`);
+      setText(sell, `Sell (+${formatMoney(sellRefund(s, v))})`);
+      setText(model, modelRow(v.model).name);
+      for (const k of kitRows) {
+        k.row.hidden = v.kind !== 'truck';
+        const fitted = v.kits?.[k.kit as KitId] === true;
+        setText(k.effect, fitted ? 'Fitted' : k.kit === 'body' ? '+25% capacity' : '+15% speed');
+        k.fit.hidden = fitted || v.ownerId !== 'player';
+        k.fit.disabled = kitRefusal(s, v, k.kit, 'player') !== null;
+        setText(k.fit, `Fit (${formatMoney(kitCost(s, v, k.kit))})`);
+      }
       setText(age, `Bought ${v.builtYear} (age ${assetAge(s, v)}): ${Math.round(assetEfficiency(s, v) * 100)}% speed`);
       replace.hidden = v.ownerId !== 'player';
-      setText(replace, `Replace (${formatMoney(replaceCost(s, v.kind))})`);
+      setText(replace, hasNewerModel(s, v.model) ? `Replace with ${modelRow(newestModel(s)).name} ${formatMoney(replaceCost(s, v))}` : `Replace (${formatMoney(replaceCost(s, v))})`);
       return true;
     },
     dispose: () => {
@@ -137,3 +172,12 @@ export const vehiclePanel: PanelDef = {
     });
   },
 };
+
+/** A hub truck's job in words: "Collect 20 Lumber", "Deliver 15 Bread", "Return home", or waiting. */
+function jobText(v: Vehicle): string {
+  const j = (v.job ?? null) as HubJob | null;
+  if (!j) return 'Waiting at its hub';
+  if (j.kind === 'return') return 'Return home';
+  const verb = j.kind === 'collect' ? 'Collect' : j.kind === 'deliver' ? 'Deliver' : 'Balance';
+  return `${verb} ${formatNumber(j.qty)} ${j.good ? getGood(j.good).name : ''}`.trim();
+}
