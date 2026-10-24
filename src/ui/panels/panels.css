@@ -478,6 +478,33 @@
   padding: 0 0 var(--sp-2);
 }
 
+.family-panel .kit-stat {
+  flex: 1 1 0;
+}
+
+.family-children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.family-child {
+  padding: var(--sp-2);
+  background: var(--surface-1);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-md);
+}
+
+.family-child .family-name {
+  font-size: var(--fs-md);
+}
+
+.family-name-heir.kit-btn {
+  margin-top: var(--sp-1);
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
 .rival-stores th[data-col='city'] {
   width: 36%;
 }

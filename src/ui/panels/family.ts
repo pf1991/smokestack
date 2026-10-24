@@ -11,6 +11,7 @@ import { MARRIAGE_FIRST_YEAR, nameHeir } from '../../sim/dynasty/family';
 import { age, canMarry, HEIR_MIN_AGE, isFemale, successor, type Person } from '../../sim/dynasty/types';
 import type { GameState } from '../../sim/types';
 import { h } from '../dom';
+import { button, emptyState, panelHeader, section as kitSection, statRow, statTile } from '../kit';
 import './panels.css';
 import { createWindow, type GameWindow } from '../window';
 import type { PanelDef } from './index';
@@ -37,9 +38,15 @@ function portrait(person: Person, year: number, px: number): HTMLElement {
   return canvas;
 }
 
-/** One block of the panel: the shared 12 px header, then its content (panels.css .p-section). */
-const section = (title: string, ...content: HTMLElement[]) =>
-  h('div', { class: 'p-section' }, h('div', { class: 'p-head' }, title), ...content);
+/** One block of the panel: a kit section (its overline is the shared `.p-head`). */
+const section = (title: string, ...content: HTMLElement[]) => kitSection(title, content);
+
+/** A compact kit empty state carrying the block's class (tests look for it). */
+function none(cls: string, title: string, body?: string): HTMLElement {
+  const el = emptyState({ title, body });
+  el.classList.add(cls, 'family-muted', 'p-empty-sm');
+  return el;
+}
 
 function traitList(person: Person): HTMLElement {
   if (person.traits.length === 0) return h('div', { class: 'family-traits family-muted' }, 'No marked traits.');
@@ -71,16 +78,17 @@ function render(game: GameController, refresh: () => void): HTMLElement {
 
   const spouse = d.spouse
     ? personRow('family-spouse', d.spouse, year, CHILD_PX)
-    : h('div', { class: 'family-spouse family-muted' },
+    : none('family-spouse', 'Unmarried',
       !canMarry(d, year)
-        ? 'Unmarried.'
+        ? undefined
         : year < MARRIAGE_FIRST_YEAR
-          ? `Unmarried. The family will propose a match from ${MARRIAGE_FIRST_YEAR}.`
-          : 'Unmarried. The family will propose a match each spring.');
+          ? `The family will propose a match from ${MARRIAGE_FIRST_YEAR}.`
+          : 'The family will propose a match each spring.');
 
   const children = d.children.length === 0
-    ? h('div', { class: 'family-children family-muted' },
-      d.spouse ? 'No children yet.' : 'No children. Marry to secure an heir.')
+    ? d.spouse
+      ? none('family-children', 'No children yet', 'The eldest living child inherits unless you name an heir.')
+      : none('family-children', 'No children', 'Marry to secure an heir.')
     : h('div', { class: 'family-children' },
       d.children.map((c) => {
         const isHeir = heir?.id === c.id;
@@ -89,8 +97,9 @@ function render(game: GameController, refresh: () => void): HTMLElement {
           ? h('div', { class: 'family-heir-badge' },
             `${d.heirId === c.id ? 'Named heir' : 'Heir (eldest)'}${minor ? ` · under ${HEIR_MIN_AGE}: the head holds on until they come of age` : ''}`)
           : null;
-        const button = h('button', {
-          class: 'btn family-name-heir',
+        const heirBtn = button('Name heir', {
+          variant: 'secondary',
+          title: `Name ${c.name} heir`,
           disabled: !c.alive || d.heirId === c.id || !d.head.alive,
           onClick: () => {
             const r = nameHeir(state, c.id);
@@ -99,16 +108,19 @@ function render(game: GameController, refresh: () => void): HTMLElement {
               : { type: 'toast', message: r.error, tone: 'bad' });
             refresh();
           },
-        }, 'Name heir');
-        return personRow('family-child', c, year, CHILD_PX, badge, button);
+        });
+        heirBtn.classList.add('family-name-heir');
+        return personRow('family-child', c, year, CHILD_PX, badge, heirBtn);
       }));
 
+  const gen = statTile({ label: 'Generation', value: String(d.generation), title: 'Heads of the family so far' });
+  gen.classList.add('family-generation');
+  const prestige = statTile({ label: 'Prestige', value: String(d.prestige), title: 'Family prestige: it counts toward your Legacy' });
+  prestige.classList.add('family-prestige');
   return h('div', { class: 'family-panel' },
-    h('div', { class: 'p-section' },
-      h('div', { class: 'p-row' },
-        h('span', { class: 'family-generation' }, `Generation ${d.generation}`),
-        h('span', { class: 'family-prestige' }, `Prestige ${d.prestige}`)),
-      head),
+    h('div', { class: 'family-header' }, panelHeader({ title: 'Family', summary: `${d.head.name}, ${age(d.head, year)}` })),
+    statRow([gen, prestige]),
+    section('Head of the family', head),
     section('Spouse', spouse),
     section('Children', children));
 }
