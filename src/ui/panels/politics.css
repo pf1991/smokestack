@@ -1,22 +1,39 @@
-/* Politics window: company edicts, national opinion, recent political news. */
-.pol { display: flex; flex-direction: column; gap: 0; font-size: 13px; }
-.pol-edict { display: flex; flex-direction: column; gap: 1px; margin-bottom: 3px; }
+/* Politics window: company edicts, national opinion, laws and political news. Tokens only (see cssGate.test.ts). */
+.pol { display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text); min-width: 0; }
+.pol > .p-section { margin: 0; }
+.pol-header .kit-ph { padding: 0 0 var(--sp-2); }
+
+.pol-edict { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--sp-2); }
 .pol .pol-edict-head { align-items: baseline; min-height: 18px; }
-.pol .p-chips button { min-height: 18px; padding: 1px 6px; }
-.pol-edict-title { font-weight: bold; }
-.pol-cost { color: var(--paper-shade); font-size: 12px; white-space: nowrap; }
-.pol-effects { font-size: 12px; color: var(--paper-shade); min-height: 1.2em; }
-.pol-effects .pos { color: #7fd17f; }
-.pol-effects .neg { color: #f08080; }
-.pol-note { font-size: 11px; color: var(--paper-shade); font-style: italic; margin-top: 4px; }
-.pol-opinion { display: grid; grid-template-columns: 96px 1fr 54px; gap: 8px; align-items: center; }
-.pol-opinion .insp-bar { width: 100%; }
-.pol-trend { text-align: right; white-space: nowrap; font-size: 12px; }
-.pol-trend.up { color: #7fd17f; }
-.pol-trend.down { color: #f08080; }
-.pol-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
-.pol-log li { display: flex; gap: 6px; font-size: 12px; }
-.pol-log .when { color: var(--paper-shade); white-space: nowrap; }
-.pol-log .delta.pos { color: #7fd17f; }
-.pol-log .delta.neg { color: #f08080; }
-.pol-none { color: var(--paper-shade); font-style: italic; }
+.pol .p-chips button { min-height: 22px; padding: 2px var(--sp-2); }
+.pol-edict-title { font-weight: 700; }
+.pol-cost { color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pol-effects { font-size: var(--fs-xs); color: var(--text-muted); min-height: 1.2em; }
+.pol-effects .pos { color: var(--positive); }
+.pol-effects .neg { color: var(--negative); }
+.pol-note { font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-1); }
+
+/* national opinion: faction, a meter in its colour with the value, the yearly trend */
+.pol-opinions th[data-col='faction'] { width: 34%; }
+.pol-opinions th[data-col='trend'] { width: 84px; }
+.pol-opinion-bar { display: grid; grid-template-columns: 1fr 28px; align-items: center; gap: var(--sp-2); }
+.pol-opinion-val { text-align: right; font-variant-numeric: tabular-nums; }
+.pol-trend { white-space: nowrap; color: var(--text-muted); }
+.pol-trend.up { color: var(--positive); }
+.pol-trend.down { color: var(--negative); }
+
+.pol-blacklung-count { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--text); }
+
+.pol-law-table th[data-col='status'] { width: 42%; }
+.pol-law-table td { white-space: normal; vertical-align: top; }
+.pol-law-name { display: flex; flex-direction: column; }
+.pol-law-detail { color: var(--text-muted); font-size: var(--fs-xs); }
+
+.pol-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.pol-log[hidden], .pol-none[hidden] { display: none; }
+.pol-log li { display: grid; grid-template-columns: 64px auto 1fr; gap: var(--sp-2); font-size: var(--fs-sm); padding: 2px 0; border-bottom: 1px solid var(--surface-2); }
+.pol-log .when { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pol-log .delta { white-space: nowrap; }
+.pol-log .delta.pos { color: var(--positive); }
+.pol-log .delta.neg { color: var(--negative); }
+.pol-log-text { min-width: 0; }
