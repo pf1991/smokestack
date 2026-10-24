@@ -222,55 +222,6 @@ input[type='text'] {
   overflow: auto;
 }
 
-/* Toasts stack in the top-right corner, below the HUD bar (--hud-height is set by the game) and left of
-   the side panel (--side-panel-w is set by sidePanel.ts). */
-.toast-stack {
-  position: fixed;
-  pointer-events: auto;
-  top: calc(var(--hud-height, env(safe-area-inset-top, 0px)) + 12px);
-  right: calc(12px + var(--side-panel-w, 0px) / var(--ui-scale, 1));
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 1000;
-  max-width: min(360px, calc((100 * var(--uvw)) - 32px));
-}
-
-.toast {
-  background: var(--paper);
-  color: var(--ink);
-  border: 2px solid var(--brass-dark);
-  border-left-width: 8px;
-  border-radius: 3px;
-  padding: 8px 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  font-family: var(--font-ui);
-}
-
-.toast.info {
-  border-left-color: var(--brass);
-}
-
-.toast.good {
-  border-left-color: var(--good);
-}
-
-.toast.bad {
-  border-left-color: var(--bad);
-}
-
-.toast-action {
-  margin-left: 8px;
-  font: inherit;
-  font-weight: bold;
-  cursor: pointer;
-  color: var(--ink);
-  background: transparent;
-  border: 1px solid var(--brass-dark);
-  border-radius: 2px;
-  padding: 0 8px;
-}
-
 /* Juice: monthly treasury delta and milestone stamps. */
 .hud-cash {
   position: relative;

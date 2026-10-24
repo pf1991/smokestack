@@ -402,6 +402,21 @@ const UI_PAINTERS: Record<string, Painter> = {
     rect(g, 7.2, 5.3, 1.6, 4.9, C.ink, false);
     circ(g, 8, 11.9, 1, C.ink, false);
   },
+  // toast tones (ui/toasts.ts): a disc in the tone with a white mark
+  info: (g) => {
+    circ(g, 8, 8, 6.8, C.blue);
+    circ(g, 8, 4.9, 1.1, C.paper, false);
+    rect(g, 7.1, 7, 1.8, 5.2, C.paper, false);
+  },
+  positive: (g) => {
+    circ(g, 8, 8, 6.8, C.green);
+    line(g, [4.8, 8.2, 7.1, 10.6, 11.4, 5.6], C.paper, 2);
+  },
+  negative: (g) => {
+    circ(g, 8, 8, 6.8, C.red);
+    line(g, [5.4, 5.4, 10.6, 10.6], C.paper, 2);
+    line(g, [10.6, 5.4, 5.4, 10.6], C.paper, 2);
+  },
   star: (g) => {
     const pts: number[] = [];
     for (let i = 0; i < 10; i++) {

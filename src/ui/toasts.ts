@@ -1,11 +1,19 @@
-import type { EventBus } from '../core/events';
+import type { EventBus, GameEvent } from '../core/events';
+import type { Tone } from './kit';
 import { h } from './dom';
+import { iconEl } from './icon';
+import './toasts.css';
 
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE = 3;
 const LIFETIME_MS = 4000;
 
+type ToastTone = Extract<GameEvent, { type: 'toast' }>['tone'];
+
+/** Event tone to kit tone; the kit tone names the edge colour (data-tone) and the atlas icon. */
+const TONE: Record<ToastTone, Exclude<Tone, 'neutral'>> = { info: 'info', good: 'positive', bad: 'negative', warning: 'warning' };
+
 export const Toasts = {
-  /** Shows `toast` events inside `root`, stacking at most four. Returns an unsubscribe function. */
+  /** Shows `toast` events inside `root`, stacking at most three. Returns an unsubscribe function. */
   attach(root: HTMLElement, bus: EventBus): () => void {
     const container = h('div', { class: 'toast-stack' });
     root.appendChild(container);
@@ -20,14 +28,16 @@ export const Toasts = {
     };
 
     const off = bus.on('toast', (e) => {
-      const el = h('div', { class: `toast ${e.tone}` }, e.message);
+      const tone = TONE[e.tone] ?? 'info';
+      const text = h('span', { class: 'toast-text' }, e.message);
+      const el = h('div', { class: `toast ${e.tone}`, 'data-tone': tone, role: 'status' }, iconEl(tone, 16), text);
       if (e.action) {
         const { run, label } = e.action;
         const btn = h('button', { class: 'toast-action', onClick: () => {
           run();
           dismiss(el);
         } }, label);
-        el.append(' ', btn);
+        text.append(' ', btn);
       }
       container.appendChild(el);
       timers.set(el, setTimeout(() => dismiss(el), e.duration ?? LIFETIME_MS));

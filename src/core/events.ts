@@ -25,7 +25,7 @@ export type GameEvent =
   | { type: 'news'; item: NewsItem }
   | { type: 'vehicleStuck'; vehicleId: number }
   | { type: 'unlock'; defId: string; kind: 'good' | 'building' | 'recipe' }
-  | { type: 'toast'; message: string; tone: 'info' | 'good' | 'bad'; action?: { label: string; run: () => void }; duration?: number }
+  | { type: 'toast'; message: string; tone: 'info' | 'good' | 'bad' | 'warning'; action?: { label: string; run: () => void }; duration?: number }
   | { type: 'achievement'; id: string }
   | { type: 'contract'; contractId: number; status: 'offered' | 'active' | 'done' | 'failed' }
   | { type: 'landmarkBuilt'; cityId: number; id: LandmarkId }
