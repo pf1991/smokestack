@@ -1,5 +1,10 @@
-/* HUD top bar, build toolbar and news ticker. Builds on theme.css variables. */
+/* HUD top bar, build toolbar and news ticker. Builds on the theme.css tokens. */
 
+/*
+ * Top bar: one 44 px row in three regions. Left: crest, company and era. Centre: the treasury with
+ * this month's profit, the date and weather, the speed control. Right: the panel groups, the map
+ * toggles, the alerts slot, settings and More. Secondary controls are quiet until hovered.
+ */
 .hud-bar {
   position: fixed;
   top: 0;
@@ -7,84 +12,133 @@
   right: 0;
   z-index: 50;
   box-sizing: border-box;
-  /* one row, 48 px at scale 1 (border included); it wraps only on narrow screens */
-  min-height: calc(48px + env(safe-area-inset-top, 0px));
+  height: calc(44px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  padding: env(safe-area-inset-top, 0px) 10px 0;
-  color: var(--paper);
-  background:
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 7px),
-    linear-gradient(180deg, #3d2a1d, #24170f);
-  border-bottom: 3px solid var(--brass);
-  box-shadow: 0 2px 0 var(--brass-dark), 0 6px 14px rgba(0, 0, 0, 0.55);
+  flex-wrap: nowrap;
+  gap: var(--sp-4);
+  padding: env(safe-area-inset-top, 0px) var(--sp-3) 0;
+  color: var(--text);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface-1) 55%, var(--surface-0));
+  border-bottom: 1px solid var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 0 rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.45);
   user-select: none;
+  /* the labels below hide by the bar's own width, so a zoomed UI (ui/scale.ts) drops them too */
+  container: hudbar / inline-size;
+}
+
+.hud-left,
+.hud-center,
+.hud-right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* the sides share what the centre leaves; the left one gives way first (the name truncates) */
+.hud-left {
+  flex: 1 1 0;
+  gap: var(--sp-2);
+}
+
+.hud-center {
+  flex: none;
+  gap: var(--sp-4);
+}
+
+.hud-right {
+  flex: 1 1 0;
+  min-width: max-content;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+/* ---- left: brand */
+
+.hud-crest {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--accent-quiet), var(--shadow-1);
 }
 
 .hud-brand {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  max-width: 180px;
-  line-height: 1.15;
+  min-width: 0;
+  line-height: var(--lh-tight);
 }
 
-.hud-company {
+.hud-name {
+  max-width: 220px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: bold;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--brass-light);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
 }
 
 .hud-era {
-  font-size: 11px;
-  font-style: italic;
-  letter-spacing: 0.1em;
-  color: var(--paper-shade);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
-/* Brass odometer box. */
+/* ---- centre: treasury, date, speed */
+
+.hud-cash {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* the treasury in a sunken brass-edged well, the bar's one loud element */
 .hud-money {
-  min-width: 120px;
-  padding: 2px 8px;
-  text-align: right;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-3);
+  white-space: nowrap;
   font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: bold;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
-  color: #f7ecc0;
-  background: linear-gradient(180deg, #0f0a06, #2a1c10 50%, #0f0a06);
-  border: 2px solid var(--brass);
-  border-radius: 4px;
-  box-shadow: inset 0 0 8px #000, 0 0 0 1px var(--brass-dark), 0 1px 0 rgba(255, 255, 255, 0.2);
-  text-shadow: 0 0 6px rgba(232, 199, 90, 0.5);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--accent-strong);
+  background: var(--surface-0);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .hud-money.negative {
-  color: #ff6a5e;
-  text-shadow: 0 0 6px rgba(255, 70, 50, 0.6);
+  color: var(--negative);
+}
+
+.hud-delta {
+  height: 20px;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .hud-clock {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
+  padding-left: var(--sp-4);
+  border-left: 1px solid var(--accent-quiet);
 }
 
 .hud-date {
-  font-family: var(--font-display);
-  font-size: 16px;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-md);
   font-variant-numeric: tabular-nums;
-  color: var(--paper);
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -100,68 +154,52 @@
   transition: transform 0.6s ease-out;
 }
 
-.hud-speeds {
+/* segmented speed control: one recessed track, the checked speed lit in brass */
+.hud-speed {
   display: flex;
   gap: 2px;
   padding: 2px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--brass-dark);
-  border-radius: 4px;
+  background: var(--surface-0);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-.hud-speed,
-.hud-btn,
-.tb-tab {
-  font-family: var(--font-display);
+.hud-speed-btn {
+  min-width: 30px;
+  height: 24px;
+  padding: 0 var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
   cursor: pointer;
-  color: var(--paper);
-  background: linear-gradient(180deg, #4d3626, #2f2016);
-  border: 1px solid var(--brass-dark);
-  border-radius: 3px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.hud-speed {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 4px;
+.hud-speed-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
 }
 
-/* faster speeds: the triangles overlap into one chevron run */
-.hud-speed .icon + .icon {
-  margin-left: -5px;
+.hud-speed-btn[aria-checked='true'] {
+  color: var(--surface-0);
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  box-shadow: var(--shadow-1);
 }
 
-.hud-speed:hover,
-.hud-btn:hover,
-.tb-tab:hover {
-  border-color: var(--brass-light);
-  color: var(--brass-light);
-}
-
-.hud-speed:focus-visible,
+.hud-speed-btn:focus-visible,
 .hud-btn:focus-visible,
 .hud-menu-item:focus-visible {
-  outline: 2px solid var(--brass-light);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--focus);
 }
 
-.hud-speed.active,
-.hud-toggle.active,
-.tb-tab.active {
-  color: var(--walnut);
-  background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
-  border-color: var(--brass-light);
-  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.35);
-}
-
-.hud-spacer {
-  flex: 1 1 0;
-  min-width: 0;
-}
+/* ---- right: panel groups, map toggles, alerts, settings, More */
 
 .hud-groups,
 .hud-layers,
@@ -169,26 +207,51 @@
 .hud-split {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 
 .hud-split,
 .hud-group-set {
-  gap: 1px;
+  gap: 2px;
 }
 
-/* Icon buttons: icon-only below 1600 px (title and aria-label name them), icon and label above. */
+/* the map toggles and the system controls each start a new cluster */
+.hud-layers,
+.hud-alerts {
+  padding-left: var(--sp-2);
+  border-left: 1px solid var(--accent-quiet);
+}
+
+.hud-alerts {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  margin: var(--sp-2) 0;
+}
+
+/* Quiet buttons: icon-only (title, aria-label and a tooltip name them) unless labelled below. */
 .hud-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-1);
   height: 32px;
-  min-width: 34px;
-  padding: 0 7px;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  min-width: 32px;
+  padding: 0 var(--sp-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.hud-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+  border-color: var(--accent-quiet);
 }
 
 .hud-btn[hidden] {
@@ -197,6 +260,13 @@
 
 .hud-btn .icon {
   flex: none;
+}
+
+.hud-toggle.active {
+  color: var(--accent-strong);
+  background: var(--surface-0);
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .hud-btn-label {
@@ -208,13 +278,6 @@
   .hud-labelled .hud-btn-label {
     display: inline;
   }
-
-  .hud-labelled.hud-btn {
-    gap: 5px;
-    padding: 0 6px;
-    font-size: 11px;
-    letter-spacing: 0.05em;
-  }
 }
 
 /* the map toggles and More get theirs from 1600 px */
@@ -222,30 +285,59 @@
   .hud-btn-label {
     display: inline;
   }
+}
 
-  .hud-btn,
-  .hud-labelled.hud-btn {
-    gap: 6px;
-    padding: 0 10px;
-    font-size: 12px;
-    letter-spacing: 0.1em;
+/* ...but only while the bar itself has room: a zoomed UI (130%) is narrower than the window */
+@container hudbar (max-width: 1239px) {
+  .hud-labelled .hud-btn-label {
+    display: none;
+  }
+}
+
+@container hudbar (max-width: 1599px) {
+  .hud-btn:not(.hud-labelled) .hud-btn-label {
+    display: none;
+  }
+}
+
+/* a narrow bar (a zoomed UI, a small window) tightens its gaps so the company name keeps some room */
+@container hudbar (max-width: 1199px) {
+  .hud-center,
+  .hud-bar {
+    gap: var(--sp-2);
+  }
+
+  .hud-right {
+    gap: var(--sp-1);
+  }
+
+  .hud-clock {
+    padding-left: var(--sp-2);
+  }
+
+  .hud-money {
+    padding: 0 var(--sp-2);
+  }
+
+  .hud-speed-btn {
+    min-width: 26px;
   }
 }
 
 .hud-dropdown.open > .hud-btn {
-  border-color: var(--brass-light);
-  color: var(--brass-light);
-  background: linear-gradient(180deg, #2f2016, #4d3626);
+  color: var(--accent-strong);
+  background: var(--surface-0);
+  border-color: var(--accent-quiet);
 }
 
 /* small brass chevron on dropdown buttons */
 .hud-caret {
   width: 0;
   height: 0;
-  margin-left: -2px;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
-  border-top: 5px solid var(--brass);
+  border-top: 4px solid var(--accent);
+  opacity: 0.8;
 }
 
 .hud-dropdown {
@@ -254,18 +346,19 @@
 
 .hud-menu {
   position: absolute;
-  top: calc(100% + 9px);
+  top: calc(100% + 7px);
   right: 0;
   z-index: 60;
-  min-width: 200px;
+  min-width: 210px;
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 4px;
-  background: linear-gradient(180deg, #3d2a1d, #24170f);
-  border: 2px solid var(--brass-dark);
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--brass), 0 8px 18px rgba(0, 0, 0, 0.6);
+  padding: var(--sp-1);
+  background: var(--surface-1);
+  border: 1px solid var(--accent-quiet);
+  border-top: 2px solid var(--accent);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  box-shadow: var(--shadow-2);
 }
 
 .hud-menu[hidden] {
@@ -273,26 +366,31 @@
 }
 
 .hud-menu-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-3);
   width: 100%;
-  padding: 7px 10px;
+  min-height: 32px;
+  padding: var(--sp-1) var(--sp-2);
   text-align: left;
-  font-family: var(--font-display);
-  font-size: 14px;
-  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  color: var(--text);
   cursor: pointer;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 3px;
+  border: 0;
+  border-radius: var(--r-sm);
+}
+
+.hud-menu-item .icon {
+  opacity: 0.9;
 }
 
 .hud-menu-item:hover,
 .hud-menu-item:focus-visible {
-  color: var(--brass-light);
-  background: rgba(232, 199, 90, 0.12);
-  border-color: var(--brass-dark);
+  color: var(--accent-strong);
+  background: var(--surface-2);
 }
 
 .hud-menu-label {
@@ -300,44 +398,51 @@
 }
 
 .hud-menu-key {
-  min-width: 18px;
-  padding: 0 4px;
-  font-family: var(--font-display);
-  font-size: 11px;
+  min-width: 20px;
+  padding: 0 var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
   text-align: center;
-  color: var(--paper-shade);
-  border: 1px solid var(--brass-dark);
-  border-radius: 3px;
+  color: var(--text-muted);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
 }
 
 .hud-menu-field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  font-family: var(--font-display);
-  font-size: 13px;
-  color: var(--paper-shade);
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
 }
 
-/* Newspaper unread count: a red disc on the World button and beside the Newspaper item. */
+/* the bar's tooltip: label, then the shortcut as a key cap */
+.hud-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
+}
+
+/* Newspaper unread count: a small disc on the World button and beside the Newspaper item. */
 .hud-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -3px;
+  right: -3px;
   min-width: 16px;
   height: 16px;
-  padding: 0 4px;
+  padding: 0 var(--sp-1);
   box-sizing: border-box;
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: bold;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
   line-height: 14px;
-  letter-spacing: 0;
   text-align: center;
-  color: var(--paper);
-  background: var(--bad);
-  border: 1px solid var(--paper);
+  color: var(--surface-0);
+  background: var(--negative);
+  border: 1px solid var(--surface-0);
   border-radius: 8px;
   pointer-events: none;
 }
@@ -365,7 +470,7 @@
   overflow: hidden;
   font-family: var(--font-display);
   font-style: italic;
-  font-size: 14px;
+  font-size: var(--fs-md);
   color: var(--ink);
   background: linear-gradient(180deg, var(--paper), var(--paper-shade));
   border-top: 3px double var(--brass-dark);
@@ -377,7 +482,7 @@
   display: none;
 }
 .hud-ticker.headline {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   text-overflow: ellipsis;
   border-top-width: 2px;
   cursor: pointer;
@@ -402,7 +507,7 @@
   bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 6px);
   z-index: 49;
   max-width: calc((100 * var(--uvw)) - 32px);
-  background: linear-gradient(180deg, #3d2a1d, #24170f);
+  background: linear-gradient(180deg, var(--surface-3), var(--surface-1));
   border: 2px solid var(--brass-dark);
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px var(--brass), 0 6px 18px rgba(0, 0, 0, 0.6);
@@ -423,24 +528,41 @@
 }
 
 .tb-tab {
+  font-family: var(--font-display);
+  cursor: pointer;
+  color: var(--paper);
+  background: linear-gradient(180deg, var(--surface-3), var(--surface-1));
+  border: 1px solid var(--brass-dark);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.tb-tab:hover {
+  border-color: var(--brass-light);
+  color: var(--brass-light);
+}
+
+.tb-tab {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .tb-tab.active {
+  background: linear-gradient(180deg, var(--brass-light), var(--brass) 60%, var(--brass-dark));
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.35);
   border-color: var(--brass-light);
   color: var(--brass-light);
 }
 
 .tb-key {
   font-family: var(--font-body);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   letter-spacing: 0;
   padding: 0 4px;
   border: 1px solid var(--brass-dark);
@@ -470,7 +592,7 @@
   left: 0; /* toolbar.ts places it (placeFlyout): centred on the bar, clamped to the map left of the side panel */
   width: max-content;
   max-width: calc((100 * var(--uvw)) - var(--side-panel-w, 0px) / var(--ui-scale, 1) - 16px);
-  background: linear-gradient(180deg, #3d2a1d, #24170f);
+  background: linear-gradient(180deg, var(--surface-3), var(--surface-1));
   border: 2px solid var(--brass-dark);
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px var(--brass), 0 6px 18px rgba(0, 0, 0, 0.6);
@@ -533,7 +655,7 @@
 .tc-name {
   font-family: var(--font-display);
   font-weight: bold;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.2;
 }
 
@@ -541,7 +663,7 @@
   min-height: 18px;
   max-height: 3.9em;
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.3;
 }
 .tc-flow .icon + .icon {
@@ -553,7 +675,7 @@
   flex-wrap: wrap; /* "base $X" and "base +$Y/mo" stack when they do not fit side by side */
   justify-content: space-between;
   gap: 0 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -566,7 +688,7 @@
 }
 
 .tc-lock {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-style: italic;
   color: var(--walnut);
 }
@@ -577,9 +699,9 @@
 
 .hud-faction-mode {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--paper);
-  background: #2f2016;
+  background: var(--surface-1);
   border: 1px solid var(--brass-dark);
   border-radius: 3px;
 }

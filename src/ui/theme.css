@@ -260,7 +260,7 @@ input[type='text'] {
   position: relative;
 }
 
-.hud-delta {
+.hud-pop {
   position: absolute;
   right: 4px;
   top: 100%;
@@ -274,8 +274,8 @@ input[type='text'] {
   z-index: 1001;
 }
 
-.hud-delta.good { color: var(--positive); }
-.hud-delta.bad { color: var(--negative); }
+.hud-pop.good { color: var(--positive); }
+.hud-pop.bad { color: var(--negative); }
 
 .stamp {
   position: fixed;
@@ -313,7 +313,7 @@ input[type='text'] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hud-delta { animation: juice-fade 1500ms ease-out forwards; }
+  .hud-pop { animation: juice-fade 1500ms ease-out forwards; }
   .stamp { animation: juice-fade 2200ms ease-out forwards; }
 
   @keyframes juice-fade {

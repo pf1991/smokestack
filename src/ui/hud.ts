@@ -12,7 +12,10 @@ import { openHelp } from './help';
 import type { PauseScreen } from './menu';
 import { iconEl } from './icon';
 import { formatMoney } from './format';
+import { groupThousands, wholeNumber } from '../core/money';
 import { RollingCounter } from './juice';
+import { deltaText, pill, tooltip, type Tone } from './kit';
+import { drawFamilyCrest } from '../render/portrait';
 import './hud.css';
 
 export interface HudHandlers {
@@ -25,14 +28,28 @@ export interface HudHandlers {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Speed buttons: atlas icons, more triangles for faster speeds (title and aria-label name them). */
-const SPEEDS: { speed: Speed; icons: string[]; title: string }[] = [
-  { speed: 0, icons: ['pause'], title: withShortcut('Pause', 'pause') },
-  { speed: 1, icons: ['play'], title: withShortcut('Normal speed', 'speed', '1') },
-  { speed: 2, icons: ['play', 'play'], title: withShortcut('Fast', 'speed', '2') },
-  { speed: 4, icons: ['play', 'play', 'play'], title: withShortcut('Faster', 'speed', '4') },
-  { speed: 8, icons: ['fast', 'fast'], title: withShortcut('Fastest', 'speed', '8') },
+/** Speed radios: short text labels (title and aria-label name them with their shortcut). */
+const SPEEDS: { speed: Speed; text: string; title: string }[] = [
+  { speed: 0, text: 'II', title: withShortcut('Pause', 'pause') },
+  { speed: 1, text: '1\u00d7', title: withShortcut('Normal speed', 'speed', '1') },
+  { speed: 2, text: '2\u00d7', title: withShortcut('Fast', 'speed', '2') },
+  { speed: 4, text: '4\u00d7', title: withShortcut('Faster', 'speed', '4') },
+  { speed: 8, text: '8\u00d7', title: withShortcut('Fastest', 'speed', '8') },
 ];
+
+/** The treasury in full ("$1,234,567,890"): the top bar is the one place the exact balance shows. */
+export function hudMoney(n: number): string {
+  const r = wholeNumber(n);
+  return `${r < 0 ? '-' : ''}$${groupThousands(Math.abs(r))}`;
+}
+
+/** Tone of a profit figure: whole dollars either side of zero, neutral at $0. */
+function profitTone(v: number): Tone {
+  return v >= 0.5 ? 'positive' : v <= -0.5 ? 'negative' : 'neutral';
+}
+
+/** Crest canvas side in CSS px; the backing store is drawn at 2x for sharp edges on HiDPI screens. */
+const CREST_PX = 24;
 
 export interface HudGroupItem {
   panel: string;
@@ -140,9 +157,51 @@ function setText(el: HTMLElement, text: string): void {
   if (el.textContent !== text) el.textContent = text;
 }
 
+/** "Finance (F)" as a label and its key, for the tooltip's key cap. */
+function splitShortcut(title: string): { label: string; key: string | null } {
+  const m = /^(.*) \(([^()]+)\)$/.exec(title);
+  return m ? { label: m[1], key: m[2] } : { label: title, key: null };
+}
+
+/**
+ * The kit tooltip on a bar button: its label, plus the shortcut as a key cap. The native `title`
+ * stays for assistive tech and tests, but is parked while the pointer is over the button so the
+ * browser does not show a second, plain tooltip on top of ours.
+ */
+function barTip(btn: HTMLElement): () => void {
+  const park = () => {
+    const t = btn.getAttribute('title');
+    if (t === null) return;
+    btn.dataset.tip = t;
+    btn.removeAttribute('title');
+  };
+  const restore = () => {
+    const t = btn.dataset.tip;
+    if (t === undefined) return;
+    if (!btn.hasAttribute('title')) btn.setAttribute('title', t);
+    delete btn.dataset.tip;
+  };
+  btn.addEventListener('pointerenter', park);
+  btn.addEventListener('pointerleave', restore);
+  const off = tooltip(btn, () => {
+    const { label, key } = splitShortcut(btn.dataset.tip ?? btn.title);
+    return h('span', { class: 'hud-tip' }, label, key ? h('kbd', { class: 'kit-kbd' }, key) : null);
+  });
+  return () => {
+    restore();
+    btn.removeEventListener('pointerenter', park);
+    btn.removeEventListener('pointerleave', restore);
+    off();
+  };
+}
+
 export class Hud {
   private readonly company: HTMLElement;
+  private readonly crest: HTMLCanvasElement;
+  private crestName: string | null = null;
   private readonly money: HTMLElement;
+  private readonly profit: HTMLElement;
+  private profitShown = '';
   private readonly date: HTMLElement;
   private readonly era: HTMLElement;
   private readonly vane: HTMLElement;
@@ -168,11 +227,16 @@ export class Hud {
   private readonly badges: HTMLElement[] = [];
   private newsGroupButton: HTMLElement | null = null;
   private newsGroupLabel = '';
+  private readonly tips: (() => void)[] = [];
 
   constructor(root: HTMLElement, private readonly handlers: HudHandlers) {
-    this.company = h('div', { class: 'hud-company' }, '');
+    this.company = h('div', { class: 'hud-company hud-name' }, '');
+    this.crest = h('canvas', { class: 'hud-crest', width: CREST_PX * 2, height: CREST_PX * 2, 'aria-hidden': 'true' }) as HTMLCanvasElement;
     this.money = h('div', { class: 'hud-money', title: 'Treasury: cash on hand' }, '$0');
-    this.counter = new RollingCounter(this.money, formatMoney);
+    this.counter = new RollingCounter(this.money, hudMoney);
+    this.profit = pill(formatMoney(0), 'neutral');
+    this.profit.classList.add('hud-delta');
+    this.profit.title = "This month's profit so far";
     this.date = h('div', { class: 'hud-date' }, '');
     this.era = h('div', { class: 'hud-era' }, '');
     this.vaneArrow = iconEl('wind', 18);
@@ -180,18 +244,25 @@ export class Hud {
     this.vaneRain.hidden = true;
     this.vane = h('div', { class: 'hud-wind', role: 'img', 'aria-label': 'Wind' }, this.vaneArrow, this.vaneRain);
 
-    const speeds = h('div', { class: 'hud-speeds' });
+    // .hud-speeds stays for the tutorial's highlight
+    const speeds = h('div', { class: 'hud-speed hud-speeds', role: 'radiogroup', 'aria-label': 'Game speed' });
     for (const s of SPEEDS) {
       const btn = h('button', {
-        class: 'hud-speed',
+        class: 'hud-speed-btn',
+        type: 'button',
+        role: 'radio',
+        'aria-checked': 'false',
+        tabindex: '-1',
         'data-speed': s.speed,
         title: s.title,
         'aria-label': s.title,
-        onClick: () => handlers.onSpeed(s.speed),
-      }, ...s.icons.map((id) => iconEl(id, 14)));
+        onClick: () => this.chooseSpeed(s.speed),
+      }, s.text);
       this.speedButtons.set(s.speed, btn);
       speeds.appendChild(btn);
     }
+    speeds.addEventListener('keydown', (e) => this.speedKey(e));
+    this.markSpeed(1);
 
     const groups = h('div', { class: 'hud-groups' });
     for (const g of GROUPS) {
@@ -247,18 +318,71 @@ export class Hud {
     layers.append(smog, h('div', { class: 'hud-split' }, factions, modes.wrap));
 
     const more = this.dropdown('More', 'more', 'hud-more-btn', this.moreItems());
+    const onMenu = handlers.onMenu;
+    const settings = onMenu
+      ? h('button', {
+        class: 'hud-btn hud-settings-btn',
+        type: 'button',
+        title: 'Settings',
+        'aria-label': 'Settings',
+        onClick: () => onMenu('settings'),
+      }, ...iconLabel('gear', 'Settings'))
+      : null;
 
     const bar = h('div', { class: 'hud-bar' },
-      h('div', { class: 'hud-brand' }, this.company, this.era),
-      h('div', { class: 'hud-cash' }, this.money),
-      h('div', { class: 'hud-clock', title: 'Date' }, this.date, this.vane),
-      speeds,
-      h('div', { class: 'hud-spacer' }),
-      groups,
-      layers,
-      more.wrap);
+      h('div', { class: 'hud-left' },
+        this.crest,
+        h('div', { class: 'hud-brand' }, this.company, this.era)),
+      h('div', { class: 'hud-center' },
+        h('div', { class: 'hud-cash' }, this.money, this.profit),
+        h('div', { class: 'hud-clock', title: 'Date' }, this.date, this.vane),
+        speeds),
+      h('div', { class: 'hud-right' },
+        groups,
+        layers,
+        // Task 13 mounts the alerts bell here
+        h('span', { id: 'hud-alerts', class: 'hud-alerts' }),
+        settings,
+        more.wrap));
+
+    for (const btn of bar.querySelectorAll<HTMLElement>('button:not([role="menuitem"])')) this.tips.push(barTip(btn));
 
     root.append(bar, h('div', { id: 'ticker', class: 'hud-ticker' }));
+  }
+
+  // ------------------------------------------------------------------ speed radios
+
+  private chooseSpeed(speed: Speed): void {
+    this.markSpeed(speed);
+    this.handlers.onSpeed(speed);
+  }
+
+  /** Checks one radio and gives it the group's single tab stop. */
+  private markSpeed(speed: Speed): void {
+    for (const [s, btn] of this.speedButtons) {
+      const on = s === speed;
+      btn.setAttribute('aria-checked', String(on));
+      btn.setAttribute('tabindex', on ? '0' : '-1');
+      btn.classList.toggle('active', on);
+    }
+  }
+
+  /** Radio-group keys: Left / Right (and Up / Down) move and select, Home / End jump to the ends. */
+  private speedKey(e: KeyboardEvent): void {
+    const order = SPEEDS.map((s) => s.speed);
+    const at = order.findIndex((s) => this.speedButtons.get(s) === e.target);
+    if (at < 0) return;
+    let next = -1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = Math.min(order.length - 1, at + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = Math.max(0, at - 1);
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = order.length - 1;
+    if (next < 0) return;
+    // the game would pan the map on the arrows
+    e.preventDefault();
+    e.stopPropagation();
+    this.chooseSpeed(order[next]);
+    this.speedButtons.get(order[next])?.focus();
   }
 
   // ------------------------------------------------------------------ bar parts
@@ -529,7 +653,7 @@ export class Hud {
 
   private popDelta(net: number): void {
     const good = net >= 0;
-    const el = h('div', { class: `hud-delta ${good ? 'good' : 'bad'}` }, `${good ? '+' : '\u2212'}${formatMoney(Math.abs(net))}`);
+    const el = h('div', { class: `hud-pop ${good ? 'good' : 'bad'}` }, `${good ? '+' : '\u2212'}${formatMoney(Math.abs(net))}`);
     const cash = this.money.parentElement ?? this.money;
     cash.appendChild(el);
     setTimeout(() => el.remove(), DELTA_MS);
@@ -555,7 +679,12 @@ export class Hud {
   update(state: GameState, nowMs: number = performance.now()): void {
     this.state = state;
     const player = state.companies.player;
-    setText(this.company, player.name);
+    if (this.crestName !== player.name) {
+      this.crestName = player.name;
+      this.company.textContent = player.name;
+      this.company.title = player.name;
+      this.drawCrest(player.name);
+    }
     if (this.seeded) {
       this.counter.set(player.money, nowMs);
     } else {
@@ -563,6 +692,8 @@ export class Hud {
       this.counter.snap(player.money);
     }
     this.money.classList.toggle('negative', player.money < 0);
+    this.money.title = `Treasury: ${hudMoney(player.money)} cash on hand`;
+    this.updateProfit(state);
     const d = state.date;
     setText(this.date, `${d.day} ${MONTHS[d.month - 1] ?? '???'} ${d.year}`);
     setText(this.era, eraName(d.year));
@@ -585,7 +716,40 @@ export class Hud {
     }
     if (state.speed !== this.lastSpeed) {
       this.lastSpeed = state.speed;
-      for (const [s, btn] of this.speedButtons) btn.classList.toggle('active', s === state.speed);
+      this.markSpeed(state.speed);
     }
+  }
+
+  /** The open month's profit so far; a month with no ledger entry yet is a neutral $0. */
+  private updateProfit(state: GameState): void {
+    const { year, month } = state.date;
+    const ledger = state.companies.player.ledger;
+    let net = 0;
+    for (let i = ledger.length - 1; i >= 0; i--) {
+      const m = ledger[i];
+      if (m.year === year && m.month === month) {
+        net = monthProfit(m);
+        break;
+      }
+    }
+    const tone = profitTone(net);
+    const text = deltaText(net);
+    const key = `${tone}|${text}`;
+    if (key === this.profitShown) return;
+    this.profitShown = key;
+    this.profit.className = `kit-pill kit-pill--${tone} hud-delta`;
+    this.profit.textContent = text;
+  }
+
+  private drawCrest(name: string): void {
+    let ctx: CanvasRenderingContext2D | null = null;
+    try {
+      ctx = this.crest.getContext('2d');
+    } catch {
+      ctx = null; // no canvas (tests): the name alone carries the brand
+    }
+    if (!ctx) return;
+    ctx.clearRect(0, 0, this.crest.width, this.crest.height);
+    drawFamilyCrest(ctx, this.crest.width, name);
   }
 }
