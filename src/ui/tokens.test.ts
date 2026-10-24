@@ -99,6 +99,15 @@ describe('design tokens', () => {
         });
       }
     }
+    // panels.css .insp-badge status colours carry --surface-0 text
+    for (const b of ['--positive', '--negative', '--warning']) {
+      it(`--surface-0 on ${b} >= 4.5 (inspector badge)`, () => {
+        expect(contrast(token('--surface-0')!, token(b)!)).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+    it('--text on --surface-1 >= 4.5 (owner badges)', () => {
+      expect(contrast(token('--text')!, token('--surface-1')!)).toBeGreaterThanOrEqual(4.5);
+    });
     it('--paper-ink on --paper >= 7', () => {
       expect(contrast(token('--paper-ink')!, token('--paper')!)).toBeGreaterThanOrEqual(7);
     });

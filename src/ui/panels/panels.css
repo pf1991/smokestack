@@ -25,15 +25,16 @@
 }
 
 .insp-badge.owner-player {
-  background: var(--player);
+  border-left: 4px solid var(--player);
 }
 
 .insp-badge.owner-rival {
-  background: var(--rival);
+  border-left: 4px solid var(--rival);
 }
 
 .insp-badge.status-ok {
   background: var(--positive);
+  color: var(--surface-0);
 }
 
 .insp-badge.status-no_input,
@@ -45,6 +46,7 @@
 .insp-badge.status-output_full,
 .insp-badge.status-halted {
   background: var(--negative);
+  color: var(--surface-0);
 }
 
 .insp-reason {
@@ -749,4 +751,13 @@
 
 .lv-col .p-row {
   justify-content: flex-start;
+}
+
+/* wide tables scroll sideways inside their wrapper instead of clipping */
+.p-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-quiet) transparent;
 }

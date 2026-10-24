@@ -22,10 +22,14 @@
 .finance-scroll {
   overflow-x: auto;
   max-width: 100%;
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-quiet) transparent;
 }
 
 .finance-table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
