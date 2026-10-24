@@ -117,7 +117,7 @@ R4 and R5 get their own plans once R3 merges, because their details depend on R2
 | `statTile({ label, value, delta?, tone? })` and `statRow(tiles)` | KPIs at the top of panels |
 | `pill(text, tone)` | Status: ok, warning, negative, info, neutral |
 | `meter(value, max, tone)` | Stock, staffing and opinion bars |
-| `dataTable({ columns, rows, emptyText })` | Every table: numbers right-aligned and tabular, a sticky header, zebra rows |
+| `dataTable({ columns, rows, emptyText })` | Every table: numbers right-aligned and tabular. *(As built: no zebra rows; rows are divided by a hairline. The header is made sticky only where a panel scrolls a long table, such as the codex list.)* |
 | `emptyState({ icon, title, body, action? })` | Replaces bare "No managers hired" and "No history yet" |
 | `card({ title?, children, actions? })` | Grouped content inside a panel |
 | `section(title, children, { collapsible?, open? })` | Replaces the `p-section` and `p-head` pairs |
@@ -197,16 +197,18 @@ Existing class names that tests and the tutorial depend on (`.window*`, `.hud-pa
 
   It is game-layer code, read-only, with no rng. The top bar's bell shows the count and the
   worst tone. A dropdown tray lists the alerts, and clicking one centres the camera on its
-  target and opens its inspector.
+  target and opens its inspector. *(As built: the bell's shortcut is `T`. A stateful
+  `AlertTracker.collect(state)` replaces `collectAlerts`, so it can date each condition's first sighting.)*
 - **Map status badges.** A small icon over each player building whose status isn't `ok`
   (Factorio style). The renderer draws them in the overlay pass, using the icon atlas. They
   hide in photo mode and at survey zoom below 0.9.
-- **Production codex (`PANELS.codex`, shortcut `K`).**
+- **Production codex (`PANELS.codex`, shortcut `I`).** *(As built: `I`, not the earlier `K`.)*
   - **Contents:** every unlocked good with its icon, kind, base price and current town
     demand, the building that makes it and its recipe.
   - **Navigation:** the recipe tree upstream is clickable. "Used in" lists the downstream
     goods.
-  - **Filters:** kind, era, and "I make this".
+  - **Filters:** kind and "I make this". *(As built: the era filter was dropped; goods from a later
+    era show their unlock year in the detail instead.)*
   - **Tooltips:** the good icons in the build bar and the inspectors open a tooltip with the
     codex's short form (Anno style).
 
