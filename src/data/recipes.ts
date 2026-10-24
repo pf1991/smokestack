@@ -49,19 +49,32 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_cattle: { id: 'r_cattle', inputs: {}, outputs: { cattle: 4 }, days: 1 },
   r_sugar_beet: { id: 'r_sugar_beet', inputs: {}, outputs: { sugar_beet: 12 }, days: 1 },
   r_clay: { id: 'r_clay', inputs: {}, outputs: { clay: 12 }, days: 1 },
+  r_rubber: { id: 'r_rubber', inputs: {}, outputs: { rubber: 8 }, days: 1 },
+  r_bauxite: { id: 'r_bauxite', inputs: {}, outputs: { bauxite: 10 }, days: 1 },
   // Refining
   r_copper: { id: 'r_copper', inputs: { copper_ore: 8, coal: 2 }, outputs: { copper: 4 }, days: 1 },
+  r_aluminium: { id: 'r_aluminium', inputs: { bauxite: 8, coal: 4 }, outputs: { aluminium: 2 }, days: 1 },
   r_leather: { id: 'r_leather', inputs: { cattle: 2 }, outputs: { leather: 4 }, days: 1 },
   r_sugar: { id: 'r_sugar', inputs: { sugar_beet: 12 }, outputs: { sugar: 6 }, days: 1 },
   r_bricks: { id: 'r_bricks', inputs: { clay: 10, coal: 2 }, outputs: { bricks: 8 }, days: 1 },
   r_paper: { id: 'r_paper', inputs: { wood: 10 }, outputs: { paper: 6 }, days: 1 },
+  r_chemicals: { id: 'r_chemicals', inputs: { coal: 4, oil: 4 }, outputs: { chemicals: 4 }, days: 1 },
   // Components
   r_wire: { id: 'r_wire', inputs: { copper: 4 }, outputs: { wire: 4 }, days: 1 },
+  r_tyres: { id: 'r_tyres', inputs: { rubber: 4, fabric: 1 }, outputs: { tyres: 4 }, days: 1 },
+  r_engines: { id: 'r_engines', inputs: { steel: 3, fuel: 1 }, outputs: { engines: 1 }, days: 1 },
+  r_electric_motors: { id: 'r_electric_motors', inputs: { wire: 2, steel: 1 }, outputs: { electric_motors: 1 }, days: 1 },
+  r_vacuum_tubes: { id: 'r_vacuum_tubes', inputs: { glass: 2, wire: 1 }, outputs: { vacuum_tubes: 6 }, days: 1 },
   // Manufacturing
   r_shoes: { id: 'r_shoes', inputs: { leather: 4 }, outputs: { shoes: 2 }, days: 1 },
   r_candy: { id: 'r_candy', inputs: { sugar: 3, milk: 2 }, outputs: { candy: 6 }, days: 1 },
   r_books: { id: 'r_books', inputs: { paper: 6 }, outputs: { books: 3 }, days: 1 },
   r_canned_food: { id: 'r_canned_food', inputs: { cattle: 2, steel: 1 }, outputs: { canned_food: 6 }, days: 1 },
+  r_phonographs: { id: 'r_phonographs', inputs: { lumber: 2, copper: 2 }, outputs: { phonographs: 2 }, days: 1 },
+  r_bicycles: { id: 'r_bicycles', inputs: { steel: 2, tyres: 2 }, outputs: { bicycles: 2 }, days: 1 },
+  r_motorcycles: { id: 'r_motorcycles', inputs: { engines: 1, tyres: 2, steel: 1 }, outputs: { motorcycles: 1 }, days: 1 },
+  // Appended after r_computers so firstRecipeFor still prefers r_radios
+  r_radios_tubes: { id: 'r_radios_tubes', inputs: { vacuum_tubes: 2, lumber: 2 }, outputs: { radios: 2 }, days: 1 },
 };
 
 export function getRecipe(id: string): RecipeDef {

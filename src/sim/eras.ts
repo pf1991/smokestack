@@ -1,5 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
-import { GOODS } from '../data/goods';
+import { GOODS, goodPlural } from '../data/goods';
 import { lifecycleFactor } from './market';
 import { publishNews } from './news';
 import { unlockedAt } from './state';
@@ -57,6 +57,11 @@ const INVENTIONS: Record<string, [headline: string, body: string]> = {
   plastic: ['PLASTICS: The material of tomorrow arrives', 'Chemists unveil a miracle material that moulds into anything.'],
   tvs: ['PICTURES IN THE PARLOUR: Television arrives', 'Television sets are now in the shops.'],
   computers: ['THE MICROCHIP REVOLUTION: Computers come home', 'Home computers are now possible.'],
+  phonographs: ['TALKING MACHINES: The phonograph sings in the parlour', 'Appliance plants now press phonographs from lumber and copper.'],
+  bicycles: ['SAFETY BICYCLES FOR EVERY CLERK', 'Cycle works turn steel and tyres into bicycles.'],
+  motorcycles: ['THE MOTOR-CYCLE ROARS INTO TOWN', 'Engines and tyres make motorcycles: a machine shop and a cycle works.'],
+  electronics_works: ['THE VALVE AGE: Electronics works open', 'Wire and glass become vacuum tubes for radios and more.'],
+  aluminium: ['ALUMINIUM: The metal of the air age', 'Smelters now win aluminium from bauxite.'],
 };
 
 const unlockKind = (id: string): 'good' | 'building' | 'recipe' => (GOODS[id] ? 'good' : BUILDINGS[id] ? 'building' : 'recipe');
@@ -91,6 +96,7 @@ export function checkUnlocks(ctx: SimContext): void {
 
 const FADE_LINES: Record<string, string> = {
   radios: 'Radios losing their crackle with the young set',
+  phonographs: 'The gramophone falls silent in the modern home',
 };
 
 /** On year: warn the year before a good fades, and when its demand first halves. */
@@ -100,7 +106,7 @@ export function fadeWarnings(ctx: SimContext): void {
     if (g.fadeYear === null) continue;
     const line = FADE_LINES[g.id] ?? `${g.name} sales are fading`;
     if (year === g.fadeYear - 1) {
-      publishNews(ctx, 'warning', line, `Demand for ${g.name.toLowerCase()}s is expected to decline from next year.`);
+      publishNews(ctx, 'warning', line, `Demand for ${goodPlural(g).toLowerCase()} is expected to decline from next year.`);
     } else if (lifecycleFactor(g.id, year) <= 0.5 && lifecycleFactor(g.id, year - 1) > 0.5) {
       publishNews(ctx, 'warning', `${g.name} demand halves`, `Shoppers have moved on: ${g.name.toLowerCase()} demand is down by half.`);
     }

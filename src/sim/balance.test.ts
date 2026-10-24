@@ -73,6 +73,21 @@ describe('deep chains pay', () => {
     }
   });
 
+  it('the 1905–1915 rows match Table E within 10% (bicycles and motorcycles are deep)', () => {
+    const table: [string, number, number, number, number][] = [
+      // good, era, depth, workers, $/worker-month
+      ['phonographs', 1905, 3, 144, 31.4],
+      ['bicycles', 1910, 4, 185, 23.8],
+      ['motorcycles', 1915, 4, 334, 27.9],
+    ];
+    for (const [id, era, depth, workers, perWm] of table) {
+      const r = chainEconomics(id, era)!;
+      expect(r.depth, id).toBe(depth);
+      expect(Math.abs(r.workers - workers) / workers, `${id} workers ${r.workers}`).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(r.profitPerWorkerMonth - perWm) / perWm, `${id} $/wk-mo ${r.profitPerWorkerMonth}`).toBeLessThanOrEqual(0.1);
+    }
+  });
+
   it('every deep consumer chain beats the shallow median of its era year', () => {
     for (const d of Object.values(GOODS).filter((g) => g.kind === 'consumer')) {
       const r = chainEconomics(d.id, d.era);

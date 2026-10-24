@@ -48,9 +48,22 @@ describe('eras', () => {
     const ctx = at(1964, 12, 30);
     fadeWarnings(ctx);
     expect(ctx.state.news.some((n) => n.kind === 'warning' && /Radios/.test(n.headline))).toBe(true);
+    expect(ctx.state.news.some((n) => n.body === 'Demand for radios is expected to decline from next year.')).toBe(true);
     const c2 = at(1963, 12, 30);
     fadeWarnings(c2);
     expect(c2.state.news).toHaveLength(0);
+  });
+  it('phonograph fade warning in 1954 uses the plural', () => {
+    const ctx = at(1954, 12, 30);
+    fadeWarnings(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'warning' && n.body === 'Demand for phonographs is expected to decline from next year.')).toBe(true);
+  });
+  it('1905 checkUnlocks publishes the phonograph headline', () => {
+    const ctx = at(1905);
+    checkUnlocks(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'invention' && n.headline === 'TALKING MACHINES: The phonograph sings in the parlour')).toBe(true);
   });
   it('radio halving warning in 1972', () => {
     const ctx = at(1972, 12, 30);

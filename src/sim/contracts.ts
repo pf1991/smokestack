@@ -1,7 +1,7 @@
 import { recordContractDone } from './scenarios';
 import type { Result } from '../core/result';
 import { err, ok } from '../core/result';
-import { GOODS } from '../data/goods';
+import { GOODS, goodPlural } from '../data/goods';
 import { addDays, compareDates, dateToDays } from './clock';
 import { earn } from './finance';
 import { monthlyDemand, POP_CAP, satisfaction } from './market';
@@ -135,7 +135,7 @@ export function offerContracts(ctx: SimContext): Contract | null {
     status: 'offered',
   };
   state.contracts.push(contract);
-  const what = PLEAS[o.goodId] ?? good.name.toLowerCase();
+  const what = PLEAS[o.goodId] ?? goodPlural(good).toLowerCase();
   publishNews(
     ctx,
     'contract',

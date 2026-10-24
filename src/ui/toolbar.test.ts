@@ -64,6 +64,13 @@ describe('Toolbar', () => {
     expect(root.querySelector('[data-panel-tab="refine"] [data-building="refinery"]')).not.toBeNull();
   });
 
+  it('chemical_works→refine, electronics_works→components, appliance_plant→manufacture (C2)', () => {
+    const { root } = setup();
+    expect(root.querySelector('[data-panel-tab="refine"] [data-building="chemical_works"]')).not.toBeNull();
+    expect(root.querySelector('[data-panel-tab="components"] [data-building="electronics_works"]')).not.toBeNull();
+    expect(root.querySelector('[data-panel-tab="manufacture"] [data-building="appliance_plant"]')).not.toBeNull();
+  });
+
   it('each of the 25 v1 buildings keeps its build-bar tab', () => {
     const { root } = setup();
     const v1: Record<string, string> = {

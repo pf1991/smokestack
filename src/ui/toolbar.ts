@@ -52,9 +52,12 @@ const BUILDING_ICON: Record<string, IconId> = {
   lumber_camp: 'tree', train_station: 'train', warehouse: 'crate', store: 'shop', company_housing: 'city',
   // R4 (Table B): extractors show their raw good, works their first output, part makers a gear
   ranch: 'cattle', clay_pit: 'clay', copper_mine: 'copper_ore',
+  rubber_plantation: 'rubber', bauxite_quarry: 'bauxite',
   smelter: 'copper', tannery: 'leather', sugar_refinery: 'sugar', brickworks: 'bricks', paper_mill: 'paper',
-  machine_shop: 'gear',
+  chemical_works: 'chemicals',
+  machine_shop: 'gear', electronics_works: 'gear',
   shoe_factory: 'shoes', confectionery: 'candy', print_works: 'books', cannery: 'canned_food',
+  cycle_works: 'bicycles', appliance_plant: 'phonographs',
   trading_house: 'money',
 };
 const buildingIcon = (def: BuildingDef): IconId =>

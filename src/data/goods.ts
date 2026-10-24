@@ -12,6 +12,13 @@ export interface GoodDef {
   era: number;
   fadeYear: number | null;
   color: string;
+  /** Plural form for news and pleas; defaults to `name` via `goodPlural`. */
+  plural?: string;
+}
+
+/** Display plural for a good (news, contracts); falls back to the singular name. */
+export function goodPlural(g: GoodDef): string {
+  return g.plural ?? g.name;
 }
 
 export const GOODS: Record<GoodId, GoodDef> = {
@@ -29,6 +36,8 @@ export const GOODS: Record<GoodId, GoodDef> = {
   cattle: { id: 'cattle', name: 'Cattle', tier: 0, kind: 'raw', basePrice: 10, era: 1900, fadeYear: null, color: '#7a4b3a' },
   sugar_beet: { id: 'sugar_beet', name: 'Sugar Beet', tier: 0, kind: 'raw', basePrice: 3, era: 1900, fadeYear: null, color: '#c77d9b' },
   clay: { id: 'clay', name: 'Clay', tier: 0, kind: 'raw', basePrice: 2, era: 1900, fadeYear: null, color: '#b5653d' },
+  rubber: { id: 'rubber', name: 'Rubber', tier: 0, kind: 'raw', basePrice: 8, era: 1910, fadeYear: null, color: '#5a5f3c' },
+  bauxite: { id: 'bauxite', name: 'Bauxite', tier: 0, kind: 'raw', basePrice: 6, era: 1920, fadeYear: null, color: '#d08a5a' },
 
   // Intermediate (tier 1)
   lumber: { id: 'lumber', name: 'Lumber', tier: 1, kind: 'material', basePrice: 10, era: 1900, fadeYear: null, color: '#c8a16e' },
@@ -43,9 +52,15 @@ export const GOODS: Record<GoodId, GoodDef> = {
   sugar: { id: 'sugar', name: 'Sugar', tier: 1, kind: 'material', basePrice: 9, era: 1900, fadeYear: null, color: '#f5efe0' },
   bricks: { id: 'bricks', name: 'Bricks', tier: 1, kind: 'material', basePrice: 8, era: 1900, fadeYear: null, color: '#a63d2a' },
   paper: { id: 'paper', name: 'Paper', tier: 1, kind: 'material', basePrice: 10, era: 1900, fadeYear: null, color: '#efe6c8' },
+  chemicals: { id: 'chemicals', name: 'Chemicals', tier: 1, kind: 'material', basePrice: 24, era: 1920, fadeYear: null, color: '#9bcf3c' },
+  aluminium: { id: 'aluminium', name: 'Aluminium', tier: 1, kind: 'material', basePrice: 45, era: 1925, fadeYear: null, color: '#c9d1d9' },
 
   // Component (tier 1): parts made for other works
   wire: { id: 'wire', name: 'Wire', tier: 1, kind: 'component', basePrice: 32, era: 1900, fadeYear: null, color: '#d4a017' },
+  tyres: { id: 'tyres', name: 'Tyres', tier: 1, kind: 'component', basePrice: 20, era: 1910, fadeYear: null, color: '#34495e' },
+  engines: { id: 'engines', name: 'Engines', tier: 1, kind: 'component', basePrice: 150, era: 1910, fadeYear: null, color: '#5b6770' },
+  electric_motors: { id: 'electric_motors', name: 'Electric Motors', tier: 1, kind: 'component', basePrice: 140, era: 1920, fadeYear: null, color: '#3e7cb1' },
+  vacuum_tubes: { id: 'vacuum_tubes', name: 'Vacuum Tubes', tier: 1, kind: 'component', basePrice: 22, era: 1920, fadeYear: null, color: '#ffb347' },
 
   // Consumer (tier 2)
   furniture: { id: 'furniture', name: 'Furniture', tier: 2, kind: 'consumer', basePrice: 72, era: 1900, fadeYear: null, color: '#6b3e1f' },
@@ -55,14 +70,17 @@ export const GOODS: Record<GoodId, GoodDef> = {
   cheese: { id: 'cheese', name: 'Cheese', tier: 2, kind: 'consumer', basePrice: 33, era: 1900, fadeYear: null, color: '#f2c94c' },
   juice: { id: 'juice', name: 'Juice', tier: 2, kind: 'consumer', basePrice: 39, era: 1900, fadeYear: null, color: '#f08a24' },
   toys: { id: 'toys', name: 'Toys', tier: 2, kind: 'consumer', basePrice: 45, era: 1900, fadeYear: null, color: '#e75480' },
-  cars: { id: 'cars', name: 'Automobile', tier: 2, kind: 'consumer', basePrice: 630, era: 1910, fadeYear: null, color: '#b22234' },
-  radios: { id: 'radios', name: 'Radio', tier: 2, kind: 'consumer', basePrice: 195, era: 1925, fadeYear: 1965, color: '#8e5b3a' },
-  tvs: { id: 'tvs', name: 'Television', tier: 2, kind: 'consumer', basePrice: 390, era: 1950, fadeYear: null, color: '#3d3d56' },
-  computers: { id: 'computers', name: 'Computer', tier: 2, kind: 'consumer', basePrice: 900, era: 1980, fadeYear: null, color: '#1abc9c' },
+  cars: { id: 'cars', name: 'Automobile', tier: 2, kind: 'consumer', basePrice: 630, era: 1910, fadeYear: null, color: '#b22234', plural: 'Automobiles' },
+  radios: { id: 'radios', name: 'Radio', tier: 2, kind: 'consumer', basePrice: 195, era: 1925, fadeYear: 1965, color: '#8e5b3a', plural: 'Radios' },
+  tvs: { id: 'tvs', name: 'Television', tier: 2, kind: 'consumer', basePrice: 390, era: 1950, fadeYear: null, color: '#3d3d56', plural: 'Televisions' },
+  computers: { id: 'computers', name: 'Computer', tier: 2, kind: 'consumer', basePrice: 900, era: 1980, fadeYear: null, color: '#1abc9c', plural: 'Computers' },
   shoes: { id: 'shoes', name: 'Shoes', tier: 2, kind: 'consumer', basePrice: 52, era: 1900, fadeYear: null, color: '#4a2c1a' },
   candy: { id: 'candy', name: 'Candy', tier: 2, kind: 'consumer', basePrice: 16, era: 1900, fadeYear: null, color: '#ff7eb6' },
   books: { id: 'books', name: 'Books', tier: 2, kind: 'consumer', basePrice: 36, era: 1900, fadeYear: null, color: '#7d2e46' },
   canned_food: { id: 'canned_food', name: 'Canned Food', tier: 2, kind: 'consumer', basePrice: 18, era: 1900, fadeYear: null, color: '#b0413e' },
+  phonographs: { id: 'phonographs', name: 'Phonograph', tier: 2, kind: 'consumer', basePrice: 120, era: 1905, fadeYear: 1955, color: '#a67c00', plural: 'Phonographs' },
+  bicycles: { id: 'bicycles', name: 'Bicycle', tier: 2, kind: 'consumer', basePrice: 120, era: 1910, fadeYear: null, color: '#2f8f83', plural: 'Bicycles' },
+  motorcycles: { id: 'motorcycles', name: 'Motorcycle', tier: 2, kind: 'consumer', basePrice: 480, era: 1915, fadeYear: null, color: '#6d1a1a', plural: 'Motorcycles' },
 };
 
 /**
@@ -93,6 +111,9 @@ export const DEMAND_PER_1000: Record<GoodId, number> = {
   candy: 30,
   books: 10,
   canned_food: 40,
+  phonographs: 3,
+  bicycles: 4,
+  motorcycles: 1.5,
 };
 
 /** A good's demand multiplier per social class (Phase 3 Task 7, sim/society/classes.ts). */
@@ -128,6 +149,9 @@ export const CLASS_DEMAND: Record<GoodId, ClassDemand> = {
   candy: PLAIN,
   books: MIDDLE,
   canned_food: STAPLE,
+  phonographs: MIDDLE,
+  bicycles: STAPLE,
+  motorcycles: PLAIN,
 };
 
 export function getGood(id: GoodId): GoodDef {
