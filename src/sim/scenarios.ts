@@ -141,6 +141,17 @@ export function recordSale(state: GameState, e: { ownerId: string; cityId: numbe
 }
 
 /**
+ * A Trading House sale (sim/trade.ts): bumps the player's `sold:<good>` flag only. It has no town, so
+ * it writes no `seller:` flag.
+ */
+export function recordNationalSale(state: GameState, e: { ownerId: string; goodId: GoodId; qty: number }): void {
+  if (e.qty <= 0 || e.ownerId !== 'player') return;
+  state.flags ??= {};
+  const k = `sold:${e.goodId}`;
+  state.flags[k] = flagNum(state, k) + e.qty;
+}
+
+/**
  * A seller flag's value: the one owner who sold, `'both'` when exactly the player and the Baron sold
  * (the two-company value older code and saves know), else every seller's id, sorted and comma-joined.
  */

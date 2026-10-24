@@ -7,6 +7,7 @@ import { GRUDGE_LABELS, GRUDGE_WEIGHTS } from '../data/nemesis';
 import { unpackState } from '../game/saves';
 import { buyShares } from './exchange/trading';
 import { checkInvariants } from './invariants';
+import { SAVE_VERSION } from './version';
 import { GRUDGE_FORGET, grudgesYear, nemesisMonth } from './nemesis/grudges';
 import { cardText, forceCard, resolveCard } from './politics/cards';
 import { nationalOpinion } from './politics/factions';
@@ -133,7 +134,7 @@ describe('a v6 save dated 1960 (past the succession window)', () => {
     const r = unpackState(JSON.stringify(raw));
     if (!r.ok) throw new Error(r.error);
     const s = r.value;
-    expect(s.version).toBe(8);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.date.year).toBe(1960);
     expect(checkInvariants(s)).toEqual([]);
     const ctx = testCtx(s);

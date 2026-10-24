@@ -10,6 +10,8 @@ import { publishNews } from './news';
 import { random } from './rng';
 import { nextId } from './state';
 import { atPrices } from './society/economy';
+import { buildingList } from './spatial';
+import { RECIPES } from '../data/recipes';
 // a pure, DOM-free leaf: inflated rewards read "$1.2M" like every other figure in the game
 import { formatMoney } from '../core/money';
 import type { Contract, GameState, GoodId, OwnerId, SimContext } from './types';
@@ -19,9 +21,28 @@ export const MAX_OFFERED = 3;
 export const MAX_FINISHED = 30;
 export const OFFER_EXPIRY_DAYS = 60;
 export const CONTRACT_DAYS = 120;
+/** The building that sells components to the nation (sim/trade.ts). */
+const TRADING_HOUSE = 'trading_house';
 
 /** Phrases per good for the mayor's plea headline. */
-const PLEAS: Record<string, string> = { bread: 'bread' };
+const PLEAS: Record<string, string> = {
+  bread: 'bread',
+  wire: 'telegraph wire',
+  tyres: 'tyres for the fire engines',
+  engines: 'engines for the new tramway',
+  electric_motors: 'motors for the waterworks',
+  vacuum_tubes: 'valves for the telephone exchange',
+  microchips: 'microchips for the traffic lights',
+  displays: 'displays for the station boards',
+};
+
+/** Chance an odd month's offer is a component contract, when both kinds are possible. */
+export const COMPONENT_CONTRACT_CHANCE = 0.3;
+
+/** A component contract: delivered by the player's Trading House sales of the good, anywhere (P7). */
+export function isComponentContract(c: Pick<Contract, 'goodId'>): boolean {
+  return GOODS[c.goodId]?.kind === 'component';
+}
 
 export interface SaleLike {
   cityId: number;
@@ -38,32 +59,71 @@ export function onSale(state: GameState, sale: SaleLike): void {
   }
 }
 
+/**
+ * Counts a player Trading House sale (sim/trade.ts) toward every active component contract for that
+ * good, whatever the contract's town: component contracts are national.
+ */
+export function onTradeSale(state: GameState, sale: { ownerId: OwnerId; goodId: GoodId; qty: number }): void {
+  if (sale.ownerId !== 'player' || GOODS[sale.goodId]?.kind !== 'component') return;
+  for (const c of state.contracts) {
+    if (c.status === 'active' && c.goodId === sale.goodId) c.delivered += sale.qty;
+  }
+}
+
+/** Units of `g` a day from its first unlocked producer recipe, in RECIPES order (0 when none). */
+function firstOutputPerDay(state: GameState, g: GoodId): number {
+  for (const r of Object.values(RECIPES)) {
+    const out = r.outputs[g];
+    if (out !== undefined && state.unlocked.includes(r.id)) return out / r.days;
+  }
+  return 0;
+}
+
 function offeredCount(state: GameState): number {
   return state.contracts.filter((c) => c.status === 'offered').length;
 }
 
-/** Offers one new contract (when fewer than 3 are on the board): a low-satisfaction consumer good someone can make, in some city. */
+/**
+ * Offers one new contract (when fewer than 3 are on the board): a low-satisfaction consumer good someone
+ * can make, in some city, or, while the player owns a Trading House, a component it can make (P7).
+ */
 export function offerContracts(ctx: SimContext): Contract | null {
   const { state } = ctx;
   if (offeredCount(state) >= MAX_OFFERED) return null;
   const open = new Set(
     state.contracts.filter((c) => c.status === 'offered' || c.status === 'active').map((c) => `${c.cityId}:${c.goodId}`),
   );
-  const options: { cityId: number; goodId: GoodId; monthly: number }[] = [];
+  type Option = { cityId: number; goodId: GoodId; qty: number };
+  const consumers: Option[] = [];
   // consumer goods on sale this year that some unlocked works can make (catalogue order)
   const goods = Object.values(GOODS).filter((g) => g.kind === 'consumer' && state.unlocked.includes(g.id) && canMake(state, g.id));
   for (const city of state.cities) {
     for (const g of goods) {
       if (open.has(`${city.id}:${g.id}`)) continue;
       const monthly = monthlyDemand(city, g.id, state.date.year);
-      if (monthly > 0 && satisfaction(city, g.id) < 0.6) options.push({ cityId: city.id, goodId: g.id, monthly });
+      if (monthly > 0 && satisfaction(city, g.id) < 0.6) consumers.push({ cityId: city.id, goodId: g.id, qty: Math.max(1, Math.round(monthly * 1.5)) });
     }
   }
+  // components the player can make, only while it has a Trading House to sell them through
+  const components: Option[] = [];
+  if (buildingList(state).some((b) => b.ownerId === 'player' && b.typeId === TRADING_HOUSE)) {
+    const parts = Object.values(GOODS).filter((g) => g.kind === 'component' && state.unlocked.includes(g.id) && canMake(state, g.id));
+    for (const city of state.cities) {
+      for (const g of parts) {
+        if (open.has(`${city.id}:${g.id}`)) continue;
+        const monthly = 30 * firstOutputPerDay(state, g.id);
+        components.push({ cityId: city.id, goodId: g.id, qty: Math.max(10, Math.round(1.5 * monthly)) });
+      }
+    }
+  }
+  // no draw for the kind unless both are possible
+  const options = components.length > 0 && (consumers.length === 0 || random(state) < COMPONENT_CONTRACT_CHANCE) ? components : consumers;
   if (options.length === 0) return null;
   const o = options[Math.min(options.length - 1, Math.floor(random(state) * options.length))];
   const good = GOODS[o.goodId];
   const city = state.cities[o.cityId];
-  const qty = Math.max(1, Math.round(o.monthly * 1.5));
+  const qty = o.qty;
+  const component = isComponentContract(o);
   const contract: Contract = {
     id: nextId(state),
     cityId: o.cityId,
@@ -80,7 +140,7 @@ export function offerContracts(ctx: SimContext): Contract | null {
     ctx,
     'contract',
     `Mayor of ${city.name} pleads for ${what}!`,
-    `${city.name} is short of ${what}. The mayor offers ${formatMoney(contract.reward)} for ${qty} delivered within four months.`,
+    `${city.name} is short of ${what}. The mayor offers ${formatMoney(contract.reward)} for ${qty} ${component ? 'sold through any Trading House' : 'delivered'} within four months.`,
   );
   ctx.bus.emit({ type: 'contract', contractId: contract.id, status: 'offered' });
   return contract;
@@ -133,7 +193,7 @@ export function contractsDay(ctx: SimContext): void {
 
 export const contractsSystem = {
   id: 'contracts',
-  // deliveries are counted by retailDay calling onSale directly, so no bus listener is needed
+  // deliveries are counted by retailDay calling onSale (and tradeDay onTradeSale) directly, so no bus listener is needed
   onDay(ctx: SimContext): void {
     contractsDay(ctx);
   },

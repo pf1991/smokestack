@@ -2,7 +2,7 @@ import type { GameController } from '../../game/controller';
 import './panels.css';
 import { GOODS } from '../../data/goods';
 import { addDays, dateToDays, formatDate } from '../../sim/clock';
-import { acceptContract } from '../../sim/contracts';
+import { acceptContract, isComponentContract } from '../../sim/contracts';
 import type { Contract, GameState } from '../../sim/types';
 import { h } from '../dom';
 import { iconEl } from '../icon';
@@ -32,13 +32,18 @@ function line(label: string, value: string | HTMLElement, cls = ''): HTMLElement
 function contractCard(game: GameController, c: Contract, rerender: () => void): HTMLElement {
   const state = game.state;
   const body: HTMLElement[] = [line('For', townName(state, c)), line('Reward', h('span', { class: 'cb-reward' }, `${formatMoney(c.reward)} + 5% growth`))];
+  // a component contract is national: any Trading House sale of the good counts (sim/contracts.ts onTradeSale)
+  const component = isComponentContract(c);
+  if (component) body.push(h('div', { class: 'cb-line cb-trade' }, iconEl('money', 14), h('span', null, 'Sell through a Trading House')));
   const actions: HTMLElement[] = [];
   let tone: Tone = 'neutral';
   if (c.status === 'offered') {
     body.push(line('Due', formatDate(c.deadline)));
     const accept = button('Accept', {
       variant: 'secondary',
-      title: `Deliver ${formatNumber(c.qty)} ${goodName(c)} to ${townName(state, c)} by ${formatDate(c.deadline)}`,
+      title: component
+        ? `Sell ${formatNumber(c.qty)} ${goodName(c)} through any Trading House by ${formatDate(c.deadline)}`
+        : `Deliver ${formatNumber(c.qty)} ${goodName(c)} to ${townName(state, c)} by ${formatDate(c.deadline)}`,
       onClick: () => {
         const r = acceptContract(game.ctx, c.id);
         if (!r.ok) game.ctx.bus.emit({ type: 'toast', message: r.error, tone: 'bad' });
@@ -52,7 +57,7 @@ function contractCard(game: GameController, c: Contract, rerender: () => void): 
   } else {
     const d = daysLeft(state, c);
     tone = d < 0 ? 'negative' : d <= 30 ? 'warning' : 'neutral';
-    const label = `${formatNumber(c.delivered)} of ${formatNumber(c.qty)} delivered`;
+    const label = `${formatNumber(c.delivered)} of ${formatNumber(c.qty)} ${component ? 'sold' : 'delivered'}`;
     body.push(h('div', { class: 'cb-progress' }, meter(c.delivered, Math.max(1, c.qty), { label, tone: d < 0 ? 'negative' : 'positive' }), h('span', { class: 'cb-progress-text' }, label)));
     body.push(line('Time', d >= 0 ? `${d} ${d === 1 ? 'day' : 'days'} left` : 'Overdue', d < 0 ? 'cb-overdue' : ''));
   }

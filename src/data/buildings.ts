@@ -1,6 +1,7 @@
 import type { BuildingTypeId, Terrain } from '../sim/types';
 
-export type BuildingCategory = 'extractor' | 'factory' | 'retail' | 'logistics';
+/** `trade` is the Trading House (sim/trade.ts): it sells materials and components to the nation. */
+export type BuildingCategory = 'extractor' | 'factory' | 'retail' | 'trade' | 'logistics';
 
 export interface BuildingDef {
   id: BuildingTypeId;
@@ -201,6 +202,12 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
     id: 'store', name: 'Store', category: 'retail', workers: 12, size: { w: 2, h: 2 }, cost: 15000, maintenance: 200,
     allowedTerrain: ['grass', 'sand'], requiresDeposit: false, requiresCity: true, recipes: [], storage: 300, era: 1900, pollution: 0,
     color: '#e3b04b', description: 'A bright shopfront where the city comes to buy.',
+  },
+  // R4: sells materials and components at the national price (sim/trade.ts); stands outside towns
+  trading_house: {
+    id: 'trading_house', name: 'Trading House', category: 'trade', workers: 12, size: { w: 3, h: 2 }, cost: 35000, maintenance: 400,
+    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, requiresCity: false, recipes: [], storage: 600, era: 1900, pollution: 0,
+    color: '#7d6b4f', description: 'Brokers on the telephone sell your materials and parts to the whole nation.',
   },
   warehouse: {
     id: 'warehouse', name: 'Warehouse', category: 'logistics', workers: 6, size: { w: 3, h: 3 }, cost: 20000, maintenance: 150,

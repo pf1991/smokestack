@@ -4,6 +4,7 @@ import { transferOwnership } from '../companies';
 import { checkInvariants } from '../invariants';
 import { buildRoad, demolishBuilding, lPath, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
+import { acceptsGood, storageLeft } from '../inventory';
 import type { Building, GameState, SimContext, Vehicle } from '../types';
 import { assignVehicle, createRoute, replaceVehicle, vehiclesTick } from '../vehicles';
 import { renewOldAssets } from '../rival/projects';
@@ -165,6 +166,29 @@ describe('hub dispatch', () => {
     factory.input.lumber = 2;
     const stalled = hubCandidates(s, hub, 12, p).find((c) => c.to === factory.id)!;
     expect(stalled.score / fa.score).toBeCloseTo(STALL_PRIORITY * (stalled.left / fa.left));
+  });
+
+  it('never delivers to a Trading House in range, though it would take the goods (P6)', () => {
+    const { s, ctx, hub } = setup();
+    const house = place(ctx, 'trading_house', 34, 10);
+    const tools = place(ctx, 'toolworks', 26);
+    must(buyHubTruck(ctx, 'player', hub.id));
+    must(buyHubTruck(ctx, 'player', hub.id));
+    manage(ctx, hub, 5);
+    hub.input.steel = 60;
+    hub.input.lumber = 60;
+    hub.input.wire = 60;
+    expect(acceptsGood(house, 'steel') && acceptsGood(house, 'wire')).toBe(true);
+    expect(storageLeft(house, 'steel')).toBeGreaterThan(0);
+    expect(footprintGap(hub, house)).toBeLessThanOrEqual(12);
+    const p = { pickups: new Map(), hubOut: new Map(), inbound: new Map(), hubIn: new Map() };
+    const cands = hubCandidates(s, hub, 12, p, SKILL_TIERS[5]);
+    expect(cands.some((c) => c.to === house.id || c.building === house.id)).toBe(false);
+    // the same steel does go to a works that uses it
+    expect(cands.some((c) => c.kind === 'deliver' && c.to === tools.id && c.good === 'steel')).toBe(true);
+    dispatchNow(ctx, hub);
+    expect(jobs(s).length).toBeGreaterThan(0);
+    expect(jobs(s).some((j) => j.to === house.id || j.from === house.id)).toBe(false);
   });
 
   it('never collects a good a route loads there (D2), nor delivers one a route unloads there', () => {

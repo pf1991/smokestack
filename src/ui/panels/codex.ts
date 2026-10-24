@@ -208,7 +208,7 @@ class CodexPanel {
     );
     const usedIn = uses.length > 0
       ? h('div', { class: 'cx-used' }, uses.map((u) => this.link(u)))
-      : h('span', { class: 'cx-muted' }, g.kind === 'consumer' ? 'Sold to towns' : 'Nothing yet');
+      : h('span', { class: 'cx-muted' }, g.kind === 'consumer' ? 'Sold to towns' : g.kind === 'raw' ? 'Nothing yet' : 'Sold to the Trading House');
     const el = card({
       children: [
         head,

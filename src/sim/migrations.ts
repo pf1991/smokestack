@@ -16,6 +16,7 @@ import { defaultExchange } from './exchange/types';
 import { delist, listCompany } from './exchange/shares';
 import { newLogistics } from './logistics/types';
 import { refreshMarket } from './logistics/managers';
+import { newTrade } from './tradeState';
 import { companyIds } from './companies';
 import type { City, GameState } from './types';
 import { MIN_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -179,6 +180,14 @@ export const MIGRATIONS: Migration[] = [
       const y = typeof year === 'number' ? year : 1900;
       o.logistics = newLogistics(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0, y);
       refreshMarket(o as unknown as GameState, y); // the market stocks once at load
+    },
+  },
+  {
+    // v9: R4 the national market a Trading House sells into; no drift yet, nothing sold. New goods
+    // and works unlock through the first checkUnlocks (eras.ts), which heals `unlocked` for the year
+    from: 8,
+    migrate(o) {
+      o.trade = newTrade(typeof o.seed === 'number' && Number.isFinite(o.seed) ? o.seed : 0);
     },
   },
 ];

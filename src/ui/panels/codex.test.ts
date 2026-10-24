@@ -142,6 +142,12 @@ describe('codex panel', () => {
     expect(q('.cx-list tr[data-key="tools"]')!.getAttribute('aria-selected')).toBe('true');
   });
 
+  it('bricks, used in no recipe, are sold to the Trading House (C11)', () => {
+    const { game } = setup();
+    PANELS.codex.open(game, 'bricks');
+    expect(q('.cx-line--used')!.textContent).toBe('Used in: Sold to the Trading House');
+  });
+
   it('a second open with a good re-selects in the open window', () => {
     const { game } = setup();
     PANELS.codex.open(game, 'tools');

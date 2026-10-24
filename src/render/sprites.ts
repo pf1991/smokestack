@@ -240,7 +240,7 @@ type WinRect = { x: number; y: number; w: number; h: number };
 function flatWindowRects(typeId: string): WinRect[] {
   const def = BUILDINGS[typeId];
   if (!def) return [];
-  if (['farm', 'sand_pit', 'oil_well', 'lumber_camp', 'warehouse'].includes(typeId)) return [];
+  if (['farm', 'sand_pit', 'oil_well', 'lumber_camp', 'warehouse', 'trading_house'].includes(typeId)) return [];
   if (typeId === 'dairy_farm') {
     return [10, 16, 38, 44].map(x => ({ x, y: HR0 + 17, w: 4, h: 3 }));
   }
@@ -259,6 +259,11 @@ function facadeWindowRects(typeId: string): WinRect[] {
   if (!def || !isBox(def)) return [];
   const { top, lift } = facadeGap(def);
   const out: WinRect[] = [];
+  // the Trading House lights the bays of its colonnade (the middle bay is the doorway)
+  if (typeId === 'trading_house') {
+    for (const x of TH_COLUMNS) if (x !== 37 && x !== 85) out.push({ x: x + 5, y: top + 4, w: 2, h: Math.max(1, lift - 6) });
+    return out;
+  }
   if (typeId === 'store') {
     const { W } = dims(def);
     for (let y = top + 3; y + 3 <= top + lift - 2; y += 6) {
@@ -1026,6 +1031,133 @@ function paintStation(g: Ctx, _def: BuildingDef, W: number, H: number, owner: Ow
   pennant(g, W, owner);
 }
 
+// ---------------------------------------------------------------- the Trading House (R4)
+
+const TH_STONE = '#ddd3bc';
+const TH_STONE_LIT = '#f1ead8';
+const TH_STONE_DARK = '#a99d82';
+const TH_RECESS = '#3d362d';
+const TH_BRASS = '#c99a32';
+const TH_BRASS_LIT = '#f0d27a';
+const TH_BRASS_DARK = '#7d5d1c';
+/** Left edges of the portico's columns (4 px each, flat and facade alike); the middle bay holds the doors. */
+const TH_COLUMNS = [5, 13, 21, 29, 37, 53, 61, 69, 77, 85];
+
+/** A column of the portico, x..x+4, from y down `hgt` px: lit west side, shaded east side. */
+function thColumn(g: Ctx, x: number, y: number, hgt: number): void {
+  rect(g, x, y, 4, hgt, TH_STONE);
+  rect(g, x, y, 1, hgt, TH_STONE_LIT);
+  rect(g, x + 3, y, 1, hgt, TH_STONE_DARK);
+}
+
+/** A brass dome on a stone drum, seen from above and a little south. */
+function thDome(g: Ctx, cx: number, cy: number, r: number): void {
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.beginPath();
+  g.ellipse(cx + 3, cy + 3, r + 3, r + 2, 0, 0, Math.PI * 2);
+  g.fill();
+  circle(g, cx, cy, r + 3, TH_STONE_DARK); // drum
+  circle(g, cx, cy - 1, r + 2, TH_STONE);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    rect(g, Math.round(cx + Math.cos(a) * (r + 1.5)) - 0.5, Math.round(cy - 1 + Math.sin(a) * (r + 1.5)) - 0.5, 1, 1, TH_STONE_DARK);
+  }
+  const grd = g.createRadialGradient(cx - r * 0.4, cy - r * 0.55, 1, cx, cy, r);
+  grd.addColorStop(0, TH_BRASS_LIT);
+  grd.addColorStop(0.55, TH_BRASS);
+  grd.addColorStop(1, TH_BRASS_DARK);
+  g.fillStyle = grd;
+  g.beginPath();
+  g.arc(cx, cy - 1, r, 0, Math.PI * 2);
+  g.fill();
+  // ribs, then the lantern on top
+  g.strokeStyle = 'rgba(90,62,16,0.55)';
+  g.lineWidth = 0.75;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(cx, cy - 2);
+    g.lineTo(cx + Math.cos(a) * r, cy - 1 + Math.sin(a) * r);
+    g.stroke();
+  }
+  circle(g, cx, cy - 2, 3, TH_STONE_LIT);
+  circle(g, cx, cy - 2, 1.6, TH_BRASS_LIT);
+}
+
+/**
+ * The Trading House: a pale stone exchange under a brass dome, a colonnaded portico with a
+ * pediment and a brass clock, skylit trading-floor roofs either side and brass doors on the steps.
+ */
+function paintTradingHouse(g: Ctx, _def: BuildingDef, W: number, H: number, owner: OwnerId): void {
+  const b = building(g, W, H, TH_STONE, TH_STONE);
+  const seam = b.y + b.roofH;
+  const cx = Math.round(b.x + b.w / 2);
+  // lead roof inside a stone parapet, with standing seams
+  rect(g, b.x + 3, b.y + 3, b.w - 6, b.roofH - 10, '#66727b');
+  for (let x = b.x + 5; x < b.x + b.w - 4; x += 4) rect(g, x, b.y + 3, 1, b.roofH - 10, 'rgba(0,0,0,0.16)');
+  rect(g, b.x + 3, b.y + 3, b.w - 6, 1, 'rgba(0,0,0,0.35)');
+  rect(g, b.x + 3, b.y + 3, 1, b.roofH - 10, 'rgba(0,0,0,0.25)');
+  rect(g, b.x, b.y, b.w, 1, TH_STONE_LIT);
+  // skylights over the two trading floors
+  for (const sx of [b.x + 8, b.x + b.w - 26]) {
+    rect(g, sx, b.y + 9, 18, 22, '#2f4552');
+    for (let y = b.y + 10; y < b.y + 30; y += 3) rect(g, sx + 1, y, 16, 2, '#9cc6d4');
+    rect(g, sx + 1, b.y + 10, 16, 1, '#d8eef4');
+    rect(g, sx + 8, b.y + 9, 1, 22, '#2f4552');
+  }
+  // corner pavilions with brass urns
+  for (const px of [b.x, b.x + b.w - 11]) {
+    rect(g, px, b.y, 11, 11, TH_STONE_LIT);
+    rect(g, px, b.y + 10, 11, 1, TH_STONE_DARK);
+    rect(g, px + 10, b.y, 1, 11, TH_STONE_DARK);
+    circle(g, px + 5.5, b.y + 5.5, 2, TH_BRASS);
+    circle(g, px + 5, b.y + 5, 0.9, TH_BRASS_LIT);
+  }
+  thDome(g, cx, b.y + 22, 11);
+  // the entablature along the front: a cornice with dentils
+  rect(g, b.x, seam - 7, b.w, 7, TH_STONE);
+  rect(g, b.x, seam - 7, b.w, 1, TH_STONE_LIT);
+  for (let x = b.x + 2; x < b.x + b.w - 2; x += 3) rect(g, x, seam - 3, 2, 2, TH_STONE_DARK);
+  rect(g, b.x, seam - 1, b.w, 1, 'rgba(0,0,0,0.3)');
+  // pediment over the middle of the portico, a brass clock in its tympanum
+  poly(g, [[cx - 24, seam - 1], [cx, seam - 15], [cx + 24, seam - 1]], TH_STONE_DARK);
+  poly(g, [[cx - 22, seam - 2], [cx, seam - 14], [cx + 22, seam - 2]], TH_STONE_LIT);
+  poly(g, [[cx - 17, seam - 3], [cx, seam - 11], [cx + 17, seam - 3]], '#cfc4aa');
+  circle(g, cx, seam - 6, 3, TH_BRASS_DARK);
+  circle(g, cx, seam - 6, 2.4, '#f6efd9');
+  rect(g, cx, seam - 8, 0.8, 2, '#2a2620');
+  rect(g, cx, seam - 6, 1.6, 0.8, '#2a2620');
+  // ground floor: the portico's column feet, brass doors in the middle bay, then the steps
+  rect(g, b.x, seam, b.w, WALL, TH_RECESS);
+  for (const x of TH_COLUMNS) thColumn(g, x, seam, WALL - 2);
+  rect(g, b.x, seam, 4, WALL, TH_STONE_DARK);
+  rect(g, b.x + b.w - 3, seam, 3, WALL, TH_STONE_DARK);
+  rect(g, cx - 4, seam, 8, WALL - 2, '#5a3a1e');
+  rect(g, cx - 4, seam, 8, 1, TH_BRASS);
+  rect(g, cx - 0.5, seam + 1, 1, WALL - 3, TH_BRASS_DARK);
+  rect(g, cx - 2, seam + 2, 1, 1, TH_BRASS_LIT);
+  rect(g, cx + 1, seam + 2, 1, 1, TH_BRASS_LIT);
+  rect(g, b.x + 2, seam + WALL - 2, b.w - 4, 1, TH_STONE_LIT); // steps
+  rect(g, b.x + 1, seam + WALL - 1, b.w - 2, 1, TH_STONE_DARK);
+  pennant(g, W, owner);
+}
+
+/** The Trading House's grown facade: the upper colonnade, a brass frieze under the cornice. */
+function paintTradingFacade(g: Ctx, W: number, top: number, lift: number): void {
+  const bx = 1, bw = W - SHADOW - 1;
+  rect(g, bx, top, bw, lift, TH_RECESS);
+  for (const x of TH_COLUMNS) {
+    thColumn(g, x, top + 2, lift - 2);
+    rect(g, x - 1, top + 2, 6, 1, TH_STONE_LIT); // capital
+  }
+  rect(g, bx, top, 4, lift, TH_STONE_DARK);
+  rect(g, bx + bw - 3, top, 3, lift, TH_STONE_DARK);
+  rect(g, bx, top, bw, 2, TH_BRASS); // frieze
+  rect(g, bx, top, bw, 1, TH_BRASS_DARK);
+  rect(g, bx + bw - 1, top, 1, lift, 'rgba(0,0,0,0.45)');
+  rect(g, bx, top, 1, lift, 'rgba(0,0,0,0.45)');
+}
+
 /** Company housing: a brick terrace of three homes under a pitched slate roof, chimneys on the party walls. */
 function paintHousing(g: Ctx, _def: BuildingDef, W: number, H: number, owner: OwnerId): void {
   const brick = '#a9553e';
@@ -1086,6 +1218,7 @@ export function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant:
     case 'warehouse': paintWarehouse(g, def, W, H, owner); return;
     case 'train_station': paintStation(g, def, W, H, owner); return;
     case 'company_housing': paintHousing(g, def, W, H, owner); return;
+    case 'trading_house': paintTradingHouse(g, def, W, H, owner); return;
     default:
       if (def.category === 'factory') { paintFactory(g, def, W, H, owner); return; }
       paintWarehouse(g, def, W, H, owner); return;
@@ -1107,6 +1240,10 @@ function facadeWall(def: BuildingDef): string {
 /** Fills a box building's grown facade: wall, texture, cornice under the eave, pilasters, upper windows. */
 function paintFacade(g: Ctx, def: BuildingDef, W: number, top: number, lift: number): void {
   if (lift <= 0) return;
+  if (def.id === 'trading_house') {
+    paintTradingFacade(g, W, top, lift);
+    return;
+  }
   const bx = 1, bw = W - SHADOW - 1;
   const wall = facadeWall(def);
   const brick = def.category === 'factory' || def.id === 'company_housing';

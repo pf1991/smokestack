@@ -26,10 +26,11 @@ import { accessTiles, demolishBuilding, demolitionRefund, footprint } from '../.
 import { assetAge, assetEfficiency, assetUpkeep, renewBuilding, renewCost, renewRefusal } from '../../sim/society/aging';
 import type { GameController } from '../../game/controller';
 import { offeredGoods } from '../../sim/routeHelpers';
+import { TRADE_FACTOR, TRADE_GOODS, tradePrice } from '../../sim/trade';
 import { housingFactory, workCity } from '../../sim/politics/workforce';
 import type { Building, GameState, Route } from '../../sim/types';
 import { h } from '../dom';
-import { meter, panelHeader, type Tone } from '../kit';
+import { card, dataTable, emptyState, meter, panelHeader, pill, type Tone } from '../kit';
 import { goodIcon, goodTip } from '../goodTooltip';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
@@ -136,6 +137,9 @@ export function ageLine(state: GameState, b: Building): string {
 
 export { storeStocked };
 
+const TRADE_SELLING = 'Selling to the national market';
+const TRADE_EMPTY = 'Nothing to sell: route materials or components here';
+
 /** Plain-language explanation of what the building is doing (exported for tests). */
 export function statusReason(state: GameState, b: Building, routes: Route[]): string {
   const def = BUILDINGS[b.typeId];
@@ -146,6 +150,7 @@ export function statusReason(state: GameState, b: Building, routes: Route[]): st
   const problem = extractorProblem(state, b);
   if (problem) return problem;
   if (def.category === 'retail') return storeStocked(b) ? 'Open for business' : 'Shelves empty — route goods here';
+  if (def.category === 'trade') return storeStocked(b) ? TRADE_SELLING : TRADE_EMPTY;
   switch (b.status) {
     case 'no_input': {
       const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
@@ -184,6 +189,7 @@ export function statusAdvice(state: GameState, b: Building): { text: string; ton
         ? { text: 'Open for business', tone: 'positive' }
         : { text: 'Shelves empty: route goods here', tone: 'warning' };
     }
+    if (def?.category === 'trade') return storeStocked(b) ? { text: TRADE_SELLING, tone: 'positive' } : { text: TRADE_EMPTY, tone: 'warning' };
     return { text: 'Handling cargo', tone: 'neutral' };
   }
   switch (b.status) {
@@ -251,6 +257,51 @@ function makeFlowRow(goodId: string): FlowRow {
   return { el, qty, meter: m, dispose: goodTip(el, goodId) };
 }
 
+/** One row of a Trading House's national prices: a good it holds, its stock and today's price. */
+interface PriceRow {
+  goodId: string;
+  stock: number;
+  price: number;
+  /** today's price over base × TRADE_FACTOR at today's prices, minus 1 */
+  rel: number;
+  factor: number;
+}
+
+/** The goods a Trading House holds, each with today's national price (exported for tests). */
+export function tradeRows(state: GameState, b: Building): PriceRow[] {
+  const idx = priceIndex(state);
+  return TRADE_GOODS.filter((g) => (b.input[g] ?? 0) > 0.5).map((g) => {
+    const price = tradePrice(state, g);
+    return { goodId: g, stock: b.input[g], price, rel: price / (getGood(g).basePrice * TRADE_FACTOR * idx) - 1, factor: state.trade.factor[g] ?? 1 };
+  });
+}
+
+/** The trend pill: ▲ when the drift factor is above 1.05, ▼ below 0.95; a sagging (saturated) price warns. */
+function trendPill(r: PriceRow): HTMLElement {
+  const pct = Math.round(r.rel * 100);
+  const sign = pct > 0 ? '+' : pct < 0 ? '−' : '';
+  const arrow = r.factor > 1.05 ? '▲ ' : r.factor < 0.95 ? '▼ ' : '';
+  const tone: Tone = r.factor > 1.05 ? 'positive' : r.factor < 0.95 ? 'negative' : pct <= -10 ? 'warning' : 'neutral';
+  const el = pill(`${arrow}${sign}${Math.abs(pct)}%`, tone);
+  el.title = pct <= -10 ? 'Against the usual national price: the market is glutted with it' : 'Against the usual national price';
+  return el;
+}
+
+function priceTable(rows: PriceRow[]): HTMLElement {
+  if (rows.length === 0) return emptyState({ icon: 'money', title: 'Route materials or components here to sell them' });
+  return dataTable<PriceRow>({
+    rowKey: (r) => r.goodId,
+    emptyText: 'Route materials or components here to sell them',
+    rows,
+    columns: [
+      { key: 'good', label: 'Good', render: (r) => h('span', { class: 'insp-good-name' }, iconEl(r.goodId, 16), h('span', { class: 'insp-good-label' }, getGood(r.goodId).name)) },
+      { key: 'stock', label: 'Stock', align: 'right', render: (r) => formatNumber(Math.floor(r.stock)) },
+      { key: 'price', label: 'Price', align: 'right', title: () => 'Paid per unit today', render: (r) => formatMoney(r.price) },
+      { key: 'trend', label: 'vs usual', align: 'right', render: trendPill },
+    ],
+  });
+}
+
 const btnClass = (variant: 'primary' | 'secondary' | 'quiet' | 'danger', extra: string) => `btn kit-btn kit-btn--${variant} ${extra}`;
 
 function buildView(host: InspectorHost, id: number): InspectorView {
@@ -292,6 +343,11 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const produced = h('div', { class: 'insp-muted insp-produced' });
   const production = inspCard('Production', 'insp-production', [recipeBox, flow, emptyStock, produced]);
   const productionTitle = production.querySelector<HTMLElement>('.kit-card-title')!;
+  // a Trading House's national prices for the goods it holds (sim/trade.ts)
+  const pricesBox = h('div', { class: 'insp-trade-prices' });
+  const prices = card({ title: 'National prices', children: [pricesBox] });
+  prices.classList.add('insp-trade');
+  prices.querySelector<HTMLElement>('.kit-card-title')!.classList.add('p-head');
   const routeBox = h('div', { class: 'insp-routes' });
   const send = h('button', {
     class: btnClass('secondary', 'insp-send'),
@@ -377,6 +433,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     noRoad,
     noRail,
     production,
+    prices,
     routesSection,
     level.el,
     upgradesSection,
@@ -408,7 +465,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       const routes = routesServing(state, id);
       setText(reason, statusReason(state, b, routes));
       // staffing scales production only; stores and depots still draw on the pool but show no row
-      staff.hidden = staffRow.hidden = def.category === 'retail' || def.category === 'logistics';
+      staff.hidden = staffRow.hidden = def.category === 'retail' || def.category === 'trade' || def.category === 'logistics';
       if (!staff.hidden) {
         const text = staffingText(state, b);
         setText(staff, text);
@@ -437,7 +494,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
 
       // the production card: stores and depots show their shelves instead of a recipe
       const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
-      const shared = def.category === 'retail' || def.category === 'logistics';
+      const shared = def.category === 'retail' || def.category === 'trade' || def.category === 'logistics';
       setText(productionTitle, shared ? 'Stock' : 'Production');
       const keys = (want: string[], inv: Record<string, number>) => [
         ...want,
@@ -467,6 +524,12 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         setMeter(row.meter, Math.round(q), cap, q + batch > cap ? 'warning' : 'positive', `${getGood(g).name}: ${formatNumber(q)} / ${cap}`);
       }
       produced.hidden = shared;
+      prices.hidden = def.category !== 'trade';
+      if (!prices.hidden) {
+        const rows = tradeRows(state, b);
+        const sig = rows.map((r) => `${r.goodId}:${Math.floor(r.stock)}:${r.price}:${Math.round(r.rel * 100)}:${r.factor > 1.05 ? 1 : r.factor < 0.95 ? -1 : 0}`).join('|');
+        swap(pricesBox, sig || '-', () => priceTable(rows));
+      }
       const made = Object.values(b.producedThisMonth).reduce((n, q) => n + (q > 0 ? q : 0), 0);
       setText(produced, `Produced this month: ${formatNumber(made)}`);
 

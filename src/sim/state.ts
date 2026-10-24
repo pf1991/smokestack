@@ -26,6 +26,7 @@ import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
 import { defaultExchange } from './exchange/types';
 import { newLogistics } from './logistics/types';
+import { newTrade } from './tradeState';
 import { releaseBuilding } from './logistics/release';
 import { refreshMarket } from './logistics/managers';
 import { modelSpec } from './logistics/models';
@@ -327,6 +328,7 @@ export function createGame(opts: { seed: number; companyName?: string; scenarioI
     dynasty,
     exchange: defaultExchange(opts.seed),
     logistics: newLogistics(opts.seed, START_DATE.year),
+    trade: newTrade(opts.seed),
   };
   const scenario = SCENARIOS[state.scenarioId];
   if (scenario) {

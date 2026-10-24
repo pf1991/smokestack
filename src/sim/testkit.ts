@@ -20,6 +20,7 @@ import { buyTruck, createRoute } from './vehicles';
 import { newNemesis } from './nemesis/types';
 import { newDynasty } from './dynasty/types';
 import { newLogistics } from './logistics/types';
+import { newTrade } from './tradeState';
 import { defaultExchange } from './exchange/types';
 import { listCompany } from './exchange/shares';
 
@@ -120,6 +121,7 @@ export function testState(opts: TestStateOpts = {}): GameState {
     dynasty: newDynasty({ rngState: opts.seed ?? 1 }, 'Test Co.', year),
     exchange: defaultExchange(opts.seed ?? 1),
     logistics: newLogistics(opts.seed ?? 1, year),
+    trade: newTrade(opts.seed ?? 1),
   };
   if (opts.streets) for (const c of state.cities) layCityStreets(state.map, c);
   refreshUrbanTiles(state);

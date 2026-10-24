@@ -249,7 +249,7 @@ describe('saves', () => {
     };
     const corrupted = { ok: false, error: 'Save file is corrupted' };
     const incomplete = { ok: false, error: 'Save file is incomplete' };
-    expect(SAVE_VERSION).toBe(8);
+    expect(SAVE_VERSION).toBe(9);
     expect(deserialize('{')).toEqual(corrupted);
     expect(deserialize('')).toEqual(corrupted);
     expect(deserialize('null')).toEqual(corrupted);

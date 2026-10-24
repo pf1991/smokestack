@@ -168,6 +168,19 @@ export function productionDay(ctx: SimContext): void {
 
 let monthlyScratch: Float64Array | null = null;
 
+/**
+ * Books one sale's takings for the building's owner: the month's sales and its sales by good. Shared
+ * by stores (retailDay) and Trading Houses (trade.ts tradeDay).
+ */
+export function bookSale(state: GameState, b: Building, goodId: GoodId, revenue: number): void {
+  const company = state.companies[b.ownerId];
+  earn(company, 'sales', revenue, state.date);
+  // the Baron's per-store takings feed his insolvency guard (rival/insolvency.ts)
+  if (b.ownerId === BARON_ID) b.salesThisMonth = (b.salesThisMonth ?? 0) + revenue;
+  const sbg = currentLedger(company, state.date).salesByGood;
+  sbg[goodId] = (sbg[goodId] ?? 0) + revenue;
+}
+
 export function retailDay(ctx: SimContext): void {
   const { state, bus } = ctx;
   const dayOffset = dateToDays(state.date);
@@ -194,15 +207,7 @@ export function retailDay(ctx: SimContext): void {
       if (s.qty > 0) soldStores.add(s.buildingId);
       const src = loadSource(state.buildings[s.buildingId]);
       src[s.goodId] = (src[s.goodId] ?? 0) - s.qty;
-      const company = state.companies[s.ownerId];
-      earn(company, 'sales', s.revenue, state.date);
-      // the Baron's per-store takings feed his insolvency guard (rival/insolvency.ts)
-      if (s.ownerId === BARON_ID) {
-        const store = state.buildings[s.buildingId];
-        store.salesThisMonth = (store.salesThisMonth ?? 0) + s.revenue;
-      }
-      const sbg = currentLedger(company, state.date).salesByGood;
-      sbg[s.goodId] = (sbg[s.goodId] ?? 0) + s.revenue;
+      bookSale(state, state.buildings[s.buildingId], s.goodId, s.revenue);
       soldByGood[s.goodId] = (soldByGood[s.goodId] ?? 0) + s.qty;
       recordSale(state, { ownerId: s.ownerId, cityId: city.id, goodId: s.goodId, qty: s.qty });
       notePoliticsSale(state, s.ownerId, city.id, s.revenue);

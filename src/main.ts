@@ -20,6 +20,8 @@ import { moveShares } from './sim/exchange/shares';
 import { CONTROL_SHARES } from './sim/exchange/types';
 import { runDays, stepTick } from './sim/simulation';
 import { accessTiles, canPlaceBuilding, createGame, placeBuilding } from './sim/state';
+import { ensureRoadLink } from './sim/roads';
+import { buyTruck, createRoute } from './sim/vehicles';
 import { buyUpgrade } from './sim/society/upgrades';
 import type { SmogTier, Speed } from './sim/types';
 import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
@@ -40,6 +42,8 @@ import { startStrike } from './sim/society/strikes';
  *  - `inspect2=1` (dev) open inspectors for the first two buildings (use with `panel=routes` to exercise the side-panel tabs)
  *  - `inspectcity=1` / `inspectvehicle=1` (dev) open the first city / vehicle inspector
  *  - `inspectstore=1` (dev) opens the player's first store inspector
+ *  - `inspecttrade=1` (dev) places a Trading House by the player's sawmill, routes lumber to it and opens it
+ *    (`tradestock=1` also stocks it with steel, wire and bricks for the price table)
  *  - `inspecthub=1` (dev) opens a hub on the player's first warehouse (placing one by their first works when
  *    there is none), selects it and opens its inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
@@ -304,7 +308,7 @@ if (debugStart) {
       const st = g.ctx.state;
       let wh = Object.values(st.buildings).find((b) => b.ownerId === 'player' && b.typeId === 'warehouse');
       // none yet: put one on the road nearest the player's first works, so the shot has a hub to show
-      const works = Object.values(st.buildings).find((b) => b.ownerId === 'player' && BUILDINGS[b.typeId].category !== 'retail');
+      const works = Object.values(st.buildings).find((b) => b.ownerId === 'player' && (BUILDINGS[b.typeId].category === 'extractor' || BUILDINGS[b.typeId].category === 'factory'));
       for (let r = 1; !wh && works && r <= 12; r++) {
         for (let dy = -r; dy <= r && !wh; dy++) {
           for (let dx = -r; dx <= r && !wh; dx++) {
@@ -322,6 +326,37 @@ if (debugStart) {
         g.centerOn({ x: wh.pos.x + size.w / 2, y: wh.pos.y + size.h / 2 });
         g.renderer.setSelection({ buildingId: wh.id });
         g.openPanel('building', wh.id);
+      }
+    }
+    // `inspecttrade=1` places a Trading House beside the player's sawmill, routes its lumber there and opens it;
+    // `tradestock=1` also puts some steel, wire and bricks on its floor (screenshots of the price table)
+    if (import.meta.env.DEV && params.get('inspecttrade') === '1') {
+      const st = g.ctx.state;
+      const mill = Object.values(st.buildings).find((b) => b.ownerId === 'player' && b.typeId === 'sawmill');
+      let house = Object.values(st.buildings).find((b) => b.ownerId === 'player' && b.typeId === 'trading_house');
+      for (let r = 1; !house && mill && r <= 14; r++) {
+        for (let dy = -r; dy <= r && !house; dy++) {
+          for (let dx = -r; dx <= r && !house; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const p = { x: mill.pos.x + dx, y: mill.pos.y + dy };
+            if (!canPlaceBuilding(st, 'player', 'trading_house', p).ok || accessTiles(st, { typeId: 'trading_house', pos: p }).length === 0) continue;
+            const placed = placeBuilding(g.ctx, 'player', 'trading_house', p);
+            if (placed.ok) house = placed.value;
+          }
+        }
+      }
+      if (house && mill) {
+        ensureRoadLink(g.ctx, 'player', mill, house);
+        const route = createRoute(g.ctx, 'player', 'Lumber to the exchange', [
+          { buildingId: mill.id, load: ['lumber'], unload: [] },
+          { buildingId: house.id, load: [], unload: ['lumber'] },
+        ]);
+        if (route.ok) buyTruck(g.ctx, 'player', route.value.id);
+        if (params.get('tradestock') === '1') Object.assign(house.input, { steel: 120, wire: 60, bricks: 90, lumber: 45 });
+        const size = BUILDINGS[house.typeId].size;
+        g.centerOn({ x: house.pos.x + size.w / 2, y: house.pos.y + size.h / 2 });
+        g.renderer.setSelection({ buildingId: house.id });
+        g.openPanel('building', house.id);
       }
     }
     if (import.meta.env.DEV && params.get('inspectvehicle') === '1') {

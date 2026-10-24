@@ -368,6 +368,7 @@ describe('R4 1900 content (Tables G, D, R and B)', () => {
     ['confectionery', 'Confectionery', 'factory', [2, 2], 16000, 200, ['grass', 'sand'], ['r_candy'], 80, 1, 60, '#f29bc0', 'Copper pans of boiling sugar, wrapped by the penny.'],
     ['print_works', 'Print Works', 'factory', [3, 3], 25000, 300, ['grass', 'sand'], ['r_books'], 80, 1, 60, '#6e2f40', 'Presses thunder out books and almanacs.'],
     ['cannery', 'Cannery', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_canned_food'], 80, 2, 60, '#a8473f', 'Sealed tins of meat that keep a winter or a war.'],
+    ['trading_house', 'Trading House', 'trade', [3, 2], 35000, 400, ['grass', 'sand', 'hills'], [], 600, 0, 12, '#7d6b4f', 'Brokers on the telephone sell your materials and parts to the whole nation.'],
   ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, pollution, workers, color, description) => {
     expect(BUILDINGS[id]).toEqual({
       id, name, category, size: { w, h: hgt }, cost, maintenance, allowedTerrain, requiresDeposit: false, requiresCity: false,
@@ -378,5 +379,9 @@ describe('R4 1900 content (Tables G, D, R and B)', () => {
   it('new works stand before the store', () => {
     const ids = Object.keys(BUILDINGS);
     for (const id of ['ranch', 'clay_pit', 'copper_mine', 'smelter', 'cannery']) expect(ids.indexOf(id), id).toBeLessThan(ids.indexOf('store'));
+  });
+  it('the Trading House stands after the store', () => {
+    const ids = Object.keys(BUILDINGS);
+    expect(ids.indexOf('trading_house')).toBe(ids.indexOf('store') + 1);
   });
 });

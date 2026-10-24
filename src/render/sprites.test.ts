@@ -64,7 +64,7 @@ describe('diorama heights', () => {
     for (const def of Object.values(BUILDINGS)) {
       const hgt = BUILDING_HEIGHT[def.id as keyof typeof BUILDING_HEIGHT];
       expect(hgt, def.id).toBeTypeOf('number');
-      const [lo, hi] = def.category === 'extractor' ? [6, 10] : def.category === 'factory' ? [14, 22] : def.category === 'retail' ? [8, 12] : [6, 22];
+      const [lo, hi] = def.category === 'extractor' ? [6, 10] : def.category === 'factory' ? [14, 22] : def.category === 'retail' ? [8, 12] : def.category === 'trade' ? [8, 14] : [6, 22];
       expect(hgt, def.id).toBeGreaterThanOrEqual(lo);
       expect(hgt, def.id).toBeLessThanOrEqual(hi);
     }
@@ -221,7 +221,7 @@ function paintCtx(): { g: CanvasRenderingContext2D; fills: () => number } {
   const g = new Proxy(props, {
     get: (t, k) => {
       if (k in t) return t[k];
-      if (k === 'createLinearGradient') return () => ({ addColorStop() {} });
+      if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({ addColorStop() {} });
       return () => { if (k === 'fill' || k === 'fillRect') n++; };
     },
     set: (t, k, v) => { t[k] = v; return true; },
@@ -258,6 +258,21 @@ describe('R4 diorama art', () => {
     const { g, fills } = paintCtx();
     paintBuilding(g, syntheticExtractor('no_such_extractor', 2, '#888888'), 'player', '');
     for (const n of counts) expect(n).not.toBe(fills());
+  });
+  it('the Trading House has its own stone-and-brass painter, not the warehouse fallback, and lights its colonnade', () => {
+    const def = BUILDINGS.trading_house;
+    expect(BUILDING_HEIGHT.trading_house).toBe(12);
+    const house = paintCtx();
+    paintBuilding(house.g, def, 'player', '');
+    const fallback = paintCtx();
+    paintBuilding(fallback.g, { ...def, id: 'no_such_house' }, 'player', '');
+    expect(house.fills()).toBeGreaterThan(fallback.fills() + 40);
+    const lit = windowRects('trading_house');
+    expect(lit.length).toBe(8);
+    for (const r of lit) {
+      expect(r.x + r.w).toBeLessThanOrEqual(def.size.w * TILE);
+      expect(r.y).toBeGreaterThanOrEqual(0);
+    }
   });
   it('a sugar beet farm paints its own dot rows', () => {
     const farm = BUILDINGS.farm;

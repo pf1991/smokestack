@@ -15,6 +15,7 @@ import { formatMoney } from './format';
 import { goodIcon, goodTip } from './goodTooltip';
 import type { ToolSpec } from './tools';
 import { currentUiScale } from './scale';
+import { CATEGORY_ICON } from './buildingIcons';
 import './toolbar.css';
 
 type TabId = 'extract' | 'refine' | 'manufacture' | 'retail' | 'transport';
@@ -29,7 +30,7 @@ const TABS: { id: TabId; label: string; icon: IconId }[] = [
 
 function tabOf(def: BuildingDef): TabId | null {
   if (def.category === 'extractor') return 'extract';
-  if (def.category === 'retail' || def.category === 'logistics') return 'retail';
+  if (def.category === 'retail' || def.category === 'trade' || def.category === 'logistics') return 'retail';
   const first = Object.keys(RECIPES[def.recipes[0]]?.outputs ?? {})[0];
   return first !== undefined && GOODS[first]?.kind === 'material' ? 'refine' : 'manufacture';
 }
@@ -50,8 +51,8 @@ const BUILDING_ICON: Record<string, IconId> = {
   smelter: 'copper', tannery: 'leather', sugar_refinery: 'sugar', brickworks: 'bricks', paper_mill: 'paper',
   machine_shop: 'gear',
   shoe_factory: 'shoes', confectionery: 'candy', print_works: 'books', cannery: 'canned_food',
+  trading_house: 'money',
 };
-const CATEGORY_ICON: Record<BuildingDef['category'], IconId> = { extractor: 'pick', factory: 'factory', retail: 'shop', logistics: 'crate' };
 const buildingIcon = (def: BuildingDef): IconId =>
   ICON_IDS.includes(def.id) ? def.id : (BUILDING_ICON[def.id] ?? CATEGORY_ICON[def.category] ?? 'factory');
 
@@ -59,7 +60,7 @@ const buildingIcon = (def: BuildingDef): IconId =>
 function recipeStrip(def: BuildingDef): HTMLElement {
   if (def.id === 'company_housing') return h('div', { class: 'tc-flow' }, `Houses ${HOUSING_POOL} hands within ${HOUSING_RADIUS} tiles of a factory`);
   const recipe = def.recipes.map((r) => RECIPES[r]).find(Boolean);
-  if (!recipe) return h('div', { class: 'tc-flow' }, def.category === 'retail' ? 'Sells goods to the city' : def.id === 'train_station' ? 'Loads and unloads trains' : 'Stores goods');
+  if (!recipe) return h('div', { class: 'tc-flow' }, def.category === 'retail' ? 'Sells goods to the city' : def.category === 'trade' ? 'Sells materials and components to the nation' : def.id === 'train_station' ? 'Loads and unloads trains' : 'Stores goods');
   const ins = Object.keys(recipe.inputs);
   const outs = Object.keys(recipe.outputs);
   const more = def.recipes.length - 1;
@@ -110,7 +111,7 @@ export class Toolbar {
       const btn = h('button', {
         class: 'tb-tab',
         'data-tab': t.id,
-        title: t.id === 'retail' ? 'Retail & Logistics' : t.label,
+        title: t.id === 'retail' ? 'Retail, Trade & Logistics' : t.label,
         'aria-expanded': 'false',
         onClick: () => this.openTab(t.id),
       }, iconEl(t.icon, 18), h('span', { class: 'tb-label' }, t.label));

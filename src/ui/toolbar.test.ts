@@ -119,6 +119,20 @@ describe('Toolbar', () => {
     expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'train_station' });
   });
 
+  it('the Trading House sits in the Retail, Trade & Logistics tab with the money icon and its own line', () => {
+    const { root, onSelect, tb, state } = setup();
+    tab(root, 'retail');
+    tb.update(state);
+    expect(root.querySelector('[data-tab="retail"]')!.getAttribute('title')).toBe('Retail, Trade & Logistics');
+    const card = root.querySelector('[data-panel-tab="retail"] [data-building="trading_house"]') as HTMLButtonElement;
+    expect(card).not.toBeNull();
+    expect(card.disabled).toBe(false);
+    expect(card.querySelector('.tc-flow')!.textContent).toBe('Sells materials and components to the nation');
+    expect(card.querySelector<HTMLElement>('.tc-head img.icon')!.dataset.icon).toBe('money');
+    card.click();
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'trading_house' });
+  });
+
   it('cancel closes the open build drawer', () => {
     const { root, tb } = setup();
     tab(root, 'refine');
