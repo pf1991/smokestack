@@ -479,7 +479,7 @@ export class WorldRenderer {
     drawGhost(ctx, this.ghost, z);
     ctx.restore();
     drawGhostLabel(ctx, this.ghost, cam);
-    drawStatusBadges(ctx, state, cam, { photo: this.uiHidden, zoom: z, nowMs });
+    drawStatusBadges(ctx, state, cam, { photo: this.uiHidden, nowMs });
     this.floaters.draw(ctx, cam);
   }
 

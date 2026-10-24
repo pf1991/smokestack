@@ -7,6 +7,7 @@
  */
 import { BUILDINGS } from '../data/buildings';
 import { dateToDays } from '../sim/clock';
+import { strikeActive } from '../sim/society/strikeState';
 import { storeStocked } from '../sim/inventory';
 import type { Building, GameState } from '../sim/types';
 import { cssColor } from '../ui/charts';
@@ -17,9 +18,9 @@ export const BADGE_SIZE = 18;
 export const BADGE_MIN_ZOOM = 0.9;
 const ICON_SIZE = 12;
 
-export function badgeFor(b: Building, today?: number): IconId | null {
+export function badgeFor(b: Building, today: number): IconId | null {
   const category = BUILDINGS[b.typeId]?.category;
-  if (b.status === 'halted') return b.strike && (today === undefined || today < b.strike.until) ? 'strike' : null;
+  if (b.status === 'halted') return strikeActive(b.strike, today) ? 'strike' : null;
   if (b.status === 'upgrading') return 'scaffold';
   if (category === 'retail') return storeStocked(b) ? null : 'warning';
   if (category !== 'extractor' && category !== 'factory') return null;
@@ -32,9 +33,9 @@ export function drawStatusBadges(
   ctx: CanvasRenderingContext2D,
   state: GameState,
   cam: Camera,
-  opts: { photo: boolean; zoom: number; nowMs: number },
+  opts: { photo: boolean; nowMs: number },
 ): void {
-  if (opts.photo || opts.zoom < BADGE_MIN_ZOOM) return;
+  if (opts.photo || cam.zoom < BADGE_MIN_ZOOM) return;
   const today = dateToDays(state.date);
   const z = cam.zoom;
   const r = BADGE_SIZE / 2;

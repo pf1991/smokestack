@@ -6,6 +6,7 @@
  */
 import { BUILDINGS } from '../data/buildings';
 import { dateToDays } from '../sim/clock';
+import { strikeActive } from '../sim/society/strikeState';
 import { monthProfit } from '../sim/finance';
 import { modelRow } from '../sim/logistics/models';
 import type { GameState } from '../sim/types';
@@ -56,7 +57,7 @@ export class AlertTracker {
       const name = BUILDINGS[b.typeId]?.name ?? 'Building';
       const target: AlertTarget = { kind: 'building', id: b.id };
       const detail = () => statusAdvice(state, b).text;
-      const struck = b.status === 'halted' && !!b.strike && today < b.strike.until;
+      const struck = b.status === 'halted' && strikeActive(b.strike, today);
       if (struck) {
         const id = `b:${b.id}:strike`;
         see(id);
