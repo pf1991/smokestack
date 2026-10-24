@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .insp-head {
@@ -14,14 +14,14 @@
 }
 
 .insp-badge {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 2px 8px;
   border-radius: 10px;
-  border: 1px solid var(--brass-dark);
-  background: var(--walnut);
-  color: var(--paper);
+  border: 1px solid var(--accent-quiet);
+  background: var(--surface-1);
+  color: var(--text);
 }
 
 .insp-badge.owner-player {
@@ -33,40 +33,41 @@
 }
 
 .insp-badge.status-ok {
-  background: var(--good);
+  background: var(--positive);
 }
 
 .insp-badge.status-no_input,
 .insp-badge.status-idle {
-  background: #8a6d17;
+  background: var(--warning);
+  color: var(--surface-0);
 }
 
 .insp-badge.status-output_full,
 .insp-badge.status-halted {
-  background: var(--bad);
+  background: var(--negative);
 }
 
 .insp-reason {
   font-style: italic;
-  color: var(--paper-shade);
+  color: var(--text-muted);
 }
 
 .insp-warn {
   background: rgba(181, 48, 47, 0.25);
-  border: 1px solid var(--bad);
+  border: 1px solid var(--negative);
   border-radius: 3px;
   padding: 4px 8px;
 }
 
 .insp-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--brass-light);
+  color: var(--accent-strong);
 }
 
 .insp-muted {
-  color: var(--paper-shade);
+  color: var(--text-muted);
   opacity: 0.85;
 }
 
@@ -116,9 +117,9 @@
 
 .insp-recipe {
   font: inherit;
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--brass-dark);
+  background: var(--text);
+  color: var(--paper-ink);
+  border: 1px solid var(--accent-quiet);
   padding: 4px;
   max-width: 100%;
 }
@@ -134,7 +135,7 @@
   position: relative;
   height: 16px;
   background: rgba(0, 0, 0, 0.45);
-  border: 1px solid var(--brass-dark);
+  border: 1px solid var(--accent-quiet);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -149,9 +150,9 @@
   inset: 0;
   text-align: center;
   line-height: 16px;
-  font-size: 11px;
-  color: #fff;
-  text-shadow: 0 1px 2px #000;
+  font-size: var(--fs-xs);
+  color: var(--text);
+  text-shadow: 0 1px 2px var(--surface-0);
 }
 
 .insp-route {
@@ -181,10 +182,10 @@
 
 .insp-table th {
   text-align: left;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--brass-light);
+  color: var(--accent-strong);
   padding: 2px 4px;
 }
 
@@ -202,27 +203,27 @@
 }
 
 .insp-crave {
-  color: var(--brass-light);
+  color: var(--accent-strong);
   font-weight: bold;
   white-space: nowrap;
 }
 
 .insp-trend.up {
-  color: #7fd17f;
+  color: var(--positive);
 }
 
 .insp-trend.down {
-  color: #f08080;
+  color: var(--negative);
 }
 
 .insp-demolish.confirm {
-  background: linear-gradient(180deg, #e06a5a, var(--bad));
-  color: #fff;
+  background: var(--negative);
+  color: var(--text);
 }
 
 .insp-route-link {
   font: inherit;
-  color: var(--paper);
+  color: var(--text);
   background: transparent;
   border: 0;
   padding: 1px 0;
@@ -232,7 +233,7 @@
 }
 
 .insp-route-link:hover {
-  color: var(--brass-light);
+  color: var(--accent-strong);
 }
 
 .insp-send {
@@ -242,16 +243,16 @@
 
 .insp-route-sel {
   font: inherit;
-  color: var(--paper);
-  background: var(--walnut-light);
-  border: 1px solid var(--brass-dark);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--accent-quiet);
   border-radius: 2px;
   max-width: 180px;
 }
 
 .insp-follow.active {
-  background: var(--brass-light);
-  color: var(--walnut);
+  background: var(--accent-strong);
+  color: var(--surface-1);
 }
 
 /* city panel: the three-segment class bar (Working / Middle / Upper) */
@@ -259,7 +260,7 @@
   display: flex;
   width: 55%;
   height: 16px;
-  border: 1px solid var(--brass-dark);
+  border: 1px solid var(--accent-quiet);
   border-radius: 2px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.45);
@@ -276,8 +277,8 @@
   display: block;
   text-align: center;
   line-height: 16px;
-  font-size: 10px;
-  color: #fff;
+  font-size: var(--fs-xs);
+  color: var(--text);
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
 }
 
@@ -287,26 +288,28 @@
 .p-section {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin: 0 0 6px;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   min-width: 0;
+  background: var(--surface-0);
+  border: 1px solid var(--surface-2);
+  border-radius: var(--r-md);
 }
 
 .p-section[hidden] {
   display: none;
 }
 
-/* the 12 px uppercase header every section opens with */
+/* the overline every section opens with (same look as the kit section) */
 .p-head {
-  margin: 0 0 1px;
-  padding-bottom: 1px;
-  font-family: var(--font-display);
-  font-size: 12px;
-  font-weight: normal;
+  margin: 0 0 var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 400;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--brass-light);
-  border-bottom: 1px solid var(--brass-dark);
+  color: var(--text-muted);
 }
 
 /* 24 px key-value row: label left, value right */
@@ -323,43 +326,61 @@
   grid-template-columns: 96px 1fr 54px;
 }
 
-/* a table whose header row stays pinned while the panel scrolls */
-.p-table {
+/* a table whose header row stays pinned while the panel scrolls (the dataTable look) */
+.p-table,
+.window-body table {
   width: 100%;
   border-collapse: collapse;
+  font-size: var(--fs-sm);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
-.p-table th {
+.p-table th,
+.window-body table th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--walnut-light);
-  font-size: 11px;
-  font-weight: normal;
-  letter-spacing: 0.06em;
+  background: var(--surface-1);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--brass-light);
+  text-align: left;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--accent-quiet);
 }
 
 .p-table th,
-.p-table td {
-  padding: 2px 6px;
-  height: 20px;
+.p-table td,
+.window-body table th,
+.window-body table td {
+  padding: var(--sp-1) var(--sp-2);
+  height: 24px;
 }
 
-/* a panel's primary buttons: pinned to the foot of the visible panel */
+.p-table td,
+.window-body table td {
+  border-bottom: 1px solid var(--surface-2);
+}
+
+/* a panel's primary buttons; with .has-footer on the window body (window.ts) they pin to the foot */
 .p-actions {
-  position: sticky;
-  /* the side panel body has 8px padding: pin past it so scrolled content never shows underneath */
-  bottom: -8px;
-  z-index: 2;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px 0 8px;
-  background: var(--walnut-light);
-  border-top: 1px solid var(--brass-dark);
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+}
+
+.window-body.has-footer .p-actions {
+  position: sticky;
+  /* the window body has --sp-3 padding: pin past it so scrolled content never shows underneath */
+  bottom: 0;
+  z-index: 2;
+  margin: 0 calc(-1 * var(--sp-3));
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-1);
+  border-top: 1px solid var(--accent-quiet);
 }
 
 .p-actions > .btn {
@@ -369,7 +390,7 @@
 /* segmented control: one button per option, the pressed one is brass */
 .p-chips {
   display: flex;
-  border: 1px solid var(--brass-dark);
+  border: 1px solid var(--accent-quiet);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -378,14 +399,14 @@
   flex: 1;
   min-height: 22px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   border-radius: 0;
   border: 0;
-  border-left: 1px solid var(--brass-dark);
+  border-left: 1px solid var(--accent-quiet);
   padding: 2px 6px;
   cursor: pointer;
-  background: var(--walnut-light);
-  color: var(--paper);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .p-chips button:first-child {
@@ -393,13 +414,13 @@
 }
 
 .p-chips button:hover {
-  background: var(--walnut);
+  background: var(--surface-1);
 }
 
 .p-chips button[aria-pressed='true'],
 .p-chips button.active {
-  background: var(--brass-light);
-  color: var(--walnut);
+  background: var(--accent-strong);
+  color: var(--surface-1);
   font-weight: bold;
 }
 
@@ -445,14 +466,14 @@
 
 .rival-head-name {
   font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--brass-light);
+  font-size: var(--fs-lg);
+  color: var(--accent-strong);
 }
 
 .rival-head-age,
 .rival-cash,
 .rival-date {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   opacity: 0.8;
 }
 
@@ -473,7 +494,7 @@
 }
 
 .rival-trait {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.3;
 }
 
@@ -481,10 +502,10 @@
   display: inline-block;
   padding: 0 6px;
   margin-right: 6px;
-  background: #3a1a18;
-  border: 1px solid var(--brass-dark);
+  background: var(--negative-bg);
+  border: 1px solid var(--accent-quiet);
   border-radius: 2px;
-  color: var(--paper);
+  color: var(--text);
   font-weight: bold;
 }
 
@@ -512,24 +533,24 @@
 }
 
 .rival-worth-labels {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   min-height: 18px;
 }
 
 .rival-you {
-  color: #8fb6e6;
+  color: var(--info);
 }
 
 .rival-him {
-  color: #e88a86;
+  color: var(--negative);
   text-align: right;
 }
 
 .rival-worth-bar {
   display: flex;
   height: 12px;
-  border: 1px solid var(--brass-dark);
-  background: #1d1a16;
+  border: 1px solid var(--accent-quiet);
+  background: var(--surface-0);
   overflow: hidden;
 }
 
@@ -542,7 +563,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .rival-stake > span {
@@ -569,13 +590,13 @@
 
 .family-name {
   font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--brass-light);
+  font-size: var(--fs-lg);
+  color: var(--accent-strong);
 }
 
 .family-age,
 .family-role {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   opacity: 0.8;
 }
 
@@ -595,7 +616,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .family-trait {
@@ -606,10 +627,10 @@
   display: inline-block;
   padding: 0 6px;
   margin-right: 6px;
-  background: #1d2a3a;
-  border: 1px solid var(--brass-dark);
+  background: var(--info-bg);
+  border: 1px solid var(--accent-quiet);
   border-radius: 2px;
-  color: var(--paper);
+  color: var(--text);
   font-weight: bold;
 }
 
@@ -618,29 +639,29 @@
 }
 
 .family-heir-badge {
-  font-size: 12px;
-  color: var(--brass-light);
+  font-size: var(--fs-sm);
+  color: var(--accent-strong);
   margin-top: 2px;
 }
 
 .family-name-heir {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 /* ---- Exchange panel ---- */
 
 .exchange-bid {
-  background: #7a1f1c;
-  border: 1px solid #e88a86;
-  color: #fff2e6;
+  background: var(--negative-bg);
+  border: 1px solid var(--negative);
+  color: var(--text);
   padding: 6px 8px;
   gap: 4px;
 }
 
 .exchange-bid-title {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: var(--fs-lg);
 }
 
 .exchange-bid-text {
@@ -657,8 +678,8 @@
 }
 
 .exchange-name {
-  font-family: var(--font-display);
-  font-size: 14px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -678,7 +699,7 @@
 }
 
 .exchange-holdings {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   opacity: 0.85;
 }
 
@@ -690,12 +711,12 @@
 }
 
 .exchange-gate {
-  font-size: 12px;
-  color: #e88a86;
+  font-size: var(--fs-sm);
+  color: var(--negative);
 }
 
 .exchange-note {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   opacity: 0.8;
 }
 
@@ -715,8 +736,8 @@
 .legacy-total {
   margin-top: 2px;
   padding-top: 4px;
-  border-top: 1px solid var(--brass-dark);
-  font-size: 14px;
+  border-top: 1px solid var(--accent-quiet);
+  font-size: var(--fs-md);
 }
 
 /* building level card: current and next level side by side */

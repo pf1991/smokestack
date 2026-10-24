@@ -10,7 +10,7 @@ const { readFileSync, existsSync } = fs;
 const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
 
 /** CSS files already moved onto the design tokens. Each rework task appends its files here. */
-export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css'];
+export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css'];
 
 /** Strip comments and custom-property declarations (tokens are where raw values live). */
 function stripped(css: string): string {

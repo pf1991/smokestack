@@ -253,7 +253,7 @@ function render(): void {
 export function addTab(spec: TabSpec): void {
   sidePanelEl();
   const tabEl = h('div', {
-    class: 'side-panel-tab',
+    class: 'side-panel-tab sp-tab',
     role: 'tab',
     title: spec.title,
     'aria-label': spec.title,
