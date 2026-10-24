@@ -3,7 +3,8 @@ import { GOODS } from '../data/goods';
 import { lifecycleFactor } from './market';
 import { publishNews } from './news';
 import { unlockedAt } from './state';
-import type { GameState, SimContext } from './types';
+import { RECIPES } from '../data/recipes';
+import type { GameState, GoodId, SimContext } from './types';
 
 export interface Era {
   name: string;
@@ -30,7 +31,22 @@ export function isUnlocked(state: GameState, id: string): boolean {
   return state.unlocked.includes(id);
 }
 
-/** Flavourful announcements for buildings and tier-2 (or plastic) goods, keyed by id. */
+/**
+ * Whether anyone can make `goodId` now: some unlocked building lists an unlocked recipe that outputs
+ * it. A good can be unlocked (its era has come) before any recipe for it is, e.g. microchips (1972).
+ */
+export function canMake(state: GameState, goodId: GoodId): boolean {
+  const have = state.unlocked;
+  for (const def of Object.values(BUILDINGS)) {
+    if (!have.includes(def.id)) continue;
+    for (const rid of def.recipes) {
+      if (have.includes(rid) && RECIPES[rid]?.outputs[goodId] !== undefined) return true;
+    }
+  }
+  return false;
+}
+
+/** Flavourful announcements for buildings and consumer (or plastic) goods, keyed by id. */
 const INVENTIONS: Record<string, [headline: string, body: string]> = {
   oil_well: ['BLACK GOLD! Oil found beneath the plains', 'Wildcatters strike crude: oil wells, refineries and fuel are now possible.'],
   refinery: ['BLACK GOLD! Oil found beneath the plains', 'Refineries now turn crude into fuel.'],

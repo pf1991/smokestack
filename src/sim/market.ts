@@ -1,4 +1,4 @@
-import { CLASS_DEMAND, DEMAND_PER_1000, GOODS, type GoodDef } from '../data/goods';
+import { BASELINE_GOODS, CLASS_DEMAND, DEMAND_PER_1000, GOODS, type GoodDef } from '../data/goods';
 import { compareDates } from './clock';
 import type { City, CityClasses, GameState, GoodId, Inventory, MarketEntry, OwnerId } from './types';
 
@@ -239,11 +239,30 @@ export function demandModifier(state: GameState, cityId: number, goodId: GoodId)
   return f;
 }
 
-/** Mean market satisfaction over the goods `city` wants this month (0.4 when it wants none). */
+/**
+ * Mean market satisfaction over the goods `city` wants this month (0.4 when it wants none), under the
+ * baseline rule (R4, P4): `base` is the mean over the wanted v1 goods (`BASELINE_GOODS`, 0.4 when none
+ * is wanted), and every other wanted good counts as max(its satisfaction, base). A town sold none of
+ * the newer goods gets exactly its v1 figure; selling one can only raise it.
+ */
 export function averageSatisfaction(state: GameState, city: City): number {
-  const sats = Object.keys(DEMAND_PER_1000)
-    .filter((g) => monthlyDemand(city, g, state.date.year, demandModifier(state, city.id, g)) > 0)
-    .map((g) => satisfaction(city, g));
-  return sats.length > 0 ? sats.reduce((a, b) => a + b, 0) / sats.length : 0.4;
+  const year = state.date.year;
+  let baseSum = 0;
+  let baseN = 0;
+  const others: number[] = [];
+  for (const g of DEMAND_GOODS) {
+    if (monthlyDemand(city, g, year, demandModifier(state, city.id, g)) <= 0) continue;
+    const s = satisfaction(city, g);
+    if (BASELINE_GOODS.has(g)) {
+      baseSum += s;
+      baseN++;
+    } else others.push(s);
+  }
+  const base = baseN > 0 ? baseSum / baseN : 0.4;
+  // mean of (base for each baseline good's share, max(s, base) for the others) = base + excess / n,
+  // written so that no excess returns base bit for bit
+  let excess = 0;
+  for (const s of others) if (s > base) excess += s - base;
+  return excess > 0 ? base + excess / (baseN + others.length) : base;
 }
 

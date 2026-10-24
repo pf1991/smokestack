@@ -95,11 +95,11 @@ describe('codex panel', () => {
     expect(qa('.cx-list tbody tr[data-key]').map((r) => r.dataset.key)).toEqual(['lumber']);
   });
 
-  it('the Consumer filter lists 11 goods', () => {
+  it('the Consumer filter lists the consumer goods', () => {
     const { game } = setup();
     PANELS.codex.open(game);
     (q('.cx-filter[data-filter="consumer"]') as HTMLElement).click();
-    expect(qa('.cx-list tbody tr[data-key]')).toHaveLength(11);
+    expect(qa('.cx-list tbody tr[data-key]')).toHaveLength(Object.values(GOODS).filter((g) => g.kind === 'consumer').length);
     expect(q('.cx-filter[data-filter="consumer"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 

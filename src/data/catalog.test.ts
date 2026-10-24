@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GOODS, DEMAND_PER_1000 } from './goods';
+import { GOODS, DEMAND_PER_1000, CLASS_DEMAND, BASELINE_GOODS, SEASONAL_CROPS } from './goods';
 import { RECIPES, recipeEra } from './recipes';
 import { BUILDINGS } from './buildings';
 import { LANDMARK_IDS, LANDMARKS } from './landmarks';
@@ -46,7 +46,7 @@ describe('content catalog', () => {
       }
     }
     const consumer = Object.values(GOODS).filter((g) => g.kind === 'consumer');
-    expect(consumer).toHaveLength(11);
+    expect(consumer).toHaveLength(Object.keys(DEMAND_PER_1000).length);
     for (const good of consumer) {
       expect(reachable.has(good.id), `${good.id} not producible`).toBe(true);
     }
@@ -67,6 +67,14 @@ describe('content catalog', () => {
     expect(recipeEra('r_toys_plastic')).toBe(1935);
     expect(recipeEra('r_cars')).toBe(1910);
     expect(recipeEra('r_fuel')).toBe(1910);
+    expect(recipeEra('r_sugar_beet')).toBe(1900);
+  });
+
+  it('every building is invented no later than its earliest recipe', () => {
+    for (const def of Object.values(BUILDINGS)) {
+      if (def.recipes.length === 0) continue;
+      expect(def.era, def.id).toBeLessThanOrEqual(Math.min(...def.recipes.map(recipeEra)));
+    }
   });
 
   it('every building def employs workers (company housing only houses them)', () => {
@@ -78,9 +86,11 @@ describe('content catalog', () => {
       expect(Number.isFinite(def.workers) && def.workers > 0, `${def.id} workers ${def.workers}`).toBe(true);
     }
     const byCat = (cat: string) => Object.values(BUILDINGS).filter((d) => d.category === cat);
-    for (const d of byCat('extractor')) expect(d.workers, d.id).toBe(20);
-    for (const d of byCat('factory')) expect(d.workers, d.id).toBe(d.id === 'steel_mill' || d.id === 'car_plant' ? 120 : 60);
+    const SPECIAL: Record<string, number> = { steel_mill: 120, car_plant: 120, tannery: 90, brickworks: 90, electronics_works: 30, gadget_assembly: 30 };
+    for (const d of byCat('extractor')) expect(d.workers, d.id).toBe(SPECIAL[d.id] ?? 20);
+    for (const d of byCat('factory')) expect(d.workers, d.id).toBe(SPECIAL[d.id] ?? 60);
     for (const d of byCat('retail')) expect(d.workers, d.id).toBe(12);
+    for (const d of byCat('trade')) expect(d.workers, d.id).toBe(12);
     for (const d of byCat('logistics')) expect(d.workers, d.id).toBe(d.id === 'company_housing' ? 0 : 6);
   });
 
@@ -271,5 +281,102 @@ describe('content catalog', () => {
 
   it('grudge weights', () => {
     expect(GRUDGE_WEIGHTS).toEqual({ undercut: 2, contract: 3, shares: 4, city: 5, sabotage_exposed: 6, takeover_bid: 8, rivalry: 3, wake: 10 });
+  });
+});
+
+describe('R4 1900 content (Tables G, D, R and B)', () => {
+  // id, name, kind, basePrice, color (Table G; every 1900 row has era 1900 and no fade year)
+  it.each([
+    ['copper_ore', 'Copper Ore', 'raw', 6, '#4f8a6e'],
+    ['cattle', 'Cattle', 'raw', 10, '#7a4b3a'],
+    ['sugar_beet', 'Sugar Beet', 'raw', 3, '#c77d9b'],
+    ['clay', 'Clay', 'raw', 2, '#b5653d'],
+    ['copper', 'Copper', 'material', 24, '#c46f3b'],
+    ['leather', 'Leather', 'material', 14, '#b08060'],
+    ['sugar', 'Sugar', 'material', 9, '#f5efe0'],
+    ['bricks', 'Bricks', 'material', 8, '#a63d2a'],
+    ['paper', 'Paper', 'material', 10, '#efe6c8'],
+    ['wire', 'Wire', 'component', 32, '#d4a017'],
+    ['shoes', 'Shoes', 'consumer', 52, '#4a2c1a'],
+    ['candy', 'Candy', 'consumer', 16, '#ff7eb6'],
+    ['books', 'Books', 'consumer', 36, '#7d2e46'],
+    ['canned_food', 'Canned Food', 'consumer', 18, '#b0413e'],
+  ] as const)('good %s', (id, name, kind, basePrice, color) => {
+    const tier = kind === 'raw' ? 0 : kind === 'consumer' ? 2 : 1;
+    expect(GOODS[id]).toEqual({ id, name, tier, kind, basePrice, era: 1900, fadeYear: null, color });
+  });
+
+  const MIDDLE = { working: 0.8, middle: 1.5, upper: 1.2 };
+  const STAPLE = { working: 1.2, middle: 1.0, upper: 0.7 };
+  const PLAIN = { working: 1, middle: 1, upper: 1 };
+  it.each([
+    ['shoes', 14, STAPLE],
+    ['candy', 30, PLAIN],
+    ['books', 10, MIDDLE],
+    ['canned_food', 40, STAPLE],
+  ] as const)('demand %s', (id, per1000, cls) => {
+    expect(DEMAND_PER_1000[id]).toBe(per1000);
+    expect(CLASS_DEMAND[id]).toEqual(cls);
+  });
+
+  it('new demand entries come after the v1 goods, in Table D order', () => {
+    const v1 = ['furniture', 'bread', 'tools', 'clothes', 'cheese', 'juice', 'toys', 'cars', 'radios', 'tvs', 'computers'];
+    expect(Object.keys(DEMAND_PER_1000).slice(0, 15)).toEqual([...v1, 'shoes', 'candy', 'books', 'canned_food']);
+    expect(Object.keys(CLASS_DEMAND)).toEqual(Object.keys(DEMAND_PER_1000));
+    expect([...BASELINE_GOODS]).toEqual(v1);
+    expect(SEASONAL_CROPS).toEqual(['grain', 'cotton', 'fruit', 'sugar_beet']);
+  });
+
+  it.each([
+    ['r_copper_ore', {}, { copper_ore: 10 }],
+    ['r_cattle', {}, { cattle: 4 }],
+    ['r_sugar_beet', {}, { sugar_beet: 12 }],
+    ['r_clay', {}, { clay: 12 }],
+    ['r_copper', { copper_ore: 8, coal: 2 }, { copper: 4 }],
+    ['r_leather', { cattle: 2 }, { leather: 4 }],
+    ['r_sugar', { sugar_beet: 12 }, { sugar: 6 }],
+    ['r_bricks', { clay: 10, coal: 2 }, { bricks: 8 }],
+    ['r_paper', { wood: 10 }, { paper: 6 }],
+    ['r_wire', { copper: 4 }, { wire: 4 }],
+    ['r_shoes', { leather: 4 }, { shoes: 2 }],
+    ['r_candy', { sugar: 3, milk: 2 }, { candy: 6 }],
+    ['r_books', { paper: 6 }, { books: 3 }],
+    ['r_canned_food', { cattle: 2, steel: 1 }, { canned_food: 6 }],
+  ] as const)('recipe %s', (id, inputs, outputs) => {
+    expect(RECIPES[id]).toEqual({ id, inputs, outputs, days: 1 });
+    expect(recipeEra(id)).toBe(1900);
+  });
+
+  it('new recipes come after every older recipe for the same good', () => {
+    const ids = Object.keys(RECIPES);
+    expect(ids.indexOf('r_sugar_beet')).toBeGreaterThan(ids.indexOf('r_computers'));
+    expect(BUILDINGS.farm.recipes).toEqual(['r_grain', 'r_cotton', 'r_fruit', 'r_sugar_beet']);
+  });
+
+  // id, name, category, size, cost, maintenance, terrain, recipes, storage, pollution, workers, color, description
+  it.each([
+    ['ranch', 'Cattle Ranch', 'extractor', [3, 3], 14000, 200, ['grass'], ['r_cattle'], 120, 1, 20, '#9c6b3f', 'Longhorns on the open range, driven to the railhead.'],
+    ['clay_pit', 'Clay Pit', 'extractor', [2, 2], 8000, 125, ['grass', 'hills'], ['r_clay'], 160, 1, 20, '#b86b45', 'Stiff red clay, dug wet for the brick kilns.'],
+    ['copper_mine', 'Copper Mine', 'extractor', [2, 2], 22000, 350, ['hills', 'mountain'], ['r_copper_ore'], 160, 3, 20, '#5f7a68', 'Green-stained adits worked for copper ore.'],
+    ['smelter', 'Smelter', 'factory', [3, 3], 45000, 600, ['grass', 'sand', 'hills'], ['r_copper'], 120, 6, 60, '#7a4e3a', 'Roaring furnaces that win copper, and later aluminium, from ore.'],
+    ['tannery', 'Tannery', 'factory', [2, 2], 18000, 250, ['grass', 'sand'], ['r_leather'], 120, 3, 90, '#8c6d4f', 'Pits of bark liquor; the smell carries for a mile.'],
+    ['sugar_refinery', 'Sugar Refinery', 'factory', [3, 3], 25000, 300, ['grass', 'sand'], ['r_sugar'], 120, 2, 60, '#e9d9d0', 'Beet sliced, boiled and crystallised into white sugar.'],
+    ['brickworks', 'Brickworks', 'factory', [3, 3], 20000, 250, ['grass', 'sand', 'hills'], ['r_bricks'], 160, 5, 90, '#9e3b2b', 'Kilns fired day and night; the town is built of their bricks.'],
+    ['paper_mill', 'Paper Mill', 'factory', [3, 3], 28000, 350, ['grass', 'sand'], ['r_paper'], 120, 3, 60, '#d9cfb0', 'Pulp and rollers turn timber into reams of paper.'],
+    ['machine_shop', 'Machine Shop', 'factory', [3, 3], 40000, 500, ['grass', 'sand', 'hills'], ['r_wire'], 100, 3, 60, '#56606b', 'Lathes and drop hammers making parts for other works.'],
+    ['shoe_factory', 'Shoe Factory', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_shoes'], 80, 1, 60, '#5a3a26', 'Lasts, awls and stitching machines: boots for the nation.'],
+    ['confectionery', 'Confectionery', 'factory', [2, 2], 16000, 200, ['grass', 'sand'], ['r_candy'], 80, 1, 60, '#f29bc0', 'Copper pans of boiling sugar, wrapped by the penny.'],
+    ['print_works', 'Print Works', 'factory', [3, 3], 25000, 300, ['grass', 'sand'], ['r_books'], 80, 1, 60, '#6e2f40', 'Presses thunder out books and almanacs.'],
+    ['cannery', 'Cannery', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_canned_food'], 80, 2, 60, '#a8473f', 'Sealed tins of meat that keep a winter or a war.'],
+  ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, pollution, workers, color, description) => {
+    expect(BUILDINGS[id]).toEqual({
+      id, name, category, size: { w, h: hgt }, cost, maintenance, allowedTerrain, requiresDeposit: false, requiresCity: false,
+      recipes, storage, era: 1900, pollution, color, description, workers,
+    });
+  });
+
+  it('new works stand before the store', () => {
+    const ids = Object.keys(BUILDINGS);
+    for (const id of ['ranch', 'clay_pit', 'copper_mine', 'smelter', 'cannery']) expect(ids.indexOf(id), id).toBeLessThan(ids.indexOf('store'));
   });
 });

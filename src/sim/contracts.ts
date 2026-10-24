@@ -5,6 +5,7 @@ import { GOODS } from '../data/goods';
 import { addDays, compareDates, dateToDays } from './clock';
 import { earn } from './finance';
 import { monthlyDemand, POP_CAP, satisfaction } from './market';
+import { canMake } from './eras';
 import { publishNews } from './news';
 import { random } from './rng';
 import { nextId } from './state';
@@ -41,7 +42,7 @@ function offeredCount(state: GameState): number {
   return state.contracts.filter((c) => c.status === 'offered').length;
 }
 
-/** Offers one new contract (when fewer than 3 are on the board): a low-satisfaction tier-2 good in some city. */
+/** Offers one new contract (when fewer than 3 are on the board): a low-satisfaction consumer good someone can make, in some city. */
 export function offerContracts(ctx: SimContext): Contract | null {
   const { state } = ctx;
   if (offeredCount(state) >= MAX_OFFERED) return null;
@@ -49,9 +50,10 @@ export function offerContracts(ctx: SimContext): Contract | null {
     state.contracts.filter((c) => c.status === 'offered' || c.status === 'active').map((c) => `${c.cityId}:${c.goodId}`),
   );
   const options: { cityId: number; goodId: GoodId; monthly: number }[] = [];
+  // consumer goods on sale this year that some unlocked works can make (catalogue order)
+  const goods = Object.values(GOODS).filter((g) => g.kind === 'consumer' && state.unlocked.includes(g.id) && canMake(state, g.id));
   for (const city of state.cities) {
-    for (const g of Object.values(GOODS)) {
-      if (g.kind !== 'consumer' || !state.unlocked.includes(g.id)) continue;
+    for (const g of goods) {
       if (open.has(`${city.id}:${g.id}`)) continue;
       const monthly = monthlyDemand(city, g.id, state.date.year);
       if (monthly > 0 && satisfaction(city, g.id) < 0.6) options.push({ cityId: city.id, goodId: g.id, monthly });

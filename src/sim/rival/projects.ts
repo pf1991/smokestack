@@ -355,7 +355,7 @@ export function maxRivalChains(year: number): number {
   return 3 + Math.max(0, Math.min(4, Math.floor((year - 1900) / 20)));
 }
 
-/** Chains the rival runs: his buildings making a consumer (tier-2) good. */
+/** Chains the rival runs: his buildings making a consumer good. */
 export function rivalChainCount(state: GameState): number {
   let n = 0;
   for (const b of Object.values(state.buildings)) {

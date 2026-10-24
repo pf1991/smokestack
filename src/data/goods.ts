@@ -25,6 +25,10 @@ export const GOODS: Record<GoodId, GoodDef> = {
   coal: { id: 'coal', name: 'Coal', tier: 0, kind: 'raw', basePrice: 5, era: 1900, fadeYear: null, color: '#2b2b2f' },
   sand: { id: 'sand', name: 'Sand', tier: 0, kind: 'raw', basePrice: 2, era: 1900, fadeYear: null, color: '#e6cf9a' },
   oil: { id: 'oil', name: 'Crude Oil', tier: 0, kind: 'raw', basePrice: 8, era: 1910, fadeYear: null, color: '#3c3a36' },
+  copper_ore: { id: 'copper_ore', name: 'Copper Ore', tier: 0, kind: 'raw', basePrice: 6, era: 1900, fadeYear: null, color: '#4f8a6e' },
+  cattle: { id: 'cattle', name: 'Cattle', tier: 0, kind: 'raw', basePrice: 10, era: 1900, fadeYear: null, color: '#7a4b3a' },
+  sugar_beet: { id: 'sugar_beet', name: 'Sugar Beet', tier: 0, kind: 'raw', basePrice: 3, era: 1900, fadeYear: null, color: '#c77d9b' },
+  clay: { id: 'clay', name: 'Clay', tier: 0, kind: 'raw', basePrice: 2, era: 1900, fadeYear: null, color: '#b5653d' },
 
   // Intermediate (tier 1)
   lumber: { id: 'lumber', name: 'Lumber', tier: 1, kind: 'material', basePrice: 10, era: 1900, fadeYear: null, color: '#c8a16e' },
@@ -34,6 +38,14 @@ export const GOODS: Record<GoodId, GoodDef> = {
   glass: { id: 'glass', name: 'Glass', tier: 1, kind: 'material', basePrice: 10, era: 1900, fadeYear: null, color: '#7fd1c7' },
   fuel: { id: 'fuel', name: 'Fuel', tier: 1, kind: 'material', basePrice: 18, era: 1910, fadeYear: null, color: '#e07b22' },
   plastic: { id: 'plastic', name: 'Plastic', tier: 1, kind: 'material', basePrice: 20, era: 1935, fadeYear: null, color: '#4fb3e8' },
+  copper: { id: 'copper', name: 'Copper', tier: 1, kind: 'material', basePrice: 24, era: 1900, fadeYear: null, color: '#c46f3b' },
+  leather: { id: 'leather', name: 'Leather', tier: 1, kind: 'material', basePrice: 14, era: 1900, fadeYear: null, color: '#b08060' },
+  sugar: { id: 'sugar', name: 'Sugar', tier: 1, kind: 'material', basePrice: 9, era: 1900, fadeYear: null, color: '#f5efe0' },
+  bricks: { id: 'bricks', name: 'Bricks', tier: 1, kind: 'material', basePrice: 8, era: 1900, fadeYear: null, color: '#a63d2a' },
+  paper: { id: 'paper', name: 'Paper', tier: 1, kind: 'material', basePrice: 10, era: 1900, fadeYear: null, color: '#efe6c8' },
+
+  // Component (tier 1): parts made for other works
+  wire: { id: 'wire', name: 'Wire', tier: 1, kind: 'component', basePrice: 32, era: 1900, fadeYear: null, color: '#d4a017' },
 
   // Consumer (tier 2)
   furniture: { id: 'furniture', name: 'Furniture', tier: 2, kind: 'consumer', basePrice: 72, era: 1900, fadeYear: null, color: '#6b3e1f' },
@@ -47,7 +59,22 @@ export const GOODS: Record<GoodId, GoodDef> = {
   radios: { id: 'radios', name: 'Radio', tier: 2, kind: 'consumer', basePrice: 195, era: 1925, fadeYear: 1965, color: '#8e5b3a' },
   tvs: { id: 'tvs', name: 'Television', tier: 2, kind: 'consumer', basePrice: 390, era: 1950, fadeYear: null, color: '#3d3d56' },
   computers: { id: 'computers', name: 'Computer', tier: 2, kind: 'consumer', basePrice: 900, era: 1980, fadeYear: null, color: '#1abc9c' },
+  shoes: { id: 'shoes', name: 'Shoes', tier: 2, kind: 'consumer', basePrice: 52, era: 1900, fadeYear: null, color: '#4a2c1a' },
+  candy: { id: 'candy', name: 'Candy', tier: 2, kind: 'consumer', basePrice: 16, era: 1900, fadeYear: null, color: '#ff7eb6' },
+  books: { id: 'books', name: 'Books', tier: 2, kind: 'consumer', basePrice: 36, era: 1900, fadeYear: null, color: '#7d2e46' },
+  canned_food: { id: 'canned_food', name: 'Canned Food', tier: 2, kind: 'consumer', basePrice: 18, era: 1900, fadeYear: null, color: '#b0413e' },
 };
+
+/**
+ * The 11 consumer goods of the v1 catalogue. Town growth averages over these first (the baseline
+ * rule, sim/market.ts averageSatisfaction), so goods added later can only raise a town's satisfaction.
+ */
+export const BASELINE_GOODS: ReadonlySet<GoodId> = new Set([
+  'furniture', 'bread', 'tools', 'clothes', 'cheese', 'juice', 'toys', 'cars', 'radios', 'tvs', 'computers',
+]);
+
+/** Farm crops that follow the seasons: none in winter, half again in summer. */
+export const SEASONAL_CROPS: readonly GoodId[] = ['grain', 'cotton', 'fruit', 'sugar_beet'];
 
 /** Monthly demand per 1000 population (units/month). */
 export const DEMAND_PER_1000: Record<GoodId, number> = {
@@ -62,6 +89,10 @@ export const DEMAND_PER_1000: Record<GoodId, number> = {
   radios: 3,
   tvs: 2,
   computers: 1.2,
+  shoes: 14,
+  candy: 30,
+  books: 10,
+  canned_food: 40,
 };
 
 /** A good's demand multiplier per social class (Phase 3 Task 7, sim/society/classes.ts). */
@@ -74,6 +105,7 @@ export interface ClassDemand {
 const LUXURY: ClassDemand = { working: 0.6, middle: 1.2, upper: 2.0 };
 const STAPLE: ClassDemand = { working: 1.2, middle: 1.0, upper: 0.7 };
 const PLAIN: ClassDemand = { working: 1, middle: 1, upper: 1 };
+const MIDDLE: ClassDemand = { working: 0.8, middle: 1.5, upper: 1.2 };
 
 /**
  * Class demand multipliers of every good with city demand: luxuries sell to the rich, staples to the
@@ -92,6 +124,10 @@ export const CLASS_DEMAND: Record<GoodId, ClassDemand> = {
   radios: PLAIN,
   tvs: PLAIN,
   computers: LUXURY,
+  shoes: STAPLE,
+  candy: PLAIN,
+  books: MIDDLE,
+  canned_food: STAPLE,
 };
 
 export function getGood(id: GoodId): GoodDef {

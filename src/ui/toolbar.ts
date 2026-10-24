@@ -43,7 +43,14 @@ function goodEl(id: string): HTMLElement {
 }
 
 /** Building icon: its own atlas glyph if painted, else a fitting one, else its category's. */
-const BUILDING_ICON: Record<string, IconId> = { lumber_camp: 'tree', train_station: 'train', warehouse: 'crate', store: 'shop', company_housing: 'city' };
+const BUILDING_ICON: Record<string, IconId> = {
+  lumber_camp: 'tree', train_station: 'train', warehouse: 'crate', store: 'shop', company_housing: 'city',
+  // R4 (Table B): extractors show their raw good, works their first output, part makers a gear
+  ranch: 'cattle', clay_pit: 'clay', copper_mine: 'copper_ore',
+  smelter: 'copper', tannery: 'leather', sugar_refinery: 'sugar', brickworks: 'bricks', paper_mill: 'paper',
+  machine_shop: 'gear',
+  shoe_factory: 'shoes', confectionery: 'candy', print_works: 'books', cannery: 'canned_food',
+};
 const CATEGORY_ICON: Record<BuildingDef['category'], IconId> = { extractor: 'pick', factory: 'factory', retail: 'shop', logistics: 'crate' };
 const buildingIcon = (def: BuildingDef): IconId =>
   ICON_IDS.includes(def.id) ? def.id : (BUILDING_ICON[def.id] ?? CATEGORY_ICON[def.category] ?? 'factory');

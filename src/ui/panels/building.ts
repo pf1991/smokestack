@@ -1,7 +1,7 @@
 import { BUILDINGS, HOUSING_POOL, HOUSING_RADIUS } from '../../data/buildings';
 
 import { buildingStorage, levelSmoke } from '../../sim/logistics/levels';
-import { getGood } from '../../data/goods';
+import { getGood, SEASONAL_CROPS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import { addDays, dateToDays, formatDate, isWinter } from '../../sim/clock';
 import { FINE_RATE, LAWS, type LawId } from '../../data/laws';
@@ -76,7 +76,7 @@ function extractorProblem(state: GameState, b: Building): string | null {
     const has = tiles.some((t) => t.deposit !== null && outs.includes(t.deposit));
     return has ? null : `No ${outs.map((g) => getGood(g).name).join(' / ') || 'deposit'} here`;
   }
-  if (b.typeId === 'farm' && isWinter(state.date.month) && outs.some((g) => g === 'grain' || g === 'cotton' || g === 'fruit')) {
+  if (b.typeId === 'farm' && isWinter(state.date.month) && outs.some((g) => SEASONAL_CROPS.includes(g))) {
     return 'Fallow for the winter';
   }
   return null;

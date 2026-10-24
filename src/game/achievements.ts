@@ -29,7 +29,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     test: (s) => Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && flagNum(s, k) > 0),
   },
   {
-    // approximation: owns an extractor and has sold a tier-2 good (no per-good provenance is tracked)
+    // approximation: owns an extractor and has sold a consumer good (no per-good provenance is tracked)
     id: 'chain_gang', name: 'Chain Gang', icon: 'chain', desc: 'Sell a finished good made from your own extractor.',
     test: (s) =>
       Object.values(s.buildings).some((b) => b.ownerId === 'player' && BUILDINGS[b.typeId]?.category === 'extractor') &&

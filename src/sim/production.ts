@@ -10,6 +10,7 @@ import { strikeOver } from './society/strikes';
 import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
+import { SEASONAL_CROPS } from '../data/goods';
 import { buildingStorage, levelRate } from './logistics/levels';
 import { managerRate } from './logistics/managers';
 import { RECIPES, type RecipeDef } from '../data/recipes';
@@ -50,7 +51,7 @@ function extractorEfficiency(state: GameState, b: Building, outputs: readonly st
     return n > 0 ? Math.max(0.25, n / total) : 0;
   }
   if (b.typeId === 'farm') {
-    const seasonal = outputs.some((g) => g === 'grain' || g === 'cotton' || g === 'fruit');
+    const seasonal = outputs.some((g) => SEASONAL_CROPS.includes(g));
     if (seasonal) return isWinter(state.date.month) ? 0 : isSummer(state.date.month) ? 1.5 : 1;
   }
   return 1;

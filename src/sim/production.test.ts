@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { productionDay, retailDay, maintenanceMonth, growthMonth, demandModifier } from './production';
 import { footprint, placeBuilding } from './state';
 import { BUILDINGS } from '../data/buildings';
-import { DEMAND_PER_1000, GOODS } from '../data/goods';
+import { BASELINE_GOODS, DEMAND_PER_1000, GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
 import { monthlyDemand, urbanRadius } from './market';
 import { testCtx, testState } from './testkit';
@@ -302,11 +302,12 @@ describe('production', () => {
     expect(b.producedThisMonth).toEqual({});
   });
 
-  it('growth averages over currently demanded goods, including unserved ones', () => {
+  it('growth averages over currently demanded baseline goods, including unserved ones', () => {
     const state = testState({ cities: [{ x: 20, y: 15, population: 6000 }] });
     const ctx = testCtx(state);
     const city = state.cities[0];
-    const demanded = Object.keys(DEMAND_PER_1000).filter((g) => monthlyDemand(city, g, 1900) > 0);
+    // the baseline rule (R4): unserved newer goods count as the baseline mean, so they leave it unchanged
+    const demanded = Object.keys(DEMAND_PER_1000).filter((g) => BASELINE_GOODS.has(g) && monthlyDemand(city, g, 1900) > 0);
     city.market[demanded[0]] = { sold30: 100, demand30: 100, pending: 0 };
     growthMonth(ctx);
     expect(city.happiness).toBeCloseTo(1 / demanded.length);

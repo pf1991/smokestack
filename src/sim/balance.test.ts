@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus, type GameEvent } from '../core/events';
 import { GOODS } from '../data/goods';
-import { chainEconomics } from './chainEconomics';
+import { chainEconomics, shallowMedian } from './chainEconomics';
 import { BANKRUPT_MONTHS } from './finance';
 import { runDays } from './simulation';
 import { createGame } from './state';
@@ -23,7 +23,7 @@ function cpuMs(): number {
 describe('chain economics', () => {
   it('every 1900 chain is profitable at full utilisation', () => {
     const goods = Object.values(GOODS).filter((g) => g.kind === 'consumer' && g.era <= 1900);
-    expect(goods.map((g) => g.id).sort()).toEqual(['bread', 'cheese', 'clothes', 'furniture', 'juice', 'tools', 'toys']);
+    expect(goods.map((g) => g.id).sort()).toEqual(['books', 'bread', 'candy', 'canned_food', 'cheese', 'clothes', 'furniture', 'juice', 'shoes', 'tools', 'toys']);
     for (const g of goods) {
       const r = chainEconomics(g.id, 1900);
       expect(r, g.id).not.toBeNull();
@@ -38,6 +38,47 @@ describe('chain economics', () => {
       const r = chainEconomics(g.id, g.era);
       expect(r, g.id).not.toBeNull();
       expect(r!.profitPerDay, `${g.id} daily profit`).toBeGreaterThan(0);
+    }
+  });
+});
+
+/**
+ * The balance gate (R4): a deep chain (depth >= 4) must pay at least as much per worker-month as the
+ * median shallow chain (depth <= 3) the player could already build in the deep good's own era year.
+ * Every figure is `chainEconomics(g, y)` with y = the deep good's era, so the shallow median is the
+ * one of year y (it uses every consumer good with era <= y).
+ */
+describe('deep chains pay', () => {
+  it('chain reports carry depth, workers and profit per worker-month', () => {
+    const bread = chainEconomics('bread', 1900)!;
+    expect(bread.depth).toBe(3);
+    expect(chainEconomics('cheese', 1900)!.depth).toBe(2);
+    expect(bread.workers).toBeGreaterThan(0);
+    expect(bread.profitPerWorkerMonth).toBeCloseTo((bread.profitPerDay * 30) / bread.workers, 10);
+  });
+
+  it('the 1900 rows match Table E within 10%', () => {
+    const table: [string, number, number, number][] = [
+      // good, depth, workers, $/worker-month
+      ['candy', 3, 116, 14.0],
+      ['canned_food', 3, 117, 14.1],
+      ['books', 3, 152, 11.4],
+      ['shoes', 3, 172, 10.9],
+    ];
+    for (const [id, depth, workers, perWm] of table) {
+      const r = chainEconomics(id, 1900)!;
+      expect(r.depth, id).toBe(depth);
+      expect(Math.abs(r.workers - workers) / workers, `${id} workers ${r.workers}`).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(r.profitPerWorkerMonth - perWm) / perWm, `${id} $/wk-mo ${r.profitPerWorkerMonth}`).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it('every deep consumer chain beats the shallow median of its era year', () => {
+    for (const d of Object.values(GOODS).filter((g) => g.kind === 'consumer')) {
+      const r = chainEconomics(d.id, d.era);
+      if (!r || r.depth < 4) continue;
+      const median = shallowMedian(d.era);
+      expect(r.profitPerWorkerMonth, `${d.id} (${d.era}) vs shallow median ${median.toFixed(1)} of ${d.era}`).toBeGreaterThanOrEqual(median);
     }
   });
 });

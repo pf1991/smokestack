@@ -7,14 +7,13 @@
  * Fixed costs that do not scale are charged whole: one store, and one truck per leg.
  */
 import { BUILDINGS } from '../data/buildings';
-import { GOODS } from '../data/goods';
+import { GOODS, SEASONAL_CROPS } from '../data/goods';
 import { RECIPES, recipeEra, type RecipeDef } from '../data/recipes';
 import { TRUCK } from './vehicles';
 import type { BuildingTypeId, GoodId } from './types';
 
 /** Average yearly yield of a seasonal farm crop: Dec–Feb ×0, Jul–Sep ×1.5, rest ×1. */
 export const SEASONAL_FARM_FACTOR = (3 * 0 + 3 * 1.5 + 6 * 1) / 12;
-const SEASONAL: GoodId[] = ['grain', 'cotton', 'fruit'];
 const DAYS_PER_MONTH = 30;
 
 export interface ChainReport {
@@ -26,13 +25,19 @@ export interface ChainReport {
   buildings: Partial<Record<BuildingTypeId, number>>;
   /** number of truck legs (one truck each) */
   legs: number;
-  /** raw (tier-0) goods the chain consumes per day, valued at base price */
+  /** raw goods the chain consumes per day, valued at base price */
   rawInputCostPerDay: number;
   /** output per day × base price */
   revenuePerDay: number;
   /** buildings (fractional) + store + one truck per leg, per day */
   maintenancePerDay: number;
   profitPerDay: number;
+  /** levels in the longest producer path, raw = 1 (cheese 2, bread 3) */
+  depth: number;
+  /** hands at full output: sum of each building's workers × its fractional count, store included */
+  workers: number;
+  /** profitPerDay × 30 / workers: what one worker earns the chain per month */
+  profitPerWorkerMonth: number;
 }
 
 interface Producer {
@@ -54,7 +59,7 @@ export function producerOf(goodId: GoodId, year: number): Producer | null {
 
 function dailyYield(p: Producer, goodId: GoodId): number {
   const perDay = p.recipe.outputs[goodId] / p.recipe.days;
-  return p.typeId === 'farm' && SEASONAL.includes(goodId) ? perDay * SEASONAL_FARM_FACTOR : perDay;
+  return p.typeId === 'farm' && SEASONAL_CROPS.includes(goodId) ? perDay * SEASONAL_FARM_FACTOR : perDay;
 }
 
 export function chainEconomics(goodId: GoodId, year: number): ChainReport | null {
@@ -64,26 +69,33 @@ export function chainEconomics(goodId: GoodId, year: number): ChainReport | null
   let raw = 0;
   let legs = 0;
   let ok = true;
-  const need = (g: GoodId, perDay: number): void => {
+  let depth = 0;
+  const need = (g: GoodId, perDay: number, level: number): void => {
     const p = producerOf(g, year);
     if (!p) {
       ok = false;
       return;
     }
+    depth = Math.max(depth, level);
     legs++; // a truck leg delivers g to its consumer
     const share = perDay / dailyYield(p, g);
     buildings[p.typeId] = (buildings[p.typeId] ?? 0) + share;
     if (GOODS[g].kind === 'raw') raw += perDay * GOODS[g].basePrice;
-    for (const [inp, q] of Object.entries(p.recipe.inputs)) need(inp, (q / p.recipe.days) * share);
+    for (const [inp, q] of Object.entries(p.recipe.inputs)) need(inp, (q / p.recipe.days) * share, level + 1);
   };
   const outputPerDay = top.recipe.outputs[goodId] / top.recipe.days;
-  need(goodId, outputPerDay); // counts the manufacturer → store leg
+  need(goodId, outputPerDay, 1); // counts the manufacturer → store leg
   if (!ok) return null;
   buildings.store = (buildings.store ?? 0) + 1;
   let maintenance = legs * TRUCK.maintenance;
-  for (const [t, n] of Object.entries(buildings)) maintenance += BUILDINGS[t].maintenance * (n ?? 0);
+  let workers = 0;
+  for (const [t, n] of Object.entries(buildings)) {
+    maintenance += BUILDINGS[t].maintenance * (n ?? 0);
+    workers += BUILDINGS[t].workers * (n ?? 0);
+  }
   const maintenancePerDay = maintenance / DAYS_PER_MONTH;
   const revenuePerDay = outputPerDay * GOODS[goodId].basePrice;
+  const profitPerDay = revenuePerDay - maintenancePerDay;
   return {
     goodId,
     recipeId: top.recipe.id,
@@ -93,6 +105,30 @@ export function chainEconomics(goodId: GoodId, year: number): ChainReport | null
     rawInputCostPerDay: raw,
     revenuePerDay,
     maintenancePerDay,
-    profitPerDay: revenuePerDay - maintenancePerDay,
+    profitPerDay,
+    depth,
+    workers,
+    profitPerWorkerMonth: workers > 0 ? (profitPerDay * DAYS_PER_MONTH) / workers : 0,
   };
+}
+
+/** Deep chains (the balance gate) have at least this many levels. */
+export const DEEP_DEPTH = 4;
+
+/**
+ * The balance gate's yardstick for year `year`: the median profitPerWorkerMonth of the shallow
+ * consumer chains (depth < DEEP_DEPTH) invented by then (era <= year), every chain evaluated in
+ * `year` itself. NaN when there is none.
+ */
+export function shallowMedian(year: number): number {
+  const xs: number[] = [];
+  for (const g of Object.values(GOODS)) {
+    if (g.kind !== 'consumer' || g.era > year) continue;
+    const r = chainEconomics(g.id, year);
+    if (r && r.depth < DEEP_DEPTH) xs.push(r.profitPerWorkerMonth);
+  }
+  if (xs.length === 0) return Number.NaN;
+  xs.sort((a, b) => a - b);
+  const mid = xs.length >> 1;
+  return xs.length % 2 === 1 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
 }

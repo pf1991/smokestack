@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GOODS } from '../data/goods';
 import { addDays } from './clock';
 import { acceptContract, contractsDay, offerContracts, onSale } from './contracts';
+import { canMake } from './eras';
 import { testCtx, testState } from './testkit';
 import type { Contract, SimContext } from './types';
 
@@ -29,7 +30,7 @@ function mk(ctx: SimContext, over: Partial<Contract> = {}): Contract {
 describe('contracts', () => {
   it('offer targets low-satisfaction goods', () => {
     const ctx = setup();
-    // city 0 is fully satisfied for every tier-2 good; only city 1 can be targeted
+    // city 0 is fully satisfied for every consumer good; only city 1 can be targeted
     for (const g of Object.keys(GOODS)) ctx.state.cities[0].market[g] = { sold30: 100, demand30: 100, pending: 0 };
     offerContracts(ctx);
     const offered = ctx.state.contracts.filter((c) => c.status === 'offered');
@@ -41,6 +42,32 @@ describe('contracts', () => {
       expect(c.delivered).toBe(0);
     }
     expect(ctx.state.news.some((n) => n.kind === 'contract')).toBe(true);
+  });
+
+  it('a 1900 state never offers a good nobody can make yet (canMake)', () => {
+    const ctx = setup();
+    ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'r_shoes');
+    expect(ctx.state.unlocked).toContain('shoes');
+    expect(canMake(ctx.state, 'shoes')).toBe(false);
+    expect(canMake(ctx.state, 'bread')).toBe(true);
+    const seen = new Set<string>();
+    for (let i = 0; i < 120; i++) {
+      offerContracts(ctx);
+      for (const c of ctx.state.contracts) seen.add(c.goodId);
+      for (const c of ctx.state.contracts) expect(canMake(ctx.state, c.goodId), c.goodId).toBe(true);
+      // clear the board so every round draws again
+      ctx.state.contracts = [];
+    }
+    expect(seen.size, 'the board drew several goods').toBeGreaterThan(5);
+    expect(seen.has('shoes')).toBe(false);
+  });
+
+  it('canMake needs both the building and the recipe unlocked', () => {
+    const ctx = setup();
+    expect(canMake(ctx.state, 'shoes')).toBe(true);
+    ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'shoe_factory');
+    expect(canMake(ctx.state, 'shoes')).toBe(false);
+    expect(canMake(ctx.state, 'cars')).toBe(false); // 1910
   });
 
   it('offers never exceed 3 and are deterministic', () => {
