@@ -207,14 +207,6 @@
   display: inline-flex;
 }
 
-.tc-chip {
-  width: 12px;
-  height: 12px;
-  margin: 2px;
-  border-radius: 50%;
-  background: var(--chip, var(--text-muted));
-  box-shadow: 0 0 0 1px var(--surface-0);
-}
 
 .tc-arrow {
   color: var(--text-muted);

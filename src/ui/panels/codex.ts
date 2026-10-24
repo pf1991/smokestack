@@ -6,15 +6,14 @@ import { consumersOf, producersOf, upstreamTree, type ChainNode } from '../../da
 import { GOODS, type GoodDef } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import type { GameState, GoodId } from '../../sim/types';
-import { ICON_IDS } from '../../render/icons';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
-import { iconEl } from '../icon';
 import { card, dataTable, emptyState, panelHeader, pill } from '../kit';
 import { createWindow } from '../window';
 import { cityDemand } from './city';
 import type { PanelDef } from './index';
 import { swap } from './inspect';
+import { goodIcon } from '../goodTooltip';
 
 type Kind = 'raw' | 'processed' | 'consumer';
 
@@ -37,34 +36,6 @@ const REFRESH_MS = 1000;
 const goodName = (id: GoodId) => GOODS[id]?.name ?? id;
 const buildingName = (id: string) => BUILDINGS[id]?.name ?? id;
 const unique = <T,>(xs: T[]) => [...new Set(xs)];
-
-/** A good's atlas icon, else a swatch in its colour (goods added before their glyph is painted). */
-export function goodIcon(id: GoodId, size = 16): HTMLElement {
-  if (ICON_IDS.includes(id)) return iconEl(id, size);
-  const chip = h('span', { class: 'cx-chip', 'aria-hidden': 'true' });
-  chip.style.width = chip.style.height = `${size}px`;
-  if (GOODS[id]?.color) chip.style.background = GOODS[id].color;
-  return chip;
-}
-
-/** "Made from Flour + Milk in Bakery", "Gathered at Farm", or "Not made anywhere". */
-export function madeFromLine(good: GoodId): string {
-  const via = producersOf(good)[0];
-  if (!via) return 'Not made anywhere';
-  const ins = Object.keys(RECIPES[via.recipe]?.inputs ?? {}).map(goodName);
-  return ins.length > 0 ? `Made from ${ins.join(' + ')} in ${buildingName(via.building)}` : `Gathered at ${buildingName(via.building)}`;
-}
-
-/** The codex's short form, shown over good icons: name, base price, and what it is made from where. */
-export function goodTooltip(good: GoodId): HTMLElement {
-  const g = GOODS[good];
-  return h(
-    'div',
-    { class: 'cx-tip' },
-    h('div', { class: 'cx-tip-head' }, goodIcon(good, 16), h('strong', null, goodName(good)), g ? h('span', { class: 'cx-tip-price' }, formatMoney(g.basePrice)) : null),
-    h('div', { class: 'cx-tip-line' }, madeFromLine(good)),
-  );
-}
 
 /** Goods the player's works are set to make right now. */
 function goodsMade(state: GameState): Set<GoodId> {

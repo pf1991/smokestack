@@ -10,7 +10,7 @@ import type { SimContext } from '../../sim/types';
 import { shortcutForEvent, withShortcut } from '../shortcuts';
 import { Toolbar } from '../toolbar';
 import { PANELS } from './index';
-import { goodTooltip } from './codex';
+import { goodTooltip } from '../goodTooltip';
 
 beforeEach(() => {
   vi.useFakeTimers();

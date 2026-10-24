@@ -12,8 +12,7 @@ import { h } from './dom';
 import { iconEl } from './icon';
 import { shortcutFor, withShortcut } from './shortcuts';
 import { formatMoney } from './format';
-import { tooltip } from './kit';
-import { goodTooltip } from './panels/codex';
+import { goodIcon, goodTip } from './goodTooltip';
 import type { ToolSpec } from './tools';
 import { currentUiScale } from './scale';
 import './toolbar.css';
@@ -35,18 +34,11 @@ function tabOf(def: BuildingDef): TabId | null {
   return outs.length > 0 && outs.every((g) => GOODS[g]?.tier === 1) ? 'refine' : 'manufacture';
 }
 
-/** One good in a recipe strip: its atlas icon, else a chip in the good's colour. `data-good` is the codex hook. */
+/** One good in a recipe strip: its icon (or colour chip) with the good tooltip. `data-good` is the codex hook. */
 function goodEl(id: string): HTMLElement {
-  const name = GOODS[id]?.name ?? id;
-  let inner: HTMLElement;
-  if (ICON_IDS.includes(id)) inner = iconEl(id, 16, name);
-  else {
-    inner = h('span', { class: 'tc-chip', role: 'img', 'aria-label': name });
-    if (GOODS[id]?.color) inner.style.setProperty('--chip', GOODS[id].color);
-  }
-  // the codex tooltip replaces the bare name title; cards are built once, so it is never disposed
-  const el = h('span', { class: 'tc-good', 'data-good': id }, inner);
-  tooltip(el, () => goodTooltip(id));
+  const el = h('span', { class: 'tc-good', 'data-good': id }, goodIcon(id, 16, GOODS[id]?.name ?? id));
+  // cards are built once, so the tooltip is never disposed
+  goodTip(el, id);
   return el;
 }
 

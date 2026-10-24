@@ -29,8 +29,8 @@ import { offeredGoods } from '../../sim/routeHelpers';
 import { housingFactory, workCity } from '../../sim/politics/workforce';
 import type { Building, GameState, Route } from '../../sim/types';
 import { h } from '../dom';
-import { meter, panelHeader, tooltip, type Tone } from '../kit';
-import { goodTooltip } from './codex';
+import { meter, panelHeader, type Tone } from '../kit';
+import { goodIcon, goodTip } from '../goodTooltip';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
@@ -245,10 +245,10 @@ function makeFlowRow(goodId: string): FlowRow {
   const el = h(
     'div',
     { class: 'insp-flow-row', 'data-good': goodId },
-    iconEl(goodId, 20),
+    goodIcon(goodId, 20),
     h('div', { class: 'insp-flow-info' }, h('div', { class: 'insp-flow-line' }, h('span', { class: 'insp-flow-name' }, g.name), qty), m),
   );
-  return { el, qty, meter: m, dispose: tooltip(el, () => goodTooltip(goodId)) };
+  return { el, qty, meter: m, dispose: goodTip(el, goodId) };
 }
 
 const btnClass = (variant: 'primary' | 'secondary' | 'quiet' | 'danger', extra: string) => `btn kit-btn kit-btn--${variant} ${extra}`;
