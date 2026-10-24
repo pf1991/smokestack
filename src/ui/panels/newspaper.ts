@@ -8,6 +8,7 @@ import type { GameDate, GameState, NewsItem, NewsKind } from '../../sim/types';
 import { h } from '../dom';
 import { createWindow } from '../window';
 import './newspaper.css';
+import './newspaper-display.css';
 import type { PanelDef } from './index';
 
 interface Ad { head: string; text: string }
@@ -91,13 +92,16 @@ export function leadStory(items: NewsItem[]): NewsItem | null {
   return [...items].sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind] || b.id - a.id)[0];
 }
 
-/** Masthead name and CSS class by era. The class carries a system font stack (newspaper.css); no web fonts. */
+/** Masthead name and CSS class by era. The class carries a system font stack (the --font-masthead-* tokens); no web fonts. */
 export function mastheadFor(year: number): { title: string; className: string } {
   if (year < 1925) return { title: 'The Daily Smokestack', className: 'mast-blackletter' };
   if (year < 1950) return { title: 'The Smokestack Herald', className: 'mast-deco' };
   if (year < 1975) return { title: 'The Smokestack Express', className: 'mast-slab' };
   return { title: 'The Smokestack Post', className: 'mast-grotesk' };
 }
+
+/** Lead paragraphs at least this long open with a drop cap. */
+const DROP_CAP_MIN = 140;
 
 const MONTHS_SHORT = MONTH_FULL.map((m) => m.slice(0, 3));
 
@@ -168,11 +172,16 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
   const idx = monthsWithNews(state);
   const pos = idx.findIndex((m) => m.year === ym.year && m.month === ym.month);
 
-  return h('div', { class: 'paper' },
-    h('div', { class: 'paper-nav' },
-      h('button', { title: 'Previous month', disabled: pos <= 0, onClick: nav.prev }, '‹'),
+  const navButton = (label: string, title: string, disabled: boolean, onClick?: () => void) =>
+    h('button', { class: 'btn kit-btn kit-btn--secondary', type: 'button', title, 'aria-label': title, disabled, onClick }, label);
+  const frame = h('div', { class: 'paper-nav' },
+    navButton('‹', 'Previous month', pos <= 0, nav.prev),
+    h('div', { class: 'paper-nav-label' },
       h('span', null, `Vol. ${ym.year - 1899} · No. ${ym.month}`),
-      h('button', { title: 'Next month', disabled: pos >= idx.length - 1, onClick: nav.next }, '›')),
+      h('b', { class: 'paper-nav-month' }, `${MONTH_FULL[ym.month - 1]} ${ym.year}`)),
+    navButton('›', 'Next month', pos >= idx.length - 1, nav.next));
+
+  return h('div', { class: 'news-edition' }, frame, h('div', { class: 'paper' },
     h('h1', { class: `masthead ${mast.className}` }, mast.title),
     h('div', { class: 'masthead-ears' },
       h('span', null, '“All the soot that\'s fit to print”'),
@@ -182,7 +191,8 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
       ? h('section', { class: 'lead' },
           h('span', { class: 'kicker' }, KIND_LABEL[lead.kind]),
           h('h2', null, lead.headline),
-          h('p', null, lead.body))
+          // a drop cap only on a lead long enough to wrap around it; on one short line it floats off alone
+          h('p', { class: lead.body.length >= DROP_CAP_MIN ? 'drop' : undefined }, lead.body))
       : h('div', { class: 'paper-quiet' }, `A quiet month in ${MONTH_FULL[ym.month - 1]}. The presses idle, and the editor takes an early luncheon.`),
     h('div', { class: 'politics-row' }, ballotBox(state, ym), (desk || dec) && h('div', { class: 'politics-side' }, desk, dec)),
     rest.length > 0 && h('section', { class: 'paper-cols' },
@@ -191,7 +201,7 @@ export function renderPaper(state: GameState, ym: { year: number; month: number 
     h('section', { class: 'p-section classifieds' },
       h('h4', null, 'Classified Advertisements'),
       h('div', { class: 'ads' }, ads.map((a) => h('div', { class: 'ad' }, h('b', null, a.head), a.text)))),
-    h('div', { class: 'paper-foot' }, 'Printed by the Smokestack Steam Press · Sold in all good chimney-shops'));
+    h('div', { class: 'paper-foot' }, 'Printed by the Smokestack Steam Press · Sold in all good chimney-shops')));
 }
 
 export function autoNewsEnabled(): boolean {

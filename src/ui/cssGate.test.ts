@@ -9,8 +9,12 @@ const fs = (await import(/* @vite-ignore */ FS)) as {
 const { readFileSync, existsSync } = fs;
 const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
 
-/** CSS files already moved onto the design tokens. Each rework task appends its files here. */
-export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css', 'src/ui/panels/finance.css', 'src/ui/panels/routes.css', 'src/ui/panels/managers.css', 'src/ui/panels/fleet.css', 'src/ui/panels/politics.css', 'src/ui/panels/contracts.css', 'src/ui/panels/goals.css'];
+/**
+ * CSS files already moved onto the design tokens. Each rework task appends its files here.
+ * Deliberately absent: src/ui/panels/newspaper-display.css, the newspaper's masthead, lead headline
+ * and drop cap, the only type in the game drawn above the --fs-* scale (see that file's header).
+ */
+export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css', 'src/ui/panels/finance.css', 'src/ui/panels/routes.css', 'src/ui/panels/managers.css', 'src/ui/panels/fleet.css', 'src/ui/panels/politics.css', 'src/ui/panels/contracts.css', 'src/ui/panels/goals.css', 'src/ui/panels/newspaper.css'];
 
 /** Strip comments and custom-property declarations (tokens are where raw values live). */
 function stripped(css: string): string {

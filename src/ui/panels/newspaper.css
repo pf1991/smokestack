@@ -1,90 +1,123 @@
-/* The Daily Smokestack: broadsheet newspaper window and headline ticker. */
+/* The Daily Smokestack: the window frame, the edition bar, the printed page and the headline ticker.
+   Tokens only (see cssGate.test.ts): ink and paper come from the --news-* tokens, the era mastheads
+   from the --font-masthead-* tokens (theme.css). The few display sizes larger than the type scale
+   (masthead, lead headline, drop cap) live apart in newspaper-display.css. */
 
-.window.news-window {
-  background: #cdbb93;
-  border-color: var(--brass-dark);
-}
+/* ---- Frame: the window and the edition bar ---- */
 .news-window .window-body {
   max-height: calc((100 * var(--uvh)) - 140px);
   overflow-y: auto;
 }
 
-.paper {
-  position: relative;
-  padding: 10px 16px 16px;
-  color: #231d15;
-  font-family: var(--font-body);
-  background:
-    radial-gradient(ellipse at 15% 10%, rgba(255, 250, 230, 0.55), transparent 55%),
-    radial-gradient(ellipse at 90% 95%, rgba(120, 85, 40, 0.28), transparent 50%),
-    repeating-linear-gradient(0deg, rgba(110, 80, 40, 0.035) 0 1px, transparent 1px 3px),
-    linear-gradient(180deg, #efe3c3, #e3d2a6);
-  box-shadow: inset 0 0 60px rgba(120, 80, 30, 0.35), inset 0 0 6px rgba(80, 50, 20, 0.5);
+.news-edition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
 }
-
-.paper { container-type: inline-size; }
-.paper h1, .paper h2, .paper h3, .paper h4 { color: #231d15; font-family: inherit; text-shadow: none; }
 
 .paper-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--surface-1);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #5a4630;
+  color: var(--text-muted);
 }
-.paper-nav button {
-  font: inherit;
-  font-size: 15px;
-  padding: 1px 12px;
-  cursor: pointer;
-  color: #3a2a18;
-  background: transparent;
-  border: 1px solid #7a6240;
-  border-radius: 2px;
+
+.paper-nav-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
 }
-.paper-nav button:hover:not(:disabled) { background: rgba(120, 85, 40, 0.18); }
-.paper-nav button:disabled { opacity: 0.3; cursor: default; }
+
+.paper-nav-month {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.paper-nav .kit-btn {
+  min-width: 40px;
+  justify-content: center;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  padding: 2px var(--sp-3);
+}
+
+/* ---- The printed page ---- */
+.paper {
+  position: relative;
+  container-type: inline-size;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  color: var(--news-ink);
+  font-family: var(--font-body);
+  border: 0;
+  border-radius: var(--r-sm);
+  background:
+    radial-gradient(ellipse at 15% 10%, rgba(255, 250, 230, 0.55), transparent 55%),
+    radial-gradient(ellipse at 90% 95%, rgba(120, 85, 40, 0.28), transparent 50%),
+    repeating-linear-gradient(0deg, rgba(110, 80, 40, 0.035) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--news-paper), var(--news-paper-shade));
+  box-shadow: inset 0 0 60px rgba(120, 80, 30, 0.35), inset 0 0 6px rgba(80, 50, 20, 0.5), var(--shadow-1);
+}
+
+.paper h1, .paper h2, .paper h3, .paper h4 { color: var(--news-ink); font-family: var(--font-body); text-shadow: none; }
 
 .masthead {
-  margin: 6px 0 0;
+  margin: var(--sp-1) 0 0;
   text-align: center;
-  font-family: 'Old English Text MT', 'UnifrakturCook', 'Palatino Linotype', Georgia, serif;
+  font-family: var(--font-masthead);
   font-weight: 700;
-  font-size: clamp(22px, 9cqi, 52px);
   overflow-wrap: anywhere;
   line-height: 1.05;
   letter-spacing: 0.01em;
   text-transform: none;
   text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.25);
 }
-.paper h1.masthead { font-family: 'Old English Text MT', 'UnifrakturCook', 'Palatino Linotype', Georgia, serif; text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.25); }
+.paper h1.masthead { font-family: var(--font-masthead); text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.25); }
+
+/* Era mastheads: the face changes with the times. */
+.paper h1.mast-blackletter { font-family: var(--font-masthead-1900); font-variant: small-caps; }
+.paper h1.mast-deco { font-family: var(--font-masthead-1925); font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; overflow-wrap: anywhere; }
+.paper h1.mast-slab { font-family: var(--font-masthead-1950); font-weight: 900; text-transform: uppercase; }
+.paper h1.mast-grotesk { font-family: var(--font-masthead-1975); font-weight: 700; letter-spacing: -0.02em; }
+@container (max-width: 600px) { .paper h1.mast-deco { letter-spacing: 0.06em; } }
+
 .masthead-ears {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-top: 4px;
-  font-size: 11px;
+  gap: var(--sp-3);
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
   font-style: italic;
-  color: #5a4630;
+  color: var(--news-ink-soft);
 }
 .masthead-sub {
-  margin: 6px 0 12px;
-  padding: 4px 0;
+  margin: var(--sp-1) 0 var(--sp-3);
+  padding: var(--sp-1) 0;
   text-align: center;
-  font-size: 13px;
-  letter-spacing: 0.12em;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  border-top: 3px double #231d15;
-  border-bottom: 1px solid #231d15;
+  border-top: 3px double var(--news-ink);
+  border-bottom: 1px solid var(--news-ink);
 }
 
-.lead { text-align: center; padding-bottom: 12px; border-bottom: 3px double #231d15; }
+.lead { text-align: center; padding-bottom: var(--sp-3); border-bottom: 3px double var(--news-ink); }
 .lead h2 {
-  margin: 4px 0 8px;
-  font-size: clamp(26px, (4 * var(--uvw)), 40px);
+  margin: var(--sp-1) 0 var(--sp-2);
   line-height: 1.08;
   font-weight: 900;
   letter-spacing: -0.01em;
@@ -93,25 +126,24 @@
 .lead .kicker {
   display: inline-block;
   padding: 1px 10px;
-  font-size: 11px;
-  letter-spacing: 0.2em;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #efe3c3;
-  background: #231d15;
+  color: var(--news-paper);
+  background: var(--news-ink);
 }
 .lead p {
   margin: 0 auto;
   max-width: 560px;
-  font-size: 16px;
-  line-height: 1.45;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
   font-style: italic;
   text-align: justify;
   text-align-last: center;
 }
-.lead p::first-letter {
+.lead p.drop::first-letter {
   float: left;
   margin: 2px 6px 0 0;
-  font-size: 46px;
   line-height: 0.8;
   font-style: normal;
   font-weight: 900;
@@ -121,74 +153,66 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 26px;
-  margin-top: 12px;
-  column-gap: 26px;
+  margin-top: var(--sp-3);
 }
-.paper-cols .col + .col { border-left: 1px solid #7a6240; padding-left: 26px; margin-left: -13px; }
+.paper-cols .col + .col { border-left: 1px solid var(--news-rule); padding-left: 26px; margin-left: -13px; }
 .story { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(35, 29, 21, 0.45); }
 .story:last-child { border-bottom: 0; }
 .story h3 {
-  margin: 0 0 4px;
-  font-size: 17px;
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-lg);
   line-height: 1.15;
   font-weight: 800;
   text-transform: uppercase;
 }
-.story .byline { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b5338; margin-bottom: 3px; }
-.story p { margin: 0; font-size: 13.5px; line-height: 1.4; text-align: justify; hyphens: auto; }
+.story .byline { font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--news-ink-faint); margin-bottom: 3px; }
+.story p { margin: 0; font-size: var(--fs-sm); line-height: 1.4; text-align: justify; hyphens: auto; }
 .story.market h3 { font-style: italic; }
-.story.civic .byline { color: #3f5a3a; }
-.paper-quiet { text-align: center; font-style: italic; padding: 24px 0 10px; color: #5a4630; }
+.story.civic .byline { color: var(--news-civic); }
+.paper-quiet { text-align: center; font-style: italic; padding: var(--sp-5) 0 10px; color: var(--news-ink-soft); }
 
-.paper .p-section { display: block; margin: 0; }
-.paper .classifieds { margin-top: 8px; }
+.paper .p-section { display: block; margin: 0; background: transparent; border-radius: 0; }
 .classifieds {
-  margin-top: 8px;
-  padding: 8px 12px 10px;
-  border: 3px double #231d15;
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) 10px;
+  border: 3px double var(--news-ink);
   background: rgba(255, 250, 230, 0.25);
 }
+.paper .classifieds { margin-top: var(--sp-2); border: 3px double var(--news-ink); }
 .classifieds h4 {
   margin: 0 0 6px;
   text-align: center;
-  font-size: 13px;
-  letter-spacing: 0.35em;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.ads { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.ads { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-2); }
 .ad {
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: 5px var(--sp-2);
+  font-size: var(--fs-sm);
   line-height: 1.3;
-  border: 1px solid #231d15;
+  border: 1px solid var(--news-ink);
 }
-.ad b { display: block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
-.paper-foot { margin-top: 8px; text-align: center; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #6b5338; }
-
-
-/* Era mastheads: system font stacks only. */
-.paper h1.mast-blackletter { font-family: "UnifrakturMaguntia", "Old English Text MT", serif; font-variant: small-caps; }
-.paper h1.mast-deco { font-family: "Futura", "Century Gothic", sans-serif; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; font-size: clamp(18px, 6.5cqi, 42px); overflow-wrap: anywhere; }
-@container (max-width: 600px) { .paper h1.mast-deco { letter-spacing: 0.06em; font-size: clamp(18px, 7cqi, 30px); } .paper h1.mast-slab { font-size: clamp(20px, 8cqi, 34px); } }
-.paper h1.mast-slab { font-family: "Rockwell", "Courier New", serif; font-weight: 900; text-transform: uppercase; }
-.paper h1.mast-grotesk { font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+.ad b { display: block; font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; }
+.paper-foot { margin-top: var(--sp-2); text-align: center; font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--news-ink-faint); }
 
 /* Political front page */
-.politics-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; margin-top: 12px; }
+.politics-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: var(--sp-4); margin-top: var(--sp-3); }
 .politics-row:not(:has(.politics-side)) { grid-template-columns: 1fr; }
-.ballot-box, .smogsworth-desk, .decisions { padding: 8px 10px; border: 1px solid #231d15; background: rgba(255, 250, 230, 0.25); }
+.ballot-box, .smogsworth-desk, .decisions { padding: var(--sp-2) 10px; border: 1px solid var(--news-ink); background: rgba(255, 250, 230, 0.25); }
+.paper .ballot-box, .paper .smogsworth-desk, .paper .decisions { border: 1px solid var(--news-ink); }
 .politics-side { display: flex; flex-direction: column; gap: 10px; }
-.paper .ballot-box h4, .paper .smogsworth-desk h4, .paper .decisions h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.25em; text-transform: uppercase; text-align: center; border-bottom: 1px solid #231d15; }
-.smogsworth-desk h3 { margin: 0 0 3px; font-size: 15px; text-transform: uppercase; }
-.smogsworth-desk p { margin: 0; font-size: 13px; font-style: italic; }
-.decisions ul { margin: 0; padding-left: 16px; font-size: 13px; }
-.ballot-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; }
-.fchip { padding: 0 6px; font-size: 10px; color: #efe3c3; background: #231d15; border-left: 5px solid var(--fc, #888); border-radius: 2px; white-space: nowrap; }
-.vote-bar { display: flex; height: 7px; margin: 2px 0 7px; border: 1px solid #231d15; }
+.paper .ballot-box h4, .paper .smogsworth-desk h4, .paper .decisions h4 { margin: 0 0 6px; font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; text-align: center; border-bottom: 1px solid var(--news-ink); }
+.smogsworth-desk h3 { margin: 0 0 3px; font-size: var(--fs-md); text-transform: uppercase; }
+.smogsworth-desk p { margin: 0; font-size: var(--fs-sm); font-style: italic; }
+.decisions ul { margin: 0; padding-left: var(--sp-4); font-size: var(--fs-sm); }
+.ballot-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: var(--fs-sm); }
+.fchip { padding: 0 6px; font-size: var(--fs-xs); color: var(--news-paper); background: var(--news-ink); border-left: 5px solid var(--fc, var(--news-rule)); border-radius: 2px; white-space: nowrap; }
+.vote-bar { display: flex; height: 7px; margin: 2px 0 7px; border: 1px solid var(--news-ink); }
 .vote-bar i { display: block; height: 100%; }
-.ballot-sub { margin: 6px 0 2px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b5338; }
-.ballot-next { display: flex; justify-content: space-between; font-size: 12px; }
-.ballot-none { margin: 0; font-size: 12px; font-style: italic; }
+.ballot-sub { margin: 6px 0 2px; font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--news-ink-faint); }
+.ballot-next { display: flex; justify-content: space-between; font-size: var(--fs-sm); }
+.ballot-none { margin: 0; font-size: var(--fs-sm); font-style: italic; }
 @container (max-width: 600px) {
   .politics-row { grid-template-columns: 1fr; }
   .paper-cols { grid-template-columns: 1fr; }
@@ -196,7 +220,7 @@
   .ads { grid-template-columns: 1fr; }
 }
 
-/* Ticker: latest headlines scroll right to left. */
+/* ---- Ticker: latest headlines scroll right to left ---- */
 .hud-ticker .ticker-track {
   display: inline-block;
   padding-left: 100%;

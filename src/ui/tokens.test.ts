@@ -108,6 +108,14 @@ describe('design tokens', () => {
     it('--text on --surface-1 >= 4.5 (owner badges)', () => {
       expect(contrast(token('--text')!, token('--surface-1')!)).toBeGreaterThanOrEqual(4.5);
     });
+    // the newspaper's inks on its paper (both the light and the shaded end of the sheet)
+    for (const t of ['--news-ink', '--news-ink-soft', '--news-ink-faint', '--news-civic']) {
+      for (const s of ['--news-paper', '--news-paper-shade']) {
+        it(`${t} on ${s} >= 4.5 (newsprint)`, () => {
+          expect(contrast(token(t)!, token(s)!)).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+    }
     it('--paper-ink on --paper >= 7', () => {
       expect(contrast(token('--paper-ink')!, token('--paper')!)).toBeGreaterThanOrEqual(7);
     });

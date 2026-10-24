@@ -53,6 +53,22 @@
   --player: #2f6fb5;
   --rival: #b5302f;
 
+  /* Newsprint: the Daily Smokestack's printed page (panels/newspaper.css), ink on aged paper */
+  --news-paper: #efe3c3;
+  --news-paper-shade: #e3d2a6;
+  --news-ink: #231d15;
+  --news-ink-soft: #5a4630;
+  --news-ink-faint: #6b5338;
+  --news-rule: #7a6240;
+  --news-civic: #3f5a3a;
+
+  /* Era mastheads: the paper changes its face with the times (system stacks only, no web fonts) */
+  --font-masthead: 'Old English Text MT', 'UnifrakturCook', 'Palatino Linotype', Georgia, serif;
+  --font-masthead-1900: 'UnifrakturMaguntia', 'Old English Text MT', serif;
+  --font-masthead-1925: 'Futura', 'Century Gothic', sans-serif;
+  --font-masthead-1950: 'Rockwell', 'Courier New', serif;
+  --font-masthead-1975: 'Helvetica Neue', Arial, sans-serif;
+
   /* Elevation and focus */
   --shadow-1: 0 1px 2px rgba(0,0,0,.4);
   --shadow-2: 0 8px 24px rgba(0,0,0,.5);
