@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LedgerMonth, Route, SimContext } from '../types';
 import { placeBuilding } from '../state';
+import { buildRail } from '../rail';
 import { must, testCtx, testState } from '../testkit';
 import { block, chooseProject } from './market';
 import { rivalMonth } from './index';
@@ -118,6 +119,61 @@ describe('the Baron closes a product that loses money (spec §9)', () => {
     ctx.state.rivalProject = { cityId: 0, goodId: 'furniture', stage: 1 };
     expect(closeLosingLines(ctx)).toEqual([]);
     expect(ctx.state.buildings[shop.id]).toBeDefined();
+  });
+
+  it('does not review a line feeding his railway under way (its source, destination or a station)', () => {
+    const { ctx, mill, shop, lumber } = baron();
+    sales(ctx, 'furniture', 1);
+    ctx.state.rivalRail = {
+      routeId: lumber.id, sourceId: mill.id, destId: shop.id, goodId: 'lumber', legTiles: 30, anchorsA: [], anchorsB: [],
+      stage: 2, stationA: null, stationB: null, railTiles: [], stall: 0,
+    };
+    expect(closeLosingLines(ctx)).toEqual([]);
+    expect(ctx.state.buildings[mill.id]).toBeDefined();
+    expect(ctx.state.routes[lumber.id]).toBeDefined();
+    ctx.state.rivalRail = null;
+    expect(closeLosingLines(ctx)).toEqual(['furniture']);
+  });
+
+  /** The lumber leg replaced by a railway: mill -> station A, train A -> B, station B -> works, on track along y = 12. */
+  function railed(extraStation: boolean) {
+    const b = baron();
+    const { ctx, mill, shop, lumber } = b;
+    for (const v of Object.values(ctx.state.vehicles)) if (v.routeId === lumber.id) delete ctx.state.vehicles[v.id];
+    delete ctx.state.routes[lumber.id];
+    const a = must(placeBuilding(ctx, 'rival', 'train_station', { x: 8, y: 10 }));
+    const z = must(placeBuilding(ctx, 'rival', 'train_station', { x: 20, y: 10 }));
+    const other = extraStation ? must(placeBuilding(ctx, 'rival', 'train_station', { x: 23, y: 13 })) : null;
+    for (const s of [a, z]) s.earnings12 = new Array(LINE_REVIEW_MONTHS).fill(0);
+    const track = Array.from({ length: 16 }, (_, i) => ({ x: 8 + i, y: 12 }));
+    must(buildRail(ctx, 'rival', track));
+    leg(ctx, mill.id, a.id, 'lumber');
+    const line = leg(ctx, a.id, z.id, 'lumber');
+    line.kind = 'train';
+    for (const v of Object.values(ctx.state.vehicles)) if (v.routeId === line.id) v.kind = 'train';
+    leg(ctx, z.id, shop.id, 'lumber');
+    sales(ctx, 'furniture', 1);
+    return { ...b, a, z, other, track };
+  }
+
+  it('lifts the closed line’s track with its stations, so it stops costing upkeep', () => {
+    const { ctx, a, z, track } = railed(false);
+    expect(ctx.state.companies.rival.railTiles).toBe(track.length);
+    expect(closeLosingLines(ctx)).toEqual(['furniture']);
+    expect(ctx.state.buildings[a.id]).toBeUndefined();
+    expect(ctx.state.buildings[z.id]).toBeUndefined();
+    const w = ctx.state.map.width;
+    expect(track.filter((p) => ctx.state.map.tiles[p.y * w + p.x].rail)).toEqual([]);
+    expect(ctx.state.companies.rival.railTiles).toBe(0);
+  });
+
+  it('keeps track a standing station of his still uses', () => {
+    const { ctx, z, other, track } = railed(true);
+    expect(closeLosingLines(ctx)).toEqual(['furniture']);
+    expect(ctx.state.buildings[z.id]).toBeUndefined();
+    expect(ctx.state.buildings[other!.id]).toBeDefined();
+    const w = ctx.state.map.width;
+    expect(track.every((p) => ctx.state.map.tiles[p.y * w + p.x].rail)).toBe(true);
   });
 
   it('keeps an upstream works another route still hauls from', () => {

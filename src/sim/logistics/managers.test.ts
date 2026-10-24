@@ -10,7 +10,8 @@ import { buildingMaintenance } from '../society/upgrades';
 import { atPrices } from '../society/economy';
 import { demolishBuilding, placeBuilding } from '../state';
 import { must, testCtx, testState } from '../testkit';
-import type { SimContext } from '../types';
+import type { SimContext, Vehicle } from '../types';
+import { vehicleUpkeep } from '../vehicles';
 import { closeFirm } from '../regional/firms';
 import { logisticsYear } from './index';
 import { RAISE_CARD_ID } from './release';
@@ -202,6 +203,24 @@ describe('effects', () => {
     must(assign(ctx, 'player', custom(ctx, [1, 5, 2]).id, wh.id));
     expect(managerRate(ctx.state, wh)).toBe(1);
     expect(managerUpkeep(ctx.state, wh)).toBeCloseTo(0.92, 10);
+  });
+
+  it('a hub manager’s frugality cuts his hub trucks’ upkeep by the same factor (spec §7.2)', () => {
+    const ctx = setup();
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 5, y: 5 }));
+    const truck: Vehicle = {
+      id: 9001, kind: 'truck', ownerId: 'player', routeId: null, hubId: wh.id, job: null, pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 },
+      path: [], pathIndex: 0, stopIndex: 0, cargo: {}, capacity: 20, state: 'idle', waitTicks: 0, stuckNotified: false,
+      builtYear: 1900, model: 'steam_lorry', speed: 0.5,
+    };
+    ctx.state.vehicles[truck.id] = truck;
+    const loose: Vehicle = { ...truck, id: 9002, hubId: null };
+    ctx.state.vehicles[loose.id] = loose;
+    const base = vehicleUpkeep(ctx.state, truck);
+    expect(base).toBeGreaterThan(0);
+    must(assign(ctx, 'player', custom(ctx, [1, 1, 5]).id, wh.id));
+    expect(vehicleUpkeep(ctx.state, truck)).toBeCloseTo(base * 0.8, 6);
+    expect(vehicleUpkeep(ctx.state, loose)).toBeCloseTo(base, 6);
   });
 
   it('the post index follows hires, posts and removals', () => {

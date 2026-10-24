@@ -364,6 +364,23 @@ describe('strike cards', () => {
     expect(checkInvariants(ctx.state)).toEqual([]);
   });
 
+  it('a strike ends on its day, card withdrawn, even while an upgrade’s works is under way', () => {
+    const ctx = towns();
+    const b = mill(ctx);
+    startStrike(ctx, b, ctx.state.cities[0]);
+    const uid = b.strike!.cardUid!;
+    b.strike!.until = today(ctx) + 2;
+    b.works = { toLevel: 2, startDay: today(ctx), untilDay: today(ctx) + 30 };
+    b.status = 'upgrading';
+    for (let i = 0; i < 3; i++) {
+      productionDay(ctx);
+      nextDay(ctx);
+    }
+    expect(b.strike).toBeNull();
+    expect(b.status).toBe('upgrading');
+    expect(ctx.state.politics.cards.pending.some((p) => p.uid === uid)).toBe(false);
+  });
+
   it('a strike whose card was answered ends quietly, leaving other pending cards alone', () => {
     const ctx = towns();
     const a = mill(ctx, { x: 29, y: 14 });

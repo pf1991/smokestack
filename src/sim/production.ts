@@ -98,26 +98,26 @@ export function productionDay(ctx: SimContext): void {
   const unlocked = unlockedSet(state);
   for (const b of buildingList(state)) {
     const def = BUILDINGS[b.typeId];
-    // an upgrade's works halts the building; strike and halt timers keep running (sim/logistics/levels.ts)
-    if (b.works) {
-      b.status = 'upgrading';
-      continue;
-    }
     // a striking works produces nothing; on the day it ends the strike is cleared and an unanswered
-    // strike card withdrawn (society/strikes.ts)
+    // strike card withdrawn (society/strikes.ts), even while an upgrade's works is under way
     if (b.strike) {
       if (strikeActive(b.strike, today)) {
-        b.status = 'halted';
+        b.status = b.works ? 'upgrading' : 'halted';
         continue;
       }
       strikeOver(ctx, b);
     }
     if (b.haltedUntil) {
       if (compareDates(b.haltedUntil, state.date) > 0) {
-        b.status = 'halted';
+        b.status = b.works ? 'upgrading' : 'halted';
         continue;
       }
       b.haltedUntil = null;
+    }
+    // an upgrade's works halts the building; the strike and halt timers above keep running (sim/logistics/levels.ts)
+    if (b.works) {
+      b.status = 'upgrading';
+      continue;
     }
     const recipe = b.recipeId && unlocked.has(b.recipeId) ? RECIPES[b.recipeId] : undefined;
     if (!recipe || (def.category !== 'extractor' && def.category !== 'factory')) {

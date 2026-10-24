@@ -94,7 +94,7 @@ export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLEle
       const y = b.hub.yesterday;
       setText(yesterday, `Yesterday: ${y.jobs} ${y.jobs === 1 ? 'job' : 'jobs'}, ${y.idle} ${y.idle === 1 ? 'truck' : 'trucks'} idle`);
     }
-    warn.hidden = !mine || tier !== null;
+    warn.hidden = !mine || !b.hub || tier !== null;
   }
   refresh();
   return { el, refresh };
@@ -213,7 +213,7 @@ export function levelCard(host: { ctx: SimContext }, b: Building): { el: HTMLEle
     progress.hidden = !live.works;
     if (live.works) {
       const left = Math.max(0, live.works.untilDay - dateToDays(state.date));
-      setText(progress, `Upgrading to level ${live.works.toLevel}: ${left} days left`);
+      setText(progress, `Upgrading to level ${live.works.toLevel}: ${left} ${left === 1 ? 'day' : 'days'} left`);
     }
     if (!next) {
       why.hidden = true;

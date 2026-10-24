@@ -21,6 +21,8 @@ import { demolishBuilding } from '../state';
 import type { Building, GameState, GoodId, Route, SimContext } from '../types';
 import { deleteRoute, vehicleUpkeep } from '../vehicles';
 import { projectIds } from './projects';
+import { scrapOrphanRail } from './railways';
+import { stationAccess, STATION_TYPE } from '../rail';
 import { block } from './market';
 
 /** Closed ledger months a good's sales are weighed over (it must have sold in every one). */
@@ -28,7 +30,7 @@ export const LINE_REVIEW_MONTHS = 12;
 
 const isStore = (b: Building | undefined): boolean => b !== undefined && BUILDINGS[b.typeId]?.category === 'retail';
 
-/** Buildings `owner` must not cut: those of his project or railway under way. */
+/** Buildings `owner` must not cut: those of his project or railway under way (a line holding one is not reviewed). */
 function spared(state: GameState): Set<number> {
   const out = new Set(projectIds(state));
   const rail = state.rivalRail;
@@ -93,6 +95,12 @@ export function trailingSales(state: GameState, good: GoodId, owner = BARON_ID):
 function closeLines(ctx: SimContext, lines: ProductLines, owner: string, keep: Set<number>): void {
   const { state } = ctx;
   const queue: number[] = [];
+  // the track beside the line's stations, lifted once they are gone unless another line still uses it
+  const rails: number[] = [];
+  for (const id of lines.members) {
+    const b = state.buildings[id];
+    if (b?.typeId === STATION_TYPE) for (const p of stationAccess(state, b)) rails.push(p.y * state.map.width + p.x);
+  }
   for (const r of lines.storeRoutes) {
     for (const s of r.stops) if (s.load.length > 0) queue.push(s.buildingId);
     deleteRoute(ctx, r.id);
@@ -110,6 +118,7 @@ function closeLines(ctx: SimContext, lines: ProductLines, owner: string, keep: S
     if (!demolishBuilding(ctx, id, owner).ok) continue;
     for (const r of Object.values(state.routes)) if (r.ownerId === owner && r.stops.length < 2) deleteRoute(ctx, r.id);
   }
+  if (rails.length > 0) scrapOrphanRail(ctx, rails);
 }
 
 /** The Baron's monthly review: closes the lines of every good whose year of sales does not cover their upkeep. */
@@ -131,6 +140,8 @@ export function closeLosingLines(ctx: SimContext): GoodId[] {
     const sales = trailingSales(state, good, owner);
     if (sales === null) continue;
     const lines = productLines(state, good, owner);
+    // a line feeding his project or railway under way is judged once it is built (closing it would strand them)
+    if ([...lines.members].some((id) => keep.has(id))) continue;
     // a building on its lines younger than the window (a new works, station or railway) has not had a year to earn
     if ([...lines.members].some((id) => (state.buildings[id].earnings12?.length ?? 0) < LINE_REVIEW_MONTHS)) continue;
     if (sales >= linesUpkeep(state, lines)) continue;

@@ -8,6 +8,7 @@ import { accessTiles, nextId } from './state';
 import { AGING_GRACE, agingEfficiency, assetAge, assetUpkeep, NO_WEAR } from './society/aging';
 import { atPrices } from './society/economy';
 import { hasNewerModel, modelSpec, newestModel } from './logistics/models';
+import { managerUpkeep } from './logistics/managers';
 import {
   AUTO_RECHECK_TICKS, autoPickup, autoRoutesChanged, clampMaxTrucks, departAuto, dropAutoJobs, leaveAutoRoute, MIN_LOAD_MAX_WAIT_TICKS, noteDeparture,
 } from './logistics/autoRoutes';
@@ -401,9 +402,13 @@ export function replaceCost(state: GameState, veh: Vehicle | Vehicle['kind']): n
   return vehiclePrice(state, kind) - sellRefund(state, veh);
 }
 
-/** Monthly upkeep of `veh`: its model's maintenance at today's prices × its age factor. */
+/**
+ * Monthly upkeep of `veh`: its model's maintenance at today's prices × its age factor, and for a hub
+ * truck × its hub manager's frugality factor (spec §7.2).
+ */
 export function vehicleUpkeep(state: GameState, veh: Vehicle): number {
-  return atPrices(state, modelSpec(veh.model).maintenance) * assetUpkeep(state, veh);
+  const hub = veh.hubId == null ? undefined : state.buildings[veh.hubId];
+  return atPrices(state, modelSpec(veh.model).maintenance) * assetUpkeep(state, veh) * (hub ? managerUpkeep(state, hub) : 1);
 }
 
 /**

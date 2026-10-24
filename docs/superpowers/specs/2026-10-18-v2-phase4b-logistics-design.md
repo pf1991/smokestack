@@ -219,8 +219,9 @@ backlog days (`backlogDays`). At the month end:
 - utilisation `u = loaded / (loaded + empty)` (0 with no counted departures);
 - if `u > 0.85`, `backlogDays ≥ 10`, the route has fewer than `maxTrucks` trucks and the owner keeps
   the reserve after paying, it buys one truck of the newest model;
-- else if `u < 0.60` and the route has more than one truck, it sells the oldest (lowest `builtYear`,
-  then lowest id);
+- else if `u < 0.60` and the route has more than one truck, it sells the oldest empty truck (lowest
+  `builtYear`, then lowest id), so no cargo is lost; with every truck loaded, the sale is skipped that
+  month;
 - the counters reset.
 
 ### 6.5 Route window
@@ -355,8 +356,9 @@ The AI uses the same public functions as the player.
 
 - **Levels:** once a month the Baron may upgrade one works: his works with the highest output value
   this month that is below the highest available level, not under works, at least 2 years old, when
-  he keeps 2× his reserve after paying. He makes at most one upgrade every 6 months. Each regional
-  firm does the same at most once a year with its own reserve.
+  he keeps 20× his reserve after paying. He makes at most one upgrade every 24 months (the brief's
+  2× and 6 months, tuned for balance in the Task 8 soak: logistics/ai.ts). Each regional firm does the
+  same at most once a year, keeping 2× its own reserve.
 - **Hubs:** from 1910, a Baron with 3+ chains and no hub places a warehouse at the free site nearest
   his buildings' centroid, buys 2 hub trucks and hires the cheapest affordable market candidate with
   logistics 2+ (at the end of January, D8) to run it. A regional firm founded 5+ years ago does the
@@ -371,7 +373,9 @@ The AI uses the same public functions as the player.
   closed ledger months (with a sale in each, and every building on its lines at least 12 months old)
   fall short of a year of those lines' building and vehicle upkeep at today's prices: he deletes its
   store routes, demolishes each works or station no route of his hauls from any more, back up the
-  chain, and never plans that good again (rival/lines.ts).
+  chain, lifts the track of its demolished stations that no standing station still uses, and never
+  plans that good again (rival/lines.ts). A good whose lines hold a building of his project or railway
+  under way (its source, destination or a station) is not reviewed until that work is done.
 
 ## 10. Save format
 

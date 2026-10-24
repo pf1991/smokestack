@@ -63,6 +63,14 @@ export function nextLevel(b: Building): LevelDef | null {
   return levelTable(b)?.[b.level] ?? null;
 }
 
+/** Σ costShare of the levels `b` has completed above 1: the catalogue-cost multiple sunk into its upgrades. */
+export function levelCostShare(b: Building): number {
+  const table = levelTable(b);
+  let share = 0;
+  if (table) for (let l = 2; l <= b.level; l++) share += table[l - 1]?.costShare ?? 0;
+  return share;
+}
+
 /** Price of the next level: its share of the catalogue cost at today's prices, rounded. 0 at the top. */
 export function upgradeCost(state: GameState, b: Building): number {
   const next = nextLevel(b);

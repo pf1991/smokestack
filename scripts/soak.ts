@@ -143,6 +143,12 @@ for (const seed of seeds) {
   ctx.bus.on('buildingUpgraded', (e) => (upgraded[e.ownerId] = (upgraded[e.ownerId] ?? 0) + 1));
   const hired: Record<string, number> = {};
   ctx.bus.on('managerHired', (e) => (hired[e.ownerId] = (hired[e.ownerId] ?? 0) + 1));
+  // the Baron's losing-line closures (rival/lines.ts), which now shed more than the insolvency guard
+  const closures: string[] = [];
+  ctx.bus.on('news', (e) => {
+    const m = /^Smogsworth quits (.+)$/.exec(e.item.headline);
+    if (m) closures.push(`${m[1]} ${e.item.date.year}`);
+  });
   const left: Record<string, number> = {};
   ctx.bus.on('managerLeft', (e) => (left[e.reason] = (left[e.reason] ?? 0) + 1));
   // sampled at every month end: each company's highest works level and whether it has had a hub, the player's newest truck
@@ -330,7 +336,7 @@ for (const seed of seeds) {
   const hubJobsTotal = Object.values(L.stats.hubJobs).reduce((t, n) => t + n, 0);
   const topModelName = topModel >= 0 ? TRUCK_MODEL_ORDER[topModel] : 'none';
   console.log(
-    `  logistics ${seed}: ${adoption.join(' | ')} | player top truck ${topModelName} | left ${Object.entries(left).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | hub jobs total ${hubJobsTotal} | retirements ${L.stats.retirements} | player managers poached ${retaliations.poach_manager ?? 0}`,
+    `  logistics ${seed}: ${adoption.join(' | ')} | player top truck ${topModelName} | left ${Object.entries(left).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'} | hub jobs total ${hubJobsTotal} | retirements ${L.stats.retirements} | player managers poached ${retaliations.poach_manager ?? 0} | baron line closures ${closures.join(', ') || 'none'}`,
   );
   console.log(
     `  phase4 ${seed}: crash cards ${crashCards.join(', ') || 'none'} | workers 2000 ${Number.isFinite(workers2000) ? workers2000.toFixed(1) : 'n/a'} | regional active 2000 ${Number.isFinite(firms2000) ? firms2000 : 'n/a'} | player loan ${money(state.companies.player.loan)} (bid loan ${money(state.companies.player.bidLoan ?? 0)}) | emergency bid loans ${bidLoans} (${money(bidLoanTotal)}) | wealth player ${money(wealth(state, 'player'))}, baron ${money(wealth(state, 'rival'))} | 1.5x gate first open ${gateOpen || 'never'} | control first affordable ${affordable || 'never'} | baron taken over ${takenOver || 'never'} | ${victory ? `victory: ${victory}` : 'no victory'}`,

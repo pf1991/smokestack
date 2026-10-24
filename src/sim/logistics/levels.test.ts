@@ -3,10 +3,11 @@ import { BUILDINGS } from '../../data/buildings';
 import { checkInvariants } from '../invariants';
 import { productionDay } from '../production';
 import { storageLeft } from '../inventory';
-import { placeBuilding } from '../state';
+import { assetValue, assetValues, placeBuilding } from '../state';
+import { atPrices } from '../society/economy';
 import { testCtx, testState } from '../testkit';
 import type { Building, SimContext } from '../types';
-import { buildingStorage, buildingWorkers, hubRange, levelDef, levelRate, levelSmoke, levelUpkeep } from './levels';
+import { buildingStorage, buildingWorkers, hubRange, levelCostShare, levelDef, levelRate, levelSmoke, levelUpkeep } from './levels';
 import { newLogistics } from './types';
 
 function place(ctx: SimContext, type: string, x: number, y: number): Building {
@@ -115,5 +116,36 @@ describe('building levels', () => {
     expect(checkInvariants(ctx.state).join()).toContain('duplicate id');
     ctx.state.logistics.managers = [{ ...mgr(1, 999), employer: 'nobody' }];
     expect(checkInvariants(ctx.state).join()).toContain('not a company');
+  });
+});
+
+describe('book value counts completed levels', () => {
+  it('a level-4 works is worth half its cost plus half of each upgrade (0.5 + 0.75 + 1 of its cost)', () => {
+    const s = testState({ year: 1960 });
+    const ctx = testCtx(s);
+    const mill = place(ctx, 'sawmill', 5, 5);
+    const cost = BUILDINGS.sawmill.cost;
+    expect(levelCostShare(mill)).toBe(0);
+    expect(assetValue(s, 'player')).toBe(Math.round(atPrices(s, cost * 0.5)));
+    mill.level = 2;
+    expect(levelCostShare(mill)).toBe(0.5);
+    expect(assetValue(s, 'player')).toBe(Math.round(atPrices(s, cost * 1.5 * 0.5)));
+    mill.level = 4;
+    expect(levelCostShare(mill)).toBe(2.25);
+    expect(assetValue(s, 'player')).toBe(Math.round(atPrices(s, cost * 3.25 * 0.5)));
+    expect(assetValues(s).get('player')).toBe(assetValue(s, 'player'));
+  });
+
+  it('a level-3 warehouse counts its two upgrades; a building with no levels counts none', () => {
+    const s = testState({ year: 1960 });
+    const ctx = testCtx(s);
+    const wh = place(ctx, 'warehouse', 5, 5);
+    wh.level = 3;
+    expect(levelCostShare(wh)).toBe(1.25);
+    const house = place(ctx, 'train_station', 15, 15);
+    expect(levelCostShare(house)).toBe(0);
+    const want = Math.round(atPrices(s, BUILDINGS.warehouse.cost * 2.25 * 0.5 + BUILDINGS.train_station.cost * 0.5));
+    expect(assetValue(s, 'player')).toBe(want);
+    expect(assetValues(s).get('player')).toBe(want);
   });
 });

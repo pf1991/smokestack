@@ -605,6 +605,22 @@ describe('auto-sizing (spec §6.4)', () => {
     });
   }
 
+  it('sells only an empty truck: the oldest loaded one is passed over, and with every truck loaded none is sold', () => {
+    const { s, ctx, route } = sized(3);
+    const [a, b, c] = trucksOf(s, route.id);
+    a.builtYear = 1890;
+    a.cargo = { wood: 5 };
+    b.builtYear = 1900;
+    c.builtYear = 1898;
+    s.routes[route.id].stats = { loaded: 5, empty: 5, backlogDays: 0 };
+    autoSizeRoutesMonth(ctx);
+    expect(trucksOf(s, route.id).map((v) => v.id)).toEqual([a.id, b.id]);
+    b.cargo = { wood: 1 };
+    s.routes[route.id].stats = { loaded: 5, empty: 5, backlogDays: 0 };
+    autoSizeRoutesMonth(ctx);
+    expect(trucksOf(s, route.id)).toHaveLength(2);
+  });
+
   it('never sells the last truck', () => {
     const { s, ctx, route } = sized(1);
     s.routes[route.id].stats = { loaded: 0, empty: 10, backlogDays: 0 };

@@ -1,5 +1,5 @@
 import { atPrices } from '../society/economy';
-import type { Route, SimContext } from '../types';
+import type { Route, SimContext, Vehicle } from '../types';
 import { buyTruck, sellVehicle, vehiclePrice } from '../vehicles';
 import {
   anyTracked, AUTO_BACKLOG_DAYS, AUTO_BAND, AUTO_RESERVE, clampMaxTrucks, newStats, tracksStats, utilisation,
@@ -19,9 +19,13 @@ function sizeRoute(ctx: SimContext, route: Route, maxTrucks: number): void {
       buyTruck(ctx, route.ownerId, route.id);
     }
   } else if (u < AUTO_BAND.low && trucks.length > 1) {
-    let oldest = trucks[0];
-    for (const v of trucks) if (v.builtYear < oldest.builtYear) oldest = v; // ids ascend: ties keep the lowest
-    sellVehicle(ctx, oldest.id);
+    // only an empty truck is sold, so no cargo is ever lost; with none empty the month passes
+    let oldest: Vehicle | undefined;
+    for (const v of trucks) {
+      if (Object.values(v.cargo).some((q) => q > 0)) continue;
+      if (!oldest || v.builtYear < oldest.builtYear) oldest = v; // ids ascend: ties keep the lowest
+    }
+    if (oldest) sellVehicle(ctx, oldest.id);
   }
 }
 

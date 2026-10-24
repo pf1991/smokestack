@@ -29,6 +29,7 @@ import { newLogistics } from './logistics/types';
 import { releaseBuilding } from './logistics/release';
 import { refreshMarket } from './logistics/managers';
 import { modelSpec } from './logistics/models';
+import { levelCostShare } from './logistics/levels';
 import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
@@ -724,10 +725,13 @@ export function plantForest(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Res
 // ---------------------------------------------------------------------------
 // valuation
 
-/** (Σ building cost × 0.5 + Σ vehicle purchase price × 0.5) at today's prices, rounded. */
+/** Book value of a building before the price index: half its catalogue cost and half of each completed upgrade's. */
+const buildingBook = (b: Building): number => BUILDINGS[b.typeId].cost * (1 + levelCostShare(b)) * 0.5;
+
+/** (Σ building cost (with its completed levels) × 0.5 + Σ vehicle purchase price × 0.5) at today's prices, rounded. */
 export function assetValue(state: GameState, owner: OwnerId): number {
   let v = 0;
-  for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += BUILDINGS[b.typeId].cost * 0.5;
+  for (const b of Object.values(state.buildings)) if (b.ownerId === owner) v += buildingBook(b);
   for (const veh of Object.values(state.vehicles)) if (veh.ownerId === owner) v += modelSpec(veh.model).cost * 0.5;
   return Math.round(atPrices(state, v));
 }
@@ -735,7 +739,7 @@ export function assetValue(state: GameState, owner: OwnerId): number {
 /** assetValue of every owner at once (one pass over buildings and vehicles); owners with no assets are absent. */
 export function assetValues(state: GameState): Map<OwnerId, number> {
   const raw = new Map<OwnerId, number>();
-  for (const b of Object.values(state.buildings)) raw.set(b.ownerId, (raw.get(b.ownerId) ?? 0) + BUILDINGS[b.typeId].cost * 0.5);
+  for (const b of Object.values(state.buildings)) raw.set(b.ownerId, (raw.get(b.ownerId) ?? 0) + buildingBook(b));
   for (const veh of Object.values(state.vehicles)) raw.set(veh.ownerId, (raw.get(veh.ownerId) ?? 0) + modelSpec(veh.model).cost * 0.5);
   for (const [k, v] of raw) raw.set(k, Math.round(atPrices(state, v)));
   return raw;
