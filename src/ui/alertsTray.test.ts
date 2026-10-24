@@ -191,6 +191,54 @@ describe('alerts tray', () => {
   });
 });
 
+describe('alerts tray refresh and focus', () => {
+  it('is a dialog of plain buttons, and opening from the keyboard focuses the first row', () => {
+    const s = testState();
+    mk(s, 1, 'no_input');
+    const { bell } = setup(s);
+    bell.click(); // detail 0: Enter/Space or T
+    expect(tray()!.getAttribute('role')).toBe('dialog');
+    expect(tray()!.getAttribute('aria-label')).toBe('Alerts');
+    expect(tray()!.querySelector('[role="menu"], [role="menuitem"]')).toBeNull();
+    expect(rows()[0].tagName).toBe('BUTTON');
+    expect(document.activeElement).toBe(rows()[0]);
+  });
+
+  it('a mouse click on the bell leaves focus alone', () => {
+    const s = testState();
+    mk(s, 1, 'no_input');
+    const { bell } = setup(s);
+    bell.focus();
+    bell.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    expect(tray()).not.toBeNull();
+    expect(document.activeElement).toBe(bell);
+  });
+
+  it('a refresh with the same alerts and ages does not repaint', () => {
+    const s = testState();
+    mk(s, 1, 'no_input');
+    const { bell, host } = setup(s);
+    bell.click();
+    const before = rows()[0];
+    host.refreshAlerts();
+    expect(rows()[0]).toBe(before);
+  });
+
+  it('a repaint keeps the focused row focused', () => {
+    const s = testState();
+    mk(s, 1, 'no_input');
+    mk(s, 2, 'no_input');
+    const { bell, host } = setup(s);
+    bell.click();
+    const second = rows().find((r) => r.dataset.alert === 'b:2:no_input')!;
+    second.focus();
+    s.date = addDays(s.date, 1);
+    host.refreshAlerts();
+    expect(rows()).not.toContain(second);
+    expect((document.activeElement as HTMLElement).dataset.alert).toBe('b:2:no_input');
+  });
+});
+
 describe('alertAge', () => {
   it('says today, 1 day, N days', () => {
     expect(alertAge(0)).toBe('today');

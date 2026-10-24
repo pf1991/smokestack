@@ -59,6 +59,49 @@ describe('AlertTracker', () => {
     expect(t.collect(s)).toHaveLength(1);
   });
 
+  it('a logistics building idle for 30 days raises no alert', () => {
+    const s = testState();
+    mk(s, 1, 'idle', 'player', 'warehouse');
+    const t = new AlertTracker();
+    t.collect(s);
+    advance(s, 30);
+    expect(t.collect(s)).toHaveLength(0);
+  });
+
+  it('a stocked store, idle as stores always are, raises no alert', () => {
+    const s = testState();
+    const b = mk(s, 1, 'idle', 'player', 'store');
+    b.input = { furniture: 5 };
+    b.output = { furniture: 5 };
+    const t = new AlertTracker();
+    t.collect(s);
+    advance(s, 30);
+    expect(t.collect(s)).toHaveLength(0);
+  });
+
+  it('a store unstocked for 7 days warns of empty shelves, not at 6', () => {
+    const s = testState();
+    mk(s, 1, 'idle', 'player', 'store');
+    const t = new AlertTracker();
+    t.collect(s);
+    advance(s, 6);
+    expect(t.collect(s)).toHaveLength(0);
+    advance(s, 1);
+    const a = t.collect(s);
+    expect(a).toHaveLength(1);
+    expect(a[0].tone).toBe('warning');
+    expect(a[0].title).toBe('Store has empty shelves');
+    expect(a[0].detail).toBe('Shelves empty: route goods here');
+    expect(a[0].target).toEqual({ kind: 'building', id: 1 });
+  });
+
+  it('a strike alerts for any category', () => {
+    const s = testState();
+    const b = mk(s, 1, 'halted', 'player', 'warehouse');
+    b.strike = { until: 99999, since: 0, reason: 'wages', cityId: 0, cardUid: null };
+    expect(new AlertTracker().collect(s).map((x) => x.title)).toEqual(['Strike at Warehouse']);
+  });
+
   it('puts a strike (negative) ahead of a warning', () => {
     const s = testState();
     mk(s, 1, 'output_full');

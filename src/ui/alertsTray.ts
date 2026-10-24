@@ -65,7 +65,7 @@ export function mountAlerts(slot: HTMLElement, game: AlertsHost): () => void {
     type: 'button',
     title: withShortcut('Alerts', 'alerts'),
     'aria-label': 'Alerts (0)',
-    'aria-haspopup': 'true',
+    'aria-haspopup': 'dialog',
     'aria-expanded': 'false',
   }, iconEl('bell', 18), badge) as HTMLButtonElement;
   slot.appendChild(bell);
@@ -85,24 +85,40 @@ export function mountAlerts(slot: HTMLElement, game: AlertsHost): () => void {
   };
 
   const row = (a: Alert, today: number): HTMLElement =>
-    h('button', { class: 'alerts-row', type: 'button', 'data-alert': a.id, 'data-tone': a.tone, role: 'menuitem', onClick: () => choose(a) },
+    h('button', { class: 'alerts-row', type: 'button', 'data-alert': a.id, 'data-tone': a.tone, onClick: () => choose(a) },
       h('span', { class: 'alerts-row-icon' }, iconEl(a.icon, 18)),
       h('span', { class: 'alerts-row-text' },
         h('span', { class: 'alerts-row-title', title: a.title }, a.title),
         h('span', { class: 'alerts-row-detail' }, a.detail)),
       h('span', { class: 'alerts-row-age' }, alertAge(today - a.since)));
 
+  /** what the tray last drew (ids and ages); a daily refresh that changes neither leaves it alone */
+  let painted = '';
   const paintTray = () => {
     if (!tray) return;
     const today = dateToDays(game.ctx.state.date);
+    const key = list.map((a) => `${a.id}@${today - a.since}`).join('|');
+    if (key === painted && tray.firstChild) return;
+    painted = key;
+    // keep the reader's place: scroll position and the focused row survive a repaint
+    const oldList = tray.querySelector<HTMLElement>('.alerts-list');
+    const scroll = oldList?.scrollTop ?? 0;
+    const focused = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.alerts-row');
+    const focusId = focused && tray.contains(focused) ? focused.dataset.alert : undefined;
     const body = list.length === 0
       ? emptyState({ icon: 'bell', title: 'All quiet', body: 'Nothing needs your attention. Works, fleet and books are in order.' })
-      : h('div', { class: 'alerts-list', role: 'menu', 'aria-label': 'Alerts' }, list.map((a) => row(a, today)));
+      : h('div', { class: 'alerts-list' }, list.map((a) => row(a, today)));
     tray.replaceChildren(
       h('div', { class: 'alerts-head' },
         h('span', { class: 'alerts-head-title' }, 'Alerts'),
         h('span', { class: 'alerts-head-count' }, list.length === 0 ? '' : String(list.length))),
       body);
+    const newList = tray.querySelector<HTMLElement>('.alerts-list');
+    if (newList) newList.scrollTop = scroll;
+    if (focusId !== undefined) {
+      const again = [...tray.querySelectorAll<HTMLElement>('.alerts-row')].find((r) => r.dataset.alert === focusId);
+      (again ?? tray.querySelector<HTMLElement>('.alerts-row') ?? bell).focus();
+    }
   };
 
   /** Fixed under the bell, right-aligned to it, clamped inside the viewport at any UI scale. */
@@ -134,8 +150,10 @@ export function mountAlerts(slot: HTMLElement, game: AlertsHost): () => void {
     close();
   };
 
-  const open = () => {
+  /** `keyboard`: opened with T or Enter/Space on the bell, so focus moves to the first row */
+  const open = (keyboard: boolean) => {
     if (tray) return;
+    painted = '';
     tray = h('div', { class: 'alerts-tray', role: 'dialog', 'aria-label': 'Alerts' });
     game.uiRoot.appendChild(tray);
     bell.setAttribute('aria-expanded', 'true');
@@ -147,6 +165,7 @@ export function mountAlerts(slot: HTMLElement, game: AlertsHost): () => void {
     document.addEventListener('pointerdown', onDown, true);
     window.addEventListener('resize', place);
     window.addEventListener('uiscalechange', place);
+    if (keyboard) tray.querySelector<HTMLElement>('.alerts-row')?.focus();
   };
   function close(): void {
     if (!tray) return;
@@ -181,7 +200,8 @@ export function mountAlerts(slot: HTMLElement, game: AlertsHost): () => void {
     }
   }
 
-  bell.addEventListener('click', () => (tray ? close() : open()));
+  // a click with detail 0 came from the keyboard (Enter/Space) or from T (GameController.toggleAlerts)
+  bell.addEventListener('click', (e) => (tray ? close() : open(e.detail === 0)));
   const offAlerts = game.onAlerts((a) => {
     list = a;
     paintBell();

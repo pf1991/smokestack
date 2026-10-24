@@ -11,7 +11,7 @@ import { modelRow } from '../sim/logistics/models';
 import type { GameState } from '../sim/types';
 import { formatMoney } from '../core/money';
 import type { IconId } from '../render/icons';
-import { statusAdvice } from '../ui/panels/building';
+import { statusAdvice, storeStocked } from '../ui/panels/building';
 
 export type AlertTone = 'warning' | 'negative' | 'info';
 export type AlertTarget =
@@ -34,7 +34,6 @@ const BUILDING_DAYS = 7;
 const VEHICLE_DAYS = 14;
 const CONTRACT_WINDOW = 30;
 const TONE_RANK: Record<AlertTone, number> = { negative: 0, warning: 1, info: 2 };
-
 
 export class AlertTracker {
   private seen = new Map<string, number>();
@@ -64,8 +63,14 @@ export class AlertTracker {
         add({ id, tone: 'negative', icon: 'strike', title: `Strike at ${name}`, detail: detail(), target }, b.strike!.since);
         continue;
       }
+      const category = BUILDINGS[b.typeId]?.category;
+      // stores, depots and stations sit at 'idle' as a matter of course: a store alerts only when its
+      // shelves stay empty, and logistics buildings raise no status alerts at all
+      const works = category === 'extractor' || category === 'factory';
       const rule =
-        b.status === 'no_input' ? { key: 'no_input', tone: 'warning' as const, icon: 'warning', title: `${name} is starved` }
+        category === 'retail' ? (storeStocked(b) ? null : { key: 'empty', tone: 'warning' as const, icon: 'warning', title: `${name} has empty shelves` })
+        : !works ? null
+        : b.status === 'no_input' ? { key: 'no_input', tone: 'warning' as const, icon: 'warning', title: `${name} is starved` }
         : b.status === 'output_full' ? { key: 'output_full', tone: 'warning' as const, icon: 'warning', title: `${name} is backed up` }
         : b.status === 'idle' ? { key: 'idle', tone: 'info' as const, icon: 'info', title: `${name} is idle` }
         : null;
