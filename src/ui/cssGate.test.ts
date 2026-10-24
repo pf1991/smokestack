@@ -37,6 +37,8 @@ export function gateViolations(css: string): string[] {
     if (!/^var\(--font-[\w-]+\)$/.test(v)) out.push(`font-family: ${v}`);
   }
   for (const m of src.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) out.push(`hex ${m[0]}`);
+  // --focus is a box-shadow value: as an outline it computes to none and hides the focus ring
+  for (const m of src.matchAll(/(?<![\w-])outline(?:-[\w-]+)?\s*:\s*([^;}]*var\(--focus\)[^;}]*)/g)) out.push(`outline: ${m[1].trim()}`);
   return out;
 }
 
@@ -47,6 +49,8 @@ describe('css gate', () => {
     // --fs-hero (64px) is the one size above the scale, for the main menu's title
     expect(gateViolations('h1{font-size:var(--fs-hero)}')).toEqual([]);
     expect(gateViolations('h1{font-size:var(--fs-huge)}')).toHaveLength(1);
+    expect(gateViolations('a:focus-visible{outline:2px solid var(--focus)}')).toEqual(['outline: 2px solid var(--focus)']);
+    expect(gateViolations('a:focus-visible{outline:none;box-shadow:var(--focus)}')).toEqual([]);
   });
 
   it('covers every UI stylesheet but the one exemption', () => {

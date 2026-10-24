@@ -61,4 +61,6 @@
 .kit-tip { position: fixed; z-index: 1000; display: none; max-width: 280px; padding: var(--sp-2) var(--sp-3); background: var(--surface-3); color: var(--text); border: 1px solid var(--accent-quiet); border-radius: var(--r-md); box-shadow: var(--shadow-2); font-size: var(--fs-sm); pointer-events: none; }
 .kit-tip--on { display: block; }
 
-.kit-btn:focus-visible, .kit-row-click:focus-visible, .kit-section--collapsible > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.kit-btn:focus-visible, .kit-section--collapsible > summary:focus-visible { outline: none; box-shadow: var(--focus); }
+/* a row's ring is inset: an outer shadow is clipped by the neighbouring rows and the scroll box */
+.kit-row-click:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-strong); }

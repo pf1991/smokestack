@@ -5,7 +5,7 @@
 .cx-filter { font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--text); background: transparent; border: 1px solid var(--accent-quiet); border-radius: var(--r-sm); padding: 2px var(--sp-2); cursor: pointer; }
 .cx-filter:hover { background: var(--surface-2); }
 .cx-filter[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--paper-ink); }
-.cx-filter:focus-visible, .cx-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cx-filter:focus-visible, .cx-link:focus-visible { outline: none; box-shadow: var(--focus); }
 
 /* list beside the card when there is room, stacked (list first, capped) when the panel is narrow */
 .cx-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; min-height: 0; }
