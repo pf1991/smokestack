@@ -778,16 +778,49 @@
   gap: 4px;
 }
 
-.legacy-row + .legacy-row {
+.legacy-table .legacy-row + .legacy-row {
   padding-top: 3px;
   border-top: 1px solid rgba(138, 109, 23, 0.35);
 }
 
-.legacy-total {
+.legacy-table .legacy-total {
   margin-top: 2px;
   padding-top: 4px;
   border-top: 1px solid var(--accent-quiet);
   font-size: var(--fs-md);
+}
+
+/* the Legacy panel's kit table: the part with its one-line rule, then the points */
+.legacy-kit-table th[data-col='points'] {
+  width: 80px;
+}
+
+.legacy-kit-table td[data-col='part'] {
+  white-space: normal;
+}
+
+.legacy-part {
+  display: flex;
+  flex-direction: column;
+}
+
+.legacy-blurb {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.legacy-kit-table tfoot th,
+.legacy-kit-table tfoot td {
+  padding: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  border-top: 1px solid var(--accent-quiet);
+  border-bottom: 0;
+  position: static;
+  background: transparent;
 }
 
 /* building level card: current and next level side by side */

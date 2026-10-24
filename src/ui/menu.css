@@ -121,15 +121,8 @@
 .mn-reason { text-align: center; margin: 0 0 8px; }
 .mn-pause { min-width: min(320px, (86 * var(--uvw))); }
 
-/* goals panel */
-.gl-list { gap: 6px; min-width: 0; margin: 0; }
-.gl-goal { padding: 6px 10px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--brass-dark); }
-.gl-goal.done { border-color: var(--good); background: rgba(60, 141, 60, 0.2); }
-.gl-goal.failed { border-color: var(--bad); background: rgba(181, 48, 47, 0.2); }
+/* the Legacy table on the end screen (panels/legacy.ts buildLegacy) */
 .gl-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
-.gl-bar { height: 8px; margin: 4px 0 2px; border: 1px solid var(--brass-dark); background: rgba(0, 0, 0, 0.4); }
-.gl-bar > i { display: block; height: 100%; background: linear-gradient(#e8c75a, #b88a12); }
-.gl-goal.done .gl-bar > i { background: linear-gradient(#5aa65a, #3c8d3c); }
 .gl-note { font-size: 12px; opacity: 0.8; }
 
 @media (max-width: 560px) {

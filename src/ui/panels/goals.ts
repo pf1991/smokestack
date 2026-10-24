@@ -6,39 +6,63 @@ import { evaluateGoals, goalProgress, scenarioOf } from '../../sim/scenarios';
 import type { GameState } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
-import '../menu.css';
+import { card, emptyState, meter, panelHeader, pill, section, statRow, statTile, type Tone } from '../kit';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
+import './goals.css';
 
 function fmt(n: number, isMoney: boolean): string {
   return isMoney ? formatMoney(n) : formatNumber(n);
 }
 
+/** "1 of 2 goals met" for a scenario with goals; free play says so. */
+export function goalsHeadline(state: GameState): { summary: string; tone: Tone } {
+  const sc = scenarioOf(state);
+  if (sc.goals.length === 0) return { summary: 'Free play: no goals or deadlines', tone: 'neutral' };
+  const { done, failed } = evaluateGoals(state);
+  const met = done.filter(Boolean).length;
+  const tone: Tone = met === sc.goals.length ? 'positive' : failed ? 'negative' : 'neutral';
+  return { summary: `${met} of ${sc.goals.length} goals met`, tone };
+}
+
 export function buildGoals(state: GameState): HTMLElement {
   const sc = scenarioOf(state);
-  const legacy = h('div', { class: 'gl-line gl-legacy' }, h('b', null, 'Legacy'), h('span', null, formatNumber(legacyScore(state).total)));
+  const legacyTile = statTile({ label: 'Legacy', value: formatNumber(legacyScore(state).total), title: 'Fortune, landmarks, reputation and dynasty: see the Legacy panel' });
+  legacyTile.classList.add('gl-legacy');
+  const head = goalsHeadline(state);
+  const header = h('div', { class: 'goals-header' }, panelHeader({ title: 'Goals', ...head }));
+  const scenario = section(sc.name, [h('p', { class: 'gl-note' }, sc.goals.length === 0 ? 'No goals, no deadlines. Build whatever you like until the century ends.' : sc.blurb)]);
+  scenario.classList.add('gl-scenario');
   if (sc.goals.length === 0) {
-    return h('div', { class: 'p-section gl-list' },
-      h('div', { class: 'gl-note' }, `${sc.name}: no goals, no deadlines. Build whatever you like until the century ends.`),
-      legacy);
+    const free = emptyState({ title: 'Nothing to chase but your legacy', body: 'Pick a scenario from the main menu for goals with deadlines.' });
+    free.classList.add('p-empty-sm');
+    return h('div', { class: 'goals-panel' }, header, scenario, section('Goals', [free]), statRow([legacyTile]));
   }
   const { done, failed } = evaluateGoals(state);
-  return h('div', { class: 'p-section gl-list' },
-    h('div', { class: 'gl-note' }, `${sc.name} - ${sc.blurb}`),
-    ...sc.goals.map((g, i) => {
-      const p = goalProgress(state, g);
-      const pct = Math.min(100, Math.max(0, (p.value / p.target) * 100));
-      const money = g.kind === 'money';
-      const left = Math.round((dateToDays({ year: g.byYear, month: 1, day: 1, hour: 0 }) - dateToDays(state.date)) / 360 * 10) / 10;
-      const status = done[i] ? 'Done!' : failed ? 'Missed' : `${Math.max(0, left)} years left`;
-      return h('div', { class: `gl-goal ${done[i] ? 'done' : failed ? 'failed' : ''}` },
-        h('div', { class: 'gl-line' }, h('b', null, p.label), h('span', null, `by ${g.byYear}`)),
-        h('div', { class: 'gl-bar' }, h('i', { style: { width: `${pct}%` } })),
-        h('div', { class: 'gl-line' },
-          g.kind === 'takeover' ? h('span', null, done[i] ? 'Complete' : 'Buy 510 of his 1000 shares (you need 1.5x his wealth, and control costs a premium as large again)') : h('span', null, `${fmt(Math.min(p.value, p.target), money)} / ${fmt(p.target, money)}`),
-          h('span', null, status)));
-    }),
-    legacy);
+  const goals = sc.goals.map((g, i) => {
+    const p = goalProgress(state, g);
+    const money = g.kind === 'money';
+    const left = Math.round((dateToDays({ year: g.byYear, month: 1, day: 1, hour: 0 }) - dateToDays(state.date)) / 360 * 10) / 10;
+    const status = done[i] ? pill('Done', 'positive') : failed ? pill('Missed', 'negative') : pill(`${Math.max(0, left)} years left`, left <= 2 ? 'warning' : 'neutral');
+    const tone: Tone = done[i] ? 'positive' : failed ? 'negative' : 'neutral';
+    const progress = g.kind === 'takeover'
+      ? done[i] ? 'Complete' : 'Buy 510 of his 1000 shares (you need 1.5x his wealth, and control costs a premium as large again)'
+      : `${fmt(Math.min(p.value, p.target), money)} of ${fmt(p.target, money)}`;
+    const el = card({
+      title: p.label,
+      tone,
+      actions: [status],
+      children: [
+        meter(p.value, p.target, { tone: done[i] ? 'positive' : failed ? 'negative' : 'neutral', label: `${p.label}: ${progress}` }),
+        h('div', { class: 'gl-line' }, h('span', { class: 'gl-progress' }, progress), h('span', { class: 'gl-by' }, `by ${g.byYear}`)),
+      ],
+    });
+    el.classList.add('gl-goal');
+    if (done[i]) el.classList.add('done');
+    else if (failed) el.classList.add('failed');
+    return el;
+  });
+  return h('div', { class: 'goals-panel' }, header, scenario, section('Goals', [h('div', { class: 'gl-list' }, goals)]), statRow([legacyTile]));
 }
 
 export const goalsPanel: PanelDef = {
