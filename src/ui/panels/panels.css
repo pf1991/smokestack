@@ -431,8 +431,55 @@
   margin: 2px 0;
 }
 
-.rival-none {
-  opacity: 0.8;
+/* a compact empty state inside a section (Task 9 panels) */
+.kit-empty.p-empty-sm {
+  padding: var(--sp-3) var(--sp-2);
+  gap: var(--sp-1);
+}
+
+.kit-empty.p-empty-sm .kit-empty-title {
+  font-size: var(--fs-md);
+}
+
+.kit-empty.p-empty-sm .kit-empty-body {
+  max-width: 40ch;
+}
+
+/* the Task 9 panels: a kit header over a column of sections */
+.rival-panel,
+.family-panel,
+.exchange-panel,
+.legacy-panel,
+.contracts-panel,
+.goals-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.rival-panel > .p-section,
+.family-panel > .p-section,
+.exchange-panel > .p-section,
+.legacy-panel > .p-section,
+.contracts-panel > .p-section,
+.goals-panel > .p-section {
+  margin: 0;
+}
+
+.rival-header .kit-ph,
+.family-header .kit-ph,
+.exchange-header .kit-ph,
+.legacy-header .kit-ph,
+.contracts-header .kit-ph,
+.goals-header .kit-ph {
+  padding: 0 0 var(--sp-2);
+}
+
+.rival-stores th[data-col='city'] {
+  width: 36%;
 }
 
 .rival-traits {

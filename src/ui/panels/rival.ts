@@ -14,11 +14,13 @@ import { runDays } from '../../sim/simulation';
 import type { GameState, NewsItem } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney } from '../format';
+import { button as kitButton, dataTable, emptyState, panelHeader, section as kitSection, type Tone } from '../kit';
 import { createWindow, type GameWindow } from '../window';
 import type { PanelDef } from './index';
 
-const PLAYER_COLOR = '#2f6fb5';
-const RIVAL_COLOR = '#b5302f';
+const PLAYER_COLOR = 'var(--player)';
+const RIVAL_COLOR = 'var(--rival)';
+const MOOD_TONE: Record<BaronMood, Tone> = { smug: 'neutral', scheming: 'warning', gloating: 'warning', furious: 'negative' };
 /** the same size as the Family panel's head of the family */
 const PORTRAIT_PX = 96;
 /** shares the "Buy his shares" button buys at a time */
@@ -65,7 +67,7 @@ function worthBar(player: number, rival: number, playerName: string): HTMLElemen
   const r = Math.max(0, rival);
   const total = p + r || 1;
   const seg = (v: number, color: string) => h('div', { style: { width: `${(v / total) * 100}%`, background: color } });
-  return h('div', { class: 'rival-worth' },
+  return h('div', { class: 'rival-worth', title: 'Cash minus loans, plus works, vehicles and shares held' },
     h('div', { class: 'p-row rival-worth-labels' },
       h('span', { class: 'rival-you' }, `${playerName}: ${formatMoney(player)}`),
       h('span', { class: 'rival-him' }, `Smogsworth: ${formatMoney(rival)}`)),
@@ -102,9 +104,15 @@ function lastStrikes(state: GameState): NewsItem[] {
   return out;
 }
 
-/** One block of the panel: the shared 12 px header, then its content (panels.css .p-section). */
-const section = (title: string, ...content: (HTMLElement | null)[]) =>
-  h('div', { class: 'p-section' }, h('div', { class: 'p-head' }, title), ...content);
+/** One block of the panel: the kit section (its overline is the shared `.p-head`). */
+const section = (title: string, ...content: (HTMLElement | null)[]) => kitSection(title, content);
+
+/** A kit empty state that keeps the list's class (tests and styles look for it). */
+function none(cls: string, title: string, body?: string): HTMLElement {
+  const el = emptyState({ title, body });
+  el.classList.add(cls, 'rival-none', 'p-empty-sm');
+  return el;
+}
 
 function traitChips(state: GameState): HTMLElement {
   return h('div', { class: 'rival-traits' },
@@ -116,18 +124,18 @@ function traitChips(state: GameState): HTMLElement {
 function grudgeList(state: GameState): HTMLElement {
   const top = topGrudges(state);
   const heaviest = top[0]?.weight ?? 1;
-  if (top.length === 0) return h('div', { class: 'rival-grudges rival-none' }, 'No grudges. He barely knows your name.');
+  if (top.length === 0) return none('rival-grudges', 'No grudges', 'He barely knows your name.');
   return h('ul', { class: 'rival-grudges' },
     top.map((g) => h('li', {
       title: `Weight ${g.weight.toFixed(1)}`,
       // the bar behind each grudge is its weight against the heaviest
-      style: { background: `linear-gradient(90deg, rgba(181,48,47,0.45) ${Math.round((g.weight / heaviest) * 100)}%, transparent 0)` },
+      style: { background: `linear-gradient(90deg, var(--negative-bg) ${Math.round((g.weight / heaviest) * 100)}%, transparent 0)` },
     }, grudgeLine(state, g))));
 }
 
 function strikeList(state: GameState): HTMLElement {
   const strikes = lastStrikes(state);
-  if (strikes.length === 0) return h('div', { class: 'rival-strikes rival-none' }, 'He has not struck back. Yet.');
+  if (strikes.length === 0) return none('rival-strikes', 'He has not struck back', 'Yet. Cross him in a town and he will.');
   return h('ul', { class: 'rival-strikes' },
     strikes.map((n) => h('li', { title: n.body },
       h('span', { class: 'rival-date' }, `${formatDate(n.date)}: `), n.headline)));
@@ -153,11 +161,19 @@ function render(game: GameController, refresh: () => void): HTMLElement {
       h('div', { class: 'rival-cash' }, `Cash ${formatMoney(rival.money)} · Loan ${formatMoney(rival.loan)}`)));
 
   const stores = storesByCity(state);
-  const storeList = section('His stores',
-    stores.length === 0
-      ? h('div', { class: 'rival-none' }, 'None yet. He is scheming.')
-      : h('ul', { class: 'rival-stores' },
-        stores.map((s) => h('li', null, h('b', null, s.city), s.goods.length ? ` — ${s.goods.join(', ')}` : ' — empty shelves'))));
+  const storeTable = (): HTMLElement => {
+    const t = dataTable<{ city: string; goods: string[] }>({
+      columns: [
+        { key: 'city', label: 'Town', render: (r) => h('b', null, r.city), title: (r) => r.city },
+        { key: 'goods', label: 'Goods on his shelves', render: (r) => (r.goods.length ? r.goods.join(', ') : 'Empty shelves'), title: (r) => r.goods.join(', ') },
+      ],
+      rows: stores,
+      emptyText: '',
+    });
+    t.classList.add('rival-stores');
+    return t;
+  };
+  const storeList = section('His stores', stores.length === 0 ? none('rival-stores-none', 'No stores yet', 'He is scheming.') : storeTable());
 
   // the share route (exchange/trading.ts): a majority of his shares takes his company
   const held = holding(state, 'player', 'rival');
@@ -165,8 +181,10 @@ function render(game: GameController, refresh: () => void): HTMLElement {
   // the lot that would take control needs 1.5x his wealth (exchange/trading.ts takeoverRefusal)
   const gate = rival.active ? takeoverRefusal(state, 'player', 'rival', BUY_LOT) : null;
   const usable = rival.active && !gate;
-  const button = h('button', {
-    class: 'btn rival-takeover',
+  const button = kitButton(rival.active
+    ? `Buy his shares · ${BUY_LOT} for ${formatMoney(q.total)}${q.premium > 0 ? ` (incl. ${formatMoney(q.premium)} control premium)` : ''}`
+    : 'Takeover complete', {
+    variant: 'primary',
     disabled: !usable,
     title: gate ?? undefined,
     onClick: () => {
@@ -175,23 +193,21 @@ function render(game: GameController, refresh: () => void): HTMLElement {
       game.ctx.bus.emit({ type: 'toast', message, tone: r.ok ? 'good' : 'bad' });
       refresh();
     },
-  }, rival.active
-    ? `Buy his shares · ${BUY_LOT} for ${formatMoney(q.total)}${q.premium > 0 ? ` (incl. ${formatMoney(q.premium)} control premium)` : ''}`
-    : 'Takeover complete');
+  });
+  button.classList.add('rival-takeover');
   const hint = rival.active
     ? h('div', { class: 'rival-stake' },
       h('span', null, gate ?? `You hold ${held} of his ${SHARES_OUTSTANDING} shares; ${CONTROL_SHARES} takes his company (you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes control pays a control premium as large again).`),
-      h('button', { class: 'btn', type: 'button', onClick: () => game.openPanel('exchange') }, 'Exchange'))
+      kitButton('Exchange', { variant: 'secondary', onClick: () => game.openPanel('exchange') }))
     : null;
 
   return h('div', { class: 'rival-panel' },
+    h('div', { class: 'rival-header' }, panelHeader({ title: 'Rival', summary: `${nem.head.name}: ${rival.active ? mood : 'ousted'}`, tone: MOOD_TONE[mood] })),
     head,
     section('His character', traitChips(state)),
     section('Grudges against you', grudgeList(state)),
     section('His last strikes', strikeList(state)),
-    h('div', { class: 'p-section', title: 'Cash minus loans, plus works, vehicles and shares held' },
-      h('div', { class: 'p-head' }, 'Net worth'),
-      worthBar(mine, his, state.companies.player.name)),
+    section('Net worth', worthBar(mine, his, state.companies.player.name)),
     storeList,
     hint && section('Takeover', hint),
     // pinned to the foot of the panel, like Finance's loan buttons
