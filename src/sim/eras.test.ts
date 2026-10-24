@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EventBus } from '../core/events';
 import { checkUnlocks, eraBanner, eraName, fadeWarnings, isUnlocked } from './eras';
+import { lifecycleFactor } from './market';
 import { testCtx, testState } from './testkit';
 
 function at(year: number, month = 1, day = 1) {
@@ -59,11 +60,48 @@ describe('eras', () => {
     expect(ctx.state.news.some((n) =>
       n.kind === 'warning' && n.body === 'Demand for phonographs is expected to decline from next year.')).toBe(true);
   });
+  it('calculator fade warning in 1994 uses the plural', () => {
+    const ctx = at(1994, 12, 30);
+    fadeWarnings(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'warning' && n.body === 'Demand for calculators is expected to decline from next year.')).toBe(true);
+  });
+  it("lifecycleFactor('calculators', 2000) === 0.6", () => {
+    expect(lifecycleFactor('calculators', 2000)).toBe(0.6);
+  });
   it('1905 checkUnlocks publishes the phonograph headline', () => {
     const ctx = at(1905);
     checkUnlocks(ctx);
     expect(ctx.state.news.some((n) =>
       n.kind === 'invention' && n.headline === 'TALKING MACHINES: The phonograph sings in the parlour')).toBe(true);
+  });
+  it('1972 checkUnlocks publishes the microchips headline', () => {
+    const ctx = at(1972);
+    checkUnlocks(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'invention' && n.headline === 'THE INTEGRATED CIRCUIT' &&
+      n.body === 'Electronics works etch microchips from silicon.')).toBe(true);
+  });
+  it('1970 checkUnlocks publishes the calculators headline', () => {
+    const ctx = at(1970);
+    checkUnlocks(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'invention' && n.headline === 'SUMS IN YOUR POCKET' &&
+      n.body === 'Gadget assembly plants build electronic calculators.')).toBe(true);
+  });
+  it('1978 checkUnlocks publishes the video games headline', () => {
+    const ctx = at(1978);
+    checkUnlocks(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'invention' && n.headline === 'SPACE INVADERS AT HOME' &&
+      n.body === 'Video games are now in the shops.')).toBe(true);
+  });
+  it('1990 checkUnlocks publishes the mobile phones headline', () => {
+    const ctx = at(1990);
+    checkUnlocks(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'invention' && n.headline === 'THE TELEPHONE LEAVES THE WALL' &&
+      n.body === 'Mobile phones need chips, displays and aluminium.')).toBe(true);
   });
   it('radio halving warning in 1972', () => {
     const ctx = at(1972, 12, 30);

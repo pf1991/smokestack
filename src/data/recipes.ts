@@ -59,12 +59,15 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_bricks: { id: 'r_bricks', inputs: { clay: 10, coal: 2 }, outputs: { bricks: 8 }, days: 1 },
   r_paper: { id: 'r_paper', inputs: { wood: 10 }, outputs: { paper: 6 }, days: 1 },
   r_chemicals: { id: 'r_chemicals', inputs: { coal: 4, oil: 4 }, outputs: { chemicals: 4 }, days: 1 },
+  r_silicon: { id: 'r_silicon', inputs: { sand: 8, coal: 2 }, outputs: { silicon: 2 }, days: 1 },
   // Components
   r_wire: { id: 'r_wire', inputs: { copper: 4 }, outputs: { wire: 4 }, days: 1 },
   r_tyres: { id: 'r_tyres', inputs: { rubber: 4, fabric: 1 }, outputs: { tyres: 4 }, days: 1 },
   r_engines: { id: 'r_engines', inputs: { steel: 3, fuel: 1 }, outputs: { engines: 1 }, days: 1 },
   r_electric_motors: { id: 'r_electric_motors', inputs: { wire: 2, steel: 1 }, outputs: { electric_motors: 1 }, days: 1 },
   r_vacuum_tubes: { id: 'r_vacuum_tubes', inputs: { glass: 2, wire: 1 }, outputs: { vacuum_tubes: 6 }, days: 1 },
+  r_microchips: { id: 'r_microchips', inputs: { silicon: 2, wire: 1 }, outputs: { microchips: 4 }, days: 1 },
+  r_displays: { id: 'r_displays', inputs: { glass: 2, chemicals: 1, plastic: 1 }, outputs: { displays: 2 }, days: 1 },
   // Manufacturing
   r_shoes: { id: 'r_shoes', inputs: { leather: 4 }, outputs: { shoes: 2 }, days: 1 },
   r_candy: { id: 'r_candy', inputs: { sugar: 3, milk: 2 }, outputs: { candy: 6 }, days: 1 },
@@ -76,6 +79,11 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_refrigerators: { id: 'r_refrigerators', inputs: { steel: 3, electric_motors: 1, chemicals: 1 }, outputs: { refrigerators: 1 }, days: 1 },
   r_washing_machines: { id: 'r_washing_machines', inputs: { steel: 3, electric_motors: 1, rubber: 1 }, outputs: { washing_machines: 1 }, days: 1 },
   r_cosmetics: { id: 'r_cosmetics', inputs: { chemicals: 2, glass: 1 }, outputs: { cosmetics: 4 }, days: 1 },
+  // Tube calculators first so firstRecipeFor / planChain stay on tubes after chips unlock
+  r_calculators: { id: 'r_calculators', inputs: { vacuum_tubes: 2, plastic: 1 }, outputs: { calculators: 2 }, days: 1 },
+  r_calculators_chip: { id: 'r_calculators_chip', inputs: { microchips: 1, plastic: 1 }, outputs: { calculators: 2 }, days: 1 },
+  r_video_games: { id: 'r_video_games', inputs: { microchips: 2, plastic: 1 }, outputs: { video_games: 2 }, days: 1 },
+  r_mobile_phones: { id: 'r_mobile_phones', inputs: { microchips: 2, displays: 1, aluminium: 1 }, outputs: { mobile_phones: 1 }, days: 1 },
   // Appended after r_computers so firstRecipeFor still prefers r_radios
   r_radios_tubes: { id: 'r_radios_tubes', inputs: { vacuum_tubes: 2, lumber: 2 }, outputs: { radios: 2 }, days: 1 },
 };

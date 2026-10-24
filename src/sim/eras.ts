@@ -65,6 +65,10 @@ const INVENTIONS: Record<string, [headline: string, body: string]> = {
   refrigerators: ['ICE WITHOUT THE ICEMAN: The electric refrigerator', 'Appliance plants build refrigerators from steel, motors and chemicals.'],
   washing_machines: ['WASHDAY REVOLUTION', 'The electric washing machine arrives.'],
   cosmetics: ['THE BEAUTY COUNTER', 'Chemical works now bottle cosmetics.'],
+  microchips: ['THE INTEGRATED CIRCUIT', 'Electronics works etch microchips from silicon.'],
+  calculators: ['SUMS IN YOUR POCKET', 'Gadget assembly plants build electronic calculators.'],
+  video_games: ['SPACE INVADERS AT HOME', 'Video games are now in the shops.'],
+  mobile_phones: ['THE TELEPHONE LEAVES THE WALL', 'Mobile phones need chips, displays and aluminium.'],
 };
 
 const unlockKind = (id: string): 'good' | 'building' | 'recipe' => (GOODS[id] ? 'good' : BUILDINGS[id] ? 'building' : 'recipe');
@@ -100,6 +104,7 @@ export function checkUnlocks(ctx: SimContext): void {
 const FADE_LINES: Record<string, string> = {
   radios: 'Radios losing their crackle with the young set',
   phonographs: 'The gramophone falls silent in the modern home',
+  calculators: 'Pocket calculators give way to the home computer',
 };
 
 /** On year: warn the year before a good fades, and when its demand first halves. */

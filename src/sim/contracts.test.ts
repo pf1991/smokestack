@@ -4,7 +4,7 @@ import { addDays } from './clock';
 import { acceptContract, contractsDay, offerContracts, onSale, onTradeSale } from './contracts';
 import { canMake } from './eras';
 import { must, testCtx, testState } from './testkit';
-import { placeBuilding } from './state';
+import { placeBuilding, unlockedAt } from './state';
 import { tradeDay } from './trade';
 import type { Contract, SimContext } from './types';
 
@@ -217,5 +217,28 @@ describe('component contracts (R4, P7)', () => {
     ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'r_wire');
     expect(canMake(ctx.state, 'wire')).toBe(false);
     for (const c of offers(ctx, 60)) expect(c.goodId).not.toBe('wire');
+  });
+
+  it('1971 never offers microchips; calculators canMake via tubes (C7)', () => {
+    const ctx = setup();
+    ctx.state.date = { year: 1971, month: 6, day: 1, hour: 0 };
+    ctx.state.unlocked = unlockedAt(1971);
+    ctx.state.companies.player.money = 1e6;
+    house(ctx);
+    // C7: microchips are not unlocked before their good era (1972)
+    expect(ctx.state.unlocked).not.toContain('microchips');
+    expect(ctx.state.unlocked).toContain('calculators');
+    expect(canMake(ctx.state, 'calculators')).toBe(true);
+    for (const c of offers(ctx, 60)) expect(c.goodId).not.toBe('microchips');
+  });
+
+  it('canMake(microchips) is false when r_microchips is removed (C7)', () => {
+    const ctx = setup();
+    ctx.state.date = { year: 1972, month: 1, day: 1, hour: 0 };
+    ctx.state.unlocked = unlockedAt(1972);
+    expect(ctx.state.unlocked).toContain('microchips');
+    expect(canMake(ctx.state, 'microchips')).toBe(true);
+    ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'r_microchips');
+    expect(canMake(ctx.state, 'microchips')).toBe(false);
   });
 });

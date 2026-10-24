@@ -463,8 +463,8 @@ describe('R4 1905–1929 content (Tables G, D, R and B)', () => {
   it.each([
     ['rubber_plantation', 'Rubber Plantation', 'extractor', [3, 3], 15000, 200, ['grass', 'forest'], ['r_rubber'], 120, 1910, 0, 20, '#4f6b3a', 'Rows of tapped trees weeping latex into tin cups.'],
     ['bauxite_quarry', 'Bauxite Quarry', 'extractor', [2, 2], 20000, 300, ['hills'], ['r_bauxite'], 160, 1920, 3, 20, '#b5562e', 'Red benches blasted from the hillside for the smelters.'],
-    ['chemical_works', 'Chemical Works', 'factory', [3, 3], 65000, 850, ['grass', 'sand'], ['r_chemicals', 'r_cosmetics'], 120, 1920, 7, 60, '#7fa83a', 'Retorts and towers distilling coal and oil into chemicals.'],
-    ['electronics_works', 'Electronics Works', 'factory', [3, 3], 80000, 800, ['grass', 'sand'], ['r_vacuum_tubes'], 80, 1920, 1, 30, '#3b7f9e', 'Clean benches where valves, then chips, are made by the tray.'],
+    ['chemical_works', 'Chemical Works', 'factory', [3, 3], 65000, 850, ['grass', 'sand'], ['r_chemicals', 'r_silicon', 'r_cosmetics'], 120, 1920, 7, 60, '#7fa83a', 'Retorts and towers distilling coal and oil into chemicals.'],
+    ['electronics_works', 'Electronics Works', 'factory', [3, 3], 80000, 800, ['grass', 'sand'], ['r_vacuum_tubes', 'r_microchips', 'r_displays'], 80, 1920, 1, 30, '#3b7f9e', 'Clean benches where valves, then chips, are made by the tray.'],
     ['cycle_works', 'Cycle Works', 'factory', [3, 3], 35000, 450, ['grass', 'sand'], ['r_bicycles', 'r_motorcycles'], 80, 1910, 2, 60, '#3b9a8c', 'Frames brazed and wheels trued: bicycles, then motorcycles.'],
     ['appliance_plant', 'Appliance Plant', 'factory', [3, 3], 70000, 900, ['grass', 'sand'], ['r_phonographs', 'r_refrigerators', 'r_washing_machines'], 60, 1905, 3, 60, '#9fb5c8', 'From talking machines to iceboxes that need no ice.'],
   ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, era, pollution, workers, color, description) => {
@@ -519,7 +519,8 @@ describe('R4 1930–1959 content (Tables G, D, R and B)', () => {
 
   it('appliance_plant and chemical_works gain the 1930–1959 recipes', () => {
     expect(BUILDINGS.appliance_plant.recipes).toEqual(['r_phonographs', 'r_refrigerators', 'r_washing_machines']);
-    expect(BUILDINGS.chemical_works.recipes).toEqual(['r_chemicals', 'r_cosmetics']);
+    // silicon (Task 8) sits between chemicals and cosmetics per Table B
+    expect(BUILDINGS.chemical_works.recipes).toEqual(['r_chemicals', 'r_silicon', 'r_cosmetics']);
   });
 
   it("planChain('refrigerators') is post-order length 10 (C5)", () => {
@@ -534,5 +535,82 @@ describe('R4 1930–1959 content (Tables G, D, R and B)', () => {
     const last = nodes.at(-1)!;
     expect(last.typeId).toBe('appliance_plant');
     expect(last.recipeId).toBe('r_refrigerators');
+  });
+});
+
+describe('R4 1960–2000 content (Tables G, D, R and B)', () => {
+  it('final kind counts: 15 raw, 15 material, 7 component, 24 consumer, 61 goods', () => {
+    const by = (k: string) => Object.values(GOODS).filter((g) => g.kind === k);
+    expect(by('raw')).toHaveLength(15);
+    expect(by('material')).toHaveLength(15);
+    expect(by('component')).toHaveLength(7);
+    expect(by('consumer')).toHaveLength(24);
+    expect(Object.keys(GOODS)).toHaveLength(61);
+  });
+
+  it.each([
+    ['silicon', 'Silicon', 'material', 1, 1965, null, 45, '#6b7fa3', undefined],
+    ['microchips', 'Microchips', 'component', 1, 1972, null, 50, '#3a7d2c', undefined],
+    ['displays', 'Displays', 'component', 1, 1975, null, 90, '#0f6e8c', undefined],
+    ['calculators', 'Calculator', 'consumer', 2, 1970, 1995, 120, '#707070', 'Calculators'],
+    ['video_games', 'Video Games', 'consumer', 2, 1978, null, 150, '#7b3fe4', undefined],
+    ['mobile_phones', 'Mobile Phone', 'consumer', 2, 1990, null, 650, '#14213d', 'Mobile Phones'],
+  ] as const)('good %s', (id, name, kind, tier, era, fadeYear, basePrice, color, plural) => {
+    const expected: Record<string, unknown> = { id, name, tier, kind, basePrice, era, fadeYear, color };
+    if (plural !== undefined) expected.plural = plural;
+    expect(GOODS[id]).toEqual(expected);
+  });
+
+  const MIDDLE = { working: 0.8, middle: 1.5, upper: 1.2 };
+  const PLAIN = { working: 1, middle: 1, upper: 1 };
+  it.each([
+    ['calculators', 3, MIDDLE],
+    ['video_games', 4, PLAIN],
+    ['mobile_phones', 2, PLAIN],
+  ] as const)('demand %s', (id, per1000, cls) => {
+    expect(DEMAND_PER_1000[id]).toBe(per1000);
+    expect(CLASS_DEMAND[id]).toEqual(cls);
+  });
+
+  it('1960–2000 demand entries follow the 1930–1959 ones in Table D order', () => {
+    const keys = Object.keys(DEMAND_PER_1000);
+    const i = keys.indexOf('cosmetics');
+    expect(keys.slice(i, i + 4)).toEqual(['cosmetics', 'calculators', 'video_games', 'mobile_phones']);
+  });
+
+  it.each([
+    ['r_silicon', { sand: 8, coal: 2 }, { silicon: 2 }, 1965],
+    ['r_microchips', { silicon: 2, wire: 1 }, { microchips: 4 }, 1972],
+    ['r_displays', { glass: 2, chemicals: 1, plastic: 1 }, { displays: 2 }, 1975],
+    ['r_calculators', { vacuum_tubes: 2, plastic: 1 }, { calculators: 2 }, 1970],
+    ['r_calculators_chip', { microchips: 1, plastic: 1 }, { calculators: 2 }, 1972],
+    ['r_video_games', { microchips: 2, plastic: 1 }, { video_games: 2 }, 1978],
+    ['r_mobile_phones', { microchips: 2, displays: 1, aluminium: 1 }, { mobile_phones: 1 }, 1990],
+  ] as const)('recipe %s', (id, inputs, outputs, era) => {
+    expect(RECIPES[id]).toEqual({ id, inputs, outputs, days: 1 });
+    expect(recipeEra(id)).toBe(era);
+  });
+
+  it('r_calculators precedes r_calculators_chip so the tube chain stays default', () => {
+    const ids = Object.keys(RECIPES);
+    expect(ids.indexOf('r_calculators')).toBeLessThan(ids.indexOf('r_calculators_chip'));
+    const s = testState({ year: 1972 });
+    expect(planChain('calculators', s)!.nodes.at(-1)!.recipeId).toBe('r_calculators');
+  });
+
+  it.each([
+    ['gadget_assembly', 'Gadget Assembly', 'factory', [3, 3], 60000, 800, ['grass', 'sand'],
+      ['r_calculators', 'r_calculators_chip', 'r_video_games', 'r_mobile_phones'], 60, 1970, 1, 30, '#6b4fd1',
+      'Pocket wonders assembled under bright lamps.'],
+  ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, era, pollution, workers, color, description) => {
+    expect(BUILDINGS[id]).toEqual({
+      id, name, category, size: { w, h: hgt }, cost, maintenance, allowedTerrain, requiresDeposit: false, requiresCity: false,
+      recipes, storage, era, pollution, color, description, workers,
+    });
+  });
+
+  it('chemical_works and electronics_works gain silicon/chips/displays', () => {
+    expect(BUILDINGS.chemical_works.recipes).toEqual(['r_chemicals', 'r_silicon', 'r_cosmetics']);
+    expect(BUILDINGS.electronics_works.recipes).toEqual(['r_vacuum_tubes', 'r_microchips', 'r_displays']);
   });
 });

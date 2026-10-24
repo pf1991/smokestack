@@ -185,7 +185,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   chemical_works: {
     id: 'chemical_works', name: 'Chemical Works', ...FA, size: { w: 3, h: 3 }, cost: 65000, maintenance: 850,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_chemicals', 'r_cosmetics'], storage: 120, era: 1920, pollution: 7,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_chemicals', 'r_silicon', 'r_cosmetics'], storage: 120, era: 1920, pollution: 7,
     color: '#7fa83a', description: 'Retorts and towers distilling coal and oil into chemicals.',
   },
   machine_shop: {
@@ -195,7 +195,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   electronics_works: {
     id: 'electronics_works', name: 'Electronics Works', ...FA, workers: 30, size: { w: 3, h: 3 }, cost: 80000, maintenance: 800,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_vacuum_tubes'], storage: 80, era: 1920, pollution: 1,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_vacuum_tubes', 'r_microchips', 'r_displays'], storage: 80, era: 1920, pollution: 1,
     color: '#3b7f9e', description: 'Clean benches where valves, then chips, are made by the tray.',
   },
   shoe_factory: {
@@ -227,6 +227,11 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
     id: 'appliance_plant', name: 'Appliance Plant', ...FA, size: { w: 3, h: 3 }, cost: 70000, maintenance: 900,
     allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_phonographs', 'r_refrigerators', 'r_washing_machines'], storage: 60, era: 1905, pollution: 3,
     color: '#9fb5c8', description: 'From talking machines to iceboxes that need no ice.',
+  },
+  gadget_assembly: {
+    id: 'gadget_assembly', name: 'Gadget Assembly', ...FA, workers: 30, size: { w: 3, h: 3 }, cost: 60000, maintenance: 800,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_calculators', 'r_calculators_chip', 'r_video_games', 'r_mobile_phones'], storage: 60, era: 1970, pollution: 1,
+    color: '#6b4fd1', description: 'Pocket wonders assembled under bright lamps.',
   },
   store: {
     id: 'store', name: 'Store', category: 'retail', workers: 12, size: { w: 2, h: 2 }, cost: 15000, maintenance: 200,

@@ -57,7 +57,7 @@ const BUILDING_ICON: Record<string, IconId> = {
   chemical_works: 'chemicals',
   machine_shop: 'gear', electronics_works: 'gear',
   shoe_factory: 'shoes', confectionery: 'candy', print_works: 'books', cannery: 'canned_food',
-  cycle_works: 'bicycles', appliance_plant: 'phonographs',
+  cycle_works: 'bicycles', appliance_plant: 'phonographs', gadget_assembly: 'calculators',
   trading_house: 'money',
 };
 const buildingIcon = (def: BuildingDef): IconId =>

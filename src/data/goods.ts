@@ -54,6 +54,7 @@ export const GOODS: Record<GoodId, GoodDef> = {
   paper: { id: 'paper', name: 'Paper', tier: 1, kind: 'material', basePrice: 10, era: 1900, fadeYear: null, color: '#efe6c8' },
   chemicals: { id: 'chemicals', name: 'Chemicals', tier: 1, kind: 'material', basePrice: 24, era: 1920, fadeYear: null, color: '#9bcf3c' },
   aluminium: { id: 'aluminium', name: 'Aluminium', tier: 1, kind: 'material', basePrice: 45, era: 1925, fadeYear: null, color: '#c9d1d9' },
+  silicon: { id: 'silicon', name: 'Silicon', tier: 1, kind: 'material', basePrice: 45, era: 1965, fadeYear: null, color: '#6b7fa3' },
 
   // Component (tier 1): parts made for other works
   wire: { id: 'wire', name: 'Wire', tier: 1, kind: 'component', basePrice: 32, era: 1900, fadeYear: null, color: '#d4a017' },
@@ -61,6 +62,8 @@ export const GOODS: Record<GoodId, GoodDef> = {
   engines: { id: 'engines', name: 'Engines', tier: 1, kind: 'component', basePrice: 150, era: 1910, fadeYear: null, color: '#5b6770' },
   electric_motors: { id: 'electric_motors', name: 'Electric Motors', tier: 1, kind: 'component', basePrice: 140, era: 1920, fadeYear: null, color: '#3e7cb1' },
   vacuum_tubes: { id: 'vacuum_tubes', name: 'Vacuum Tubes', tier: 1, kind: 'component', basePrice: 22, era: 1920, fadeYear: null, color: '#ffb347' },
+  microchips: { id: 'microchips', name: 'Microchips', tier: 1, kind: 'component', basePrice: 50, era: 1972, fadeYear: null, color: '#3a7d2c' },
+  displays: { id: 'displays', name: 'Displays', tier: 1, kind: 'component', basePrice: 90, era: 1975, fadeYear: null, color: '#0f6e8c' },
 
   // Consumer (tier 2)
   furniture: { id: 'furniture', name: 'Furniture', tier: 2, kind: 'consumer', basePrice: 72, era: 1900, fadeYear: null, color: '#6b3e1f' },
@@ -84,6 +87,9 @@ export const GOODS: Record<GoodId, GoodDef> = {
   refrigerators: { id: 'refrigerators', name: 'Refrigerator', tier: 2, kind: 'consumer', basePrice: 520, era: 1930, fadeYear: null, color: '#dfe7ee', plural: 'Refrigerators' },
   washing_machines: { id: 'washing_machines', name: 'Washing Machine', tier: 2, kind: 'consumer', basePrice: 480, era: 1935, fadeYear: null, color: '#8fb8d8', plural: 'Washing Machines' },
   cosmetics: { id: 'cosmetics', name: 'Cosmetics', tier: 2, kind: 'consumer', basePrice: 40, era: 1950, fadeYear: null, color: '#d65a8c' },
+  calculators: { id: 'calculators', name: 'Calculator', tier: 2, kind: 'consumer', basePrice: 120, era: 1970, fadeYear: 1995, color: '#707070', plural: 'Calculators' },
+  video_games: { id: 'video_games', name: 'Video Games', tier: 2, kind: 'consumer', basePrice: 150, era: 1978, fadeYear: null, color: '#7b3fe4' },
+  mobile_phones: { id: 'mobile_phones', name: 'Mobile Phone', tier: 2, kind: 'consumer', basePrice: 650, era: 1990, fadeYear: null, color: '#14213d', plural: 'Mobile Phones' },
 };
 
 /**
@@ -120,6 +126,9 @@ export const DEMAND_PER_1000: Record<GoodId, number> = {
   refrigerators: 1.5,
   washing_machines: 1.5,
   cosmetics: 12,
+  calculators: 3,
+  video_games: 4,
+  mobile_phones: 2,
 };
 
 /** A good's demand multiplier per social class (Phase 3 Task 7, sim/society/classes.ts). */
@@ -161,6 +170,9 @@ export const CLASS_DEMAND: Record<GoodId, ClassDemand> = {
   refrigerators: MIDDLE,
   washing_machines: MIDDLE,
   cosmetics: LUXURY,
+  calculators: MIDDLE,
+  video_games: PLAIN,
+  mobile_phones: PLAIN,
 };
 
 export function getGood(id: GoodId): GoodDef {
