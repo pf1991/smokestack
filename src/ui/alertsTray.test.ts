@@ -110,13 +110,14 @@ describe('alerts tray', () => {
     expect(r.querySelector('.alerts-row-age')!.textContent).toBe('9 days');
   });
 
-  it('clicking a building row centres on it, opens its panel and closes the tray', () => {
+  it('clicking a building row centres on its footprint, opens its panel and closes the tray', () => {
     const s = testState();
     mk(s, 7, 'no_input', { x: 11, y: 5 });
     const { bell, host } = setup(s);
     bell.click();
     rows()[0].click();
-    expect(host.centerOn).toHaveBeenCalledWith({ x: 11, y: 5 });
+    // a 3x3 sawmill at (11, 5): its middle tile (centerOn centres on a tile's middle)
+    expect(host.centerOn).toHaveBeenCalledWith({ x: 12, y: 6 });
     expect(host.openPanel).toHaveBeenCalledWith('building', 7);
     expect(tray()).toBeNull();
   });

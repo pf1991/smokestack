@@ -4,6 +4,7 @@
  * click jumps the camera to the problem and opens its panel. Alerts are re-collected before a jump,
  * so one pointing at a demolished building or a sold vehicle is dropped with a toast instead.
  */
+import { BUILDINGS } from '../data/buildings';
 import type { EventBus } from '../core/events';
 import { dateToDays } from '../sim/clock';
 import type { GameState, Vec2 } from '../sim/types';
@@ -51,7 +52,13 @@ function worstTone(alerts: readonly Alert[]): AlertTone | null {
 /** Where the target is now, or null when it no longer exists. Panel targets have no place. */
 function targetPos(state: GameState, a: Alert): Vec2 | null | undefined {
   const t = a.target;
-  if (t.kind === 'building') return state.buildings[t.id]?.pos ?? null;
+  if (t.kind === 'building') {
+    const b = state.buildings[t.id];
+    if (!b) return null;
+    // the footprint's middle: centerOn centres on a tile's middle, so a w-wide works is off by (w - 1) / 2
+    const size = BUILDINGS[b.typeId]?.size ?? { w: 1, h: 1 };
+    return { x: b.pos.x + (size.w - 1) / 2, y: b.pos.y + (size.h - 1) / 2 };
+  }
   if (t.kind === 'vehicle') return state.vehicles[t.id]?.pos ?? null;
   return undefined;
 }
