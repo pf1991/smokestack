@@ -169,6 +169,15 @@ describe('codex panel', () => {
     expect(q('.cx-detail')!.textContent).not.toContain('Unlocks');
   });
 
+  it('opens afresh, selecting the good, after the page body was cleared under an open codex', () => {
+    const { game } = setup();
+    PANELS.codex.open(game);
+    document.body.replaceChildren();
+    expect(() => PANELS.codex.open(game, 'bread')).not.toThrow();
+    expect(q('.codex')).not.toBeNull();
+    expect(q('.cx-detail')!.dataset.good).toBe('bread');
+  });
+
   it('the list keeps its scroll and selection across refreshes', () => {
     const { game } = setup();
     PANELS.codex.open(game, 'cars');

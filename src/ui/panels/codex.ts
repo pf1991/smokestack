@@ -234,8 +234,10 @@ let current: CodexPanel | null = null;
 export const codexPanel: PanelDef = {
   id: 'codex',
   open(game: GameController, arg?: unknown) {
-    if (current) createWindow({ id: 'codex', title: 'Production codex', content: h('div') }); // raises the open window
-    else current = new CodexPanel(game);
+    // a codex whose window left the page (the body was cleared under it) is rebuilt; building it
+    // retires the stale window, whose onClose stops the old panel's timer
+    if (!current?.root.isConnected) current = new CodexPanel(game);
+    else createWindow({ id: 'codex', title: 'Production codex', content: h('div') }); // raises the open window
     if (typeof arg === 'string') current.select(arg, true);
   },
 };
