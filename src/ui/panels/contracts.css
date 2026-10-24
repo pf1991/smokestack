@@ -1,0 +1,16 @@
+/* Mayor's contracts: notices and deliveries as kit cards, results as a kit table. Tokens only (see cssGate.test.ts). */
+.cb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--sp-2); }
+.cb-card .kit-card-head { padding-bottom: 0; }
+.cb-card .kit-card-title { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cb-card .kit-card-body { display: flex; flex-direction: column; gap: 2px; }
+.cb-line { display: flex; justify-content: space-between; gap: var(--sp-2); min-width: 0; }
+.cb-label { color: var(--text-muted); }
+.cb-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.cb-reward { color: var(--positive); font-weight: 700; }
+.cb-overdue .cb-value { color: var(--negative); font-weight: 700; }
+.cb-progress { display: flex; flex-direction: column; gap: 2px; margin: var(--sp-1) 0; }
+.cb-progress-text { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cb-btn.kit-btn { padding: 2px var(--sp-2); font-size: var(--fs-sm); }
+.cb-results th[data-col='result'] { width: 92px; }
+.cb-results th[data-col='reward'] { width: 84px; }
+.cb-good { display: inline-flex; align-items: center; gap: 2px; }
