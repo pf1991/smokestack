@@ -45,11 +45,22 @@ describe('content catalog', () => {
         }
       }
     }
-    const consumer = Object.values(GOODS).filter((g) => g.tier === 2);
+    const consumer = Object.values(GOODS).filter((g) => g.kind === 'consumer');
     expect(consumer).toHaveLength(11);
     for (const good of consumer) {
       expect(reachable.has(good.id), `${good.id} not producible`).toBe(true);
     }
+  });
+
+  it('every good has a kind that agrees with its tier, and consumer goods are the demanded ones', () => {
+    for (const g of Object.values(GOODS)) {
+      expect(['raw', 'material', 'component', 'consumer'], g.id).toContain(g.kind);
+      if (g.tier === 0) expect(g.kind, g.id).toBe('raw');
+      else if (g.tier === 2) expect(g.kind, g.id).toBe('consumer');
+      else expect(['material', 'component'], g.id).toContain(g.kind);
+    }
+    const consumers = Object.values(GOODS).filter((g) => g.kind === 'consumer').map((g) => g.id);
+    expect(new Set(consumers)).toEqual(new Set(Object.keys(DEMAND_PER_1000)));
   });
 
   it('recipe era', () => {
@@ -85,7 +96,7 @@ describe('content catalog', () => {
     const value = (inv: Record<string, number>) =>
       Object.entries(inv).reduce((sum, [id, qty]) => sum + qty * GOODS[id].basePrice, 0);
     const manufacturing = Object.values(RECIPES).filter((r) =>
-      Object.keys(r.outputs).some((g) => GOODS[g].tier === 2),
+      Object.keys(r.outputs).some((g) => GOODS[g].kind === 'consumer'),
     );
     expect(manufacturing.length).toBeGreaterThan(0);
     for (const recipe of manufacturing) {

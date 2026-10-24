@@ -103,6 +103,14 @@ describe('codex panel', () => {
     expect(q('.cx-filter[data-filter="consumer"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('the Materials filter lists the material goods', () => {
+    const { game } = setup();
+    PANELS.codex.open(game);
+    (q('.cx-filter[data-filter="material"]') as HTMLElement).click();
+    expect(qa('.cx-list tbody tr[data-key]')).toHaveLength(Object.values(GOODS).filter((g) => g.kind === 'material').length);
+    expect(q('.cx-filter[data-filter="material"]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('the list shows icon, name, base price and town demand', () => {
     const { game } = setup();
     PANELS.codex.open(game);

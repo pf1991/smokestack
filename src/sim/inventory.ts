@@ -34,7 +34,7 @@ export function acceptsGood(b: Building, goodId: GoodId): boolean {
       return recipe !== undefined && goodId in recipe.inputs;
     }
     case 'retail':
-      return good.tier === 2;
+      return good.kind === 'consumer';
     case 'logistics':
       return def.storage > 0;
     case 'extractor':

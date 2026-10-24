@@ -15,7 +15,7 @@ const pad = (s: string, n: number) => s.padEnd(n);
 const lpad = (s: string, n: number) => s.padStart(n);
 
 const rows = Object.values(GOODS)
-  .filter((g) => g.tier === 2)
+  .filter((g) => g.kind === 'consumer')
   .sort((a, b) => a.era - b.era || a.basePrice - b.basePrice);
 
 console.log('SMOKESTACK chain report (per day, one manufacturer at full utilisation, base prices)\n');

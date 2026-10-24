@@ -73,7 +73,7 @@ export function chainEconomics(goodId: GoodId, year: number): ChainReport | null
     legs++; // a truck leg delivers g to its consumer
     const share = perDay / dailyYield(p, g);
     buildings[p.typeId] = (buildings[p.typeId] ?? 0) + share;
-    if (GOODS[g].tier === 0) raw += perDay * GOODS[g].basePrice;
+    if (GOODS[g].kind === 'raw') raw += perDay * GOODS[g].basePrice;
     for (const [inp, q] of Object.entries(p.recipe.inputs)) need(inp, (q / p.recipe.days) * share);
   };
   const outputPerDay = top.recipe.outputs[goodId] / top.recipe.days;

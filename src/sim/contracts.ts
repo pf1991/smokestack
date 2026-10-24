@@ -51,7 +51,7 @@ export function offerContracts(ctx: SimContext): Contract | null {
   const options: { cityId: number; goodId: GoodId; monthly: number }[] = [];
   for (const city of state.cities) {
     for (const g of Object.values(GOODS)) {
-      if (g.tier !== 2 || !state.unlocked.includes(g.id)) continue;
+      if (g.kind !== 'consumer' || !state.unlocked.includes(g.id)) continue;
       if (open.has(`${city.id}:${g.id}`)) continue;
       const monthly = monthlyDemand(city, g.id, state.date.year);
       if (monthly > 0 && satisfaction(city, g.id) < 0.6) options.push({ cityId: city.id, goodId: g.id, monthly });

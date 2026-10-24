@@ -3,7 +3,7 @@ import './codex.css';
 import type { GameController } from '../../game/controller';
 import { BUILDINGS } from '../../data/buildings';
 import { consumersOf, producersOf, upstreamTree, type ChainNode } from '../../data/chains';
-import { GOODS, type GoodDef } from '../../data/goods';
+import { GOODS, type GoodKind } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
 import type { GameState, GoodId } from '../../sim/types';
 import { h } from '../dom';
@@ -15,18 +15,13 @@ import type { PanelDef } from './index';
 import { swap } from './inspect';
 import { goodIcon } from '../goodTooltip';
 
-type Kind = 'raw' | 'processed' | 'consumer';
+const KIND_LABEL: Record<GoodKind, string> = { raw: 'Raw', material: 'Material', component: 'Component', consumer: 'Consumer' };
 
-/** A good's kind. R4 gives GoodDef a `kind` field: this becomes `(g) => g.kind`. */
-const kindOf = (g: GoodDef): Kind => (['raw', 'processed', 'consumer'] as const)[g.tier];
-
-const KIND_LABEL: Record<Kind, string> = { raw: 'Raw', processed: 'Processed', consumer: 'Consumer' };
-
-type FilterId = 'all' | Kind | 'mine';
+type FilterId = 'all' | GoodKind | 'mine';
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'raw', label: 'Raw' },
-  { id: 'processed', label: 'Processed' },
+  { id: 'material', label: 'Materials' },
   { id: 'consumer', label: 'Consumer' },
   { id: 'mine', label: 'I make this' },
 ];
@@ -132,7 +127,7 @@ class CodexPanel {
 
     const demand = townDemand(state);
     const rows: Row[] = all
-      .filter((g) => (this.filter === 'all' ? true : this.filter === 'mine' ? made.has(g.id) : kindOf(g) === this.filter))
+      .filter((g) => (this.filter === 'all' ? true : this.filter === 'mine' ? made.has(g.id) : g.kind === this.filter))
       .map((g) => ({ id: g.id, price: g.basePrice, demand: Math.round(demand.get(g.id) ?? 0) }));
     swap(this.listBox, JSON.stringify([this.filter, this.selected, rows]), () => this.list(rows));
 
@@ -207,13 +202,13 @@ class CodexPanel {
       h('div', { class: 'cx-detail-title' },
         h('h3', null, g.name),
         h('div', { class: 'cx-detail-meta' },
-          pill(KIND_LABEL[kindOf(g)]),
+          pill(KIND_LABEL[g.kind]),
           h('span', null, `Base ${formatMoney(g.basePrice)}`),
           g.era > year ? pill(`Unlocks ${g.era}`, 'warning') : null)),
     );
     const usedIn = uses.length > 0
       ? h('div', { class: 'cx-used' }, uses.map((u) => this.link(u)))
-      : h('span', { class: 'cx-muted' }, kindOf(g) === 'consumer' ? 'Sold to towns' : 'Nothing yet');
+      : h('span', { class: 'cx-muted' }, g.kind === 'consumer' ? 'Sold to towns' : 'Nothing yet');
     const el = card({
       children: [
         head,

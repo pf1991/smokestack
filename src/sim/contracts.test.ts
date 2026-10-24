@@ -36,7 +36,7 @@ describe('contracts', () => {
     expect(offered.length).toBeGreaterThan(0);
     for (const c of offered) {
       expect(c.cityId).toBe(1);
-      expect(GOODS[c.goodId].tier).toBe(2);
+      expect(GOODS[c.goodId].kind).toBe('consumer');
       expect(c.reward).toBe(Math.round(c.qty * GOODS[c.goodId].basePrice * 1.5));
       expect(c.delivered).toBe(0);
     }

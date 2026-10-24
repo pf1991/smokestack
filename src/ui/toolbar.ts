@@ -30,8 +30,8 @@ const TABS: { id: TabId; label: string; icon: IconId }[] = [
 function tabOf(def: BuildingDef): TabId | null {
   if (def.category === 'extractor') return 'extract';
   if (def.category === 'retail' || def.category === 'logistics') return 'retail';
-  const outs = def.recipes.flatMap((r) => Object.keys(RECIPES[r]?.outputs ?? {}));
-  return outs.length > 0 && outs.every((g) => GOODS[g]?.tier === 1) ? 'refine' : 'manufacture';
+  const first = Object.keys(RECIPES[def.recipes[0]]?.outputs ?? {})[0];
+  return first !== undefined && GOODS[first]?.kind === 'material' ? 'refine' : 'manufacture';
 }
 
 /** One good in a recipe strip: its icon (or colour chip) with the good tooltip. `data-good` is the codex hook. */

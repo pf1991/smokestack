@@ -361,7 +361,7 @@ export function rivalChainCount(state: GameState): number {
   for (const b of Object.values(state.buildings)) {
     if (b.ownerId !== 'rival' || !b.recipeId) continue;
     const rec = RECIPES[b.recipeId];
-    if (rec && Object.keys(rec.outputs).some((g) => GOODS[g]?.tier === 2)) n++;
+    if (rec && Object.keys(rec.outputs).some((g) => GOODS[g]?.kind === 'consumer')) n++;
   }
   return n;
 }

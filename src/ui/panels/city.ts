@@ -54,7 +54,7 @@ export function cityDemand(state: GameState, city: City): GoodDemand[] {
   const out: GoodDemand[] = [];
   for (const goodId of Object.keys(DEMAND_PER_1000)) {
     const g = GOODS[goodId];
-    if (!g || g.tier !== 2 || !state.unlocked.includes(goodId)) continue;
+    if (!g || g.kind !== 'consumer' || !state.unlocked.includes(goodId)) continue;
     const demand = monthlyDemand(city, goodId, state.date.year, demandModifier(state, city.id, goodId));
     if (demand <= 0) continue;
     const sat = satisfaction(city, goodId);
