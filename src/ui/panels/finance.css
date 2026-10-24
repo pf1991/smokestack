@@ -1,7 +1,10 @@
-/* Finance dashboard. Colours come from the theme tokens in theme.css. */
+/* Finance panel. Tokens only (see cssGate.test.ts). */
 
 .finance {
-  color: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  color: var(--text);
   font-family: var(--font-body);
   min-width: 0;
 }
@@ -10,15 +13,124 @@
   display: none !important;
 }
 
+.finance > .p-section {
+  margin: 0;
+}
+
+/* header: the panel's own title row, flush with the window edges */
+.finance-header .kit-ph {
+  padding: 0 0 var(--sp-2);
+}
+
+/* four tiles in one row; they share the width and truncate long figures */
+.finance-tiles .kit-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.finance-tiles .kit-stat {
+  border: 1px solid var(--surface-2);
+}
+
+.finance-tiles .kit-stat-value {
+  font-size: var(--fs-lg);
+}
+
+.finance-tiles .kit-stat-delta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* where the money goes: label, bar, value */
+.finance-costs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.finance-cost,
+.finance-cost-total {
+  display: grid;
+  grid-template-columns: minmax(0, 9em) minmax(0, 1fr) minmax(5.5em, auto);
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+.finance-cost-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.finance-cost-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.finance-cost .kit-meter {
+  height: var(--sp-3);
+}
+
+.finance-cost-total {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--surface-2);
+  color: var(--text-muted);
+}
+
+.finance-cost-total .finance-cost-label,
+.finance-cost-total .finance-cost-value {
+  font-weight: 700;
+}
 
 .finance-empty,
 .finance-note {
-  margin: 4px 0;
-  font-size: 13px;
+  margin: var(--sp-1) 0;
+  font-size: var(--fs-sm);
   font-style: italic;
-  opacity: 0.8;
+  color: var(--text-muted);
 }
 
+/* collapsible sections: a caret before the overline */
+.finance .kit-section--collapsible > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.finance .kit-section--collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.finance .kit-section--collapsible > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--text-muted);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 120ms ease;
+}
+
+.finance .kit-section--collapsible[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.finance .kit-section--collapsible[open] > summary {
+  margin-bottom: var(--sp-2);
+}
+
+.finance .kit-section--collapsible > summary:hover {
+  color: var(--text);
+}
+
+/* wide tables scroll sideways inside the panel (sidePanel.css relies on this wrapper) */
 .finance-scroll {
   overflow-x: auto;
   max-width: 100%;
@@ -31,79 +143,96 @@
   width: 100%;
   min-width: max-content;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .finance-table th,
 .finance-table td {
-  padding: 2px 6px;
+  padding: var(--sp-1) var(--sp-2);
   white-space: nowrap;
 }
 
 .finance-table thead th {
-  border-bottom: 1px solid var(--brass-dark);
-  color: var(--brass-light);
-  font-weight: normal;
+  border-bottom: 1px solid var(--accent-quiet);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
   text-align: right;
 }
 
 .finance-table thead th:first-child,
 .finance-table tbody th {
   text-align: left;
-  font-weight: normal;
+  font-weight: 400;
+}
+
+/* row labels read as text, not overlines, and stay put while the months scroll */
+.finance-table tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface-0);
+  font-size: var(--fs-sm);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.finance-table thead th:first-child {
+  left: 0;
+  z-index: 2;
 }
 
 .finance-table td {
   text-align: right;
 }
 
-.finance-table tbody tr:nth-child(even) {
-  background: rgba(243, 233, 210, 0.06);
-}
-
 .finance-table .finance-profit th,
 .finance-table .finance-profit td {
-  font-weight: bold;
-  border-top: 1px solid var(--brass-dark);
+  font-weight: 700;
+  border-top: 1px solid var(--accent-quiet);
 }
 
-.finance-table .neg {
-  color: var(--bad);
+.finance .neg {
+  color: var(--negative);
 }
 
 .finance-table .pos {
-  color: var(--good);
+  color: var(--positive);
 }
 
 .finance-charts {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 
 .finance-chart {
   display: block;
   width: 100%;
-  height: 150px;
+  height: 160px;
 }
 
-.finance-legend {
+.finance-legend-items {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
-  font-size: 12px;
+  gap: var(--sp-1) var(--sp-4);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
 .finance-legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 
 .finance-swatch {
   display: inline-block;
-  width: 16px;
+  width: var(--sp-4);
   height: 0;
   border-top: 3px solid;
 }
@@ -112,19 +241,13 @@
   border-top-style: dashed;
 }
 
-.finance-loan p {
-  margin: 4px 0;
-}
-
-.finance-loan-buttons {
-  margin-top: 4px;
-}
-
 /* the price index sparkline: a short strip under the index line */
 .finance-chart.finance-index-chart {
   height: 72px;
 }
 
 .finance-index-info p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
 }

@@ -1,22 +1,25 @@
 import type { Result } from '../../core/result';
 import './panels.css';
 import type { GameController } from '../../game/controller';
-import { GOODS } from '../../data/goods';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, loanStep, maxLoan, monthProfit, repayLoan, repayStep, takeLoan } from '../../sim/finance';
 import { inflationRate, priceIndex } from '../../sim/society/economy';
 import { loanRate } from '../../sim/politics/mayorEdicts';
 import { companyIds } from '../../sim/companies';
 import { wealth } from '../../sim/state';
 import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
-import { barChart, cssColor, lineChart } from '../charts';
+import { cssColor, lineChart } from '../charts';
 import { h } from '../dom';
 import { formatMoney } from '../format';
+import { button, dataTable, deltaText, emptyState, meter, panelHeader, section, statRow, statTile, type Tone } from '../kit';
+import { openMonth } from '../ledger';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
 import './finance.css';
 
 const REFRESH_MS = 1000;
 const STATEMENT_MONTHS = 12;
+/** The cash chart waits for this many months of points: one or two points make no line worth reading. */
+const CHART_MIN_MONTHS = 3;
 const LABELS: Record<LedgerCategory, string> = {
   sales: 'Sales',
   contracts: 'Mayor’s contracts',
@@ -43,13 +46,13 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const monthKey = (m: { year: number; month: number }) => m.year * 12 + m.month;
 const monthLabel = (m: { year: number; month: number }) => `${MONTHS[m.month - 1]} ${String(m.year).slice(2)}`;
 
-/** Income statement table: one column per month, a row per category and a bold profit row. */
+/** Income statement table: one column per month, the rows that had any money in them and a bold profit row. */
 function statement(ledger: LedgerMonth[]): HTMLElement {
   const months = ledger.slice(-STATEMENT_MONTHS);
   if (months.length === 0) return h('p', { class: 'finance-empty' }, 'No history yet');
   const cell = (v: number) => h('td', { class: v < 0 ? 'neg' : v > 0 ? 'pos' : '' }, v === 0 ? '–' : formatMoney(v));
   const row = (label: string, values: number[]) =>
-    h('tr', null, h('th', { scope: 'row' }, label), values.map(cell));
+    values.some((v) => v !== 0) ? h('tr', null, h('th', { scope: 'row' }, label), values.map(cell)) : null;
   const profit = months.map(monthProfit);
   return h(
     'div',
@@ -74,9 +77,66 @@ function statement(ledger: LedgerMonth[]): HTMLElement {
           profit.map((v) => h('td', { class: v < 0 ? 'neg' : 'pos' }, formatMoney(v))),
         ),
         // capital flows below the line: share trades and dividends never count as profit
-        CAPITAL_CATS.filter((cat) => months.some((m) => (m.income[cat] ?? 0) !== 0 || (m.expense[cat] ?? 0) !== 0)).map((cat) =>
-          row(LABELS[cat], months.map((m) => (m.income[cat] ?? 0) - (m.expense[cat] ?? 0)))),
+        CAPITAL_CATS.map((cat) => row(LABELS[cat], months.map((m) => (m.income[cat] ?? 0) - (m.expense[cat] ?? 0)))),
       ),
+    ),
+  );
+}
+
+/** The header line: is the open month making money, and if not, what costs most. */
+function summaryOf(ledger: LedgerMonth[], date: GameState['date']): { summary: string; tone: Tone } {
+  const open = openMonth(ledger, date);
+  const net = open ? monthProfit(open) : 0;
+  if (net >= 0.5) return { summary: `Profitable: ${formatMoney(net)} this month so far`, tone: 'positive' };
+  if (net <= -0.5) {
+    let top: { label: string; v: number } | undefined;
+    for (const c of EXPENSE_CATS) {
+      const v = open?.expense[c.cat] ?? 0;
+      if (v > 0 && (!top || v > top.v)) top = { label: c.label, v };
+    }
+    const tail = top ? `: ${top.label} is your biggest cost` : '';
+    return { summary: `Losing ${formatMoney(-net)} this month${tail}`, tone: 'negative' };
+  }
+  // nothing booked yet: a brand-new ledger, or a month that has only just begun
+  const history = ledger.some((m) => m !== open);
+  return { summary: history ? 'Breaking even this month so far' : 'A new ledger: your first month is under way', tone: 'neutral' };
+}
+
+/** This year's spending by category, nonzero only, largest first. */
+function yearCosts(ledger: LedgerMonth[], year: number): { label: string; value: number }[] {
+  const totals = new Map<LedgerCategory, number>();
+  for (const m of ledger) {
+    if (m.year !== year) continue;
+    for (const c of EXPENSE_CATS) totals.set(c.cat, (totals.get(c.cat) ?? 0) + (m.expense[c.cat] ?? 0));
+  }
+  return EXPENSE_CATS.map((c) => ({ label: c.label, value: totals.get(c.cat) ?? 0 }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+/** Horizontal bars, one per category, scaled to the largest. */
+function costBars(rows: { label: string; value: number }[]): HTMLElement {
+  const total = rows.reduce((t, r) => t + r.value, 0);
+  const max = rows[0]?.value ?? 0;
+  return h(
+    'div',
+    { class: 'finance-costs' },
+    rows.map((r) => {
+      const share = `${Math.round((r.value / total) * 100)}% of this year's costs`;
+      return h(
+        'div',
+        { class: 'finance-cost', title: `${r.label}: ${formatMoney(r.value)}, ${share}` },
+        h('span', { class: 'finance-cost-label' }, r.label),
+        meter(r.value, max, { label: `${r.label}: ${share}` }),
+        h('span', { class: 'finance-cost-value' }, formatMoney(r.value)),
+      );
+    }),
+    h(
+      'div',
+      { class: 'finance-cost-total' },
+      h('span', { class: 'finance-cost-label' }, 'Total'),
+      h('span'),
+      h('span', { class: 'finance-cost-value' }, formatMoney(total)),
     ),
   );
 }
@@ -94,52 +154,63 @@ function monthValues(state: GameState, c: Company | undefined, key: number, m: L
 
 /** Every company (player, Baron, regional firms in companyIds order): name, cash and net worth today. */
 export function companiesTable(state: GameState): HTMLElement {
-  const money = (v: number) => h('td', { class: v < 0 ? 'neg' : '' }, formatMoney(v));
-  return h(
-    'div',
-    { class: 'finance-scroll' },
-    h(
-      'table',
-      { class: 'finance-table finance-companies' },
-      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Company'), h('th', { scope: 'col' }, 'Cash'), h('th', { scope: 'col', title: 'Cash minus loans, plus works, vehicles and shares held' }, 'Net worth'))),
-      h(
-        'tbody',
-        null,
-        companyIds(state).map((id) => {
-          const c = state.companies[id];
-          return h(
-            'tr',
-            null,
-            h('th', { scope: 'row' }, c.active ? c.name : `${c.name} (closed)`),
-            money(c.money),
-            money(wealth(state, id)),
-          );
-        }),
-      ),
-    ),
-  );
+  interface Row { name: string; cash: number; net: number }
+  const money = (v: number) => h('span', { class: v < 0 ? 'neg' : '' }, formatMoney(v));
+  const rows: Row[] = companyIds(state).map((id) => {
+    const c = state.companies[id];
+    return { name: c.active ? c.name : `${c.name} (closed)`, cash: c.money, net: wealth(state, id) };
+  });
+  const table = dataTable<Row>({
+    columns: [
+      { key: 'name', label: 'Company', render: (r) => r.name, title: (r) => r.name },
+      { key: 'cash', label: 'Cash', align: 'right', render: (r) => money(r.cash) },
+      { key: 'net', label: 'Net worth', align: 'right', render: (r) => money(r.net) },
+    ],
+    rows,
+    emptyText: 'No companies',
+  });
+  table.classList.add('finance-companies');
+  table.querySelector('th[data-col="net"]')?.setAttribute('title', NET_WORTH_TITLE);
+  return h('div', { class: 'finance-scroll' }, table);
 }
+
+const NET_WORTH_TITLE = 'Cash minus loans, plus works, vehicles and shares held';
 
 /** Windows that already have a refresh timer running (so a second open just re-raises them). */
 const timed = new WeakSet<HTMLElement>();
 
-/** One titled block of the ledger. */
-function section(title: string, ...children: HTMLElement[]): HTMLElement {
-  return h('section', { class: 'p-section' }, h('h3', { class: 'p-head' }, title), ...children);
+/** What each box last showed, so a refresh only rebuilds the parts whose figures moved. */
+const shownKey = new WeakMap<HTMLElement, string>();
+
+/** Replaces `box`'s children when `key` changed, keeping any horizontal table scroll where it was. */
+function swap(box: HTMLElement, key: string, build: () => HTMLElement): void {
+  if (shownKey.get(box) === key) return;
+  shownKey.set(box, key);
+  const scroll = box.querySelector<HTMLElement>('.finance-scroll')?.scrollLeft ?? 0;
+  box.replaceChildren(build());
+  const next = box.querySelector<HTMLElement>('.finance-scroll');
+  if (next && scroll) next.scrollLeft = scroll;
 }
+
+const labelOf = (btn: HTMLElement) => btn.querySelector('.kit-btn-label') as HTMLElement;
 
 export const financePanel: PanelDef = {
   id: 'finance',
   open(game: GameController) {
+    const headerBox = h('div', { class: 'finance-header' });
+    const tilesBox = h('div', { class: 'finance-tiles' });
+    const costsBox = h('div');
     const statementBox = h('div');
     const companiesBox = h('div');
-    const emptyCharts = h('p', { class: 'finance-empty' }, 'No history yet');
+    const emptyCharts = emptyState({
+      title: 'Charts appear after three months',
+      body: 'Cash and net worth are plotted at each month’s close.',
+    });
     const cashCanvas = h('canvas', { class: 'finance-chart' }) as HTMLCanvasElement;
     const legend = h('div', { class: 'finance-legend' });
     const chartsBox = h('div', { class: 'finance-charts' }, cashCanvas, legend);
-    const goodsCanvas = h('canvas', { class: 'finance-chart' }) as HTMLCanvasElement;
-    const goodsEmpty = h('p', { class: 'finance-empty' }, 'No sales this year');
-    const loanInfo = h('div', { class: 'finance-loan-info' });
+    const indexInfo = h('div', { class: 'finance-index-info' });
+    const indexCanvas = h('canvas', { class: 'finance-chart finance-index-chart' }) as HTMLCanvasElement;
 
     const act = (fn: (c: Company) => Result) => {
       const res = fn(game.state.companies.player);
@@ -149,20 +220,28 @@ export const financePanel: PanelDef = {
     // loans are scaled by the price index when taken; the balance owed stays nominal
     const borrow = () => act((c) => takeLoan(c, loanStep(priceIndex(game.state)), priceIndex(game.state)));
     const repay = () => act((c) => repayLoan(c, repayStep(c, priceIndex(game.state)) || loanStep(priceIndex(game.state)), priceIndex(game.state)));
-    const borrowBtn = h('button', { type: 'button', class: 'btn', onClick: borrow });
-    const repayBtn = h('button', { type: 'button', class: 'btn', onClick: repay });
-    const indexInfo = h('div', { class: 'finance-index-info' });
-    const indexCanvas = h('canvas', { class: 'finance-chart finance-index-chart' }) as HTMLCanvasElement;
+    const borrowBtn = button('Borrow', { variant: 'secondary', onClick: borrow }) as HTMLButtonElement;
+    const repayBtn = button('Repay', { variant: 'secondary', onClick: repay }) as HTMLButtonElement;
+
+    const chartsSection = section('Cash and net worth', [emptyCharts, chartsBox]);
+    chartsSection.classList.add('finance-charts-section');
+    const statementSection = section('Income statement', [statementBox], { collapsible: true, open: false });
+    statementSection.classList.add('finance-statement');
+    const pricesSection = section('Prices', [indexInfo, indexCanvas], { collapsible: true, open: false });
+    pricesSection.classList.add('finance-prices');
+    // a closed section has no width to draw into: draw the sparkline when it is opened
+    pricesSection.addEventListener('toggle', () => update());
 
     const body = h(
       'div',
       { class: 'finance' },
-      section('Income statement (last 12 months)', statementBox),
-      section('Companies', companiesBox),
-      section('Cash and net worth', emptyCharts, chartsBox),
-      section('Sales this year', goodsEmpty, goodsCanvas),
-      section('Prices', indexInfo, indexCanvas),
-      section('Loans', h('div', { class: 'finance-loan' }, loanInfo)),
+      headerBox,
+      tilesBox,
+      section('Where the money goes', [costsBox]),
+      chartsSection,
+      statementSection,
+      section('Companies', [companiesBox]),
+      pricesSection,
       // pinned to the foot of the panel so Borrow and Repay stay in reach while the charts scroll
       h('div', { class: 'p-actions finance-loan-buttons' }, borrowBtn, repayBtn),
     );
@@ -185,17 +264,68 @@ export const financePanel: PanelDef = {
       const player = state.companies.player;
       const rival = state.companies.rival;
       const rivalActive = Boolean(rival?.active);
+      const index = priceIndex(state);
+      // the player's rate follows national Old Money opinion (sim/politics/mayorEdicts.ts)
+      const rate = loanRate(state);
 
-      statementBox.replaceChildren(statement(player.ledger));
-      companiesBox.replaceChildren(companiesTable(state));
+      // 1. Header: are we making money this month, and if not, what costs most.
+      const head = summaryOf(player.ledger, state.date);
+      swap(headerBox, `${head.tone}|${head.summary}`, () => panelHeader({ title: 'Finance', ...head }));
 
-      // Cash and net worth: union of both companies' months (plus the open month), aligned on year/month.
+      // 2. Cash, this month's profit against last month's, net worth and the loan.
+      const open = openMonth(player.ledger, state.date);
+      const net = open ? monthProfit(open) : 0;
+      const prev = [...player.ledger].reverse().find((m) => m !== open && monthKey(m) < monthKey(state.date));
+      const prevNet = prev ? monthProfit(prev) : undefined;
+      const worth = wealth(state, 'player');
+      const interest = Math.round((player.loan * rate) / 12);
+      const tiles = [player.money, net, prevNet ?? 'none', worth, player.loan, rate, interest, maxLoan(index)];
+      swap(tilesBox, JSON.stringify(tiles), () => {
+        const diff = prevNet === undefined ? undefined : net - prevNet;
+        return statRow([
+          statTile({ label: 'Cash', value: formatMoney(player.money), title: 'Money in hand' }),
+          statTile({
+            label: 'Profit',
+            value: formatMoney(net),
+            delta: diff === undefined || !prev ? undefined : `${deltaText(diff)} vs ${MONTHS[prev.month - 1]}`,
+            tone: diff === undefined || Math.abs(diff) < 0.5 ? 'neutral' : diff > 0 ? 'positive' : 'negative',
+            title: prevNet === undefined ? 'This month so far' : `This month so far; last month ${formatMoney(prevNet)}`,
+          }),
+          statTile({ label: 'Net worth', value: formatMoney(worth), title: NET_WORTH_TITLE }),
+          statTile({
+            label: 'Loan',
+            value: formatMoney(player.loan),
+            delta: `at ${(rate * 100).toFixed(1)}%`,
+            tone: player.loan > 0 ? 'warning' : 'neutral',
+            title: `Interest ${formatMoney(interest)} a month at ${(rate * 100).toFixed(1)}% a year, set by Old Money. Limit ${formatMoney(maxLoan(index))} at today's prices`,
+          }),
+        ]);
+      });
+
+      // 3. Where the money goes: this year's costs by category.
+      const costs = yearCosts(player.ledger, state.date.year);
+      swap(costsBox, JSON.stringify(costs), () =>
+        costs.length > 0
+          ? costBars(costs)
+          : emptyState({ title: 'No costs yet this year', body: 'Construction, upkeep, vehicles and wages show here as they are paid.' }),
+      );
+
+      // 5. and 6. The statement and the companies (the sections themselves stay, so an open statement stays open).
+      const shown = player.ledger.slice(-STATEMENT_MONTHS);
+      swap(statementBox, JSON.stringify(shown.map((m) => [m.year, m.month, m.income, m.expense])), () => statement(player.ledger));
+      const firms = companyIds(state).map((id) => {
+        const c = state.companies[id];
+        return [c.name, c.active, c.money, c.loan];
+      });
+      swap(companiesBox, JSON.stringify([firms, worth]), () => companiesTable(state));
+
+      // 4. Cash and net worth: union of both companies' months (plus the open month), aligned on year/month.
       const keys = new Set<number>();
       for (const m of player.ledger) keys.add(monthKey(m));
       if (rivalActive) for (const m of rival.ledger) keys.add(monthKey(m));
       if (keys.size > 0) keys.add(monthKey(state.date));
       const sorted = [...keys].sort((a, b) => a - b);
-      const hasHistory = sorted.length > 0;
+      const hasHistory = sorted.length >= CHART_MIN_MONTHS;
       emptyCharts.hidden = hasHistory;
       chartsBox.hidden = !hasHistory;
       if (hasHistory) {
@@ -223,54 +353,29 @@ export const financePanel: PanelDef = {
           );
         }
         lineChart(cashCanvas, series, labels);
-        legend.replaceChildren(
-          ...series.map((s) =>
-            h(
-              'span',
-              { class: 'finance-legend-item' },
-              h('span', { class: `finance-swatch${s.dashed ? ' dashed' : ''}`, style: { borderTopColor: s.color } }),
-              s.label,
+        swap(legend, series.map((s) => s.label).join('|'), () =>
+          h(
+            'div',
+            { class: 'finance-legend-items' },
+            series.map((s) =>
+              h(
+                'span',
+                { class: 'finance-legend-item' },
+                h('span', { class: `finance-swatch${s.dashed ? ' dashed' : ''}`, style: { borderTopColor: s.color } }),
+                s.label,
+              ),
             ),
           ),
         );
       }
 
-      // Sales by good, summed over the current year.
-      const totals: Partial<Record<string, number>> = {};
-      for (const m of player.ledger) {
-        if (m.year !== state.date.year) continue;
-        for (const [goodId, v] of Object.entries(m.salesByGood)) totals[goodId] = (totals[goodId] ?? 0) + (v ?? 0);
-      }
-      const bars = Object.entries(totals)
-        .filter(([, v]) => (v ?? 0) > 0)
-        .map(([goodId, v]) => {
-          const def = GOODS[goodId];
-          return { label: def?.name ?? goodId, value: v ?? 0, color: def?.color ?? '#888' };
-        });
-      goodsEmpty.hidden = bars.length > 0;
-      goodsCanvas.hidden = bars.length === 0;
-      if (bars.length > 0) barChart(goodsCanvas, bars);
-
-      // Loans.
-      // the player's rate follows national Old Money opinion (sim/politics/mayorEdicts.ts)
-      const rate = loanRate(state);
-      const interest = Math.round((player.loan * rate) / 12);
-      const index = priceIndex(state);
-      loanInfo.replaceChildren(
-        h('p', null, `Current loan: ${formatMoney(player.loan)} (limit ${formatMoney(maxLoan(index))} at today's prices)`),
-        h('p', null, `Monthly interest: ${formatMoney(interest)} (${(rate * 100).toFixed(1)}% a year, set by Old Money)`),
-      );
-      borrowBtn.textContent = `Borrow ${formatMoney(loanStep(index))}`;
-      repayBtn.textContent = `Repay ${formatMoney(repayStep(player, index) || loanStep(index))}`;
-
-      // Price index (society/economy.ts): today's level and the last ten years of month ends.
+      // 7. Price index (society/economy.ts): today's level and the last ten years of month ends.
       const rateNow = inflationRate(state.date.year);
-      indexInfo.replaceChildren(
-        h('p', null, `Price index: ×${index.toFixed(2)} of 1900 prices (${rateNow >= 0 ? '+' : ''}${(rateNow * 100).toFixed(1)}% a year this decade)`),
-      );
+      const indexText = `Price index: ×${index.toFixed(2)} of 1900 prices (${rateNow >= 0 ? '+' : ''}${(rateNow * 100).toFixed(1)}% a year this decade)`;
+      swap(indexInfo, indexText, () => h('p', null, indexText));
       const hist = state.economy.history;
       indexCanvas.hidden = hist.length < 2;
-      if (hist.length >= 2) {
+      if (hist.length >= 2 && (pricesSection as HTMLDetailsElement).open) {
         // history[i] is the index at the end of the month `hist.length - i` months before this one
         const now = monthKey(state.date);
         const histLabels = hist.map((_, i) => {
@@ -280,6 +385,12 @@ export const financePanel: PanelDef = {
         });
         lineChart(indexCanvas, [{ label: 'Price index', color: cssColor('--brass', '#c9a227'), values: hist }], histLabels, (v) => `×${v.toFixed(v < 10 ? 2 : 1)}`);
       }
+
+      // 8. The loan buttons.
+      labelOf(borrowBtn).textContent = `Borrow ${formatMoney(loanStep(index))}`;
+      labelOf(repayBtn).textContent = `Repay ${formatMoney(repayStep(player, index) || loanStep(index))}`;
+      repayBtn.disabled = player.loan <= 0;
+      repayBtn.title = player.loan <= 0 ? 'No loan to repay' : '';
     }
 
     update();

@@ -15,6 +15,7 @@ import { formatMoney } from './format';
 import { groupThousands, wholeNumber } from '../core/money';
 import { RollingCounter } from './juice';
 import { deltaText, pill, tooltip, type Tone } from './kit';
+import { openMonth } from './ledger';
 import { drawFamilyCrest } from '../render/portrait';
 import './hud.css';
 
@@ -722,16 +723,8 @@ export class Hud {
 
   /** The open month's profit so far; a month with no ledger entry yet is a neutral $0. */
   private updateProfit(state: GameState): void {
-    const { year, month } = state.date;
-    const ledger = state.companies.player.ledger;
-    let net = 0;
-    for (let i = ledger.length - 1; i >= 0; i--) {
-      const m = ledger[i];
-      if (m.year === year && m.month === month) {
-        net = monthProfit(m);
-        break;
-      }
-    }
+    const open = openMonth(state.companies.player.ledger, state.date);
+    const net = open ? monthProfit(open) : 0;
     const tone = profitTone(net);
     const text = deltaText(net);
     const key = `${tone}|${text}`;
