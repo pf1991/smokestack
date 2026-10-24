@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventBus, type GameEvent } from '../../core/events';
 import type { GameController } from '../../game/controller';
 import { hire } from '../../sim/logistics/managers';
@@ -38,9 +38,60 @@ describe('managers panel', () => {
     const cand = rows('.mgr-row');
     expect(cand).toHaveLength(ctx.state.logistics.market.length);
     expect(cand[0].textContent).toContain(ctx.state.logistics.market[0].name);
-    expect(cand[0].querySelectorAll('.mgr-skills > span')).toHaveLength(3);
-    expect(cand[0].querySelector('button[data-act="hire"]')).not.toBeNull();
-    expect(rows('.mgr-empty').map((e) => e.textContent)).toEqual(['No managers hired']);
+    const meters = [...cand[0].querySelectorAll<HTMLElement>('.kit-meter')];
+    expect(meters.map((m) => m.getAttribute('aria-label'))).toEqual(['Logistics', 'Production', 'Frugality']);
+    const hireBtn = cand[0].querySelector('button[data-act="hire"]') as HTMLElement;
+    expect(hireBtn.classList.contains('kit-btn--secondary')).toBe(true);
+  });
+
+  it('every candidate has three labelled skill meters from 0 to 5 with their values', () => {
+    const { ctx, game } = setup();
+    PANELS.managers.open(game);
+    const cand = rows('.mgr-row');
+    ctx.state.logistics.market.forEach((m, i) => {
+      const meters = [...cand[i].querySelectorAll<HTMLElement>('.kit-meter')];
+      expect(meters).toHaveLength(3);
+      expect(meters.map((e) => e.getAttribute('aria-label'))).toEqual(['Logistics', 'Production', 'Frugality']);
+      expect(meters.map((e) => e.getAttribute('aria-valuemax'))).toEqual(['5', '5', '5']);
+      expect(meters.map((e) => Number(e.getAttribute('aria-valuenow')))).toEqual([m.skills.logistics, m.skills.production, m.skills.frugality]);
+      expect(cand[i].querySelector('.mgr-skill-label')!.textContent).toBe('Logistics');
+    });
+  });
+
+  it('a skill tooltip explains what it does', () => {
+    vi.useFakeTimers();
+    try {
+      const { game } = setup();
+      PANELS.managers.open(game);
+      const skills = [...rows('.mgr-row')[0].querySelectorAll<HTMLElement>('.mgr-skill')];
+      const tips = skills.map((sk) => {
+        sk.dispatchEvent(new Event('pointerenter'));
+        vi.advanceTimersByTime(300);
+        const t = document.querySelector('.kit-tip')!.textContent;
+        sk.dispatchEvent(new Event('pointerleave'));
+        return t;
+      });
+      expect(tips[0]).toContain('Hubs dispatch more and smarter trucks');
+      expect(tips[1]).toContain('Works produce more per day');
+      expect(tips[2]).toContain('Lower upkeep and salary demands');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('empty game: the staff section shows an empty state, and the header counts', () => {
+    const { ctx, game } = setup();
+    PANELS.managers.open(game);
+    const staff = document.querySelectorAll('.managers-panel .p-section')[1] as HTMLElement;
+    const empty = staff.querySelector('.kit-empty') as HTMLElement;
+    expect(empty).not.toBeNull();
+    expect(empty.textContent).toContain('No managers yet');
+    expect(empty.textContent).toContain('A manager at a busy works or hub pays for themselves.');
+    const n = ctx.state.logistics.market.length;
+    expect(document.querySelector('.managers-panel .kit-ph-summary')!.textContent).toBe(`${n} on the market · 0 on staff`);
+    (rows('button[data-act="hire"]')[0]).click();
+    expect(document.querySelector('.managers-panel .kit-ph-summary')!.textContent).toBe(`${n - 1} on the market · 1 on staff`);
+    expect(staff.isConnected ? staff.querySelector('.kit-empty') : document.querySelectorAll('.managers-panel .p-section')[1].querySelector('.kit-empty')).toBeNull();
   });
 
   it('Hire moves a candidate to the staff, and Fire (severance in the title) removes him', () => {

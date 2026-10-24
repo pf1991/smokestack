@@ -7,6 +7,7 @@ import { buildRail, TRAIN } from '../../sim/rail';
 import { buyTruck, createRoute, TRUCK, updateRoute } from '../../sim/vehicles';
 import type { ToolSpec } from '../tools';
 import { PANELS } from './index';
+import { lineStatus } from './routes';
 
 // updateRoute stays real; the spy lets the automation controls prove they go through it
 vi.mock('../../sim/vehicles', async (importOriginal) => {
@@ -84,8 +85,8 @@ describe('routes panel', () => {
     expect(routes[0].stops.map((x) => x.buildingId)).toEqual([a.id, b.id]);
     expect(Object.values(s.vehicles).map((v) => v.kind)).toEqual(['train']);
     expect(s.companies.player.money).toBe(money - TRAIN.cost);
-    const stat = win().querySelector('.rt-stat b')!;
-    expect(stat.textContent).toContain('1');
+    const stat = win().querySelector('.rt-vehicles')!.parentElement!;
+    expect(stat.textContent).toBe('1 train');
     expect(stat.querySelector('img.icon[data-icon="train"]')).not.toBeNull();
   });
 
@@ -416,5 +417,113 @@ describe('routes panel', () => {
     PANELS.routes.open(host, r.id);
     expect(win().querySelector('[data-route]')!.classList.contains('open')).toBe(true);
     expect(win().querySelector('.rt-auto')).toBeNull();
+  });
+
+  it('empty game: an empty state whose New route action starts a draft', () => {
+    const { game, host } = setup();
+    PANELS.routes.open(host);
+    const empty = win().querySelector('.kit-empty') as HTMLElement;
+    expect(empty).not.toBeNull();
+    expect(empty.querySelector('.kit-empty-title')!.textContent).toBe('No routes yet');
+    expect(empty.querySelector('.kit-empty-body')!.textContent).toBe(
+      'Routes carry goods between your works and stores. Pick a start and an end on the map.');
+    const action = empty.querySelector('button') as HTMLButtonElement;
+    expect(action.classList.contains('kit-btn--primary')).toBe(true);
+    expect(action.textContent).toBe('New route');
+    action.click();
+    expect(game.setTool).toHaveBeenCalledWith({ kind: 'pickStop', routeId: null });
+    expect(win().querySelector('[data-act="done"]')).not.toBeNull();
+  });
+
+  it('header: summary of lines and attention, New route primary and New rail line secondary', () => {
+    const { ctx, camp, mill, host } = setup();
+    PANELS.routes.open(host);
+    expect(win().querySelector('.kit-ph-summary')!.textContent).toBe('0 lines, 0 need attention');
+    expect(win().querySelector('[data-act="new"]')!.classList.contains('kit-btn--primary')).toBe(true);
+    expect(win().querySelector('[data-act="new-train"]')!.classList.contains('kit-btn--secondary')).toBe(true);
+    const r = must(createRoute(ctx, 'player', 'Wood run', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    PANELS.routes.open(host, r.id);
+    expect(win().querySelector('.kit-ph-summary')!.textContent).toBe('1 line, 1 needs attention');
+  });
+
+  it('line card: colour bar, title, A to B with the good icon, status pill, vehicles and rate', () => {
+    const { ctx, camp, mill, host } = setup();
+    const r = must(createRoute(ctx, 'player', 'Wood run', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    must(buyTruck(ctx, 'player', r.id));
+    PANELS.routes.open(host);
+    const card = win().querySelector(`[data-route="${r.id}"]`) as HTMLElement;
+    expect(card.querySelector('.rt-swatch')).not.toBeNull();
+    expect((card.querySelector('.rt-name') as HTMLInputElement).value).toBe('Wood run');
+    expect(card.querySelector('.rt-stops-line')!.textContent).toBe('Lumber Camp → Sawmill');
+    expect(card.querySelector('.rt-flow [data-good="wood"]')).not.toBeNull();
+    expect(card.querySelector('.rt-status')!.textContent).toBe('Flowing');
+    expect(card.querySelector('.rt-status')!.classList.contains('kit-pill--positive')).toBe(true);
+    expect(card.querySelector('.rt-vehicles')!.textContent).toBe('1 truck');
+    expect(card.querySelector('.rt-rate')!.textContent).toMatch(/\/mo$/);
+  });
+
+  it('the status pill follows the buildings without rebuilding the card', () => {
+    vi.useFakeTimers();
+    try {
+      const { ctx, camp, mill, host } = setup();
+      const r = must(createRoute(ctx, 'player', 'Wood run', [
+        { buildingId: camp.id, load: ['wood'], unload: [] },
+        { buildingId: mill.id, load: [], unload: ['wood'] },
+      ]));
+      must(buyTruck(ctx, 'player', r.id));
+      PANELS.routes.open(host);
+      const name = win().querySelector('.rt-name');
+      mill.status = 'no_input';
+      vi.advanceTimersByTime(1000);
+      expect(win().querySelector('.rt-status')!.textContent).toBe('Starved');
+      expect(win().querySelector('.kit-ph-summary')!.textContent).toBe('1 line, 1 needs attention');
+      expect(win().querySelector('.rt-name')).toBe(name);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('lineStatus', () => {
+  function line() {
+    const { ctx, camp, mill } = setup();
+    const r = must(createRoute(ctx, 'player', 'Wood run', [
+      { buildingId: camp.id, load: ['wood'], unload: [] },
+      { buildingId: mill.id, load: [], unload: ['wood'] },
+    ]));
+    return { ctx, camp, mill, r };
+  }
+
+  it('No vehicles when nothing runs on the route', () => {
+    const { ctx, r } = line();
+    expect(lineStatus(ctx.state, r)).toEqual({ label: 'No vehicles', tone: 'negative' });
+  });
+
+  it('Starved when a destination is no_input', () => {
+    const { ctx, mill, r } = line();
+    must(buyTruck(ctx, 'player', r.id));
+    mill.status = 'no_input';
+    expect(lineStatus(ctx.state, r)).toEqual({ label: 'Starved', tone: 'warning' });
+  });
+
+  it('Backed up when a source is output_full', () => {
+    const { ctx, camp, r } = line();
+    must(buyTruck(ctx, 'player', r.id));
+    camp.status = 'output_full';
+    expect(lineStatus(ctx.state, r)).toEqual({ label: 'Backed up', tone: 'warning' });
+  });
+
+  it('Flowing otherwise', () => {
+    const { ctx, camp, mill, r } = line();
+    must(buyTruck(ctx, 'player', r.id));
+    camp.status = 'ok';
+    mill.status = 'ok';
+    expect(lineStatus(ctx.state, r)).toEqual({ label: 'Flowing', tone: 'positive' });
   });
 });
