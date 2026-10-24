@@ -10,6 +10,10 @@
 /* list beside the card when there is room, stacked (list first, capped) when the panel is narrow */
 .cx-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; min-height: 0; }
 .cx-list { max-height: calc(var(--uvh, 1vh) * 100 - 260px); overflow-y: auto; scrollbar-width: thin; min-width: 0; }
+/* the sticky header row is opaque and carries its rule as a shadow: with collapsed borders the rule
+   and the padding above the labels let scrolled rows show through */
+.cx-list .kit-table { border-collapse: separate; border-spacing: 0; }
+.cx-list .kit-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-1); border-bottom: 0; box-shadow: inset 0 -1px 0 var(--accent-quiet); }
 .cx-list .kit-table th[data-col='price'], .cx-list .kit-table td[data-col='price'] { width: 52px; }
 .cx-list .kit-table th[data-col='demand'], .cx-list .kit-table td[data-col='demand'] { width: 64px; }
 .cx-list tr[aria-selected='true'] { background: var(--surface-3); box-shadow: inset 3px 0 0 var(--accent); }
