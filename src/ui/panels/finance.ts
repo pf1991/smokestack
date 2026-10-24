@@ -6,12 +6,15 @@ import { inflationRate, priceIndex } from '../../sim/society/economy';
 import { loanRate } from '../../sim/politics/mayorEdicts';
 import { companyIds } from '../../sim/companies';
 import { wealth } from '../../sim/state';
-import type { Company, GameState, LedgerCategory, LedgerMonth } from '../../sim/types';
+import type { Company, GameState, GoodId, LedgerCategory, LedgerMonth } from '../../sim/types';
+import { GOODS } from '../../data/goods';
+import { ICON_IDS } from '../../render/icons';
 import { cssColor, lineChart } from '../charts';
 import { h } from '../dom';
 import { formatMoney } from '../format';
 import { button, dataTable, deltaText, emptyState, meter, panelHeader, section, statRow, statTile, type Tone } from '../kit';
 import { openMonth } from '../ledger';
+import { iconEl } from '../icon';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
 import './finance.css';
@@ -114,19 +117,19 @@ function yearCosts(ledger: LedgerMonth[], year: number): { label: string; value:
     .sort((a, b) => b.value - a.value);
 }
 
-/** Horizontal bars, one per category, scaled to the largest. */
-function costBars(rows: { label: string; value: number }[]): HTMLElement {
+/** Horizontal bars (label, meter, value), scaled to the largest, with a total row. */
+function bars(rows: { label: string; value: number; icon?: string }[], of: string): HTMLElement {
   const total = rows.reduce((t, r) => t + r.value, 0);
   const max = rows[0]?.value ?? 0;
   return h(
     'div',
     { class: 'finance-costs' },
     rows.map((r) => {
-      const share = `${Math.round((r.value / total) * 100)}% of this year's costs`;
+      const share = `${Math.round((r.value / total) * 100)}% of ${of}`;
       return h(
         'div',
         { class: 'finance-cost', title: `${r.label}: ${formatMoney(r.value)}, ${share}` },
-        h('span', { class: 'finance-cost-label' }, r.label),
+        h('span', { class: 'finance-cost-label' }, r.icon ? iconEl(r.icon, 16) : null, h('span', { class: 'finance-cost-name' }, r.label)),
         meter(r.value, max, { label: `${r.label}: ${share}` }),
         h('span', { class: 'finance-cost-value' }, formatMoney(r.value)),
       );
@@ -139,6 +142,23 @@ function costBars(rows: { label: string; value: number }[]): HTMLElement {
       h('span', { class: 'finance-cost-value' }, formatMoney(total)),
     ),
   );
+}
+
+/** This year's sales by good, nonzero only, largest first; goods with an atlas icon carry it. */
+function yearSales(ledger: LedgerMonth[], year: number): { label: string; value: number; icon?: string }[] {
+  const totals = new Map<string, number>();
+  for (const m of ledger) {
+    if (m.year !== year) continue;
+    for (const [goodId, v] of Object.entries(m.salesByGood)) totals.set(goodId, (totals.get(goodId) ?? 0) + (v ?? 0));
+  }
+  return [...totals]
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([goodId, value]) => ({
+      label: GOODS[goodId as GoodId]?.name ?? goodId,
+      value,
+      icon: ICON_IDS.includes(goodId) ? goodId : undefined,
+    }));
 }
 
 /**
@@ -225,6 +245,9 @@ export const financePanel: PanelDef = {
 
     const chartsSection = section('Cash and net worth', [emptyCharts, chartsBox]);
     chartsSection.classList.add('finance-charts-section');
+    const salesBox = h('div');
+    const salesSection = section('Sales by product (this year)', [salesBox], { collapsible: true, open: false });
+    salesSection.classList.add('finance-sales');
     const statementSection = section('Income statement', [statementBox], { collapsible: true, open: false });
     statementSection.classList.add('finance-statement');
     const pricesSection = section('Prices', [indexInfo, indexCanvas], { collapsible: true, open: false });
@@ -239,11 +262,12 @@ export const financePanel: PanelDef = {
       tilesBox,
       section('Where the money goes', [costsBox]),
       chartsSection,
+      salesSection,
       statementSection,
       section('Companies', [companiesBox]),
       pricesSection,
       // pinned to the foot of the panel so Borrow and Repay stay in reach while the charts scroll
-      h('div', { class: 'p-actions finance-loan-buttons' }, borrowBtn, repayBtn),
+      h('div', { class: 'p-actions' }, borrowBtn, repayBtn),
     );
 
     let timer = 0;
@@ -306,7 +330,7 @@ export const financePanel: PanelDef = {
       const costs = yearCosts(player.ledger, state.date.year);
       swap(costsBox, JSON.stringify(costs), () =>
         costs.length > 0
-          ? costBars(costs)
+          ? bars(costs, "this year's costs")
           : emptyState({ title: 'No costs yet this year', body: 'Construction, upkeep, vehicles and wages show here as they are paid.' }),
       );
 
@@ -315,9 +339,16 @@ export const financePanel: PanelDef = {
       swap(statementBox, JSON.stringify(shown.map((m) => [m.year, m.month, m.income, m.expense])), () => statement(player.ledger));
       const firms = companyIds(state).map((id) => {
         const c = state.companies[id];
-        return [c.name, c.active, c.money, c.loan];
+        // net worth moves with works, vehicles and shares too, not only cash and loan
+        return [c.name, c.active, c.money, c.loan, wealth(state, id)];
       });
-      swap(companiesBox, JSON.stringify([firms, worth]), () => companiesTable(state));
+      swap(companiesBox, JSON.stringify(firms), () => companiesTable(state));
+
+      // Sales by product this year (closed by default; the section stays, so its open state does too).
+      const sold = yearSales(player.ledger, state.date.year);
+      swap(salesBox, JSON.stringify(sold), () =>
+        sold.length > 0 ? bars(sold, "this year's sales") : emptyState({ title: 'No sales yet this year', body: 'Goods sold to towns and contracts show here.' }),
+      );
 
       // 4. Cash and net worth: union of both companies' months (plus the open month), aligned on year/month.
       const keys = new Set<number>();

@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameController } from '../../game/controller';
 import { addCompany } from '../../sim/companies';
-import { testCtx, testState } from '../../sim/testkit';
+import { placeBuilding } from '../../sim/state';
+import { must, testCtx, testState } from '../../sim/testkit';
 import type { GameState, LedgerMonth } from '../../sim/types';
 import { closeAllWindows } from '../window';
 import { companiesTable, financePanel } from './finance';
@@ -126,5 +127,64 @@ describe('finance panel', () => {
     expect(rows.map((r) => r.querySelector('.finance-cost-label')?.textContent)).toEqual(['Vehicles', 'Maintenance']);
     expect(rows[0].querySelector('.kit-meter')).not.toBeNull();
     expect(rows[0].querySelector('.finance-cost-value')?.textContent).toBe('$900');
+  });
+  it('companies table refreshes when a rival net worth moves with cash and loan unchanged', () => {
+    vi.useFakeTimers();
+    try {
+      let state: GameState | undefined;
+      const body = openFinance((s) => {
+        state = s;
+      });
+      const s = state!;
+      const rivalNet = () => {
+        const row = [...body.querySelectorAll('.finance-companies tbody tr')].find((tr) => tr.textContent?.includes(s.companies.rival.name));
+        return row?.querySelector('td[data-col="net"]')?.textContent;
+      };
+      const before = rivalNet();
+      const money = s.companies.rival.money;
+      must(placeBuilding(testCtx(s), 'rival', 'sawmill', { x: 20, y: 15 }));
+      s.companies.rival.money = money;
+      vi.advanceTimersByTime(1000);
+      expect(rivalNet()).not.toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sales by product: closed section with an empty state when nothing sold', () => {
+    const body = openFinance();
+    const sales = body.querySelector('.finance-sales') as HTMLDetailsElement;
+    expect(sales.tagName).toBe('DETAILS');
+    expect(sales.open).toBe(false);
+    expect(sales.querySelector('summary')?.textContent).toBe('Sales by product (this year)');
+    expect(sales.querySelector('.kit-empty-title')?.textContent).toBe('No sales yet this year');
+    // right after the cash chart
+    expect(body.querySelector('.finance-charts-section')?.nextElementSibling).toBe(sales);
+  });
+
+  it('sales by product: nonzero goods this year, largest first, with icons, open across refreshes', () => {
+    vi.useFakeTimers();
+    try {
+      const body = openFinance((s) => {
+        const { year, month: m } = s.date;
+        const entry = month(year, m, { sales: 1700 }, {});
+        entry.salesByGood = { wood: 500, coal: 1200, grain: 0 };
+        s.companies.player.ledger.push(entry);
+        const old = month(year - 1, 12, { sales: 9000 }, {});
+        old.salesByGood = { cotton: 9000 };
+        s.companies.player.ledger.unshift(old);
+      });
+      const sales = body.querySelector('.finance-sales') as HTMLDetailsElement;
+      sales.open = true;
+      vi.advanceTimersByTime(2000);
+      expect(sales.open).toBe(true);
+      const rows = [...sales.querySelectorAll('.finance-cost')];
+      expect(rows.map((r) => r.querySelector('.finance-cost-label')?.textContent)).toEqual(['Coal', 'Wood']);
+      expect(rows[0].querySelector('.finance-cost-value')?.textContent).toBe('$1,200');
+      expect(rows[0].querySelector('img.icon')?.getAttribute('data-icon')).toBe('coal');
+      expect(rows[0].querySelector('.kit-meter')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
