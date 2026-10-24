@@ -27,7 +27,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 mkdir -p shots
 rm -f shots/*.png
-VLOG=/tmp/shots-vite.log
+# a fresh log per run (a stale /tmp/shots-vite.log may belong to another user)
+VLOG="${VLOG:-$(mktemp /tmp/shots-vite.XXXXXX)}"
 
 node_modules/.bin/vite --port "$PORT" --strictPort >"$VLOG" 2>&1 &
 VITE_PID=$!
