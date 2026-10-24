@@ -22,8 +22,8 @@
 .fl-table th[data-col='status'] { width: 64px; }
 .fl-table th[data-col='model'] { width: 96px; }
 .fl-table th[data-col='trips'] { width: 48px; }
-.fl-table th[data-col='age'] { width: 76px; }
-.fl-table th[data-col='actions'] { width: 176px; }
+.fl-table th[data-col='age'] { width: 92px; }
+.fl-table th[data-col='actions'] { width: 204px; }
 .fl-table td { vertical-align: middle; }
 .fl-table tr.problem td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
 .fl-icon { display: inline-flex; }
@@ -39,5 +39,5 @@
 .fl-compact .fl-table [data-col='cargo'],
 .fl-compact .fl-table [data-col='trips'] { display: none; }
 .fl-compact .fl-table th[data-col='route'] { width: auto; }
-.fl-compact .fl-table th[data-col='age'] { width: 70px; }
-.fl-compact .fl-table th[data-col='actions'] { width: 168px; }
+.fl-compact .fl-table th[data-col='age'] { width: 92px; }
+.fl-compact .fl-table th[data-col='actions'] { width: 204px; }
