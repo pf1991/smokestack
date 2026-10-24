@@ -4,7 +4,10 @@ import { stateHash } from '../sim/hash';
 import { runDays } from '../sim/simulation';
 import { createGame } from '../sim/state';
 import type { SimContext } from '../sim/types';
-import { autoplayLogistics, runAutoplay } from './autoplay';
+import { autoplayLogistics, autoplayUnrest, biggestCity, runAutoplay, UNREST } from './autoplay';
+import { canAbate } from '../sim/society/upgrades';
+import { workCity } from '../sim/politics/workforce';
+import { siteCity } from '../sim/politics/mayorEdicts';
 
 describe('autoplay', () => {
   it.each([1, 42, 7777])('scripted furniture chain sells within 20 days (seed %i)', (seed) => {
@@ -85,5 +88,42 @@ describe('autoplayLogistics', () => {
 
   it('two runs of the same seed hash equal', () => {
     expect(stateHash(run(42, 84).state)).toBe(stateHash(run(42, 84).state));
+  });
+});
+
+describe('autoplayUnrest (a town whose workers stay pinned)', () => {
+  /** The furniture chain on seed 42 in 1906 with cash to spare, its town's workers held at `workers` for `months` monthly calls. */
+  function pinned(workers: number, months: number) {
+    const ctx = { state: createGame({ seed: 42 }), bus: new EventBus() };
+    expect(runAutoplay(ctx).ok).toBe(true);
+    const { state } = ctx;
+    state.date.year = 1906;
+    state.companies.player.money = 1e8;
+    const town = biggestCity(state.cities)!;
+    for (let m = 0; m < months; m++) {
+      town.opinion.workers = workers;
+      autoplayUnrest(ctx);
+    }
+    const smoky = Object.values(state.buildings).filter(
+      (b) => b.ownerId === 'player' && canAbate(b) && (workCity(state, b)?.id === town.id || siteCity(state, b.typeId, b.pos)?.id === town.id),
+    );
+    return { state, town, smoky };
+  }
+
+  it(`after ${UNREST.pinMonths} months at or below ${UNREST.pinLevel}: scrubbers on the town's smoky works, the union recognised, a hospital endowed`, () => {
+    const { state, town, smoky } = pinned(UNREST.pinLevel, UNREST.pinMonths);
+    expect(smoky.length).toBeGreaterThan(0);
+    expect(smoky.every((b) => (b.upgrades?.scrubber ?? 0) >= 1)).toBe(true);
+    expect(state.politics.edicts.union).toBe('recognise');
+    expect(town.landmarks.some((l) => l.id === 'hospital')).toBe(true);
+  });
+
+  it('does nothing for a town one month short of pinned, or one whose workers sit above the line', () => {
+    for (const [workers, months] of [[UNREST.pinLevel, UNREST.pinMonths - 1], [UNREST.pinLevel + 1, 36]]) {
+      const { state, town, smoky } = pinned(workers, months);
+      expect(smoky.some((b) => (b.upgrades?.scrubber ?? 0) > 0)).toBe(false);
+      expect(state.politics.edicts.union).not.toBe('recognise');
+      expect(town.landmarks.some((l) => l.id === 'hospital')).toBe(false);
+    }
   });
 });

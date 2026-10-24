@@ -21,6 +21,13 @@ import { nameHeir } from '../sim/dynasty/family';
 import { livingChildren } from '../sim/dynasty/types';
 import { buyBack } from '../sim/exchange/trading';
 import { bidOpen } from '../sim/nemesis/bid';
+import { CARDS_BY_ID } from '../data/cards';
+import { choiceCost, resolveCard } from '../sim/politics/cards';
+import { buyPhilanthropy, philanthropyBlocker, philanthropyCost, setEdict } from '../sim/politics/edicts';
+import { siteCity } from '../sim/politics/mayorEdicts';
+import { workCity } from '../sim/politics/workforce';
+import { buyUpgrade, canAbate, nextScrubber, upgradeCost as abateCost } from '../sim/society/upgrades';
+import type { PhilanthropyId } from '../data/landmarks';
 
 export function biggestCity(cities: City[]): City | undefined {
   return [...cities].sort((a, b) => b.population - a.population)[0];
@@ -294,5 +301,91 @@ function stepTrucks(ctx: SimContext): boolean {
  */
 export function autoplayLogistics(ctx: SimContext): void {
   if (!ctx.state.companies.player.active) return;
+  autoplayUnrest(ctx);
   stepHire(ctx) || stepAutoLine(ctx) || stepHub(ctx) || stepUpgrade(ctx) || stepTrucks(ctx);
+}
+
+// ---------------------------------------------------------------------------
+// A pinned town (final-review ruling): a player whose workers in a town stay at rock bottom for two
+// years answers them, as a person at the keyboard would, through the public API only.
+
+/** autoplayUnrest thresholds. Cash multiples are of today's price of the thing bought. */
+export const UNREST = {
+  /** a town's workers' opinion at or below this counts as a pinned month... */
+  pinLevel: 5,
+  /** ...and this many consecutive pinned months (at the monthly call) trigger the response */
+  pinMonths: 24,
+  /** a scrubber tier needs cash of this many times its price */
+  scrubberCash: 3,
+  /** conceding a strike card needs cash of this many times the choice's price */
+  concedeCash: 3,
+  /** an endowment needs cash of this many times its price */
+  endowCash: 3,
+  /** endowments tried in this order (the hospital gives the town's workers +8, the park +2) */
+  endow: ['hospital', 'park'] as readonly PhilanthropyId[],
+} as const;
+
+/** Consecutive pinned months per town, per game (outside the state: a debug driver's memory, never saved). */
+const pinnedMonths = new WeakMap<GameState, Map<number, number>>();
+
+/** The towns whose workers have been pinned for `pinMonths` or more, after counting this month (id order). */
+function pinnedTowns(state: GameState): City[] {
+  let counts = pinnedMonths.get(state);
+  if (!counts) pinnedMonths.set(state, (counts = new Map()));
+  const out: City[] = [];
+  for (const c of [...state.cities].sort((a, b) => a.id - b.id)) {
+    const n = c.opinion.workers <= UNREST.pinLevel ? (counts.get(c.id) ?? 0) + 1 : 0;
+    if (n > 0) counts.set(c.id, n);
+    else counts.delete(c.id);
+    if (n >= UNREST.pinMonths) out.push(c);
+  }
+  return out;
+}
+
+/** The player's smoky works that hire from `town` or stand in its smog zone, in id order. */
+function smokyWorksOf(state: GameState, town: City): Building[] {
+  return buildingList(state).filter(
+    (b) => b.ownerId === 'player' && canAbate(b) && (workCity(state, b)?.id === town.id || siteCity(state, b.typeId, b.pos)?.id === town.id),
+  );
+}
+
+/**
+ * Monthly (from autoplayLogistics), for each town whose workers' opinion has stayed at or below
+ * `pinLevel` for `pinMonths`: (1) the next scrubber tier on each of the player's smoky works in the
+ * town or its smog zone, when cash covers `scrubberCash` × its price; (2) the workers' concessions the
+ * player has: the union recognised (company edict, +0.15 workers a month nationally), each pending
+ * strike card in the town conceded (the choice giving the town's workers most; Concede is +8), and a
+ * hospital, else a park, endowed in the town. Each purchase is skipped while it cannot be afforded.
+ */
+export function autoplayUnrest(ctx: SimContext): void {
+  const { state } = ctx;
+  if (!state.companies.player.active) return;
+  const towns = pinnedTowns(state);
+  if (towns.length === 0) return;
+  const money = () => state.companies.player.money;
+  for (const town of towns) {
+    for (const b of smokyWorksOf(state, town)) {
+      const next = nextScrubber(b);
+      if (!next || next.year > state.date.year) continue;
+      if (money() >= UNREST.scrubberCash * abateCost(state, b, 'scrubber')) buyUpgrade(ctx, b.id, 'scrubber');
+    }
+    if (state.politics.edicts.union !== 'recognise') setEdict(ctx, 'union', 'recognise');
+    for (const inst of [...state.politics.cards.pending]) {
+      const card = CARDS_BY_ID[inst.cardId];
+      if (inst.cityId !== town.id || card?.trigger !== 'strike') continue;
+      let best = -1;
+      let gain = 0;
+      card.choices.forEach((c, i) => {
+        const g = c.effects.reduce((t, e) => t + (e.faction === 'workers' && e.scope === 'city' ? e.delta : 0), 0);
+        if (g > gain) (best = i), (gain = g);
+      });
+      if (best >= 0 && money() >= UNREST.concedeCash * choiceCost(state, card.choices[best])) resolveCard(ctx, inst.uid, best);
+    }
+    for (const id of UNREST.endow) {
+      const blocked = philanthropyBlocker(state, town.id, id);
+      if (blocked !== null && blocked !== 'Not enough money') continue; // built already, too early or no site
+      if (money() >= UNREST.endowCash * philanthropyCost(state, id)) buyPhilanthropy(ctx, town.id, id);
+      break; // the first one still on offer, bought or waited for
+    }
+  }
 }
