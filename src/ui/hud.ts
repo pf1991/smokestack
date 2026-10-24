@@ -103,6 +103,7 @@ export const GROUPS: HudGroup[] = [
       { panel: 'newspaper', label: 'Newspaper', icon: 'news' },
       { panel: 'politics', label: 'Politics', icon: 'ballot' },
       { panel: 'rival', label: 'Rival', icon: 'factory' },
+      { panel: 'codex', label: 'Codex', icon: 'chain' },
     ],
   },
 ];

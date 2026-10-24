@@ -29,7 +29,8 @@ import { offeredGoods } from '../../sim/routeHelpers';
 import { housingFactory, workCity } from '../../sim/politics/workforce';
 import type { Building, GameState, Route } from '../../sim/types';
 import { h } from '../dom';
-import { meter, panelHeader, type Tone } from '../kit';
+import { meter, panelHeader, tooltip, type Tone } from '../kit';
+import { goodTooltip } from './codex';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
@@ -233,6 +234,8 @@ interface FlowRow {
   el: HTMLElement;
   qty: HTMLElement;
   meter: HTMLElement;
+  /** removes the codex tooltip (called when the row leaves the card) */
+  dispose: () => void;
 }
 
 function makeFlowRow(goodId: string): FlowRow {
@@ -241,11 +244,11 @@ function makeFlowRow(goodId: string): FlowRow {
   const m = meter(0, 1, { label: g.name });
   const el = h(
     'div',
-    { class: 'insp-flow-row', 'data-good': goodId, title: g.name },
+    { class: 'insp-flow-row', 'data-good': goodId },
     iconEl(goodId, 20),
     h('div', { class: 'insp-flow-info' }, h('div', { class: 'insp-flow-line' }, h('span', { class: 'insp-flow-name' }, g.name), qty), m),
   );
-  return { el, qty, meter: m };
+  return { el, qty, meter: m, dispose: tooltip(el, () => goodTooltip(goodId)) };
 }
 
 const btnClass = (variant: 'primary' | 'secondary' | 'quiet' | 'danger', extra: string) => `btn kit-btn kit-btn--${variant} ${extra}`;
@@ -314,8 +317,8 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   const chimneyWhy = h('div', { class: 'insp-muted insp-upgrade-why' });
   const lawBox = h('div', { class: 'insp-laws' });
   const upgradesSection = inspCard('Upgrades', 'insp-upgrades', [scrubLine, scrubBtn, scrubWhy, chimneyBtn, chimneyWhy, lawBox], 'scrubber');
-  const inList = new KeyedList<FlowRow>(inBox, makeFlowRow);
-  const outList = new KeyedList<FlowRow>(outBox, makeFlowRow);
+  const inList = new KeyedList<FlowRow>(inBox, makeFlowRow, (r) => r.dispose());
+  const outList = new KeyedList<FlowRow>(outBox, makeFlowRow, (r) => r.dispose());
 
   const level = levelCard(host, state0);
   const ageText = h('div', { class: 'insp-age-line' });
@@ -385,7 +388,10 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   let routeSig = '\0';
   const view: InspectorView = {
     el,
-    dispose: () => clearTimeout(confirmTimer),
+    dispose: () => {
+      clearTimeout(confirmTimer);
+      for (const list of [inList, outList]) for (const row of list.items.values()) row.dispose();
+    },
     update() {
       const { state } = host.ctx;
       const b = state.buildings[id];

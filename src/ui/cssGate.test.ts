@@ -14,7 +14,7 @@ const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cw
  * Deliberately absent: src/ui/panels/newspaper-display.css, the newspaper's masthead, lead headline
  * and drop cap, the only type in the game drawn above the --fs-* scale (see that file's header).
  */
-export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css', 'src/ui/panels/finance.css', 'src/ui/panels/routes.css', 'src/ui/panels/managers.css', 'src/ui/panels/fleet.css', 'src/ui/panels/politics.css', 'src/ui/panels/contracts.css', 'src/ui/panels/goals.css', 'src/ui/panels/newspaper.css', 'src/ui/toolbar.css', 'src/ui/toasts.css', 'src/ui/cardModal.css', 'src/ui/menu.css', 'src/ui/coldOpen.css', 'src/ui/alertsTray.css'];
+export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css', 'src/ui/panels/finance.css', 'src/ui/panels/routes.css', 'src/ui/panels/managers.css', 'src/ui/panels/fleet.css', 'src/ui/panels/politics.css', 'src/ui/panels/contracts.css', 'src/ui/panels/goals.css', 'src/ui/panels/newspaper.css', 'src/ui/toolbar.css', 'src/ui/toasts.css', 'src/ui/cardModal.css', 'src/ui/menu.css', 'src/ui/coldOpen.css', 'src/ui/alertsTray.css', 'src/ui/panels/codex.css'];
 
 /** Strip comments and custom-property declarations (tokens are where raw values live). */
 function stripped(css: string): string {

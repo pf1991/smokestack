@@ -1,0 +1,55 @@
+/* Production codex: filter chips, the goods list and the selected good's card. Tokens only (see cssGate.test.ts). */
+.codex { display: flex; flex-direction: column; gap: var(--sp-2); min-height: 0; font-size: var(--fs-sm); color: var(--text); container-type: inline-size; }
+.cx-header .kit-ph { padding: 0 0 var(--sp-1); }
+.cx-filters { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+.cx-filter { font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--text); background: transparent; border: 1px solid var(--accent-quiet); border-radius: var(--r-sm); padding: 2px var(--sp-2); cursor: pointer; }
+.cx-filter:hover { background: var(--surface-2); }
+.cx-filter[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--paper-ink); }
+.cx-filter:focus-visible, .cx-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* list beside the card when there is room, stacked (list first, capped) when the panel is narrow */
+.cx-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; min-height: 0; }
+.cx-list { max-height: calc(var(--uvh, 1vh) * 100 - 260px); overflow-y: auto; scrollbar-width: thin; min-width: 0; }
+.cx-list .kit-table th[data-col='price'], .cx-list .kit-table td[data-col='price'] { width: 52px; }
+.cx-list .kit-table th[data-col='demand'], .cx-list .kit-table td[data-col='demand'] { width: 64px; }
+.cx-list tr[aria-selected='true'] { background: var(--surface-3); box-shadow: inset 3px 0 0 var(--accent); }
+.cx-good { display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; max-width: 100%; }
+.cx-good-name { overflow: hidden; text-overflow: ellipsis; }
+.cx-good .icon, .cx-chip { flex: none; }
+.cx-chip { display: inline-block; border-radius: var(--r-sm); border: 1px solid var(--accent-quiet); }
+@container (max-width: 460px) {
+  .cx-body { grid-template-columns: minmax(0, 1fr); }
+  .cx-list { max-height: 280px; }
+  /* stacked, the chosen good's card comes first so a selection is always in view */
+  .cx-detail-box:has(.cx-detail) { order: -1; }
+}
+
+.cx-detail-box { min-width: 0; }
+.cx-detail .kit-card-body { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cx-detail-head { display: flex; align-items: center; gap: var(--sp-3); }
+.cx-detail-title { min-width: 0; }
+.cx-detail-title h3 { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); line-height: var(--lh-tight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-detail-meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; color: var(--text-muted); margin-top: var(--sp-1); }
+.cx-line { line-height: var(--lh-body); }
+.cx-line--used { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); }
+.cx-label { color: var(--text-muted); }
+.cx-muted, .cx-where { color: var(--text-muted); }
+.cx-used { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.cx-sub { font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-top: var(--sp-1); }
+
+.cx-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.cx-node { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; padding-left: calc(var(--cx-level, 0) * var(--sp-4)); position: relative; }
+.cx-node[data-level]:not([data-level='0'])::before { content: ''; position: absolute; left: calc(var(--cx-level) * var(--sp-4) - 10px); top: 50%; width: 6px; border-top: 1px solid var(--accent-quiet); }
+.cx-where { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.cx-link { display: inline-flex; align-items: center; gap: var(--sp-1); font: inherit; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: var(--r-sm); padding: 1px var(--sp-1); cursor: pointer; min-width: 0; }
+.cx-link span { text-decoration: underline; text-decoration-color: var(--accent-quiet); text-underline-offset: 2px; white-space: nowrap; }
+.cx-link:hover { background: var(--surface-2); border-color: var(--accent-quiet); }
+.cx-link[aria-current='true'] { font-weight: 700; }
+.cx-link[aria-current='true'] span { text-decoration: none; }
+
+/* the short form over good icons (kit tooltip) */
+.cx-tip { display: flex; flex-direction: column; gap: var(--sp-1); }
+.cx-tip-head { display: flex; align-items: center; gap: var(--sp-2); }
+.cx-tip-price { margin-left: auto; padding-left: var(--sp-3); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cx-tip-line { color: var(--text-muted); }

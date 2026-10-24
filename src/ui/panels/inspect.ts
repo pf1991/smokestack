@@ -145,6 +145,8 @@ export class KeyedList<T extends { el: HTMLElement }> {
   constructor(
     private readonly container: HTMLElement,
     private readonly make: (key: string) => T,
+    /** called for each item a sync drops (dispose its tooltips and listeners) */
+    private readonly drop?: (item: T) => void,
   ) {}
 
   sync(keys: string[]): void {
@@ -153,6 +155,7 @@ export class KeyedList<T extends { el: HTMLElement }> {
     this.sig = sig;
     const next = new Map<string, T>();
     for (const k of keys) next.set(k, this.items.get(k) ?? this.make(k));
+    if (this.drop) for (const [k, item] of this.items) if (!next.has(k)) this.drop(item);
     this.items = next;
     this.container.replaceChildren(...keys.map((k) => next.get(k)!.el));
   }

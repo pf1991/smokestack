@@ -12,6 +12,8 @@ import { h } from './dom';
 import { iconEl } from './icon';
 import { shortcutFor, withShortcut } from './shortcuts';
 import { formatMoney } from './format';
+import { tooltip } from './kit';
+import { goodTooltip } from './panels/codex';
 import type { ToolSpec } from './tools';
 import { currentUiScale } from './scale';
 import './toolbar.css';
@@ -42,7 +44,10 @@ function goodEl(id: string): HTMLElement {
     inner = h('span', { class: 'tc-chip', role: 'img', 'aria-label': name });
     if (GOODS[id]?.color) inner.style.setProperty('--chip', GOODS[id].color);
   }
-  return h('span', { class: 'tc-good', 'data-good': id, title: name }, inner);
+  // the codex tooltip replaces the bare name title; cards are built once, so it is never disposed
+  const el = h('span', { class: 'tc-good', 'data-good': id }, inner);
+  tooltip(el, () => goodTooltip(id));
+  return el;
 }
 
 /** Building icon: its own atlas glyph if painted, else a fitting one, else its category's. */

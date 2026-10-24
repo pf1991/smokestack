@@ -267,7 +267,8 @@ if (debugStart) {
     const at = params.get('at')?.split(',').map(Number);
     if (import.meta.env.DEV && at?.length === 2 && at.every(Number.isFinite)) g.centerOn({ x: at[0], y: at[1] });
     if (import.meta.env.DEV && params.get('tiltshift') === '1') g.renderer.forceTiltShift = true;
-    if (params.has('panel')) g.openPanel(params.get('panel') ?? '');
+    // `panelarg=<id>` (dev) passes an argument to that panel, e.g. panel=codex&panelarg=cars selects a good
+    if (params.has('panel')) g.openPanel(params.get('panel') ?? '', import.meta.env.DEV ? params.get('panelarg') ?? undefined : undefined);
     // `hudmenu=<group id|more|factions>` opens a top-bar dropdown (screenshots of the menus)
     const hudMenu = params.get('hudmenu');
     if (import.meta.env.DEV && hudMenu) {
@@ -277,6 +278,9 @@ if (debugStart) {
     // `buildtab=<category id>` opens a build bar flyout; `ticker=scroll|headline|off` sets the news strip (screenshots)
     const buildTab = params.get('buildtab');
     if (import.meta.env.DEV && buildTab) document.querySelector<HTMLElement>(`.toolbar [data-tab="${CSS.escape(buildTab)}"]`)?.click();
+    // `hovergood=<good id>` (dev, with buildtab) hovers that good's recipe icon to show its codex tooltip
+    const hoverGood = params.get('hovergood');
+    if (import.meta.env.DEV && hoverGood) document.querySelector<HTMLElement>(`.toolbar .tc-good[data-good="${CSS.escape(hoverGood)}"]`)?.dispatchEvent(new Event('pointerenter'));
     const tickerParam = params.get('ticker');
     if (import.meta.env.DEV && (tickerParam === 'scroll' || tickerParam === 'headline' || tickerParam === 'off')) saveSettings({ ...loadSettings(), ticker: tickerParam });
     if (import.meta.env.DEV && params.get('openroute') === '1') {
