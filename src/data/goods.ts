@@ -81,6 +81,9 @@ export const GOODS: Record<GoodId, GoodDef> = {
   phonographs: { id: 'phonographs', name: 'Phonograph', tier: 2, kind: 'consumer', basePrice: 120, era: 1905, fadeYear: 1955, color: '#a67c00', plural: 'Phonographs' },
   bicycles: { id: 'bicycles', name: 'Bicycle', tier: 2, kind: 'consumer', basePrice: 120, era: 1910, fadeYear: null, color: '#2f8f83', plural: 'Bicycles' },
   motorcycles: { id: 'motorcycles', name: 'Motorcycle', tier: 2, kind: 'consumer', basePrice: 480, era: 1915, fadeYear: null, color: '#6d1a1a', plural: 'Motorcycles' },
+  refrigerators: { id: 'refrigerators', name: 'Refrigerator', tier: 2, kind: 'consumer', basePrice: 520, era: 1930, fadeYear: null, color: '#dfe7ee', plural: 'Refrigerators' },
+  washing_machines: { id: 'washing_machines', name: 'Washing Machine', tier: 2, kind: 'consumer', basePrice: 480, era: 1935, fadeYear: null, color: '#8fb8d8', plural: 'Washing Machines' },
+  cosmetics: { id: 'cosmetics', name: 'Cosmetics', tier: 2, kind: 'consumer', basePrice: 40, era: 1950, fadeYear: null, color: '#d65a8c' },
 };
 
 /**
@@ -114,6 +117,9 @@ export const DEMAND_PER_1000: Record<GoodId, number> = {
   phonographs: 3,
   bicycles: 4,
   motorcycles: 1.5,
+  refrigerators: 1.5,
+  washing_machines: 1.5,
+  cosmetics: 12,
 };
 
 /** A good's demand multiplier per social class (Phase 3 Task 7, sim/society/classes.ts). */
@@ -152,6 +158,9 @@ export const CLASS_DEMAND: Record<GoodId, ClassDemand> = {
   phonographs: MIDDLE,
   bicycles: STAPLE,
   motorcycles: PLAIN,
+  refrigerators: MIDDLE,
+  washing_machines: MIDDLE,
+  cosmetics: LUXURY,
 };
 
 export function getGood(id: GoodId): GoodDef {

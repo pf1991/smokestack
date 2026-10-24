@@ -185,7 +185,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   chemical_works: {
     id: 'chemical_works', name: 'Chemical Works', ...FA, size: { w: 3, h: 3 }, cost: 65000, maintenance: 850,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_chemicals'], storage: 120, era: 1920, pollution: 7,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_chemicals', 'r_cosmetics'], storage: 120, era: 1920, pollution: 7,
     color: '#7fa83a', description: 'Retorts and towers distilling coal and oil into chemicals.',
   },
   machine_shop: {
@@ -225,7 +225,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   appliance_plant: {
     id: 'appliance_plant', name: 'Appliance Plant', ...FA, size: { w: 3, h: 3 }, cost: 70000, maintenance: 900,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_phonographs'], storage: 60, era: 1905, pollution: 3,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_phonographs', 'r_refrigerators', 'r_washing_machines'], storage: 60, era: 1905, pollution: 3,
     color: '#9fb5c8', description: 'From talking machines to iceboxes that need no ice.',
   },
   store: {

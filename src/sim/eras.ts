@@ -62,6 +62,9 @@ const INVENTIONS: Record<string, [headline: string, body: string]> = {
   motorcycles: ['THE MOTOR-CYCLE ROARS INTO TOWN', 'Engines and tyres make motorcycles: a machine shop and a cycle works.'],
   electronics_works: ['THE VALVE AGE: Electronics works open', 'Wire and glass become vacuum tubes for radios and more.'],
   aluminium: ['ALUMINIUM: The metal of the air age', 'Smelters now win aluminium from bauxite.'],
+  refrigerators: ['ICE WITHOUT THE ICEMAN: The electric refrigerator', 'Appliance plants build refrigerators from steel, motors and chemicals.'],
+  washing_machines: ['WASHDAY REVOLUTION', 'The electric washing machine arrives.'],
+  cosmetics: ['THE BEAUTY COUNTER', 'Chemical works now bottle cosmetics.'],
 };
 
 const unlockKind = (id: string): 'good' | 'building' | 'recipe' => (GOODS[id] ? 'good' : BUILDINGS[id] ? 'building' : 'recipe');

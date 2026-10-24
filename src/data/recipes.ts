@@ -73,6 +73,9 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_phonographs: { id: 'r_phonographs', inputs: { lumber: 2, copper: 2 }, outputs: { phonographs: 2 }, days: 1 },
   r_bicycles: { id: 'r_bicycles', inputs: { steel: 2, tyres: 2 }, outputs: { bicycles: 2 }, days: 1 },
   r_motorcycles: { id: 'r_motorcycles', inputs: { engines: 1, tyres: 2, steel: 1 }, outputs: { motorcycles: 1 }, days: 1 },
+  r_refrigerators: { id: 'r_refrigerators', inputs: { steel: 3, electric_motors: 1, chemicals: 1 }, outputs: { refrigerators: 1 }, days: 1 },
+  r_washing_machines: { id: 'r_washing_machines', inputs: { steel: 3, electric_motors: 1, rubber: 1 }, outputs: { washing_machines: 1 }, days: 1 },
+  r_cosmetics: { id: 'r_cosmetics', inputs: { chemicals: 2, glass: 1 }, outputs: { cosmetics: 4 }, days: 1 },
   // Appended after r_computers so firstRecipeFor still prefers r_radios
   r_radios_tubes: { id: 'r_radios_tubes', inputs: { vacuum_tubes: 2, lumber: 2 }, outputs: { radios: 2 }, days: 1 },
 };
