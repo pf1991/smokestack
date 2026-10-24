@@ -92,6 +92,9 @@ const STATUS_TITLES: Record<LineStatusLabel, string> = {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+/** Max good chips shown per stop row before a "+N" overflow control. */
+const CHIP_CAP = 10;
+
 /** Singleton panel instance (the window is a singleton too); reset when the window closes. */
 class RoutesPanel {
   private readonly root = h('div', { class: 'rt' });
@@ -102,6 +105,8 @@ class RoutesPanel {
   private sig = '';
   private confirmDelete: number | null = null;
   private confirmTimer = 0;
+  /** Expanded chip overflows keyed `${stopIndex}:${load|unload}`. */
+  private readonly chipExpanded = new Set<string>();
   private readonly offs: (() => void)[] = [];
   private timer = 0;
 
@@ -254,6 +259,7 @@ class RoutesPanel {
   }
 
   private endDraft(switchTool: boolean): void {
+    this.chipExpanded.clear();
     this.leavePick(switchTool);
   }
 
@@ -558,14 +564,31 @@ class RoutesPanel {
     );
   }
 
-  private chips(kind: 'load' | 'unload', stop: RouteStop, goods: GoodId[], commit: (next: GoodId[]) => void): HTMLElement {
-    const all = [...new Set([...goods, ...stop[kind]])];
+  private chips(
+    kind: 'load' | 'unload',
+    stop: RouteStop,
+    i: number,
+    goods: GoodId[],
+    commit: (next: GoodId[]) => void,
+  ): HTMLElement {
+    const catalogue = Object.keys(GOODS) as GoodId[];
+    const offered = new Set<GoodId>([...goods, ...stop[kind]]);
+    const pressed = catalogue.filter((g) => offered.has(g) && stop[kind].includes(g));
+    const rest = catalogue.filter((g) => offered.has(g) && !stop[kind].includes(g));
+    // pressed goods not in the catalogue map (shouldn't happen) still appear
+    for (const g of stop[kind]) if (!pressed.includes(g) && offered.has(g)) pressed.push(g);
+    for (const g of goods) if (!pressed.includes(g) && !rest.includes(g) && offered.has(g)) rest.push(g);
+    const ordered = [...pressed, ...rest];
+    const key = `${i}:${kind}`;
+    const expanded = this.chipExpanded.has(key);
+    const shown = expanded || ordered.length <= CHIP_CAP ? ordered : ordered.slice(0, CHIP_CAP);
+    const hidden = ordered.length - shown.length;
     return h(
       'div',
       { class: 'rt-chips' },
       h('span', { class: 'rt-chip-label' }, kind === 'load' ? 'Load' : 'Unload'),
-      all.length === 0 && h('span', { class: 'rt-none' }, kind === 'load' ? 'nothing to load here' : 'nothing accepted here'),
-      all.map((g) => {
+      ordered.length === 0 && h('span', { class: 'rt-none' }, kind === 'load' ? 'nothing to load here' : 'nothing accepted here'),
+      shown.map((g) => {
         const on = stop[kind].includes(g);
         const def = GOODS[g];
         return h('button', {
@@ -576,6 +599,17 @@ class RoutesPanel {
           onClick: () => commit(on ? stop[kind].filter((x) => x !== g) : [...stop[kind], g]),
         }, iconEl(g, 16, def?.name ?? g));
       }),
+      ordered.length > CHIP_CAP && h('button', {
+        class: 'rt-chip-more',
+        type: 'button',
+        'aria-expanded': expanded ? 'true' : 'false',
+        title: expanded ? 'Show fewer goods' : `Show ${hidden} more goods`,
+        onClick: () => {
+          if (expanded) this.chipExpanded.delete(key);
+          else this.chipExpanded.add(key);
+          this.render();
+        },
+      }, expanded ? '−' : `+${hidden}`),
     );
   }
 
@@ -598,7 +632,11 @@ class RoutesPanel {
     // goods that other stops load are also worth offering for unloading here
     const others = stops.filter((_, j) => j !== i).flatMap((s) => s.load);
     const loadGoods = b ? offeredGoods(b) : [];
-    const unloadGoods = b ? acceptedGoods(b).filter((g) => (BUILDINGS[b.typeId].category === 'logistics' ? others.includes(g) : true)) : [];
+    const cat = b ? BUILDINGS[b.typeId].category : null;
+    const restrictUnload = cat === 'logistics' || ((cat === 'retail' || cat === 'trade') && others.length > 0);
+    const unloadGoods = b
+      ? acceptedGoods(b).filter((g) => (restrictUnload ? others.includes(g) || stop.unload.includes(g) : true))
+      : [];
     return h(
       'div',
       { class: 'rt-stop', 'data-i': i },
@@ -612,8 +650,8 @@ class RoutesPanel {
           h('button', { class: 'rt-mini', 'data-act': 'down', title: 'Move later', disabled: i === n - 1, onClick: () => move(i + 1) }, '↓'),
           h('button', { class: 'rt-mini', 'data-act': 'remove', title: 'Remove stop', onClick: () => commit(stops.filter((_, j) => j !== i).map((s) => ({ ...s }))) }, iconEl('close', 12, 'Remove stop')))),
       h('div', { class: 'rt-summary' }, stopSummary(stop)),
-      this.chips('load', stop, loadGoods, (load) => set({ load })),
-      this.chips('unload', stop, unloadGoods, (unload) => set({ unload })),
+      this.chips('load', stop, i, loadGoods, (load) => set({ load })),
+      this.chips('unload', stop, i, unloadGoods, (unload) => set({ unload })),
     );
   }
 }

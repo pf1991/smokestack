@@ -18,11 +18,12 @@ import { currentUiScale } from './scale';
 import { CATEGORY_ICON } from './buildingIcons';
 import './toolbar.css';
 
-type TabId = 'extract' | 'refine' | 'manufacture' | 'retail' | 'transport';
+type TabId = 'extract' | 'refine' | 'components' | 'manufacture' | 'retail' | 'transport';
 
 const TABS: { id: TabId; label: string; icon: IconId }[] = [
   { id: 'extract', label: 'Extract', icon: 'pick' },
   { id: 'refine', label: 'Refine', icon: 'factory' },
+  { id: 'components', label: 'Components', icon: 'gear' },
   { id: 'manufacture', label: 'Manufacture', icon: 'tools' },
   { id: 'retail', label: 'Retail', icon: 'shop' },
   { id: 'transport', label: 'Transport', icon: 'truck' },
@@ -32,7 +33,10 @@ function tabOf(def: BuildingDef): TabId | null {
   if (def.category === 'extractor') return 'extract';
   if (def.category === 'retail' || def.category === 'trade' || def.category === 'logistics') return 'retail';
   const first = Object.keys(RECIPES[def.recipes[0]]?.outputs ?? {})[0];
-  return first !== undefined && GOODS[first]?.kind === 'material' ? 'refine' : 'manufacture';
+  const kind = first !== undefined ? GOODS[first]?.kind : undefined;
+  if (kind === 'material') return 'refine';
+  if (kind === 'component') return 'components';
+  return 'manufacture';
 }
 
 /** One good in a recipe strip: its icon (or colour chip) with the good tooltip. `data-good` is the codex hook. */

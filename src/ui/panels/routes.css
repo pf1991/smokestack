@@ -55,6 +55,9 @@
 .rt-none { font-size: var(--fs-xs); color: var(--text-faint); font-style: italic; }
 .rt-chip { font-family: var(--font-ui); font-size: inherit; display: inline-flex; cursor: pointer; padding: 1px var(--sp-1); border-radius: var(--r-md); background: var(--surface-1); border: 1px solid var(--accent-quiet); opacity: 0.5; filter: grayscale(0.8); }
 .rt-chip.on { opacity: 1; filter: none; background: var(--surface-3); border-color: var(--accent); }
+.rt-chip-more { font-family: var(--font-ui); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; cursor: pointer; padding: 1px var(--sp-2); border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--accent-quiet); color: var(--text-muted); }
+.rt-chip-more:hover { background: var(--surface-3); color: var(--text); }
+.rt-chip-more[aria-expanded='true'] { border-color: var(--accent); color: var(--text); }
 .rt-summary { margin: 2px 0 0 26px; font-size: var(--fs-xs); color: var(--text-muted); }
 .rt-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
 .rt-trucks { display: inline-flex; align-items: center; gap: var(--sp-1); }

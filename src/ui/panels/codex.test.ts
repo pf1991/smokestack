@@ -111,6 +111,35 @@ describe('codex panel', () => {
     expect(q('.cx-filter[data-filter="material"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('the Components filter lists every component good', () => {
+    const { game } = setup();
+    PANELS.codex.open(game);
+    const components = Object.values(GOODS).filter((g) => g.kind === 'component');
+    (q('.cx-filter[data-filter="component"]') as HTMLElement).click();
+    expect(qa('.cx-list tbody tr[data-key]').map((r) => r.dataset.key).sort())
+      .toEqual(components.map((g) => g.id).sort());
+    expect(q('.cx-filter[data-filter="component"]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('in 1900 unlocked goods come first; the last row is the latest-era good, locked (C1)', () => {
+    const { game } = setup();
+    expect(game.state.date.year).toBe(1900);
+    PANELS.codex.open(game);
+    const rows = qa('.cx-list tbody tr[data-key]');
+    expect(rows[0].dataset.key).toBe('wood');
+    const latest = Object.values(GOODS).reduce((a, b) => (b.era > a.era ? b : a));
+    const last = rows[rows.length - 1];
+    expect(last.dataset.key).toBe(latest.id);
+    expect(last.getAttribute('data-locked')).toBe('true');
+    expect(last.title).toBe(`Unlocks ${latest.era}`);
+  });
+
+  it("wire's detail shows what the Trading House pays today", () => {
+    const { game } = setup();
+    PANELS.codex.open(game, 'wire');
+    expect(q('.cx-detail')!.textContent).toMatch(/Trading House pays \$[\d,]+ today/);
+  });
+
   it('the list shows icon, name, base price and town demand', () => {
     const { game } = setup();
     PANELS.codex.open(game);
