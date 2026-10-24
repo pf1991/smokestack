@@ -367,7 +367,7 @@ The AI uses the same public functions as the player.
   are fully routed, and under D2 a hub never moves what a route already carries. The AI hires the
   cheapest candidate with logistics 2+, not the best affordable one, because an idle AI hub gains
   nothing from a dearer manager.
-- **Managers:** the Baron employs at most 2 (his hub and his busiest works), each firm at most 1.
+- **Managers:** the Baron employs at most 2 (his hub and his busiest works), each firm at most 1. The cap governs hiring only: a `poach_manager` strike may take him to 3.
   The AI replaces a retired or poached hub manager at the next end of January.
 - **Losing lines:** once a month the Baron closes every line of a good whose sales over the last 12
   closed ledger months (with a sale in each, and every building on its lines at least 12 months old)
