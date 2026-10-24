@@ -19,7 +19,7 @@ let y = 4;
 for (const owner of ['player', 'rival']) {
   let x = 4, rowH = 0;
   for (const def of Object.values(BUILDINGS)) {
-    const variants = def.id === 'farm' ? ['grain', 'cotton', 'fruit'] : [''];
+    const variants = def.id === 'farm' ? ['grain', 'cotton', 'fruit', 'sugar_beet'] : [''];
     for (const v of variants) {
       const s = getBuildingSprite(def.id, owner, v);
       if (x + s.width > logicalW - 4) { x = 4; y += rowH + 6; rowH = 0; }
