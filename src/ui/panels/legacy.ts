@@ -4,15 +4,14 @@ import type { GameState } from '../../sim/types';
 import { h } from '../dom';
 import { formatNumber } from '../format';
 import { dataTable, panelHeader, section } from '../kit';
-import '../menu.css';
 import './panels.css';
 import { createWindow } from '../window';
 import type { PanelDef } from './index';
 
 type Part = (typeof LEGACY_PARTS)[number];
 
-/** The Legacy window's content: a kit header with the score, then the four parts as a kit table. */
-function legacySection(state: GameState): HTMLElement {
+/** The four Legacy parts as a kit table (each part with its one-line rule, then the points) and the total. */
+function legacyTable(state: GameState): HTMLElement {
   const l = legacyScore(state);
   const table = dataTable<Part>({
     columns: [
@@ -28,20 +27,20 @@ function legacySection(state: GameState): HTMLElement {
   table.append(h('tfoot', null, h('tr', { class: 'legacy-total' },
     h('th', { scope: 'row' }, 'Legacy'),
     h('td', { 'data-align': 'right' }, formatNumber(l.total)))));
-  return h('div', { class: 'legacy-panel' },
-    h('div', { class: 'legacy-header' }, panelHeader({ title: 'Legacy', summary: `Legacy score ${formatNumber(l.total)}` })),
-    section('Your legacy so far', [table]));
+  return table;
 }
 
-/** The four Legacy parts, one line of explanation each, and the total. Shared with the end screen. */
-export function buildLegacy(state: GameState): HTMLElement {
+/** The Legacy window's content: a kit header with the score, then the four parts as a kit table. */
+function legacySection(state: GameState): HTMLElement {
   const l = legacyScore(state);
-  return h('div', { class: 'legacy-table' },
-    ...LEGACY_PARTS.map((p) =>
-      h('div', { class: 'legacy-row' },
-        h('div', { class: 'gl-line' }, h('b', null, p.label), h('span', null, formatNumber(l[p.key]))),
-        h('div', { class: 'gl-note' }, p.blurb))),
-    h('div', { class: 'gl-line legacy-total' }, h('b', null, 'Legacy'), h('span', null, formatNumber(l.total))));
+  return h('div', { class: 'legacy-panel' },
+    h('div', { class: 'legacy-header' }, panelHeader({ title: 'Legacy', summary: `Legacy score ${formatNumber(l.total)}` })),
+    section('Your legacy so far', [legacyTable(state)]));
+}
+
+/** The end screen's Legacy: the same kit table under a section overline. */
+export function buildLegacy(state: GameState): HTMLElement {
+  return h('div', { class: 'legacy-end' }, section('Your legacy', [legacyTable(state)]));
 }
 
 export const legacyPanel: PanelDef = {

@@ -14,6 +14,8 @@
   --fs-md: 14px;
   --fs-lg: 18px;
   --fs-xl: 26px;
+  /* the one size above the scale: the main menu's title (menu.css) */
+  --fs-hero: 64px;
   --lh-tight: 1.2;
   --lh-body: 1.45;
 
@@ -35,6 +37,10 @@
   --paper: #f3e9d2;
   --paper-shade: #e4d5b2;
   --paper-ink: #1d1a16;
+  /* inks for text on --paper (AA on --paper and --paper-shade) */
+  --paper-muted: #5a4630;
+  --paper-positive: #2f6a2c;
+  --paper-negative: #9e2a1f;
   --ink: var(--paper-ink);
   --text: #f1e6cf;
   --text-muted: #c3b394;
@@ -52,6 +58,8 @@
   --info-bg: rgba(108, 194, 201, 0.16);
   --player: #2f6fb5;
   --rival: #b5302f;
+  /* the cold open's letterbox bars */
+  --letterbox: #0d0a08;
 
   /* Newsprint: the Daily Smokestack's printed page (panels/newspaper.css), ink on aged paper */
   --news-paper: #efe3c3;
@@ -249,14 +257,14 @@ input[type='text'] {
   left: 50%;
   top: 38%;
   pointer-events: none;
-  padding: 8px 22px;
+  padding: var(--sp-2) var(--sp-5);
   font-family: var(--font-display);
   font-size: var(--fs-xl);
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  line-height: var(--lh-tight);
+  white-space: nowrap;
   border: 4px double currentColor;
-  border-radius: 6px;
+  border-radius: var(--r-md);
   background: rgba(15, 10, 6, 0.55);
   transform: translate(-50%, -50%) rotate(-8deg);
   animation: stamp-slam 2200ms ease-out forwards;

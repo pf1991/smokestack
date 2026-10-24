@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
-import { CARDS_BY_ID } from '../data/cards';
+import { CARDS_BY_ID, type CardDef } from '../data/cards';
 import { dateToDays } from '../sim/clock';
 import { PLAYER_ID } from '../sim/companies';
 import { choiceCost } from '../sim/politics/cards';
@@ -158,7 +158,7 @@ describe('card modal', () => {
     const t = attach(s);
     t.frame();
     const shown = [...document.querySelectorAll('.card-cost')].map((e) => e.textContent);
-    expect(shown).toEqual([formatMoney(9000), `+${formatMoney(6000)}`]);
+    expect(shown).toEqual([`\u2212${formatMoney(9000)}`, `+${formatMoney(6000)}`]);
     const m = s.companies[PLAYER_ID].money;
     choiceButtons()[0].click();
     expect(s.companies[PLAYER_ID].money).toBe(m - 9000);
@@ -294,6 +294,68 @@ describe('card modal', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     window.removeEventListener('keydown', under);
     expect(heard).toBe(1);
+  });
+});
+
+describe('card modal: the designed card', () => {
+  const TEST_ID = 'test_pill_card';
+  const table = CARDS_BY_ID as Record<string, CardDef>;
+  afterEach(() => {
+    delete table[TEST_ID];
+  });
+  const testCard = (): CardDef => ({
+    id: TEST_ID, title: 'A Test', body: 'Body text.', trigger: 'spring', years: [1900, 2000], weight: 1,
+    cooldownYears: 0, needsCity: false, defaultChoice: 1,
+    choices: [
+      { label: 'Pay for it', cost: 2000, effects: [{ faction: 'reformers', scope: 'national', delta: 5 }] },
+      { label: 'Do nothing', cost: 0, effects: [] },
+      { label: 'Third way', cost: 0, effects: [{ faction: 'workers', scope: 'national', delta: -2 }] },
+    ],
+  });
+
+  it('a choice with +5 reformers and -$2,000 shows one positive and one negative pill', () => {
+    table[TEST_ID] = testCard();
+    const s = withCard(TEST_ID, null);
+    const t = attach(s);
+    t.frame();
+    const first = choiceButtons()[0];
+    expect(first.querySelectorAll('.kit-pill--positive')).toHaveLength(1);
+    expect(first.querySelectorAll('.kit-pill--negative')).toHaveLength(1);
+    expect(first.querySelector('.kit-pill--positive')!.textContent).toContain('+5');
+    expect(first.querySelector('.kit-pill--negative')!.textContent).toContain(formatMoney(choiceCost(s, testCard().choices[0])));
+    // the pills sit under the label
+    const label = first.querySelector('.card-choice-label')!;
+    expect(label.compareDocumentPosition(first.querySelector('.kit-pill')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('key 2 picks the second choice', () => {
+    table[TEST_ID] = testCard();
+    const s = withCard(TEST_ID, null);
+    const t = attach(s);
+    t.frame();
+    const m = s.companies[PLAYER_ID].money;
+    let heard = 0;
+    const under = () => heard++;
+    window.addEventListener('keydown', under);
+    const e = new KeyboardEvent('keydown', { key: '2', bubbles: true, cancelable: true });
+    window.dispatchEvent(e);
+    window.removeEventListener('keydown', under);
+    expect(heard).toBe(0);
+    expect(s.politics.cards.pending).toEqual([]);
+    expect(s.politics.cards.history.at(-1)).toMatchObject({ id: TEST_ID, choice: 1 });
+    expect(s.companies[PLAYER_ID].money).toBe(m);
+    expect(modal()).toBeNull();
+  });
+
+  it('a number key past the last choice, or on a disabled choice, does nothing', () => {
+    table[TEST_ID] = testCard();
+    const s = withCard(TEST_ID, null);
+    s.companies[PLAYER_ID].money = 100;
+    const t = attach(s);
+    t.frame();
+    for (const key of ['1', '4']) window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    expect(s.politics.cards.pending.length).toBe(1);
+    expect(modal()).not.toBeNull();
   });
 });
 

@@ -8,6 +8,7 @@ import { goalProgress, SCENARIOS, type Goal } from '../sim/scenarios';
 import type { GameState } from '../sim/types';
 import { h } from './dom';
 import { iconEl } from './icon';
+import { button as kitButton, card } from './kit';
 import { formatMoney } from './format';
 import './menu.css';
 import { MenuBackdrop } from './menuBackdrop';
@@ -28,9 +29,16 @@ const SLOT_LABEL: Record<SaveSlot, string> = { auto: 'Autosave', slot1: 'Slot 1'
 const randomSeed = () => Math.floor(Math.random() * 2 ** 32) >>> 0;
 const randomName = () => COMPANY_NAMES[Math.floor(Math.random() * COMPANY_NAMES.length)];
 
-function button(label: string, onClick: () => void, opts: { disabled?: boolean; cls?: string } = {}): HTMLElement {
-  return h('button', { class: `btn mn-btn ${opts.cls ?? ''}`, disabled: opts.disabled, onClick }, label);
+type Variant = 'primary' | 'secondary' | 'quiet' | 'danger';
+
+/** A kit button for the menus (`mn-btn` sizes it; `cls` adds layout hooks such as `mn-back`). */
+function button(label: string, onClick: () => void, opts: { disabled?: boolean; cls?: string; variant?: Variant; title?: string } = {}): HTMLElement {
+  const b = kitButton(label, { variant: opts.variant ?? 'secondary', onClick, disabled: opts.disabled, title: opts.title });
+  b.classList.add('mn-btn', ...(opts.cls ? opts.cls.split(' ') : []));
+  return b;
 }
+
+const backButton = (onClick: () => void) => button('Back', onClick, { cls: 'mn-back', variant: 'quiet' });
 
 function goalText(g: Goal): string {
   const state = { flags: {}, companies: { player: { money: 0 } }, cities: [], economy: { priceIndex: 1, history: [] } } as unknown as GameState;
@@ -48,9 +56,9 @@ function slotList(mode: 'load' | 'save', onPick: (slot: SaveSlot) => string | vo
       ...SLOTS.filter((s) => mode === 'load' || s !== 'auto').map((slot) => {
         const info = infos.get(slot);
         const meta = info
-          ? h('span', { class: 'mn-slot-meta' }, h('b', null, info.company), ` - ${info.date} - ${formatMoney(info.money)}`)
+          ? h('span', { class: 'mn-slot-meta' }, h('b', null, info.company), ` \u00b7 ${info.date} \u00b7 ${formatMoney(info.money)}`)
           : bad.has(slot)
-            ? h('span', { class: 'mn-slot-meta mn-empty mn-bad' }, `Unreadable save - ${bad.get(slot)}`)
+            ? h('span', { class: 'mn-slot-meta mn-empty mn-bad' }, `Unreadable save \u2014 ${bad.get(slot)}`)
             : h('span', { class: 'mn-slot-meta mn-empty' }, 'Empty slot');
         return h('div', { class: 'mn-slot' },
           h('span', { class: 'mn-slot-name' }, SLOT_LABEL[slot]),
@@ -139,25 +147,37 @@ function settingsView(onChange: (s: ReturnType<typeof loadSettings>) => void): H
   // the side panel's width is set by dragging its edge; here it can only be shown and reset
   const widthText = () => (s.panelWidth === null ? 'Default' : `${Math.round(s.panelWidth)} px`);
   const widthValue = h('span', { class: 'mn-width-value' }, widthText());
-  const widthReset = h('button', {
-    class: 'btn', type: 'button', disabled: s.panelWidth === null,
+  const widthReset = kitButton('Reset', {
+    variant: 'quiet',
+    disabled: s.panelWidth === null,
+    title: 'Back to the default width',
     onClick: () => {
       s.panelWidth = null;
       apply();
       widthValue.textContent = widthText();
       (widthReset as HTMLButtonElement).disabled = true;
     },
-  }, 'Reset');
-  return h('div', { class: 'mn-form' },
-    h('label', { class: 'mn-row' }, h('span', null, 'Master volume'), vol),
-    h('label', { class: 'mn-row' }, h('span', null, 'Mute all sound'), mute),
-    h('label', { class: 'mn-row' }, h('span', null, 'Open the newspaper automatically'), news),
-    h('label', { class: 'mn-row' }, h('span', null, 'Skip intro'), intro),
-    h('label', { class: 'mn-row' }, h('span', null, 'News ticker'), ticker),
-    h('label', { class: 'mn-row' }, h('span', null, 'Interface scale'), scale),
-    h('div', { class: 'mn-row' }, h('span', null, 'Side panel width'), h('span', { class: 'mn-width' }, widthValue, widthReset)),
-    h('label', { class: 'mn-row' }, h('span', null, 'Smart events (JEV)'), smart),
-    status);
+  });
+  widthReset.classList.add('mn-reset');
+  const row = (label: string, control: HTMLElement) => h('label', { class: 'mn-row' }, h('span', null, label), control);
+  return h('div', { class: 'mn-form mn-settings' },
+    card({ title: 'Display', children: [
+      row('Interface scale', scale),
+      row('News ticker', ticker),
+      h('div', { class: 'mn-row' }, h('span', null, 'Side panel width'), h('span', { class: 'mn-width' }, widthValue, widthReset)),
+    ] }),
+    card({ title: 'Sound', children: [
+      row('Master volume', vol),
+      row('Mute all sound', mute),
+    ] }),
+    card({ title: 'Gameplay', children: [
+      row('Open the newspaper automatically', news),
+      row('Skip intro', intro),
+    ] }),
+    card({ title: 'Smart events', children: [
+      row('Smart events (JEV)', smart),
+      status,
+    ] }));
 }
 
 function achievementsView(): HTMLElement {
@@ -167,7 +187,7 @@ function achievementsView(): HTMLElement {
     h('div', { class: 'mn-ach' }, ACHIEVEMENTS.map((a) =>
       h('div', { class: `mn-ach-item ${got.has(a.id) ? 'got' : ''}` },
         h('span', { class: 'mn-ach-icon' }, iconEl(got.has(a.id) ? a.icon : 'lock', 28, got.has(a.id) ? a.name : 'Locked')),
-        h('span', null, h('b', null, a.name), h('br'), a.desc)))));
+        h('span', { class: 'mn-ach-text' }, h('b', null, a.name), h('span', null, a.desc))))));
 }
 
 // ---------------------------------------------------------------------------
@@ -194,10 +214,10 @@ export class MainMenu {
       h('div', { class: 'mn-vignette' }),
       h('div', { class: 'mn-center' },
         h('div', { class: 'mn-title-wrap' },
-          h('div', { class: 'mn-rule' }, h('i'), h('b', null, '◆'), h('i')),
+          h('div', { class: 'mn-rule', 'aria-hidden': 'true' }, h('i'), h('b'), h('i')),
           h('h1', { class: 'mn-title' }, 'SMOKESTACK'),
-          h('div', { class: 'mn-sub' }, 'An Industry Tycoon, 1900 - 2000'),
-          h('div', { class: 'mn-rule' }, h('i'), h('b', null, '◆'), h('i'))),
+          h('div', { class: 'mn-sub' }, 'An industry tycoon, 1900\u20132000'),
+          h('div', { class: 'mn-rule', 'aria-hidden': 'true' }, h('i'), h('b'), h('i'))),
         this.body));
     uiRoot.appendChild(this.root);
     this.show('home');
@@ -207,7 +227,7 @@ export class MainMenu {
   show(screen: Screen): void {
     this.screen = screen;
     this.root.classList.toggle('mn-compact', screen !== 'home');
-    const back = button('Back', () => this.show('home'), { cls: 'mn-back' });
+    const back = backButton(() => this.show('home'));
     switch (screen) {
       case 'home':
         this.body.replaceChildren(this.home());
@@ -217,7 +237,7 @@ export class MainMenu {
         break;
       case 'load':
         this.body.replaceChildren(
-          h('h2', null, 'Load Game'),
+          h('h2', null, 'Load game'),
           slotList('load', (slot) => {
             const r = loadFrom(slot);
             if (!r.ok) return r.error;
@@ -243,17 +263,22 @@ export class MainMenu {
   private home(): HTMLElement {
     const auto = listSaves().find((s) => s.slot === 'auto');
     const badAuto = unreadableSlots().find((u) => u.slot === 'auto');
-    this.status = h('div', { class: 'mn-status' }, badAuto ? `Autosave cannot be loaded - ${badAuto.error}` : '');
-    return h('div', null, h('div', { class: 'mn-home' },
-      button('New Game', () => this.show('new'), { cls: 'mn-primary' }),
-      button(auto ? `Continue - ${auto.company}, ${auto.date}` : 'Continue', () => {
+    this.status = h('div', { class: 'mn-status' }, badAuto ? `Autosave cannot be loaded \u2014 ${badAuto.error}` : '');
+    // Continue is offered only when there is an autosave to continue (never shown disabled)
+    const cont = auto
+      ? button(`Continue \u00b7 ${auto.company}, ${auto.date}`, () => {
         const r = loadFrom('auto');
         if (r.ok) this.host.startLoaded(r.value);
         else this.status.textContent = r.error;
-      }, { disabled: !auto }),
-      button('Load Game', () => this.show('load')),
-      button('Achievements', () => this.show('achievements')),
-      button('Settings', () => this.show('settings'))), this.status);
+      }, { variant: 'secondary', cls: 'mn-wide', title: `Continue ${auto.company}, ${auto.date}` })
+      : null;
+    return h('div', null, h('div', { class: 'mn-home' },
+      button('New game', () => this.show('new'), { variant: 'primary', cls: 'mn-primary mn-wide' }),
+      cont,
+      h('div', { class: 'mn-quiet-row' },
+        button('Load game', () => this.show('load'), { variant: 'quiet' }),
+        button('Achievements', () => this.show('achievements'), { variant: 'quiet' }),
+        button('Settings', () => this.show('settings'), { variant: 'quiet' }))), this.status);
   }
 
   private newGame(): HTMLElement {
@@ -266,13 +291,15 @@ export class MainMenu {
       type: 'text', value: String(f.seed), inputmode: 'numeric', 'aria-label': 'Map seed',
       onInput: (e: Event) => (f.seed = parseSeed((e.target as HTMLInputElement).value)),
     }) as HTMLInputElement;
-    const dice = h('button', {
-      class: 'btn mn-dice', title: 'Random seed', 'aria-label': 'Random seed',
+    const dice = kitButton('Random', {
+      variant: 'secondary', title: 'Random seed',
       onClick: () => {
         f.seed = randomSeed();
         seed.value = String(f.seed);
       },
-    }, 'Random');
+    });
+    dice.classList.add('mn-dice');
+    dice.setAttribute('aria-label', 'Random seed');
     const rival = h('input', {
       type: 'checkbox', checked: f.rival,
       onChange: (e: Event) => (f.rival = (e.target as HTMLInputElement).checked),
@@ -296,19 +323,19 @@ export class MainMenu {
         },
         h('b', null, sc.name),
         h('span', null, sc.blurb),
-        h('em', null, `${sc.startYear} - ${formatMoney(sc.money)}`),
+        h('em', null, `${sc.startYear} \u00b7 ${formatMoney(sc.money)}`),
         ...sc.goals.map((g) => h('em', { class: 'mn-goal' }, `Goal: ${goalText(g)}`)))));
     };
     paintCards();
 
     return h('div', { class: 'mn-form' },
-      h('h2', null, 'New Game'),
+      h('h2', null, 'New game'),
       h('label', { class: 'mn-row' }, h('span', null, 'Company'), name),
       h('label', { class: 'mn-row' }, h('span', null, 'Map seed'), h('span', { class: 'mn-seed' }, seed, dice)),
       cards,
       h('label', { class: 'mn-row' }, h('span', null, 'Baron Smogsworth competes'), rival),
       h('div', { class: 'mn-actions' },
-        button('Back', () => this.show('home'), { cls: 'mn-back' }),
+        backButton(() => this.show('home')),
         button('Start', () => {
           const sc = SCENARIOS[f.scenario];
           this.host.startNew({
@@ -317,7 +344,7 @@ export class MainMenu {
             scenarioId: sc.id,
             rival: f.rival,
           });
-        }, { cls: 'mn-primary' })));
+        }, { variant: 'primary', cls: 'mn-primary' })));
   }
 
   get currentScreen(): Screen {
@@ -356,7 +383,7 @@ export function closeModal(): void {
 
 function modal(kind: string, content: HTMLElement[], onEsc: (() => void) | null): ModalHandle {
   closeModal();
-  const root = h('div', { class: 'mn-root mn-modal' }, h('div', { class: 'mn-vignette' }), h('div', { class: 'mn-center' }, h('div', { class: 'mn-body' }, ...content)));
+  const root = h('div', { class: `mn-root mn-modal mn-modal--${kind}` }, h('div', { class: 'mn-vignette' }), h('div', { class: 'mn-center' }, h('div', { class: 'mn-body' }, ...content)));
   const key = (e: KeyboardEvent) => {
     // the game's own hotkeys must not fire underneath the menu
     if (e.target instanceof HTMLInputElement && e.key !== 'Escape') return;
@@ -399,11 +426,11 @@ export function openPauseMenu(game: GameController, host: PauseHost, screen?: Pa
   };
   const body = h('div', { class: 'mn-pause' });
   const screens: Record<PauseScreen, () => void> = {
-    save: () => sub('Save Game', slotList('save', (slot) => {
+    save: () => sub('Save game', slotList('save', (slot) => {
       const r = saveTo(slot, game.state);
       return r.ok ? `Saved to ${SLOT_LABEL[slot]}.` : `Could not save: ${r.error}`;
     })),
-    load: () => sub('Load Game', slotList('load', (slot) => {
+    load: () => sub('Load game', slotList('load', (slot) => {
       const r = loadFrom(slot);
       if (!r.ok) return r.error;
       close();
@@ -418,24 +445,24 @@ export function openPauseMenu(game: GameController, host: PauseHost, screen?: Pa
     body.replaceChildren(
       h('h2', null, 'Paused'),
       h('div', { class: 'mn-home' },
-        button('Resume', resume, { cls: 'mn-primary' }),
-        button('Save to slot', screens.save),
-        button('Load', screens.load),
-        button('Settings', screens.settings),
+        button('Resume', resume, { variant: 'primary', cls: 'mn-primary mn-wide' }),
+        button('Save game', screens.save, { cls: 'mn-wide' }),
+        button('Load game', screens.load, { cls: 'mn-wide' }),
+        button('Settings', screens.settings, { cls: 'mn-wide' }),
         quitButton()));
   };
   const sub = (title: string, view: HTMLElement) =>
-    body.replaceChildren(h('h2', null, title), view, button('Back', home, { cls: 'mn-back' }));
+    body.replaceChildren(h('h2', null, title), view, backButton(home));
   const quitButton = () => {
     const b = button('Quit to menu', () => {
       if (b.dataset.armed !== '1') {
         b.dataset.armed = '1';
-        b.textContent = 'Unsaved progress is lost - click again';
+        b.querySelector('.kit-btn-label')!.textContent = 'Unsaved progress is lost \u2014 click again';
         return;
       }
       close();
       host.quitToMenu();
-    }, { cls: 'mn-danger' });
+    }, { variant: 'danger', cls: 'mn-danger mn-wide' });
     return b;
   };
   if (screen) screens[screen]();
@@ -447,8 +474,10 @@ export function openPauseMenu(game: GameController, host: PauseHost, screen?: Pa
 export function showEndScreen(kind: 'victory' | 'gameOver', reason: string, host: { quitToMenu(): void }, onKeepLooking: () => void, state?: GameState): void {
   if (current?.kind === 'end') return; // victory and bankruptcy can land in the same tick: first one wins
   const m: ModalHandle = modal('end', [
-    h('h2', { class: kind === 'victory' ? 'mn-won' : 'mn-lost' }, kind === 'victory' ? 'Victory!' : 'Game Over'),
-    h('p', { class: 'mn-reason' }, reason),
+    h('div', { class: 'mn-end-head' },
+      h('div', { class: 'mn-overline' }, kind === 'victory' ? 'The century is yours' : 'The company has fallen'),
+      h('h2', { class: kind === 'victory' ? 'mn-won' : 'mn-lost' }, kind === 'victory' ? 'Victory' : 'Game over'),
+      h('p', { class: 'mn-reason' }, reason)),
     ...(state ? [buildLegacy(state)] : []),
     h('div', { class: 'mn-actions' },
       button('Look around', () => {
@@ -458,6 +487,6 @@ export function showEndScreen(kind: 'victory' | 'gameOver', reason: string, host
       button('Main menu', () => {
         m.close();
         host.quitToMenu();
-      }, { cls: 'mn-primary' })),
+      }, { variant: 'primary', cls: 'mn-primary' })),
   ], null);
 }

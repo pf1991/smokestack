@@ -772,24 +772,6 @@
 
 /* ---- Legacy table (Legacy panel and the end screen) ---- */
 
-.legacy-table {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.legacy-table .legacy-row + .legacy-row {
-  padding-top: 3px;
-  border-top: 1px solid rgba(138, 109, 23, 0.35);
-}
-
-.legacy-table .legacy-total {
-  margin-top: 2px;
-  padding-top: 4px;
-  border-top: 1px solid var(--accent-quiet);
-  font-size: var(--fs-md);
-}
-
 /* the Legacy panel's kit table: the part with its one-line rule, then the points */
 .legacy-kit-table th[data-col='points'] {
   width: 80px;

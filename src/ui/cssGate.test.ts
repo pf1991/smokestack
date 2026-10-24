@@ -14,7 +14,7 @@ const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cw
  * Deliberately absent: src/ui/panels/newspaper-display.css, the newspaper's masthead, lead headline
  * and drop cap, the only type in the game drawn above the --fs-* scale (see that file's header).
  */
-export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css', 'src/ui/panels/finance.css', 'src/ui/panels/routes.css', 'src/ui/panels/managers.css', 'src/ui/panels/fleet.css', 'src/ui/panels/politics.css', 'src/ui/panels/contracts.css', 'src/ui/panels/goals.css', 'src/ui/panels/newspaper.css', 'src/ui/toolbar.css', 'src/ui/toasts.css'];
+export const MIGRATED_CSS: string[] = ['src/ui/theme.css', 'src/ui/kit.css', 'src/ui/hud.css', 'src/ui/sidePanel.css', 'src/ui/panels/panels.css', 'src/ui/panels/finance.css', 'src/ui/panels/routes.css', 'src/ui/panels/managers.css', 'src/ui/panels/fleet.css', 'src/ui/panels/politics.css', 'src/ui/panels/contracts.css', 'src/ui/panels/goals.css', 'src/ui/panels/newspaper.css', 'src/ui/toolbar.css', 'src/ui/toasts.css', 'src/ui/cardModal.css', 'src/ui/menu.css', 'src/ui/coldOpen.css'];
 
 /** Strip comments and custom-property declarations (tokens are where raw values live). */
 function stripped(css: string): string {
@@ -26,7 +26,7 @@ export function gateViolations(css: string): string[] {
   const src = stripped(css);
   for (const m of src.matchAll(/(?<![\w-])font-size\s*:\s*([^;}]+)/g)) {
     const v = m[1].trim();
-    if (v !== 'inherit' && !/^var\(--fs-(xs|sm|md|lg|xl)\)$/.test(v)) out.push(`font-size: ${v}`);
+    if (v !== 'inherit' && !/^var\(--fs-(xs|sm|md|lg|xl|hero)\)$/.test(v)) out.push(`font-size: ${v}`);
   }
   for (const m of src.matchAll(/(?<![\w-])font-family\s*:\s*([^;}]+)/g)) {
     const v = m[1].trim();
@@ -40,6 +40,9 @@ describe('css gate', () => {
   it('detects violations', () => {
     expect(gateViolations('a{font-size:13px;color:#fff;font-family:Georgia}')).toHaveLength(3);
     expect(gateViolations(':root{--x:#fff} a{font-size:var(--fs-md);font-family:var(--font-ui)}')).toEqual([]);
+    // --fs-hero (64px) is the one size above the scale, for the main menu's title
+    expect(gateViolations('h1{font-size:var(--fs-hero)}')).toEqual([]);
+    expect(gateViolations('h1{font-size:var(--fs-huge)}')).toHaveLength(1);
   });
 
   for (const file of MIGRATED_CSS) {

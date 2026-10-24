@@ -29,17 +29,24 @@ const btn = (root: HTMLElement, text: string) =>
   [...root.querySelectorAll('button')].find((b) => b.textContent?.startsWith(text)) as HTMLButtonElement;
 
 describe('main menu', () => {
-  it('shows the title and a disabled Continue without an autosave', () => {
+  it('without a save the menu has no Continue button', () => {
     const { ui } = mount();
     expect(ui.querySelector('.mn-title')?.textContent).toBe('SMOKESTACK');
-    expect(btn(ui, 'Continue').disabled).toBe(true);
+    expect(btn(ui, 'Continue')).toBeUndefined();
   });
 
-  it('Continue loads the autosave', () => {
+  it('the home buttons: New game primary, Load game, Achievements and Settings quiet', () => {
+    const { ui } = mount();
+    expect(btn(ui, 'New game').classList.contains('kit-btn--primary')).toBe(true);
+    for (const label of ['Load game', 'Achievements', 'Settings']) expect(btn(ui, label).classList.contains('kit-btn--quiet'), label).toBe(true);
+  });
+
+  it('with a save, Continue is secondary and loads the autosave', () => {
     saveTo('auto', createGame({ seed: 4, companyName: 'Auto Co' }));
     const { ui, host } = mount();
     const c = btn(ui, 'Continue');
     expect(c.disabled).toBe(false);
+    expect(c.classList.contains('kit-btn--secondary')).toBe(true);
     c.click();
     expect(host.startLoaded).toHaveBeenCalledTimes(1);
   });
@@ -47,7 +54,7 @@ describe('main menu', () => {
   it('the Load screen shows a SMOKESTACK I slot as unreadable with Load disabled', () => {
     localStorage.setItem('smokestack:save:slot1', JSON.stringify({ version: 1, map: { tiles: [] } }));
     const { ui } = mount();
-    btn(ui, 'Load Game').click();
+    btn(ui, 'Load game').click();
     const slot = [...ui.querySelectorAll('.mn-slot')].find((d) => d.textContent?.includes('Slot 1')) as HTMLElement;
     expect(slot.textContent).toContain('SMOKESTACK I');
     expect(slot.textContent).not.toContain('Empty slot');
@@ -56,7 +63,7 @@ describe('main menu', () => {
 
   it('New Game starts the chosen scenario with the rival toggle', () => {
     const { ui, host } = mount();
-    btn(ui, 'New Game').click();
+    btn(ui, 'New game').click();
     btn(ui, 'Lumber Baron').click();
     (ui.querySelector('input[type=checkbox]') as HTMLInputElement).click();
     btn(ui, 'Start').click();
@@ -65,7 +72,7 @@ describe('main menu', () => {
 
   it('Beat the Baron forces the rival on', () => {
     const { ui } = mount();
-    btn(ui, 'New Game').click();
+    btn(ui, 'New game').click();
     btn(ui, 'Beat the Baron').click();
     const rival = ui.querySelector('input[type=checkbox]') as HTMLInputElement;
     expect(rival.checked).toBe(true);
@@ -87,6 +94,15 @@ describe('menu error handling and overlays', () => {
     btn(ui, 'Continue').click();
     expect(host.startLoaded).not.toHaveBeenCalled();
     expect(ui.querySelector('.mn-status')?.textContent).toBe('Save file is corrupted');
+  });
+
+  it('the end screen uses the kit buttons and a kit table for the Legacy', () => {
+    showEndScreen('victory', 'The century is over', { quitToMenu: vi.fn() }, () => {}, createGame({ seed: 7 }));
+    const m = document.querySelector('.mn-modal') as HTMLElement;
+    expect(m.querySelector('table.kit-table')).not.toBeNull();
+    expect(btn(m, 'Main menu').classList.contains('kit-btn--primary')).toBe(true);
+    expect(btn(m, 'Look around').classList.contains('kit-btn--secondary')).toBe(true);
+    closeModal();
   });
 
   it('two end events open one card; closing restores game hotkeys', () => {
@@ -136,7 +152,20 @@ describe('settings: Skip intro', () => {
 describe('pause menu: opening straight onto a screen', () => {
   const fakeGame = () => ({ state: { speed: 2 }, setSpeed: vi.fn(), sfx: { setVolume: vi.fn(), setMuted: vi.fn() } });
   const host = { startNew: vi.fn(), startLoaded: vi.fn(), quitToMenu: vi.fn() };
-  it.each([['settings', 'Settings'], ['save', 'Save Game'], ['load', 'Load Game']] as const)('%s opens the %s screen', (screen, title) => {
+  it('the pause home uses the kit buttons: Resume primary, Quit to menu danger', () => {
+    closeModal();
+    openPauseMenu(fakeGame() as never, host);
+    const m = document.querySelector('.mn-modal') as HTMLElement;
+    expect(btn(m, 'Resume').classList.contains('kit-btn--primary')).toBe(true);
+    const quit = btn(m, 'Quit to menu');
+    expect(quit.classList.contains('kit-btn--danger')).toBe(true);
+    quit.click();
+    expect(quit.textContent).toContain('click again');
+    expect(host.quitToMenu).not.toHaveBeenCalled();
+    closeModal();
+  });
+
+  it.each([['settings', 'Settings'], ['save', 'Save game'], ['load', 'Load game']] as const)('%s opens the %s screen', (screen, title) => {
     closeModal();
     const game = fakeGame();
     openPauseMenu(game as never, host, screen);
@@ -183,8 +212,19 @@ describe('settings: both branches\' fields', () => {
     const { ui, menu } = mount();
     menu.show('settings');
     const labels = [...ui.querySelectorAll('.mn-row > span:first-child')].map((s) => s.textContent);
-    expect(labels).toEqual(['Master volume', 'Mute all sound', 'Open the newspaper automatically', 'Skip intro',
-      'News ticker', 'Interface scale', 'Side panel width', 'Smart events (JEV)']);
+    expect(labels).toEqual(['Interface scale', 'News ticker', 'Side panel width', 'Master volume', 'Mute all sound',
+      'Open the newspaper automatically', 'Skip intro', 'Smart events (JEV)']);
+  });
+
+  it('groups the settings in cards: Display, Sound, Gameplay and Smart events', () => {
+    const { ui, menu } = mount();
+    menu.show('settings');
+    const cards = [...ui.querySelectorAll('.kit-card')];
+    expect(cards.map((c) => c.querySelector('.kit-card-title')?.textContent)).toEqual(['Display', 'Sound', 'Gameplay', 'Smart events']);
+    const rows = (i: number) => [...cards[i].querySelectorAll('.mn-row > span:first-child')].map((s) => s.textContent);
+    expect(rows(0)).toEqual(['Interface scale', 'News ticker', 'Side panel width']);
+    expect(rows(3)).toEqual(['Smart events (JEV)']);
+    expect(cards[3].querySelector('.mn-ai-status')).not.toBeNull();
   });
 
   it('Reset forgets a dragged side panel width', async () => {

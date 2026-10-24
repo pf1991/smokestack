@@ -55,7 +55,7 @@ import { startStrike } from './sim/society/strikes';
  *    portrait (rival panel) is furious rather than gloating
  *  - `bid=1` (dev) hand the Baron a majority of the player's shares and open his hostile bid (the
  *    exchange panel's bid banner; add `panel=exchange`)
- *  - `end=1` (dev) show the victory end screen, with its Legacy table, on load
+ *  - `end=1|victory|gameOver` (dev) show the victory (or game over) end screen, with its Legacy table, on load
  *  - `cards=0` (dev) answer every pending event card with its default choice before first paint
  *    (screenshots of the world; a skipYears start otherwise opens that spring's card)
  *  - `classes=<cityId>:<working>,<middle>,<upper>` (dev) set a town's class mix (normalised), e.g. to
@@ -321,7 +321,9 @@ if (debugStart) {
     // `help=1` opens the help overlay, `settings=1` the pause menu's Settings screen (dev, screenshots)
     if (import.meta.env.DEV && params.get('help') === '1') openHelp();
     if (import.meta.env.DEV && params.get('settings') === '1') g.onPause?.('settings');
-    if (import.meta.env.DEV && params.get('end') === '1') g.ctx.bus.emit({ type: 'victory', reason: 'The century is over' });
+    const endParam = params.get('end');
+    if (import.meta.env.DEV && (endParam === '1' || endParam === 'victory')) g.ctx.bus.emit({ type: 'victory', reason: 'The century is over' });
+    if (import.meta.env.DEV && endParam === 'gameOver') g.ctx.bus.emit({ type: 'gameOver', reason: 'The bank has called in your loans' });
   });
 } else {
   const menu = app.showMenu();
