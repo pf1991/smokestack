@@ -166,4 +166,101 @@ describe('AlertTracker', () => {
     advance(s, 8);
     expect(t.collect(s)).toHaveLength(50);
   });
+  describe('edge cases', () => {
+    const mkVehicle = (s: GameState, id: number, state: 'idle' | 'moving' = 'idle') => {
+      s.vehicles[id] = { id, kind: 'truck', ownerId: 'player', routeId: null, state, model: 'steam_lorry' } as unknown as GameState['vehicles'][number];
+    };
+    const month = (year: number, m: number, income: number, expense: number) => ({
+      year, month: m, income: { sales: income }, expense: { maintenance: expense }, salesByGood: {}, cashEnd: 0, netWorthEnd: 0,
+    }) as unknown as GameState['companies']['player']['ledger'][number];
+    const contract = (s: GameState, days: number) =>
+      s.contracts.push({ id: 9, cityId: 0, goodId: 'bread', qty: 10, delivered: 0, deadline: addDays(s.date, days), reward: 1, status: 'active' });
+
+    it('an idle vehicle alerts at 14 days, not 13', () => {
+      const s = testState();
+      mkVehicle(s, 5);
+      const t = new AlertTracker();
+      t.collect(s);
+      advance(s, 13);
+      expect(t.collect(s)).toHaveLength(0);
+      advance(s, 1);
+      const a = t.collect(s);
+      expect(a).toHaveLength(1);
+      expect(a[0].id).toBe('v:5:idle');
+      expect(a[0].target).toEqual({ kind: 'vehicle', id: 5 });
+    });
+
+    it('"Last month lost" reads the newest closed month and ignores the open one', () => {
+      const s = testState();
+      const { year, month: m } = s.date;
+      const prev = m === 1 ? { y: year - 1, m: 12 } : { y: year, m: m - 1 };
+      const older = prev.m === 1 ? { y: prev.y - 1, m: 12 } : { y: prev.y, m: prev.m - 1 };
+      s.companies.player.ledger = [month(older.y, older.m, 0, 500), month(prev.y, prev.m, 100, 400), month(year, m, 0, 9999)];
+      const a = new AlertTracker().collect(s);
+      expect(a.map((x) => x.id)).toEqual([`loss:${prev.y}-${prev.m}`]);
+      expect(a[0].title).toMatch(/^Last month lost \$300/);
+      expect(a[0].target).toEqual({ kind: 'panel', panel: 'finance' });
+    });
+
+    it('no loss alert when the last closed month was profitable, even if the open month is losing', () => {
+      const s = testState();
+      const { year, month: m } = s.date;
+      const prev = m === 1 ? { y: year - 1, m: 12 } : { y: year, m: m - 1 };
+      s.companies.player.ledger = [month(prev.y, prev.m, 500, 100), month(year, m, 0, 9999)];
+      expect(new AlertTracker().collect(s)).toHaveLength(0);
+    });
+
+    it('a pending card raises "A decision awaits" pointing at the newspaper', () => {
+      const s = testState();
+      s.politics.cards.pending.push({} as never);
+      const a = new AlertTracker().collect(s);
+      expect(a).toHaveLength(1);
+      expect(a[0]).toMatchObject({ id: 'card', tone: 'info', title: 'A decision awaits', target: { kind: 'panel', panel: 'newspaper' } });
+    });
+
+    it('a contract alerts inside 30 days (and on its last day), not at 31', () => {
+      for (const [days, n] of [[30, 1], [31, 0], [0, 1]] as const) {
+        const s = testState({ cities: [{ x: 5, y: 5, name: 'Ashby' }] });
+        contract(s, days);
+        const a = new AlertTracker().collect(s);
+        expect(a, `due in ${days}`).toHaveLength(n);
+        if (n) expect(a[0].title).toBe(`Contract for Ashby due in ${days} days`);
+      }
+    });
+
+    it('an overdue contract raises no alert', () => {
+      const s = testState({ cities: [{ x: 5, y: 5, name: 'Ashby' }] });
+      contract(s, -1);
+      expect(new AlertTracker().collect(s)).toHaveLength(0);
+    });
+
+    it("a strike alert's since is the strike's start", () => {
+      const s = testState();
+      const b = mk(s, 1, 'halted');
+      const today = dateToDays(s.date);
+      b.strike = { until: today + 50, since: today - 12, reason: 'wages', cityId: 0, cardUid: null };
+      const a = new AlertTracker().collect(s);
+      expect(a).toHaveLength(1);
+      expect(a[0].since).toBe(today - 12);
+    });
+
+    it('a strike past its 120-day cap raises no strike alert', () => {
+      const s = testState();
+      const b = mk(s, 1, 'halted');
+      const today = dateToDays(s.date);
+      b.strike = { until: today + 500, since: today - 120, reason: 'wages', cityId: 0, cardUid: null };
+      expect(new AlertTracker().collect(s)).toHaveLength(0);
+    });
+
+    it('an unstocked store that is upgrading or halted raises no empty-shelves alert', () => {
+      for (const status of ['upgrading', 'halted'] as const) {
+        const s = testState();
+        mk(s, 1, status, 'player', 'store');
+        const t = new AlertTracker();
+        t.collect(s);
+        advance(s, 30);
+        expect(t.collect(s), status).toHaveLength(0);
+      }
+    });
+  });
 });

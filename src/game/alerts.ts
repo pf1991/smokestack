@@ -68,8 +68,10 @@ export class AlertTracker {
       // stores, depots and stations sit at 'idle' as a matter of course: a store alerts only when its
       // shelves stay empty, and logistics buildings raise no status alerts at all
       const works = category === 'extractor' || category === 'factory';
+      // a store that is upgrading or halted shows its scaffold or nothing, never empty shelves (badgeFor)
+      const shut = b.status === 'upgrading' || b.status === 'halted';
       const rule =
-        category === 'retail' ? (storeStocked(b) ? null : { key: 'empty', tone: 'warning' as const, icon: 'warning', title: `${name} has empty shelves` })
+        category === 'retail' ? (shut || storeStocked(b) ? null : { key: 'empty', tone: 'warning' as const, icon: 'warning', title: `${name} has empty shelves` })
         : !works ? null
         : b.status === 'no_input' ? { key: 'no_input', tone: 'warning' as const, icon: 'warning', title: `${name} is starved` }
         : b.status === 'output_full' ? { key: 'output_full', tone: 'warning' as const, icon: 'warning', title: `${name} is backed up` }
