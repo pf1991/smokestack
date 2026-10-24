@@ -32,23 +32,6 @@
   border-left: 4px solid var(--rival);
 }
 
-.insp-badge.status-ok {
-  background: var(--positive);
-  color: var(--surface-0);
-}
-
-.insp-badge.status-no_input,
-.insp-badge.status-idle {
-  background: var(--warning);
-  color: var(--surface-0);
-}
-
-.insp-badge.status-output_full,
-.insp-badge.status-halted {
-  background: var(--negative);
-  color: var(--surface-0);
-}
-
 .insp-reason {
   font-style: italic;
   color: var(--text-muted);
@@ -73,16 +56,14 @@
   opacity: 0.85;
 }
 
-.insp-section,
-.insp-list {
+.insp-section {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
 /* author display rules beat the UA's [hidden] { display: none }: restore it */
-.insp-section[hidden],
-.insp-list[hidden] {
+.insp-section[hidden] {
   display: none;
 }
 
@@ -124,13 +105,6 @@
   border: 1px solid var(--accent-quiet);
   padding: 4px;
   max-width: 100%;
-}
-
-.insp-row {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 8px;
-  align-items: center;
 }
 
 .insp-bar {
@@ -175,33 +149,6 @@
 .dot {
   border-radius: 50%;
   margin-right: 3px;
-}
-
-.insp-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.insp-table th {
-  text-align: left;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-strong);
-  padding: 2px 4px;
-}
-
-.insp-table td {
-  padding: 3px 4px;
-  border-top: 1px solid rgba(201, 162, 39, 0.25);
-}
-
-.insp-table td.num {
-  text-align: right;
-}
-
-.insp-table .insp-bar {
-  min-width: 70px;
 }
 
 .insp-crave {
@@ -449,8 +396,7 @@
   margin-top: 4px;
 }
 
-.insp-stat,
-.insp-row {
+.insp-stat {
   min-height: 20px;
 }
 
@@ -760,4 +706,398 @@
   min-width: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--accent-quiet) transparent;
+}
+
+/* ---- Inspectors on the kit (Task 8): a header that says what is wrong, then cards ---- */
+
+.insp-building,
+.insp-vehicle,
+.insp-city {
+  gap: var(--sp-2);
+}
+
+/* the summary is the advice line: it wraps under the title instead of truncating */
+.insp-header .kit-ph {
+  flex-wrap: wrap;
+  padding: 0 0 var(--sp-2);
+  row-gap: var(--sp-1);
+}
+
+.insp-header .kit-ph-summary {
+  margin-left: 0;
+  flex-basis: 100%;
+  white-space: normal;
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.insp-head {
+  align-items: center;
+}
+
+/* author display rules (kit buttons, rows, cards) beat the UA's [hidden]: restore it inside inspectors */
+.insp [hidden] {
+  display: none !important;
+}
+
+.insp .kit-card-head {
+  padding: var(--sp-2) var(--sp-3) 0;
+}
+
+.insp .kit-card-title.p-head {
+  margin: 0;
+}
+
+.insp .kit-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.insp .kit-card-body > .kit-btn,
+.insp-cards .kit-card-body > .kit-btn {
+  justify-content: center;
+  margin-top: var(--sp-1);
+  white-space: normal;
+  text-align: center;
+}
+
+.insp-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* inspector selects share one dark look */
+.insp-recipe,
+.insp-route-sel,
+.insp-manager-select,
+.insp-endorse-select,
+.insp-hub-cap {
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+  padding: var(--sp-1);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.insp-staff-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* production card: inputs → outputs, each good a stock meter */
+.insp-recipe-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.insp-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.insp-flow.insp-flow--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.insp-flow-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.insp-flow-arrow {
+  font-size: var(--fs-xl);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.insp-flow-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.insp-flow-row > .icon {
+  flex: none;
+}
+
+.insp-flow-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.insp-flow-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+}
+
+.insp-flow-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.insp-flow-qty {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.insp-produced {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+}
+
+.insp-routes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.insp-routes .insp-route {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.insp-demolish.confirm,
+.insp-demolish.confirm:hover:not(:disabled) {
+  background: var(--negative);
+  color: var(--paper-ink);
+}
+
+/* vehicle: cargo meter, kit rows, the route pill */
+.insp-cargo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.insp-cargo-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.insp-cargo-text {
+  font-size: var(--fs-sm);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-kit-right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.insp-route-pill {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.insp-route-pill .swatch {
+  width: 8px;
+  height: 8px;
+  flex: none;
+}
+
+/* city: four tiles in a row, then sections */
+.insp-city-stats .kit-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.insp-city-stats .kit-stat-value {
+  font-size: var(--fs-lg);
+}
+
+.insp-smog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.insp-smog-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.insp-classes .insp-class-bar {
+  width: 60%;
+}
+
+.insp-opinion {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 20px;
+}
+
+.insp-opinion .kit-meter {
+  height: 10px;
+}
+
+.insp-opinion-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+}
+
+.insp-demand .kit-table [data-col='good'] {
+  width: 34%;
+}
+
+.insp-demand .kit-table [data-col='sat'] {
+  width: 24%;
+}
+
+.insp-demand .kit-table [data-col='stores'] {
+  width: 16%;
+}
+
+.insp-good-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.insp-good-name > .icon {
+  flex: none;
+}
+
+.insp-good-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.insp-crave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--fs-xs);
+}
+
+.insp-sat {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.insp-sat .kit-meter {
+  flex: 1;
+}
+
+.insp-sat-val {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-endorse {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.insp-endorse-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.insp-philanthropy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.insp-philanthropy .kit-btn {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+
+.insp-chip {
+  display: inline-block;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-md);
+  color: var(--paper);
+  font-size: var(--fs-sm);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.insp-edicts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.insp-edicts li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.insp-edicts li > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.insp-edict-effect {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.insp-edicts .insp-none {
+  opacity: 0.6;
+}
+
+.insp-edict-reach {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-style: italic;
+}
+
+.insp .p-actions > .kit-btn {
+  justify-content: center;
+}
+
+.insp-hub-cap {
+  width: 56px;
 }

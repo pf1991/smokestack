@@ -28,25 +28,15 @@ import type { GameController } from '../../game/controller';
 import { offeredGoods } from '../../sim/routeHelpers';
 import { housingFactory, workCity } from '../../sim/politics/workforce';
 import type { Building, GameState, Route } from '../../sim/types';
-import { type Child, h } from '../dom';
+import { h } from '../dom';
+import { meter, panelHeader, type Tone } from '../kit';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import './panels.css';
-import { bar, type Bar, KeyedList, openInspector, setClass, setOwnerBadge, setText, type InspectorHost, type InspectorView } from './inspect';
+import { inspCard, KeyedList, openInspector, setClass, setMeter, setOwnerBadge, setText, swap, type InspectorHost, type InspectorView } from './inspect';
 import type { PanelDef } from './index';
 import { startSendGoods } from './routeActions';
 import { levelCard } from './buildingLevel';
-
-const STATUS_LABEL: Record<Building['status'], string> = {
-  ok: 'Running',
-  no_input: 'Waiting',
-  output_full: 'Full',
-  halted: 'Halted',
-  idle: 'Idle',
-  upgrading: 'Upgrading',
-};
-
-const goodLabel = (id: string): Child[] => [iconEl(id, 16), ` ${getGood(id).name}`];
 
 /**
  * The inspector's staffing line: "Staff 100%", "Staff 85% — short of hands in Ashford", "Staff 75% — remote works",
@@ -175,6 +165,47 @@ export function statusReason(state: GameState, b: Building, routes: Route[]): st
   }
 }
 
+/**
+ * The building's state in one line that says what is wrong and how to fix it, with its tone: the
+ * inspector's header summary and the alert tray's detail line. Pure: reads `state` and `b` only.
+ */
+export function statusAdvice(state: GameState, b: Building): { text: string; tone: Tone } {
+  const def = BUILDINGS[b.typeId];
+  const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
+  const today = dateToDays(state.date);
+  switch (b.status) {
+    case 'ok':
+      if (def?.category === 'retail') return { text: 'Open for business', tone: 'positive' };
+      return { text: 'Producing', tone: 'positive' };
+    case 'no_input': {
+      const ins = Object.entries(recipe?.inputs ?? {});
+      const missing = ins.find(([g, q]) => (b.input[g] ?? 0) < q) ?? ins[0];
+      const name = missing ? getGood(missing[0]).name : 'its inputs';
+      return { text: `Starved of ${name}: connect a route that delivers it`, tone: 'warning' };
+    }
+    case 'output_full': {
+      const cap = buildingStorage(b);
+      const outs = Object.entries(recipe?.outputs ?? {});
+      const full = outs.find(([g, q]) => (b.output[g] ?? 0) + q > cap) ?? outs[0];
+      const name = full ? getGood(full[0]).name : 'its goods';
+      return { text: `Storage full: add a route to carry ${name} away`, tone: 'warning' };
+    }
+    case 'halted':
+      if (b.strike && strikeActive(b.strike, today)) return { text: `On strike: ${b.strike.reason}`, tone: 'negative' };
+      return { text: 'Halted', tone: 'negative' };
+    case 'upgrading': {
+      const left = b.works ? Math.max(0, b.works.untilDay - today) : 0;
+      return { text: `Upgrading: ${left} ${left === 1 ? 'day' : 'days'} left`, tone: 'info' };
+    }
+    case 'idle':
+    default:
+      // stores, depots and stations have no recipe to choose: idle is their resting state
+      if (def?.category === 'retail') return { text: 'No sales today', tone: 'neutral' };
+      if (def && def.category !== 'extractor' && def.category !== 'factory') return { text: 'Handling cargo', tone: 'neutral' };
+      return { text: 'Idle: choose a recipe', tone: 'neutral' };
+  }
+}
+
 function routesServing(state: GameState, id: number): Route[] {
   return Object.values(state.routes).filter((r) => r.stops.some((s) => s.buildingId === id));
 }
@@ -189,24 +220,38 @@ function recipeLabel(id: string): string {
   return `${ins ? `${ins} → ` : ''}${side(r.outputs)}`;
 }
 
-interface Row {
+/** One good in the production card: icon, name, "75 / 112" and a stock meter. */
+interface FlowRow {
   el: HTMLElement;
-  bar: Bar;
+  qty: HTMLElement;
+  meter: HTMLElement;
 }
 
-function makeRow(goodId: string): Row {
+function makeFlowRow(goodId: string): FlowRow {
   const g = getGood(goodId);
-  const b = bar(g.color);
-  return { el: h('div', { class: 'insp-row' }, h('span', { class: 'insp-row-name' }, goodLabel(goodId)), b.el), bar: b };
+  const qty = h('span', { class: 'insp-flow-qty' });
+  const m = meter(0, 1, { label: g.name });
+  const el = h(
+    'div',
+    { class: 'insp-flow-row', 'data-good': goodId, title: g.name },
+    iconEl(goodId, 20),
+    h('div', { class: 'insp-flow-info' }, h('div', { class: 'insp-flow-line' }, h('span', { class: 'insp-flow-name' }, g.name), qty), m),
+  );
+  return { el, qty, meter: m };
 }
+
+const btnClass = (variant: 'primary' | 'secondary' | 'quiet' | 'danger', extra: string) => `btn kit-btn kit-btn--${variant} ${extra}`;
 
 function buildView(host: InspectorHost, id: number): InspectorView {
   const state0 = host.ctx.state.buildings[id];
   const def0 = BUILDINGS[state0.typeId];
+  const headerBox = h('div', { class: 'insp-header' });
   const owner = h('span', { class: 'insp-badge' });
-  const statusBadge = h('span', { class: 'insp-badge' });
+  const levelPill = h('span', { class: 'insp-level-pill' });
   const reason = h('div', { class: 'insp-reason' });
-  const staff = h('div', { class: 'insp-muted insp-staff' });
+  const staff = h('span', { class: 'insp-muted insp-staff' });
+  const staffMeter = meter(1, 1, { label: 'Staffing' });
+  const staffRow = h('div', { class: 'insp-staff-row' }, staff, staffMeter);
   const noRoad = h('div', { class: 'insp-warn' }, iconEl('warning', 14), ' No road access — trucks cannot reach this building');
   const housingLine = h('span');
   const housing = h('div', { class: 'insp-housing' }, housingLine);
@@ -215,6 +260,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
   noRail.hidden = true;
   const recipeSel = h('select', {
     class: 'insp-recipe',
+    'aria-label': 'Recipe',
     onChange: () => {
       const b = host.ctx.state.buildings[id];
       if (!b || b.ownerId !== 'player') return;
@@ -225,20 +271,25 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       view.update();
     },
   }) as HTMLSelectElement;
-  const recipeBox = h('div', { class: 'p-section insp-section' }, h('div', { class: 'p-head' }, 'Recipe'), recipeSel);
-  const routesSection = h('div', { class: 'p-section insp-section' });
-  const inBox = h('div', { class: 'insp-list' });
-  const outBox = h('div', { class: 'insp-list' });
-  const inSection = h('div', { class: 'p-section insp-section' }, h('div', { class: 'p-head' }, 'Inputs'), inBox);
-  const outSection = h('div', { class: 'p-section insp-section' }, h('div', { class: 'p-head' }, 'Output'), outBox);
-  const produced = h('div', { class: 'insp-muted' });
+  const recipeBox = h('label', { class: 'insp-recipe-box' }, h('span', { class: 'insp-label' }, 'Recipe'), recipeSel);
+  // the production card: inputs → outputs, each a stock meter (Factorio/Anno style)
+  const inBox = h('div', { class: 'insp-flow-side insp-flow-in' });
+  const arrow = h('div', { class: 'insp-flow-arrow', 'aria-hidden': 'true' }, '→');
+  const outBox = h('div', { class: 'insp-flow-side insp-flow-out' });
+  const emptyStock = h('div', { class: 'insp-muted insp-flow-empty' }, 'Nothing in stock');
+  const flow = h('div', { class: 'insp-flow' }, inBox, arrow, outBox);
+  const produced = h('div', { class: 'insp-muted insp-produced' });
+  const production = inspCard('Production', 'insp-production', [recipeBox, flow, emptyStock, produced]);
+  const productionTitle = production.querySelector<HTMLElement>('.kit-card-title')!;
   const routeBox = h('div', { class: 'insp-routes' });
   const send = h('button', {
-    class: 'btn insp-send',
+    class: btnClass('secondary', 'insp-send'),
+    type: 'button',
     'data-act': 'send-goods',
     title: 'Pick a destination on the map: creates a route and buys a vehicle',
     onClick: () => startSendGoods(host as unknown as GameController, id),
   });
+  const routesSection = inspCard('Routes', 'insp-routes-card', [routeBox, send]);
   const buy = (kind: UpgradeKind) => {
     const r = buyUpgrade(host.ctx, id, kind);
     host.ctx.bus.emit(
@@ -249,29 +300,20 @@ function buildView(host: InspectorHost, id: number): InspectorView {
     view.update();
   };
   const scrubLine = h('div', { class: 'insp-muted insp-scrubber' });
-  const scrubBtn = h('button', { class: 'btn insp-upgrade', 'data-act': 'scrubber', onClick: () => buy('scrubber') }) as HTMLButtonElement;
+  const scrubBtn = h('button', { class: btnClass('secondary', 'insp-upgrade'), type: 'button', 'data-act': 'scrubber', onClick: () => buy('scrubber') }) as HTMLButtonElement;
   const scrubWhy = h('div', { class: 'insp-muted insp-upgrade-why' });
-  const chimneyBtn = h('button', { class: 'btn insp-upgrade', 'data-act': 'tall-chimney', onClick: () => buy('tallChimney') }) as HTMLButtonElement;
+  const chimneyBtn = h('button', { class: btnClass('secondary', 'insp-upgrade'), type: 'button', 'data-act': 'tall-chimney', onClick: () => buy('tallChimney') }) as HTMLButtonElement;
   const chimneyWhy = h('div', { class: 'insp-muted insp-upgrade-why' });
   const lawBox = h('div', { class: 'insp-laws' });
-  const upgradesSection = h(
-    'div',
-    { class: 'p-section insp-section insp-upgrades' },
-    h('div', { class: 'p-head' }, iconEl('scrubber', 14), ' Upgrades'),
-    scrubLine,
-    scrubBtn,
-    scrubWhy,
-    chimneyBtn,
-    chimneyWhy,
-    lawBox,
-  );
-  const inList = new KeyedList<Row>(inBox, makeRow);
-  const outList = new KeyedList<Row>(outBox, makeRow);
+  const upgradesSection = inspCard('Upgrades', 'insp-upgrades', [scrubLine, scrubBtn, scrubWhy, chimneyBtn, chimneyWhy, lawBox], 'scrubber');
+  const inList = new KeyedList<FlowRow>(inBox, makeFlowRow);
+  const outList = new KeyedList<FlowRow>(outBox, makeFlowRow);
 
   const level = levelCard(host, state0);
   const ageText = h('div', { class: 'insp-age-line' });
   const renew = h('button', {
-    class: 'btn insp-renew',
+    class: btnClass('secondary', 'insp-renew'),
+    type: 'button',
     onClick: () => {
       const r = renewBuilding(host.ctx, id, 'player');
       host.ctx.bus.emit(
@@ -282,12 +324,13 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       view.update();
     },
   }) as HTMLButtonElement;
-  const ageSection = h('div', { class: 'p-section insp-section insp-age' }, h('div', { class: 'p-head' }, 'Age'), ageText, renew);
+  const ageSection = inspCard('Age', 'insp-age', [ageText, renew]);
 
   let confirming = false;
   let confirmTimer = 0;
   const demolish = h('button', {
-    class: 'btn insp-demolish',
+    class: btnClass('danger', 'danger insp-demolish'),
+    type: 'button',
     onClick: () => {
       const b = host.ctx.state.buildings[id];
       if (!b) return;
@@ -310,28 +353,26 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       );
     },
   });
+  const footer = h('div', { class: 'p-actions insp-footer' }, demolish);
 
   const el = h(
     'div',
-    { class: 'insp' },
-    h('div', { class: 'insp-head' }, owner, statusBadge),
+    { class: 'insp insp-building' },
+    headerBox,
+    h('div', { class: 'insp-head' }, owner, levelPill),
     reason,
-    staff,
+    staffRow,
     housing,
     noRoad,
     noRail,
-    recipeBox,
-    inSection,
-    outSection,
-    produced,
+    production,
     routesSection,
     level.el,
     upgradesSection,
     ageSection,
-    demolish,
+    footer,
   );
 
-  routesSection.append(h('div', { class: 'p-head' }, 'Routes'), routeBox, send);
   let recipeSig = '';
   let routeSig = '\0';
   const view: InspectorView = {
@@ -343,15 +384,22 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       if (!b) return false;
       const def = BUILDINGS[b.typeId];
       const mine = b.ownerId === 'player';
+      const home = housingText(state, b);
+      const advice = home ? { text: home.orphan ? 'Standing empty' : 'Housing hands', tone: (home.orphan ? 'warning' : 'neutral') as Tone } : statusAdvice(state, b);
+      swap(headerBox, `${def.name}|${advice.tone}|${advice.text}`, () => panelHeader({ title: def.name, summary: advice.text, tone: advice.tone }));
       setOwnerBadge(owner, state, b.ownerId);
-      const striking = strikeActive(b.strike, dateToDays(state.date));
-      setText(statusBadge, striking ? 'On strike' : STATUS_LABEL[b.status]);
-      setClass(statusBadge, `insp-badge status-${b.status}`);
+      setText(levelPill, b.level ? `Level ${b.level}` : '');
+      levelPill.hidden = !b.level;
+      setClass(levelPill, 'kit-pill kit-pill--neutral insp-level-pill');
       const routes = routesServing(state, id);
       setText(reason, statusReason(state, b, routes));
       // staffing scales production only; stores and depots still draw on the pool but show no row
-      staff.hidden = def.category === 'retail' || def.category === 'logistics';
-      if (!staff.hidden) setText(staff, staffingText(state, b));
+      staff.hidden = staffRow.hidden = def.category === 'retail' || def.category === 'logistics';
+      if (!staff.hidden) {
+        const text = staffingText(state, b);
+        setText(staff, text);
+        setMeter(staffMeter, Number(b.staffing.toFixed(2)), 1, b.staffing >= 1 && !text.includes('go-slow') ? 'positive' : b.staffing < 0.6 ? 'negative' : 'warning', text);
+      }
       noRoad.hidden = accessTiles(state, b).length > 0;
       if (b.typeId === STATION_TYPE) {
         const railOk = stationAccess(state, b).length > 0;
@@ -369,41 +417,44 @@ function buildView(host: InspectorHost, id: number): InspectorView {
           recipeSig = sig;
           recipeSel.replaceChildren(...ids.map((r) => h('option', { value: r }, recipeLabel(r))));
         }
-        if (b.recipeId && recipeSel.value !== b.recipeId) recipeSel.value = b.recipeId;
+        if (b.recipeId && recipeSel.value !== b.recipeId && document.activeElement !== recipeSel) recipeSel.value = b.recipeId;
         recipeSel.disabled = !mine || ids.length < 2;
       }
 
-      // inventory
+      // the production card: stores and depots show their shelves instead of a recipe
       const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
       const shared = def.category === 'retail' || def.category === 'logistics';
+      setText(productionTitle, shared ? 'Stock' : 'Production');
       const keys = (want: string[], inv: Record<string, number>) => [
         ...want,
         ...Object.keys(inv).filter((g) => !want.includes(g) && (inv[g] ?? 0) > 0.5),
       ];
-      inSection.hidden = def.category === 'extractor';
-      outSection.hidden = shared;
-      const inKeys = shared ? Object.keys(loadSource(b)).filter((g) => (loadSource(b)[g] ?? 0) > 0.5) : keys(Object.keys(recipe?.inputs ?? {}), b.input);
-      const outKeys = keys(Object.keys(recipe?.outputs ?? {}), b.output);
+      const stock = shared ? loadSource(b) : b.input;
+      const inKeys = shared ? Object.keys(stock).filter((g) => (stock[g] ?? 0) > 0.5) : keys(Object.keys(recipe?.inputs ?? {}), b.input);
+      const outKeys = shared ? [] : keys(Object.keys(recipe?.outputs ?? {}), b.output);
       inList.sync(inKeys);
       outList.sync(outKeys);
-      if (shared && inKeys.length === 0) setText(inBox, 'Nothing in stock');
+      inBox.hidden = inKeys.length === 0;
+      outBox.hidden = outKeys.length === 0;
+      arrow.hidden = inBox.hidden || outBox.hidden;
+      flow.classList.toggle('insp-flow--single', arrow.hidden);
+      emptyStock.hidden = !shared || inKeys.length > 0;
       const cap = buildingStorage(b);
       for (const [g, row] of inList.items) {
-        const q = b.input[g] ?? 0;
-        row.bar.set(q / cap, `${formatNumber(q)} / ${cap}`);
+        const q = stock[g] ?? 0;
+        const need = recipe?.inputs[g] ?? 0;
+        setText(row.qty, `${formatNumber(q)} / ${cap}`);
+        setMeter(row.meter, Math.round(q), cap, need > 0 && q < need ? 'warning' : 'neutral', `${getGood(g).name}: ${formatNumber(q)} / ${cap}`);
       }
       for (const [g, row] of outList.items) {
         const q = b.output[g] ?? 0;
-        row.bar.set(q / cap, `${formatNumber(q)} / ${cap}`);
+        const batch = recipe?.outputs[g] ?? 0;
+        setText(row.qty, `${formatNumber(q)} / ${cap}`);
+        setMeter(row.meter, Math.round(q), cap, q + batch > cap ? 'warning' : 'positive', `${getGood(g).name}: ${formatNumber(q)} / ${cap}`);
       }
-      const made = Object.entries(b.producedThisMonth).filter(([, q]) => q > 0);
       produced.hidden = shared;
-      setText(
-        produced,
-        made.length > 0
-          ? `Produced this month: ${made.map(([g, q]) => `${formatNumber(q)} ${getGood(g).name}`).join(', ')}`
-          : 'Produced this month: nothing yet',
-      );
+      const made = Object.values(b.producedThisMonth).reduce((n, q) => n + (q > 0 ? q : 0), 0);
+      setText(produced, `Produced this month: ${formatNumber(made)}`);
 
       const rsig = routes.map((r) => `${r.id}:${r.name}:${r.color}`).join('|');
       if (rsig !== routeSig) {
@@ -412,6 +463,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
           ...(routes.length > 0
             ? routes.map((r) => h('button', {
               class: 'insp-route insp-route-link',
+              type: 'button',
               'data-route': r.id,
               title: 'Open this route in the Routes window',
               onClick: () => (host as unknown as GameController).openPanel('routes', r.id),
@@ -424,7 +476,7 @@ function buildView(host: InspectorHost, id: number): InspectorView {
       send.hidden = !mine || (!isStation && offeredGoods(b).length === 0);
       if (send.dataset.kind !== (isStation ? 'train' : 'truck')) {
         send.dataset.kind = isStation ? 'train' : 'truck';
-        send.replaceChildren(iconEl(send.dataset.kind, 16), ' Send goods to…');
+        send.replaceChildren(iconEl(send.dataset.kind, 16), h('span', { class: 'kit-btn-label' }, 'Send goods to…'));
       }
       // smoke abatement: the player's polluting works only
       upgradesSection.hidden = !mine || !canAbate(b);
@@ -472,25 +524,21 @@ function buildView(host: InspectorHost, id: number): InspectorView {
         const tip = why ?? 'Overhaul the works: as good as new again';
         if (renew.title !== tip) renew.title = tip;
       }
-      demolish.hidden = !mine;
+      demolish.hidden = footer.hidden = !mine;
       setText(
         demolish,
         confirming ? `Confirm demolish (+${formatMoney(demolitionRefund(state, b))} refund)` : 'Demolish',
       );
-      setClass(demolish, `btn insp-demolish${confirming ? ' confirm' : ''}`);
+      setClass(demolish, btnClass('danger', `danger insp-demolish${confirming ? ' confirm' : ''}`));
       // company housing takes no cargo: its line replaces the status, stock and route rows
-      const home = housingText(state, b);
       housing.hidden = home === null;
       if (home) {
         setText(housingLine, home.text);
         setClass(housing, home.orphan ? 'insp-housing insp-warn' : 'insp-housing insp-muted');
         reason.hidden = true;
         noRoad.hidden = true;
-        inSection.hidden = true;
-        outSection.hidden = true;
-        produced.hidden = true;
+        production.hidden = true;
         routesSection.hidden = true;
-        statusBadge.hidden = true;
       }
       return true;
     },

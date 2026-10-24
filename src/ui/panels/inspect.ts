@@ -1,7 +1,10 @@
 import type { Selection } from '../../render/world';
 import { isThirdOwner, ownerColor } from '../../render/ownerColors';
 import type { GameState, OwnerId, SimContext } from '../../sim/types';
-import { h } from '../dom';
+import { type Child, h } from '../dom';
+import { iconEl } from '../icon';
+import { card, type Tone } from '../kit';
+import type { IconId } from '../../render/icons';
 import { createWindow } from '../window';
 
 /** The slice of the GameController the inspectors need (lets tests use a small stub). */
@@ -77,6 +80,42 @@ export function setOwnerBadge(el: HTMLElement, state: GameState, ownerId: OwnerI
     el.dataset.ownerColor = color;
     el.style.background = color;
   }
+}
+
+/** What each box last showed, so a refresh rebuilds a kit block only when its content changed (see finance.ts). */
+const shownKey = new WeakMap<HTMLElement, string>();
+
+/** Replaces `box`'s children with `build()` when `key` differs from the last one shown. */
+export function swap(box: HTMLElement, key: string, build: () => HTMLElement): void {
+  if (shownKey.get(box) === key) return;
+  shownKey.set(box, key);
+  box.replaceChildren(build());
+}
+
+/** Updates a kit `meter` in place (value clamped to 0..max), touching only what changed. */
+export function setMeter(el: HTMLElement, value: number, max: number, tone: Tone = 'neutral', label?: string): void {
+  const top = Number.isFinite(max) && max > 0 ? max : 0;
+  const v = Number.isFinite(value) ? Math.min(Math.max(value, 0), top) : 0;
+  const attrs: [string, string][] = [['aria-valuenow', String(v)], ['aria-valuemax', String(top)]];
+  if (label !== undefined) attrs.push(['aria-label', label], ['title', label]);
+  for (const [k, x] of attrs) if (el.getAttribute(k) !== x) el.setAttribute(k, x);
+  if (el.dataset.tone !== tone) el.dataset.tone = tone;
+  const fill = el.firstElementChild as HTMLElement | null;
+  const w = `${top > 0 ? Number(((v / top) * 100).toFixed(1)) : 0}%`;
+  if (fill && fill.style.width !== w) fill.style.width = w;
+}
+
+/**
+ * A kit card for an inspector section: the title doubles as the section overline (`.p-head`, which
+ * tests and the tutorial look for), `cls` names the card.
+ */
+export function inspCard(title: string, cls: string, children: Child[], icon?: IconId): HTMLElement {
+  const c = card({ title, children });
+  c.classList.add(...cls.split(' ').filter(Boolean));
+  const t = c.querySelector<HTMLElement>('.kit-card-title')!;
+  t.classList.add('p-head');
+  if (icon) t.prepend(iconEl(icon, 14), ' ');
+  return c;
 }
 
 export interface Bar {

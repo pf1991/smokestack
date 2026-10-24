@@ -24,8 +24,9 @@ import { h } from '../dom';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber, formatPercent } from '../format';
 import './panels.css';
-import './politics.css';
-import { bar, type Bar, KeyedList, openInspector, setText, type InspectorHost, type InspectorView } from './inspect';
+import { openInspector, setMeter, setText, swap, type InspectorHost, type InspectorView } from './inspect';
+import { dataTable, meter, panelHeader, section, statRow, statTile, type Tone } from '../kit';
+import { laborPool } from '../../sim/politics/workforce';
 import type { PanelDef } from './index';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -63,33 +64,60 @@ export function cityDemand(state: GameState, city: City): GoodDemand[] {
   return out.sort((a, b) => b.unmetValue - a.unmetValue || a.goodId.localeCompare(b.goodId));
 }
 
-interface GoodRow extends Record<string, unknown> {
-  el: HTMLElement;
-  demand: HTMLElement;
-  sat: Bar;
-  price: HTMLElement;
-  stores: HTMLElement;
-  crave: HTMLElement;
-  storeSig: string;
+/** One demand row's figures, also the table's refresh key. */
+interface DemandRow {
+  goodId: string;
+  demand: number;
+  sat: number;
+  price: number;
+  craves: boolean;
+  sellers: { id: number; ownerId: OwnerId }[];
 }
 
-function makeRow(goodId: string): GoodRow {
-  const g = GOODS[goodId];
-  const demand = h('td', { class: 'num' });
-  const sat = bar('#6fae5a');
-  const price = h('td', { class: 'num' });
-  const stores = h('td', { class: 'insp-dots' });
-  const crave = h('span', { class: 'insp-crave' });
-  const el = h(
-    'tr',
-    { class: 'insp-good', 'data-good': goodId },
-    h('td', null, iconEl(goodId, 16), ` ${g.name}`, crave),
-    demand,
-    h('td', null, sat.el),
-    price,
-    stores,
-  );
-  return { el, demand, sat, price, stores, crave, storeSig: '\0' };
+/** The goods the town buys as a kit table: rows keep `tr.insp-good[data-good]` for tests and the tutorial. */
+function demandTable(state: GameState, rows: DemandRow[]): HTMLElement {
+  const table = dataTable<DemandRow>({
+    rowKey: (r) => r.goodId,
+    emptyText: 'No demand for manufactured goods yet',
+    rows,
+    columns: [
+      {
+        key: 'good',
+        label: 'Good',
+        title: (r) => (r.craves ? `${GOODS[r.goodId].name}: craved (big unmet demand)` : GOODS[r.goodId].name),
+        render: (r) =>
+          h('span', { class: 'insp-good-name' }, iconEl(r.goodId, 16), h('span', { class: 'insp-good-label' }, GOODS[r.goodId].name),
+            h('span', { class: 'insp-crave' }, ...(r.craves ? [iconEl('star', 12), ' Craves'] : []))),
+      },
+      { key: 'demand', label: 'Demand', align: 'right', render: (r) => formatNumber(r.demand) },
+      {
+        key: 'sat',
+        label: 'Supplied',
+        render: (r) => h('span', { class: 'insp-sat' }, meter(r.sat, 1, { tone: r.sat >= 0.8 ? 'positive' : r.sat >= 0.4 ? 'warning' : 'negative', label: `Supplied ${formatPercent(r.sat)}` }), h('span', { class: 'insp-sat-val' }, formatPercent(r.sat))),
+      },
+      { key: 'price', label: 'Price', align: 'right', render: (r) => formatMoney(r.price) },
+      {
+        key: 'stores',
+        label: 'Stores',
+        render: (r) =>
+          h('span', { class: 'insp-dots' }, ...(r.sellers.length > 0
+            ? r.sellers.map((s) => h('span', {
+                class: 'dot',
+                title: storeTitle(state, s.ownerId),
+                style: { background: s.ownerId === 'player' ? PLAYER_COLOR : s.ownerId === 'rival' ? RIVAL_COLOR : ownerColor(s.ownerId) },
+              }))
+            : ['—'])),
+      },
+    ],
+  });
+  const body = (table as HTMLTableElement).tBodies[0];
+  if (rows.length > 0) {
+    [...body.rows].forEach((tr, i) => {
+      tr.classList.add('insp-good');
+      tr.dataset.good = rows[i].goodId;
+    });
+  }
+  return table;
 }
 
 /** "Church +6, Reformers +6, Workers +2": a philanthropy landmark's one-off opinion gains. */
@@ -180,18 +208,19 @@ export function cityEdictLines(city: City, year: number, index = 1): EdictLine[]
   return out;
 }
 
+const trendText = (diff: number) => (diff > 0 ? `▲ ${formatNumber(diff)}` : diff < 0 ? `▼ ${formatNumber(-diff)}` : '–');
+
 function buildView(host: InspectorHost, cityId: number): InspectorView {
-  const pop = h('span');
-  const trend = h('span', { class: 'insp-trend' });
-  const happy = bar('#e0b43a');
-  const smog = bar('#6b6b70');
+  const headerBox = h('div', { class: 'insp-header' });
+  const statsBox = h('div', { class: 'insp-city-stats' });
   const smogTierName = h('b', { class: 'insp-smog-tier' });
   const smogTierLevel = h('span', { class: 'insp-smog-level' });
   const smogTierTrend = h('span', { class: 'insp-trend' });
   const smogTierHint = h('small', { class: 'insp-smog-hint' });
-  const smogTierRow = h('div', { class: 'p-row insp-stat insp-smog' },
-    h('span', { class: 'insp-label' }, 'Smog tier'),
-    h('span', null, smogTierName, ' ', smogTierLevel, ' ', smogTierTrend, h('br'), smogTierHint));
+  const pollutionNow = h('span', { class: 'insp-muted insp-pollution' });
+  const smogTierRow = h('div', { class: 'insp-smog' },
+    h('div', { class: 'insp-smog-line' }, smogTierName, ' ', smogTierLevel, ' ', smogTierTrend, pollutionNow),
+    smogTierHint);
   const classParts = CLASS_LABELS.map((key) => {
     const text = h('span', { class: 'insp-class-text' });
     const el = h('div', { class: 'insp-class-seg', 'data-class': key, style: { background: CLASS_COLORS[key], width: '0%' } }, text);
@@ -206,16 +235,19 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
   let edictSig = '\0';
   const opinion = FACTION_IDS.map((f: FactionId) => {
     const label = h('span', { class: 'insp-label' });
-    const b = bar(FACTIONS[f].color);
-    const el = h('div', { class: 'p-row insp-stat insp-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, b.el);
-    return { f, label, bar: b, el };
+    const m = meter(50, 100, { label: FACTIONS[f].name });
+    (m.firstElementChild as HTMLElement).style.background = FACTIONS[f].color;
+    const val = h('span', { class: 'insp-opinion-val' });
+    const el = h('div', { class: 'insp-opinion', 'data-faction': f, title: `Likes: ${FACTIONS[f].likes}. Hates: ${FACTIONS[f].hates}.` }, label, m, val);
+    return { f, label, meter: m, val, el };
   });
   const gifts = PHILANTHROPY_IDS.map((id: PhilanthropyId) => {
     const def = LANDMARKS[id];
     // the price follows inflation: refreshed in update()
-    const label = h('span', null, ` Endow a ${def.name.toLowerCase()} — ${formatMoney(philanthropyCost(host.ctx.state, id))}`);
+    const label = h('span', { class: 'kit-btn-label' }, `Endow a ${def.name.toLowerCase()} — ${formatMoney(philanthropyCost(host.ctx.state, id))}`);
     const btn = h('button', {
-      class: 'insp-endow',
+      class: 'btn kit-btn kit-btn--secondary insp-endow',
+      type: 'button',
       'data-endow': id,
       onClick: () => {
         const r = buyPhilanthropy(host.ctx, cityId, id);
@@ -237,7 +269,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     ...FACTION_IDS.map((f) => h('option', { value: f }, FACTIONS[f].name)),
   ) as HTMLSelectElement;
   const endorseBtn = h('button', {
-    class: 'insp-endorse-btn',
+    class: 'btn kit-btn kit-btn--primary insp-endorse-btn',
+    type: 'button',
     onClick: () => {
       const r = endorse(host.ctx, cityId, endorseSel.value as FactionId);
       host.ctx.bus.emit(r.ok
@@ -247,7 +280,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     },
   }, 'Endorse') as HTMLButtonElement;
   const slushBtn = h('button', {
-    class: 'insp-slush-btn',
+    class: 'btn kit-btn kit-btn--secondary insp-slush-btn',
+    type: 'button',
     onClick: () => {
       const r = paySlush(host.ctx, cityId);
       host.ctx.bus.emit(r.ok
@@ -256,35 +290,32 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       view.update();
     },
   }, 'Slush') as HTMLButtonElement;
-  const slushInfo = h('span', { class: 'insp-slush-info' });
-  const endorseRow = h('div', { class: 'p-row insp-stat insp-endorse' }, h('span', { class: 'insp-label' }, 'Endorse'), h('span', null, endorseSel, ' ', endorseBtn, ' ', slushBtn, ' ', slushInfo));
-  const tbody = h('tbody');
-  const rows = new KeyedList<GoodRow>(tbody, makeRow);
+  const slushInfo = h('div', { class: 'insp-muted insp-slush-info' });
+  const endorseRow = h('div', { class: 'insp-endorse' },
+    h('div', { class: 'insp-endorse-acts' }, h('span', { class: 'insp-label' }, 'Endorse'), endorseSel, endorseBtn, slushBtn),
+    slushInfo);
+  const demandBox = h('div', { class: 'insp-demand p-scroll' });
+  const stat = (label: string, v: HTMLElement, cls = '') => h('div', { class: `p-row insp-stat ${cls}`.trim() }, h('span', { class: 'insp-label' }, label), v);
   const el = h(
     'div',
-    { class: 'insp' },
-    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Population'), h('span', null, pop, ' ', trend)),
-    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Happiness'), happy.el),
-    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Pollution'), smog.el),
-    smogTierRow,
-    classRow,
-    h('div', { class: 'p-row insp-stat' }, h('span', { class: 'insp-label' }, 'Landmarks'), landmarks),
-    h('div', { class: 'p-row insp-stat insp-mayor' }, h('span', { class: 'insp-label' }, 'Mayor'), h('span', null, mayorName, ' ', mayorChip)),
-    h('div', { class: 'p-row insp-stat insp-council' }, h('span', { class: 'insp-label' }, 'Council'), councilChip),
-    h('div', { class: 'p-row insp-stat insp-election' }, h('span', { class: 'insp-label' }, 'Next election'), electionRow),
-    endorseRow,
+    { class: 'insp insp-city' },
+    headerBox,
+    statsBox,
+    section('Smog', [smogTierRow]),
+    section('Town', [classRow, stat('Landmarks', landmarks)]),
+    section('Politics', [
+      stat('Mayor', h('span', null, mayorName, ' ', mayorChip), 'insp-mayor'),
+      stat('Council', councilChip, 'insp-council'),
+      stat('Next election', electionRow, 'insp-election'),
+      endorseRow,
+    ]),
     h('div', { class: 'p-section insp-section insp-mayor-edicts' },
       h('div', { class: 'p-head' }, 'Edicts'),
       h('small', { class: 'insp-edict-reach' }, EDICT_REACH),
       edictList),
     h('div', { class: 'p-section insp-section insp-opinions' }, h('div', { class: 'p-head' }, 'Opinion of your company'), ...opinion.map((o) => o.el)),
+    h('div', { class: 'p-section insp-section insp-demand-section' }, h('div', { class: 'p-head' }, 'What the town buys each month'), demandBox),
     h('div', { class: 'p-section insp-section insp-philanthropy' }, h('div', { class: 'p-head' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
-    h(
-      'table',
-      { class: 'p-table insp-table' },
-      h('thead', null, h('tr', null, h('th', null, 'Good'), h('th', null, 'Demand/mo'), h('th', null, 'Supplied'), h('th', null, 'Price'), h('th', null, 'Stores'))),
-      tbody,
-    ),
   );
   const view: InspectorView = {
     el,
@@ -292,16 +323,29 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       const { state } = host.ctx;
       const city = state.cities[cityId];
       if (!city) return false;
+      const year = state.date.year;
+      const pol = city.politics;
+      const mayorLine = `${pol.mayor.name} (${factionName(pol.mayor.faction, year)})`;
+      const summary = `Pop ${formatNumber(city.population)} · Mayor ${mayorLine}`;
+      swap(headerBox, `${city.name}|${summary}`, () => panelHeader({ title: city.name, summary }));
+      const diff = city.population - city.prevPopulation;
+      const st = smogTierLine(city);
+      const workers = Math.round(laborPool(city));
+      const tiles = [
+        { label: 'Population', value: formatNumber(city.population), delta: trendText(diff), tone: (diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral') as Tone, title: 'Change at the last monthly count' },
+        { label: 'Workers', value: formatNumber(workers), title: 'Hands the town can offer the works around it' },
+        { label: 'Smog tier', value: st.name, delta: `${st.level} ${st.trend === 'up' ? '▲' : st.trend === 'down' ? '▼' : ''}`.trim(), tone: (st.tier >= 3 ? 'negative' : st.tier >= 1 ? 'warning' : 'positive') as Tone, title: `Smog level (3-month average); this month ${formatPercent(city.pollution)}` },
+        { label: 'Happiness', value: formatPercent(city.happiness), tone: 'neutral' as Tone },
+      ];
+      swap(statsBox, JSON.stringify(tiles), () => statRow(tiles.map((t) => statTile(t))));
       for (const g of gifts) {
         const why = philanthropyBlocker(state, city.id, g.id);
         const disabled = why !== null;
         if ((g.btn as HTMLButtonElement).disabled !== disabled) (g.btn as HTMLButtonElement).disabled = disabled;
         const tip = why ?? `Opinion in ${city.name}: ${effectsLine(g.id, state.date.year)}`;
         if (g.btn.title !== tip) g.btn.title = tip;
-        setText(g.label, ` Endow a ${LANDMARKS[g.id].name.toLowerCase()} — ${formatMoney(philanthropyCost(state, g.id))}`);
+        setText(g.label, `Endow a ${LANDMARKS[g.id].name.toLowerCase()} — ${formatMoney(philanthropyCost(state, g.id))}`);
       }
-      const pol = city.politics;
-      const year = state.date.year;
       setText(mayorName, pol.mayor.name);
       for (const [chip, f] of [[mayorChip, pol.mayor.faction], [councilChip, pol.council]] as const) {
         setText(chip, factionName(f, year));
@@ -325,6 +369,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         if (slushBtn.title !== tip) slushBtn.title = tip;
         const pct = (x: number) => `${Math.round(x * 100)}%`;
         setText(slushInfo, odds ? `Win odds ${pct(odds.now)} \u2192 ${pct(odds.after)} | Scandal risk: ${pct(pol.scandalRisk)}` : '');
+        slushInfo.hidden = !odds;
       }
       const lines = cityEdictLines(city, year, priceIndex(state));
       const esig = lines.map((l) => `${l.key}:${l.effect}`).join('|');
@@ -340,13 +385,6 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
             : [h('li', { class: 'insp-none' }, 'None in force')]),
         );
       }
-      setText(pop, formatNumber(city.population));
-      const diff = city.population - city.prevPopulation;
-      setText(trend, diff > 0 ? `▲ ${formatNumber(diff)}` : diff < 0 ? `▼ ${formatNumber(-diff)}` : '–');
-      trend.className = `insp-trend ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`.trim();
-      happy.set(city.happiness, formatPercent(city.happiness));
-      smog.set(city.pollution, formatPercent(city.pollution));
-      const st = smogTierLine(city);
       setText(smogTierName, st.name);
       smogTierRow.dataset.tier = String(st.tier);
       setText(smogTierLevel, st.level);
@@ -354,6 +392,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       // rising smog is bad news: the 'down' (red) class for up, 'up' (green) for falling
       const tcls = `insp-trend ${st.trend === 'up' ? 'down' : st.trend === 'down' ? 'up' : ''}`.trim();
       if (smogTierTrend.className !== tcls) smogTierTrend.className = tcls;
+      setText(pollutionNow, ` · this month ${formatPercent(city.pollution)}`);
       setText(smogTierHint, st.hint);
       const segs = classSegments(city);
       const tips: string[] = [];
@@ -372,8 +411,10 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       if (barEl.title !== tip) { barEl.title = tip; barEl.setAttribute('aria-label', `Classes: ${tip}`); }
       for (const o of opinion) {
         const v = city.opinion?.[o.f] ?? 50;
-        setText(o.label, factionName(o.f, state.date.year));
-        o.bar.set(v / 100, String(Math.round(v)));
+        const name = factionName(o.f, year);
+        setText(o.label, name);
+        setMeter(o.meter, Math.round(v), 100, 'neutral', `${name}: ${Math.round(v)} / 100`);
+        setText(o.val, String(Math.round(v)));
       }
       const sig = city.landmarks.map((l) => l.id).join(',');
       if (sig !== landmarkSig) {
@@ -386,35 +427,17 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       }
 
       const demand = cityDemand(state, city);
-      rows.sync(demand.map((d) => d.goodId));
       const craved = new Set(demand.filter((d) => d.unmetValue > 0).slice(0, 3).map((d) => d.goodId));
       const stores = Object.values(state.buildings).filter((b) => b.cityId === cityId && BUILDINGS[b.typeId].category === 'retail');
-      for (const d of demand) {
-        const row = rows.items.get(d.goodId)!;
-        setText(row.demand, formatNumber(d.demand));
-        row.sat.set(d.satisfaction, formatPercent(d.satisfaction));
-        setText(row.price, formatMoney(d.price));
-        const craves = craved.has(d.goodId);
-        if (craves !== (row.crave.childNodes.length > 0)) {
-          row.crave.replaceChildren(...(craves ? [' ', iconEl('star', 12), ' Craves'] : []));
-        }
-        const sellers = stores.filter((s) => (loadSource(s)[d.goodId] ?? 0) >= 1);
-        const sig = sellers.map((s) => `${s.id}${s.ownerId}`).join(',');
-        if (sig !== row.storeSig) {
-          row.storeSig = sig;
-          row.stores.replaceChildren(
-            ...(sellers.length > 0
-              ? sellers.map((s) =>
-                  h('span', {
-                    class: 'dot',
-                    title: storeTitle(state, s.ownerId),
-                    style: { background: s.ownerId === 'player' ? PLAYER_COLOR : s.ownerId === 'rival' ? RIVAL_COLOR : ownerColor(s.ownerId) },
-                  }),
-                )
-              : ['—']),
-          );
-        }
-      }
+      const rows: DemandRow[] = demand.map((d) => ({
+        goodId: d.goodId,
+        demand: Math.round(d.demand),
+        sat: Math.round(d.satisfaction * 100) / 100,
+        price: Math.round(d.price),
+        craves: craved.has(d.goodId),
+        sellers: stores.filter((s) => (loadSource(s)[d.goodId] ?? 0) >= 1).map((s) => ({ id: s.id, ownerId: s.ownerId })),
+      }));
+      swap(demandBox, JSON.stringify(rows), () => demandTable(state, rows));
       return true;
     },
   };

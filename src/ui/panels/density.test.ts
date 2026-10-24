@@ -63,7 +63,8 @@ describe('panel density classes', () => {
       const t = setup();
       PANELS[id].open(t.game, arg(t));
       const body = document.querySelector('.window-body') as HTMLElement;
-      const sections = body.querySelectorAll('.p-section').length;
+      // titled blocks: shared sections, or kit cards (the inspectors' cards since Task 8)
+      const sections = body.querySelectorAll('.p-section, .kit-card').length;
       expect(sections).toBeGreaterThanOrEqual(MIN_SECTIONS[id] ?? 1);
       if (!INLINE_FONT_EXEMPT.has(id)) expect(body.querySelectorAll('[style*="font-size"]')).toHaveLength(0);
     });
