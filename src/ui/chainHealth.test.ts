@@ -90,7 +90,8 @@ describe('mountChainHealth', () => {
       openPanel: () => {},
       onAlerts: () => () => {},
     };
-    expect(() => mountChainHealth(slot, g)()).not.toThrow();
+    const off = mountChainHealth(slot, g);
     expect(slot.querySelectorAll('.chain-seg')).toHaveLength(3);
+    expect(() => off()).not.toThrow();
   });
 });
