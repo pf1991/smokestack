@@ -129,20 +129,26 @@ export function grudgesYear(ctx: SimContext): void {
  * The seller flag must list both the player and the Baron (a regional firm selling beside either is
  * no undercut), and the town's tallies must show sales by both of them.
  */
-export function salesGrudges(state: GameState): void {
-  if (!baronActive(state)) return;
+/** Returns city ids that earned a fresh undercut grudge this call (for the rival-heat bus). */
+export function salesGrudges(state: GameState): number[] {
+  const undercuts: number[] = [];
+  if (!baronActive(state)) return undercuts;
   const { year } = state.date;
   const goods = demandGoods();
   const n = state.nemesis;
   for (const city of state.cities) {
     const s = state.politics.track.sales[city.id];
     if (!s || !(s.baron > 0)) continue;
-    if (s.player > 0 && goods.some((g) => sellersInclude(state, city.id, g, PLAYER_ID, BARON_ID))) addGrudge(state, 'undercut', city.id);
+    if (s.player > 0 && goods.some((g) => sellersInclude(state, city.id, g, PLAYER_ID, BARON_ID))) {
+      addGrudge(state, 'undercut', city.id);
+      undercuts.push(city.id);
+    }
     if (s.player > 2 * s.baron && n.track.cityYear[city.id] !== year) {
       n.track.cityYear[city.id] = year;
       addGrudge(state, 'city', city.id);
     }
   }
+  return undercuts;
 }
 
 /**
@@ -183,8 +189,15 @@ export function noteContested(state: GameState): void {
 /** Daily hook: on the month's last day (after its retail), the sales grudges and the contested goods. */
 export function nemesisDay(ctx: SimContext): void {
   if (!advanceHour(ctx.state.date).newMonth) return;
-  salesGrudges(ctx.state);
+  const undercuts = salesGrudges(ctx.state);
   noteContested(ctx.state);
+  // one beat per town that undercut this month (good taken from the contested list just written)
+  for (const cityId of undercuts) {
+    const pair = ctx.state.nemesis.track.contested.find((p) => p.startsWith(`${cityId}:`));
+    if (!pair) continue;
+    const goodId = pair.slice(String(cityId).length + 1);
+    ctx.bus.emit({ type: 'undercut', cityId, goodId });
+  }
 }
 
 /** The funeral card's wake choice leaves a flag; the Baron takes it as a 'wake' grudge (none if he is out of the game). */

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { GameEvent } from '../core/events';
 import { buildRoad, demolishBuilding, placeBuilding } from '../sim/state';
-import { must, testCtx } from '../sim/testkit';
+import { GOODS } from '../data/goods';
+import { must, testCtx, testState } from '../sim/testkit';
 import { buyTruck, createRoute } from '../sim/vehicles';
 import { buyHubTruck } from '../sim/logistics/hubs';
-import { attachBaronStrikeToasts, attachStrikeToasts, attachStuckToasts, reportLostStops, routesUsing, STUCK_TOAST_GAP_MS } from './feedback';
+import { attachBaronStrikeToasts, attachStrikeToasts, attachStuckToasts, attachUndercutToasts, reportLostStops, routesUsing, STUCK_TOAST_GAP_MS } from './feedback';
 
 function chain() {
   const ctx = testCtx();
@@ -111,5 +112,23 @@ describe('baron strike toasts', () => {
     expect(seen[0].action!.label).toBe('Rival');
     seen[0].action!.run();
     expect(opened).toBe(1);
+  });
+});
+
+describe('undercut toasts', () => {
+  it('toasts "Undercutting you in <town> — <good>" with a City action', () => {
+    const state = testState({ cities: [{ x: 10, y: 10, name: 'Rivermouth' }] });
+    const ctx = testCtx(state);
+    const seen: Extract<GameEvent, { type: 'toast' }>[] = [];
+    ctx.bus.on('toast', (e) => seen.push(e));
+    const opened: number[] = [];
+    attachUndercutToasts(ctx, (id) => opened.push(id));
+    ctx.bus.emit({ type: 'undercut', cityId: 0, goodId: 'furniture' });
+    expect(seen).toHaveLength(1);
+    expect(seen[0].message).toBe(`Undercutting you in Rivermouth — ${GOODS.furniture.name}`);
+    expect(seen[0].tone).toBe('warning');
+    expect(seen[0].action!.label).toBe('City');
+    seen[0].action!.run();
+    expect(opened).toEqual([0]);
   });
 });

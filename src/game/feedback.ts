@@ -2,6 +2,7 @@
 import type { GameState, Route, SimContext } from '../sim/types';
 import { ACHIEVEMENTS } from './achievements';
 import { BUILDINGS } from '../data/buildings';
+import { GOODS } from '../data/goods';
 import { RETALIATION_LABELS } from '../data/nemesis';
 import { INVENTIONS } from '../sim/eras';
 import { formatMoney } from '../ui/format';
@@ -67,6 +68,24 @@ export function attachBaronStrikeToasts(ctx: SimContext, openRival: () => void):
       message: `Smogsworth strikes: ${RETALIATION_LABELS[e.kind]}`,
       tone: 'bad',
       action: { label: 'Rival', run: openRival },
+    });
+  });
+}
+
+/**
+ * A 'warning' toast when both sell the same good in a town (nemesis undercut grudge):
+ * "Undercutting you in Rivermouth — Furniture", with a City jump. Returns an unsubscribe.
+ */
+export function attachUndercutToasts(ctx: SimContext, openCity: (cityId: number) => void): () => void {
+  return ctx.bus.on('undercut', (e) => {
+    const city = ctx.state.cities.find((c) => c.id === e.cityId);
+    const good = GOODS[e.goodId]?.name ?? e.goodId;
+    const town = city?.name ?? 'town';
+    ctx.bus.emit({
+      type: 'toast',
+      message: `Undercutting you in ${town} — ${good}`,
+      tone: 'warning',
+      action: { label: 'City', run: () => openCity(e.cityId) },
     });
   });
 }

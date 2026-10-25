@@ -463,15 +463,19 @@ describe('top bar layout (release r1-r3)', () => {
     const right = bar.querySelector('.hud-right')!;
     const alerts = right.querySelector('#hud-alerts')!;
     const chain = right.querySelector('#hud-chain')!;
+    const rival = right.querySelector('#hud-rival')!;
     expect(alerts.tagName).toBe('SPAN');
     expect(alerts.childElementCount).toBe(0);
     expect(chain.tagName).toBe('SPAN');
     expect(chain.childElementCount).toBe(0);
+    expect(rival.tagName).toBe('SPAN');
+    expect(rival.childElementCount).toBe(0);
     const kids = [...right.children];
     const at = (el: Element) => kids.findIndex((k) => k === el || k.contains(el));
     expect(at(right.querySelector('.hud-groups')!)).toBeLessThan(at(alerts));
     expect(at(alerts)).toBeLessThan(at(chain));
-    expect(at(chain)).toBeLessThan(at(right.querySelector('.hud-settings-btn')!));
+    expect(at(chain)).toBeLessThan(at(rival));
+    expect(at(rival)).toBeLessThan(at(right.querySelector('.hud-settings-btn')!));
     expect(at(right.querySelector('.hud-settings-btn')!)).toBeLessThan(at(right.querySelector('.hud-more-btn')!));
     // right region keeps the panel buttons
     expect(right.querySelector('.hud-panel-btn[data-panel="routes"]')).not.toBeNull();
