@@ -169,9 +169,9 @@ needed, `src/ui/panels/goals.ts`, tests.
 - Bricks: construction / upgrade discount when stocked (pin math in tests) **or** civic
   contract — pick one in implementation and document in commit body.
 
-- [ ] **Step 1:** Catalog + balance failing tests.
-- [ ] **Step 2:** Implement + chain-report check.
-- [ ] **Step 3:** Commit `feat(data): deep computers and a job for bricks`.
+- [x] **Step 1:** Catalog + balance failing tests.
+- [x] **Step 2:** Implement + chain-report check.
+- [x] **Step 3:** Commit `feat(data): deep computers and a job for bricks`.
 
 ### Task E4.2: Fades + mid-century spikes
 
@@ -180,10 +180,10 @@ needed, `src/ui/panels/goals.ts`, tests.
 - Add ≥2 meaningful fades or substitution paths beyond the existing three.
 - Add ≥2 mid-century demand spike events (1940–1965) as cards or temporary demand modifiers.
 
-- [ ] **Step 1:** Tests.
-- [ ] **Step 2:** Implement.
-- [ ] **Step 3:** Soak. Commit `feat(sim): more fades and mid-century demand spikes`.
-- [ ] **Step 4:** E4 gate (chain-report era lines in commit body).
+- [x] **Step 1:** Tests.
+- [x] **Step 2:** Implement.
+- [x] **Step 3:** Soak. Commit `feat(sim): more fades and mid-century demand spikes`.
+- [x] **Step 4:** E4 gate (chain-report era lines in commit body).
 
 ---
 
