@@ -4,10 +4,10 @@ import { GOODS } from '../data/goods';
 import { RECIPES } from '../data/recipes';
 import type { Building, GoodId, Inventory } from './types';
 
-/** Stores, warehouses and stations share one storage pool across goods; factories cap each input. */
+/** Stores, Trading Houses, warehouses and stations share one storage pool across goods; factories cap each input. */
 function sharesStorage(b: Building): boolean {
   const cat = BUILDINGS[b.typeId]?.category;
-  return cat === 'retail' || cat === 'logistics';
+  return cat === 'retail' || cat === 'trade' || cat === 'logistics';
 }
 
 /**
@@ -34,7 +34,9 @@ export function acceptsGood(b: Building, goodId: GoodId): boolean {
       return recipe !== undefined && goodId in recipe.inputs;
     }
     case 'retail':
-      return good.tier === 2;
+      return good.kind === 'consumer';
+    case 'trade':
+      return good.kind === 'material' || good.kind === 'component';
     case 'logistics':
       return def.storage > 0;
     case 'extractor':

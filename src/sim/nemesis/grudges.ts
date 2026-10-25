@@ -11,9 +11,9 @@
  *   listed, so a seen-id list finds the new ones).
  */
 import { GRUDGE_WEIGHTS, WAKE_FLAG } from '../../data/nemesis';
-import { GOODS } from '../../data/goods';
 import { advanceHour } from '../clock';
 import { BARON_ID, PLAYER_ID } from '../companies';
+import { demandGoods } from '../market';
 import { sellersInclude } from '../scenarios';
 import { buildingsInCity, wealth } from '../state';
 import type { GameState, SimContext } from '../types';
@@ -132,7 +132,7 @@ export function grudgesYear(ctx: SimContext): void {
 export function salesGrudges(state: GameState): void {
   if (!baronActive(state)) return;
   const { year } = state.date;
-  const goods = Object.keys(GOODS);
+  const goods = demandGoods();
   const n = state.nemesis;
   for (const city of state.cities) {
     const s = state.politics.track.sales[city.id];
@@ -170,7 +170,7 @@ function contractGrudges(state: GameState): void {
 export function noteContested(state: GameState): void {
   const out: string[] = [];
   if (baronActive(state)) {
-    const goods = Object.keys(GOODS);
+    const goods = demandGoods();
     for (const city of state.cities) {
       const s = state.politics.track.sales[city.id];
       if (!s || !(s.baron > 0) || !(s.player > 0)) continue;

@@ -12,6 +12,9 @@ import { buyHubTruck } from '../../sim/logistics/hubs';
 import { startStrike } from '../../sim/society/strikes';
 import { ageLine, staffingText, statusAdvice } from './building';
 import { addDays, dateToDays, formatDate } from '../../sim/clock';
+import { tradePrice } from '../../sim/trade';
+import { buildBoard } from './contracts';
+import { formatMoney } from '../format';
 
 function host(ctx: SimContext) {
   const selections: unknown[] = [];
@@ -139,6 +142,55 @@ describe('building panel', () => {
     PANELS.building.open(host(ctx) as never, b.id);
     expect(text()).toContain('No road access');
     expect(text()).toContain('Not on any route');
+  });
+});
+
+describe('Trading House inspector', () => {
+  it('lists the goods it holds with today\'s national price, and says it sells to the nation', () => {
+    const ctx = testCtx(testState({ money: 1e6 }));
+    const house = place(ctx, 'trading_house', 5, 5);
+    house.input = { steel: 30, wire: 12 };
+    ctx.state.trade.factor.wire = 1.2;
+    PANELS.building.open(host(ctx) as never, house.id);
+    const card = [...document.querySelectorAll<HTMLElement>('.kit-card')].find((c) => c.querySelector('.kit-card-title')?.textContent === 'National prices')!;
+    expect(card).toBeTruthy();
+    const steel = card.querySelector<HTMLElement>('tr[data-key="steel"]')!;
+    expect(steel.textContent).toContain('Steel');
+    expect(steel.textContent).toContain('30');
+    expect(steel.textContent).toContain(formatMoney(tradePrice(ctx.state, 'steel')));
+    const wire = card.querySelector<HTMLElement>('tr[data-key="wire"]')!;
+    expect(wire.querySelector('.kit-pill')!.textContent).toMatch(/^▲ \+\d+%$/);
+    expect(wire.querySelector('.kit-pill--positive')).toBeTruthy();
+    expect(text()).toContain('Selling to the national market');
+    expect(statusAdvice(ctx.state, house)).toEqual({ text: 'Selling to the national market', tone: 'positive' });
+    // staffing scales the house's daily sales but, like a store's, is not shown
+    expect(document.querySelector<HTMLElement>('.insp-staff-row')!.hidden).toBe(true);
+  });
+
+  it('an empty house shows the empty state and the route advice', () => {
+    const ctx = testCtx(testState({ money: 1e6 }));
+    const house = place(ctx, 'trading_house', 5, 5);
+    PANELS.building.open(host(ctx) as never, house.id);
+    expect(document.querySelector('.kit-empty')!.textContent).toContain('Route materials or components here to sell them');
+    expect(text()).toContain('Nothing to sell: route materials or components here');
+    expect(statusAdvice(ctx.state, house).tone).toBe('warning');
+  });
+});
+
+describe('contracts board (R4)', () => {
+  it('a component contract\'s card says to sell through a Trading House; a town contract\'s does not', () => {
+    const ctx = testCtx(testState({ cities: [{ x: 10, y: 10, name: 'Ashford' }] }));
+    const deadline = addDays(ctx.state.date, 100);
+    ctx.state.contracts.push(
+      { id: 90, cityId: 0, goodId: 'wire', qty: 180, delivered: 40, deadline, reward: 8640, status: 'active' },
+      { id: 91, cityId: 0, goodId: 'bread', qty: 100, delivered: 0, deadline, reward: 3000, status: 'offered' },
+    );
+    const board = buildBoard({ state: ctx.state, ctx } as never, () => {});
+    const wire = board.querySelector<HTMLElement>('[data-contract="90"]')!;
+    const bread = board.querySelector<HTMLElement>('[data-contract="91"]')!;
+    expect(wire.textContent).toContain('Sell through a Trading House');
+    expect(wire.textContent).toContain('40 of 180 sold');
+    expect(bread.textContent).not.toContain('Trading House');
   });
 });
 

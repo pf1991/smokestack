@@ -3,8 +3,9 @@ import './codex.css';
 import type { GameController } from '../../game/controller';
 import { BUILDINGS } from '../../data/buildings';
 import { consumersOf, producersOf, upstreamTree, type ChainNode } from '../../data/chains';
-import { GOODS, type GoodDef } from '../../data/goods';
+import { GOODS, type GoodKind } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
+import { tradePrice } from '../../sim/trade';
 import type { GameState, GoodId } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
@@ -15,18 +16,14 @@ import type { PanelDef } from './index';
 import { swap } from './inspect';
 import { goodIcon } from '../goodTooltip';
 
-type Kind = 'raw' | 'processed' | 'consumer';
+const KIND_LABEL: Record<GoodKind, string> = { raw: 'Raw', material: 'Material', component: 'Component', consumer: 'Consumer' };
 
-/** A good's kind. R4 gives GoodDef a `kind` field: this becomes `(g) => g.kind`. */
-const kindOf = (g: GoodDef): Kind => (['raw', 'processed', 'consumer'] as const)[g.tier];
-
-const KIND_LABEL: Record<Kind, string> = { raw: 'Raw', processed: 'Processed', consumer: 'Consumer' };
-
-type FilterId = 'all' | Kind | 'mine';
+type FilterId = 'all' | GoodKind | 'mine';
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'raw', label: 'Raw' },
-  { id: 'processed', label: 'Processed' },
+  { id: 'material', label: 'Materials' },
+  { id: 'component', label: 'Components' },
   { id: 'consumer', label: 'Consumer' },
   { id: 'mine', label: 'I make this' },
 ];
@@ -60,6 +57,8 @@ interface Row {
   id: GoodId;
   price: number;
   demand: number;
+  locked: boolean;
+  era: number;
 }
 
 class CodexPanel {
@@ -121,8 +120,7 @@ class CodexPanel {
   update(): void {
     const state = this.game.state;
     const made = goodsMade(state);
-    const all = Object.values(GOODS);
-    const summary = `${all.length} goods · you make ${made.size}`;
+    const summary = `${Object.keys(GOODS).length} goods · you make ${made.size}`;
     swap(this.headerBox, summary, () => panelHeader({ title: 'Production codex', summary, icon: 'chain' }));
 
     for (const b of this.filterBar.querySelectorAll<HTMLElement>('.cx-filter')) {
@@ -131,14 +129,27 @@ class CodexPanel {
     }
 
     const demand = townDemand(state);
-    const rows: Row[] = all
-      .filter((g) => (this.filter === 'all' ? true : this.filter === 'mine' ? made.has(g.id) : kindOf(g) === this.filter))
-      .map((g) => ({ id: g.id, price: g.basePrice, demand: Math.round(demand.get(g.id) ?? 0) }));
+    const year = state.date.year;
+    const catalogue = Object.values(GOODS);
+    const catIndex = new Map(catalogue.map((g, i) => [g.id, i]));
+    const unlocked = (g: (typeof GOODS)[GoodId]) => g.era <= year;
+    const filtered = catalogue.filter((g) =>
+      this.filter === 'all' ? true : this.filter === 'mine' ? made.has(g.id) : g.kind === this.filter);
+    const open = filtered.filter(unlocked);
+    const locked = filtered
+      .filter((g) => !unlocked(g))
+      .sort((a, b) => a.era - b.era || (catIndex.get(a.id)! - catIndex.get(b.id)!));
+    const rows: Row[] = [...open, ...locked].map((g) => ({
+      id: g.id,
+      price: g.basePrice,
+      demand: Math.round(demand.get(g.id) ?? 0),
+      locked: !unlocked(g),
+      era: g.era,
+    }));
     swap(this.listBox, JSON.stringify([this.filter, this.selected, rows]), () => this.list(rows));
 
-    const year = state.date.year;
     const sel = this.selected;
-    swap(this.detailBox, `${sel}|${sel && GOODS[sel].era > year}`, () => (sel ? this.detail(sel, year) : emptyState({
+    swap(this.detailBox, `${sel}|${sel && GOODS[sel].era > year}|${sel && tradePrice(state, sel)}`, () => (sel ? this.detail(sel, year, state) : emptyState({
       icon: 'chain',
       title: 'Pick a good',
       body: 'Its recipe tree, the works that make it and what it goes into appear here.',
@@ -167,8 +178,14 @@ class CodexPanel {
     });
     table.querySelector('th[data-col="price"]')?.setAttribute('title', 'Base price in 1900 dollars');
     table.querySelector('th[data-col="demand"]')?.setAttribute('title', 'What every town together wants this month');
+    const byId = new Map(rows.map((r) => [r.id, r]));
     for (const tr of table.querySelectorAll<HTMLElement>('tbody tr[data-key]')) {
       tr.setAttribute('aria-selected', String(tr.dataset.key === this.selected));
+      const row = byId.get(tr.dataset.key as GoodId);
+      if (row?.locked) {
+        tr.dataset.locked = 'true';
+        tr.title = `Unlocks ${row.era}`;
+      }
     }
     return table;
   }
@@ -196,7 +213,7 @@ class CodexPanel {
     return [row, ...node.inputs.flatMap((n) => this.treeRows(n, level + 1))];
   }
 
-  private detail(good: GoodId, year: number): HTMLElement {
+  private detail(good: GoodId, year: number, state: GameState): HTMLElement {
     const g = GOODS[good];
     const makers = unique(producersOf(good).map((p) => buildingName(p.building)));
     const uses = unique(consumersOf(good).map((c) => c.output));
@@ -207,18 +224,22 @@ class CodexPanel {
       h('div', { class: 'cx-detail-title' },
         h('h3', null, g.name),
         h('div', { class: 'cx-detail-meta' },
-          pill(KIND_LABEL[kindOf(g)]),
+          pill(KIND_LABEL[g.kind]),
           h('span', null, `Base ${formatMoney(g.basePrice)}`),
           g.era > year ? pill(`Unlocks ${g.era}`, 'warning') : null)),
     );
     const usedIn = uses.length > 0
       ? h('div', { class: 'cx-used' }, uses.map((u) => this.link(u)))
-      : h('span', { class: 'cx-muted' }, kindOf(g) === 'consumer' ? 'Sold to towns' : 'Nothing yet');
+      : h('span', { class: 'cx-muted' }, g.kind === 'consumer' ? 'Sold to towns' : g.kind === 'raw' ? 'Nothing yet' : 'Sold to the Trading House');
+    const tradeLine = (g.kind === 'material' || g.kind === 'component')
+      ? h('div', { class: 'cx-line' }, `Trading House pays ${formatMoney(tradePrice(state, good))} today`)
+      : null;
     const el = card({
       children: [
         head,
         h('div', { class: 'cx-line' }, h('span', { class: 'cx-label' }, 'Made in: '), makers.length > 0 ? makers.join(', ') : 'nowhere yet'),
         h('div', { class: 'cx-line cx-line--used' }, h('span', { class: 'cx-label' }, 'Used in: '), usedIn),
+        tradeLine,
         h('div', { class: 'cx-sub' }, 'Recipe tree'),
         h('ul', { class: 'cx-tree' }, this.treeRows(upstreamTree(good), 0)),
       ],

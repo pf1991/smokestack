@@ -82,7 +82,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'store',
-    text: 'From Retail & Logistics, open a Store inside a town. Stores may only be built within the town limits.',
+    text: 'From Retail, Trade & Logistics, open a Store inside a town. Stores may only be built within the town limits.',
     highlight: '.tb-tab[data-tab="retail"], .tool-card[data-building="store"]',
     done: (s) => playerBuildings(s).some(isStore),
   },

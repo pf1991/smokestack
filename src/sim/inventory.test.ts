@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { acceptsGood, loadSource, storageLeft } from './inventory';
+import { GOODS } from '../data/goods';
 import type { Building } from './types';
 
 function b(typeId: string, recipeId: string | null = null, input = {}, output = {}): Building {
@@ -57,5 +58,18 @@ describe('inventory rules', () => {
     // warehouse storage 1000
     expect(storageLeft(b('warehouse', null, { wood: 990 }), 'coal')).toBe(10);
     expect(storageLeft(b('store', null, {}), 'lumber')).toBe(0);
+  });
+
+  it('a Trading House takes every material and component into one 600-unit pool, and nothing else', () => {
+    const house = b('trading_house');
+    for (const [g, def] of Object.entries(GOODS)) {
+      expect(acceptsGood(house, g), g).toBe(def.kind === 'material' || def.kind === 'component');
+    }
+    // the shared pool: what it holds of one good leaves less room for every other
+    expect(storageLeft(b('trading_house', null, { steel: 450 }), 'wire')).toBe(150);
+    expect(storageLeft(b('trading_house', null, { steel: 450, lumber: 150 }), 'paper')).toBe(0);
+    expect(storageLeft(b('trading_house', null, { steel: 450 }), 'bread')).toBe(0);
+    const held = b('trading_house', null, { steel: 5 });
+    expect(loadSource(held)).toBe(held.input);
   });
 });

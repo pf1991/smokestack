@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BUILDINGS } from '../data/buildings';
+import { GOODS } from '../data/goods';
+import { RECIPES } from '../data/recipes';
 import { createGame } from '../sim/state';
 import { PRICE_NOTE, Toolbar } from './toolbar';
 import type { ToolSpec } from './tools';
@@ -23,7 +26,69 @@ function setup() {
 
 const tab = (root: HTMLElement, id: string) => (root.querySelector(`[data-tab="${id}"]`) as HTMLElement).click();
 
+/** First output kind of a factory's first recipe → build-bar tab (mirrors toolbar tabOf). */
+function expectedFactoryTab(typeId: string): string {
+  const def = BUILDINGS[typeId];
+  const first = Object.keys(RECIPES[def.recipes[0]]?.outputs ?? {})[0];
+  const kind = GOODS[first]?.kind;
+  if (kind === 'material') return 'refine';
+  if (kind === 'component') return 'components';
+  return 'manufacture';
+}
+
 describe('Toolbar', () => {
+  it('tab list includes Components after Refine', () => {
+    const { root } = setup();
+    const ids = [...root.querySelectorAll<HTMLElement>('.tb-tabs [data-tab]')].map((b) => b.dataset.tab);
+    expect(ids).toEqual(['extract', 'refine', 'components', 'manufacture', 'retail', 'transport']);
+  });
+
+  it('the Components tab lists every factory whose first output is a component', () => {
+    const { root } = setup();
+    tab(root, 'components');
+    const expected = Object.values(BUILDINGS)
+      .filter((d) => d.category === 'factory' && expectedFactoryTab(d.id) === 'components')
+      .map((d) => d.id)
+      .sort();
+    const cards = [...root.querySelectorAll<HTMLElement>('[data-panel-tab="components"] [data-building]')]
+      .map((el) => el.dataset.building!)
+      .sort();
+    expect(cards).toEqual(expected);
+    expect(cards).toContain('machine_shop');
+  });
+
+  it('machine_shop is under Components; smelter and refinery stay under Refine (C2)', () => {
+    const { root } = setup();
+    expect(root.querySelector('[data-panel-tab="components"] [data-building="machine_shop"]')).not.toBeNull();
+    expect(root.querySelector('[data-panel-tab="refine"] [data-building="smelter"]')).not.toBeNull();
+    expect(root.querySelector('[data-panel-tab="refine"] [data-building="refinery"]')).not.toBeNull();
+  });
+
+  it('chemical_works→refine, electronics_works→components, appliance_plant→manufacture (C2)', () => {
+    const { root } = setup();
+    expect(root.querySelector('[data-panel-tab="refine"] [data-building="chemical_works"]')).not.toBeNull();
+    expect(root.querySelector('[data-panel-tab="components"] [data-building="electronics_works"]')).not.toBeNull();
+    expect(root.querySelector('[data-panel-tab="manufacture"] [data-building="appliance_plant"]')).not.toBeNull();
+  });
+
+  it('each of the 25 v1 buildings keeps its build-bar tab', () => {
+    const { root } = setup();
+    const v1: Record<string, string> = {
+      lumber_camp: 'extract', farm: 'extract', dairy_farm: 'extract', mine: 'extract',
+      sand_pit: 'extract', oil_well: 'extract',
+      sawmill: 'refine', flour_mill: 'refine', steel_mill: 'refine', textile_mill: 'refine',
+      glassworks: 'refine', refinery: 'refine',
+      furniture_factory: 'manufacture', bakery: 'manufacture', toolworks: 'manufacture',
+      clothing_factory: 'manufacture', creamery: 'manufacture', juice_plant: 'manufacture',
+      toy_factory: 'manufacture', car_plant: 'manufacture', electronics_plant: 'manufacture',
+      store: 'retail', warehouse: 'retail', train_station: 'retail', company_housing: 'retail',
+    };
+    expect(Object.keys(v1)).toHaveLength(25);
+    for (const [id, tabId] of Object.entries(v1)) {
+      expect(root.querySelector(`[data-panel-tab="${tabId}"] [data-building="${id}"]`), id).not.toBeNull();
+    }
+  });
+
   it('locked building disabled with invention year', () => {
     const { root } = setup();
     tab(root, 'manufacture');
@@ -117,6 +182,20 @@ describe('Toolbar', () => {
     expect(card.disabled).toBe(false);
     card.click();
     expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'train_station' });
+  });
+
+  it('the Trading House sits in the Retail, Trade & Logistics tab with the money icon and its own line', () => {
+    const { root, onSelect, tb, state } = setup();
+    tab(root, 'retail');
+    tb.update(state);
+    expect(root.querySelector('[data-tab="retail"]')!.getAttribute('title')).toBe('Retail, Trade & Logistics');
+    const card = root.querySelector('[data-panel-tab="retail"] [data-building="trading_house"]') as HTMLButtonElement;
+    expect(card).not.toBeNull();
+    expect(card.disabled).toBe(false);
+    expect(card.querySelector('.tc-flow')!.textContent).toBe('Sells materials and components to the nation');
+    expect(card.querySelector<HTMLElement>('.tc-head img.icon')!.dataset.icon).toBe('money');
+    card.click();
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'trading_house' });
   });
 
   it('cancel closes the open build drawer', () => {

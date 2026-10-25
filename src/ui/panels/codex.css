@@ -17,6 +17,7 @@
 .cx-list .kit-table th[data-col='price'], .cx-list .kit-table td[data-col='price'] { width: 52px; }
 .cx-list .kit-table th[data-col='demand'], .cx-list .kit-table td[data-col='demand'] { width: 64px; }
 .cx-list tr[aria-selected='true'] { background: var(--surface-3); box-shadow: inset 3px 0 0 var(--accent); }
+.cx-list tr[data-locked='true'] { color: var(--text-faint); }
 .cx-good { display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; max-width: 100%; }
 .cx-good-name { overflow: hidden; text-overflow: ellipsis; }
 .cx-good .icon { flex: none; }

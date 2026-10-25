@@ -1,5 +1,5 @@
-import { GOODS } from '../data/goods';
 import type { GameState, GoodId, SimContext } from './types';
+import { demandGoods } from './market';
 import { realMoney } from './society/economy';
 
 export type Goal =
@@ -141,6 +141,17 @@ export function recordSale(state: GameState, e: { ownerId: string; cityId: numbe
 }
 
 /**
+ * A Trading House sale (sim/trade.ts): bumps the player's `sold:<good>` flag only. It has no town, so
+ * it writes no `seller:` flag.
+ */
+export function recordNationalSale(state: GameState, e: { ownerId: string; goodId: GoodId; qty: number }): void {
+  if (e.qty <= 0 || e.ownerId !== 'player') return;
+  state.flags ??= {};
+  const k = `sold:${e.goodId}`;
+  state.flags[k] = flagNum(state, k) + e.qty;
+}
+
+/**
  * A seller flag's value: the one owner who sold, `'both'` when exactly the player and the Baron sold
  * (the two-company value older code and saves know), else every seller's id, sorted and comma-joined.
  */
@@ -176,8 +187,8 @@ export function goalsMonth(ctx: SimContext): void {
     state.flags.crashMonths = flagNum(state, 'crashMonths') + 1;
     if (state.companies.player.money < 0) state.flags.crashBroke = true;
   }
-  // monopoly: sole seller of some good in every city this month (sticky once earned), then start afresh
-  if (state.cities.length > 0 && Object.keys(GOODS).some((g) => state.cities.every((c) => state.flags[`seller:${c.id}:${g}`] === 'player'))) {
+  // monopoly: sole seller of some demand good in every city this month (sticky once earned), then start afresh
+  if (state.cities.length > 0 && demandGoods().some((g) => state.cities.every((c) => state.flags[`seller:${c.id}:${g}`] === 'player'))) {
     state.flags.monopoly = true;
   }
   for (const k of Object.keys(state.flags)) if (k.startsWith('seller:')) delete state.flags[k];

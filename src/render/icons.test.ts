@@ -22,7 +22,22 @@ function mockCtx(): { g: CanvasRenderingContext2D; calls: string[] } {
   return { g, calls };
 }
 
+/** Release R4's 34 goods, in Table G order: each gets a hand-made atlas glyph. */
+const R4_GOODS = [
+  'copper_ore', 'cattle', 'sugar_beet', 'clay', 'rubber', 'bauxite',
+  'copper', 'leather', 'sugar', 'bricks', 'paper', 'chemicals', 'aluminium', 'silicon',
+  'wire', 'tyres', 'engines', 'electric_motors', 'vacuum_tubes', 'microchips', 'displays',
+  'shoes', 'candy', 'books', 'canned_food', 'phonographs', 'bicycles', 'motorcycles', 'refrigerators',
+  'washing_machines', 'cosmetics', 'calculators', 'video_games', 'mobile_phones',
+];
+
 describe('icon atlas', () => {
+  it('has a painter for each of the 34 R4 goods', () => {
+    expect(R4_GOODS).toHaveLength(34);
+    const ids = new Set(ICON_IDS);
+    for (const id of R4_GOODS) expect(ids, id).toContain(id);
+  });
+
   it('covers every good, achievement icon and UI glyph', () => {
     const ids = new Set(ICON_IDS);
     for (const id of Object.keys(GOODS)) expect(ids, id).toContain(id);

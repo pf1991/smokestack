@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GameController } from '../../game/controller';
+import { GOODS } from '../../data/goods';
 import { buildRoad, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
 import { buildRail, TRAIN } from '../../sim/rail';
+import type { GoodId } from '../../sim/types';
 import { buyTruck, createRoute, TRUCK, updateRoute } from '../../sim/vehicles';
 import type { ToolSpec } from '../tools';
 import { PANELS } from './index';
@@ -487,6 +489,65 @@ describe('routes panel', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  function storeChipSetup() {
+    const s = testState({ width: 60, height: 40, money: 1e7, cities: [{ x: 30, y: 20 }], streets: true });
+    const ctx = testCtx(s);
+    for (let y = 8; y < 10; y++) for (let x = 2; x < 4; x++) s.map.tiles[y * s.map.width + x].terrain = 'forest';
+    const camp = must(placeBuilding(ctx, 'player', 'lumber_camp', { x: 2, y: 8 }));
+    const store = must(placeBuilding(ctx, 'player', 'store', { x: 28, y: 18 }));
+    must(buildRoad(ctx, 'player', lPath({ x: 2, y: 10 }, { x: 28, y: 10 })));
+    const listeners: ((t: ToolSpec) => void)[] = [];
+    const game = {
+      ctx,
+      tools: { onPick: null as ((id: number) => void) | null },
+      renderer: { setSelection: vi.fn() },
+      setTool: vi.fn((t: ToolSpec) => listeners.forEach((f) => f(t))),
+      onToolChange: (f: (t: ToolSpec) => void) => {
+        listeners.push(f);
+        return () => listeners.splice(listeners.indexOf(f), 1);
+      },
+    };
+    return { s, ctx, camp, store, host: game as unknown as GameController };
+  }
+
+  it('a store unload list longer than the chip cap shows 10 chips and +N (C1)', () => {
+    const { s, ctx, camp, store, host } = storeChipSetup();
+    const consumers = Object.values(GOODS).filter((g) => g.kind === 'consumer');
+    expect(consumers.length).toBeGreaterThan(10);
+    const r = must(createRoute(ctx, 'player', 'To store', [
+      { buildingId: camp.id, load: [], unload: [] },
+      { buildingId: store.id, load: [], unload: [] },
+    ]));
+    PANELS.routes.open(host, r.id);
+    const stop = () => win().querySelector('.rt-stop[data-i="1"]')!;
+    expect(stop().querySelectorAll('.rt-chip').length).toBe(10);
+    const more = stop().querySelector('.rt-chip-more') as HTMLElement;
+    expect(more.textContent).toBe(`+${consumers.length - 10}`);
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    more.click();
+    expect(stop().querySelectorAll('.rt-chip').length).toBe(consumers.length);
+    expect(s.routes[r.id]).toBeDefined();
+  });
+
+  it('pressed unload chips stay visible after collapsing the overflow', () => {
+    const { ctx, camp, store, host } = storeChipSetup();
+    const consumers = Object.keys(GOODS).filter((g) => GOODS[g].kind === 'consumer') as GoodId[];
+    const late = consumers[consumers.length - 1]!;
+    const r = must(createRoute(ctx, 'player', 'To store', [
+      { buildingId: camp.id, load: [], unload: [] },
+      { buildingId: store.id, load: [], unload: [] },
+    ]));
+    PANELS.routes.open(host, r.id);
+    const stop = () => win().querySelector('.rt-stop[data-i="1"]')!;
+    (stop().querySelector('.rt-chip-more') as HTMLElement).click();
+    (stop().querySelector(`[data-chip="unload:${late}"]`) as HTMLElement).click();
+    expect(stop().querySelector(`[data-chip="unload:${late}"]`)!.getAttribute('aria-pressed')).toBe('true');
+    (stop().querySelector('.rt-chip-more') as HTMLElement).click();
+    expect(stop().querySelectorAll('.rt-chip').length).toBe(10);
+    expect(stop().querySelector(`[data-chip="unload:${late}"]`)).not.toBeNull();
+    expect(stop().querySelector(`[data-chip="unload:${late}"]`)!.getAttribute('aria-pressed')).toBe('true');
   });
 });
 

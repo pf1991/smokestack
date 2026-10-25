@@ -29,11 +29,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     test: (s) => Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && flagNum(s, k) > 0),
   },
   {
-    // approximation: owns an extractor and has sold a tier-2 good (no per-good provenance is tracked)
+    // approximation: owns an extractor and has sold a consumer good (no per-good provenance is tracked)
     id: 'chain_gang', name: 'Chain Gang', icon: 'chain', desc: 'Sell a finished good made from your own extractor.',
     test: (s) =>
       Object.values(s.buildings).some((b) => b.ownerId === 'player' && BUILDINGS[b.typeId]?.category === 'extractor') &&
-      Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && GOODS[k.slice(5)]?.tier === 2 && flagNum(s, k) > 0),
+      Object.keys(s.flags ?? {}).some((k) => k.startsWith('sold:') && GOODS[k.slice(5)]?.kind === 'consumer' && flagNum(s, k) > 0),
   },
   // ruling R-S14: money achievements count real money (nominal / price index, sim/society/economy.ts)
   { id: 'millionaire', name: 'Millionaire', icon: 'money', desc: 'Reach a net worth of $1,000,000, shares included (in 1900 dollars).', test: (s) => realMoney(s, wealth(s, 'player')) >= 1_000_000 },

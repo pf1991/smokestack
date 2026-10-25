@@ -14,3 +14,4 @@
 .cb-results th[data-col='result'] { width: 92px; }
 .cb-results th[data-col='reward'] { width: 84px; }
 .cb-good { display: inline-flex; align-items: center; gap: 2px; }
+.cb-line.cb-trade { justify-content: flex-start; align-items: center; gap: var(--sp-1); color: var(--info); font-size: var(--fs-sm); }

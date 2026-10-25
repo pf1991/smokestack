@@ -10,6 +10,7 @@ import { strikeOver } from './society/strikes';
 import { priceWars } from './nemesis/retaliation';
 import { BARON_ID, companyIds, PLAYER_ID } from './companies';
 import { BUILDINGS } from '../data/buildings';
+import { SEASONAL_CROPS } from '../data/goods';
 import { buildingStorage, levelRate } from './logistics/levels';
 import { managerRate } from './logistics/managers';
 import { RECIPES, type RecipeDef } from '../data/recipes';
@@ -50,7 +51,7 @@ function extractorEfficiency(state: GameState, b: Building, outputs: readonly st
     return n > 0 ? Math.max(0.25, n / total) : 0;
   }
   if (b.typeId === 'farm') {
-    const seasonal = outputs.some((g) => g === 'grain' || g === 'cotton' || g === 'fruit');
+    const seasonal = outputs.some((g) => SEASONAL_CROPS.includes(g));
     if (seasonal) return isWinter(state.date.month) ? 0 : isSummer(state.date.month) ? 1.5 : 1;
   }
   return 1;
@@ -167,6 +168,19 @@ export function productionDay(ctx: SimContext): void {
 
 let monthlyScratch: Float64Array | null = null;
 
+/**
+ * Books one sale's takings for the building's owner: the month's sales and its sales by good. Shared
+ * by stores (retailDay) and Trading Houses (trade.ts tradeDay).
+ */
+export function bookSale(state: GameState, b: Building, goodId: GoodId, revenue: number): void {
+  const company = state.companies[b.ownerId];
+  earn(company, 'sales', revenue, state.date);
+  // the Baron's per-store takings feed his insolvency guard (rival/insolvency.ts)
+  if (b.ownerId === BARON_ID) b.salesThisMonth = (b.salesThisMonth ?? 0) + revenue;
+  const sbg = currentLedger(company, state.date).salesByGood;
+  sbg[goodId] = (sbg[goodId] ?? 0) + revenue;
+}
+
 export function retailDay(ctx: SimContext): void {
   const { state, bus } = ctx;
   const dayOffset = dateToDays(state.date);
@@ -181,10 +195,12 @@ export function retailDay(ctx: SimContext): void {
     if (list) list.push(b);
     else storesByCity.set(b.cityId, [b]);
   }
+  const noMods = state.modifiers.length === 0;
   for (const city of state.cities) {
     const stores = storesByCity.get(city.id) ?? [];
     const stocks: StoreStock[] = stores.map((b) => ({ buildingId: b.id, ownerId: b.ownerId, stock: loadSource(b) }));
-    const mod = (g: GoodId) => demandModifier(state, city.id, g);
+    const cityId = city.id;
+    const mod = noMods ? (_g: GoodId) => 1 : (g: GoodId) => demandModifier(state, cityId, g);
     // the Baron's price wars in this town (nemesis/retaliation.ts); null, allocation-free, when none
     const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state), priceWars(state, city.id), monthly);
     const soldByGood: Record<GoodId, number> = {};
@@ -193,15 +209,7 @@ export function retailDay(ctx: SimContext): void {
       if (s.qty > 0) soldStores.add(s.buildingId);
       const src = loadSource(state.buildings[s.buildingId]);
       src[s.goodId] = (src[s.goodId] ?? 0) - s.qty;
-      const company = state.companies[s.ownerId];
-      earn(company, 'sales', s.revenue, state.date);
-      // the Baron's per-store takings feed his insolvency guard (rival/insolvency.ts)
-      if (s.ownerId === BARON_ID) {
-        const store = state.buildings[s.buildingId];
-        store.salesThisMonth = (store.salesThisMonth ?? 0) + s.revenue;
-      }
-      const sbg = currentLedger(company, state.date).salesByGood;
-      sbg[s.goodId] = (sbg[s.goodId] ?? 0) + s.revenue;
+      bookSale(state, state.buildings[s.buildingId], s.goodId, s.revenue);
       soldByGood[s.goodId] = (soldByGood[s.goodId] ?? 0) + s.qty;
       recordSale(state, { ownerId: s.ownerId, cityId: city.id, goodId: s.goodId, qty: s.qty });
       notePoliticsSale(state, s.ownerId, city.id, s.revenue);

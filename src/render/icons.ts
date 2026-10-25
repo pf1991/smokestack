@@ -32,6 +32,29 @@ const C = {
   orange: '#d9822b',
   crust: '#c98a3e',
   smoke: '#8f887c',
+  // R4 material tones
+  copper: '#c46f3b',
+  copperLight: '#e8a06a',
+  verdigris: '#4f8a6e',
+  verdigrisLight: '#8cc7a6',
+  clay: '#b5653d',
+  clayLight: '#d9946a',
+  ochre: '#d08a5a',
+  rust: '#7e3a1e',
+  hide: '#b08060',
+  leather: '#8a5530',
+  pink: '#e8609a',
+  pinkLight: '#ffa6c9',
+  maroon: '#8a3350',
+  lime: '#9bcf3c',
+  teal: '#2f8f83',
+  screen: '#1a8fb0',
+  wafer: '#6b7fa3',
+  amber: '#ffb347',
+  purple: '#7b3fe4',
+  navy: '#34466e',
+  lcd: '#a8c890',
+  frost: '#e6edf2',
 } as const;
 
 const OUTLINE = 1.2;
@@ -332,6 +355,375 @@ const GOOD_PAINTERS: Record<string, Painter> = {
     line(g, [4.8, 4.8, 9, 4.8], '#7fe07f', 1);
     line(g, [4.8, 7, 10.8, 7], '#7fe07f', 1);
     rrect(g, 1.5, 12.5, 13, 2.5, 0.6, C.paperShade);
+  },
+  // R4 goods
+  copper_ore: (g) => {
+    // a green-stained lump with copper nuggets
+    poly(g, [1.5, 12, 3, 6.5, 7, 3.5, 11.5, 3, 14.5, 6.5, 14.5, 11, 11, 14.5, 4.5, 14.5], C.verdigris);
+    line(g, [4, 7, 6.8, 4.8], C.verdigrisLight, 1.1);
+    poly(g, [4.8, 10.2, 7.2, 7.6, 9.4, 9, 7.4, 11.8], C.copper, false);
+    circ(g, 11.4, 6.6, 1.2, C.copperLight, false);
+    circ(g, 11, 11.4, 1.2, C.copper, false);
+  },
+  cattle: (g) => {
+    // a cow's head: curved horns, ears out, white blaze, pale muzzle
+    bar(g, [5.2, 4.2, 2.6, 3.4, 1.8, 1.2], C.paper, 1.2);
+    bar(g, [10.8, 4.2, 13.4, 3.4, 14.2, 1.2], C.paper, 1.2);
+    ell(g, 3, 6.6, 2.1, 1.1, C.leather, -0.35);
+    ell(g, 13, 6.6, 2.1, 1.1, C.leather, 0.35);
+    poly(g, [4.5, 4, 11.5, 4, 11.5, 9, 10.6, 12, 5.4, 12, 4.5, 9], C.leather);
+    poly(g, [7, 4, 9, 4, 8.6, 9.5, 7.4, 9.5], C.paper, false);
+    rrect(g, 4.6, 10.4, 6.8, 4.4, 2, '#e0b8a0');
+    circ(g, 6.6, 12.6, 0.7, C.ink, false);
+    circ(g, 9.4, 12.6, 0.7, C.ink, false);
+    circ(g, 5.9, 7, 0.75, C.ink, false);
+    circ(g, 10.1, 7, 0.75, C.ink, false);
+  },
+  sugar_beet: (g) => {
+    // a fat tapering root under a tuft of leaves
+    ell(g, 5.6, 4.2, 1.5, 3.2, C.green, -0.55);
+    ell(g, 10.4, 4.2, 1.5, 3.2, C.green, 0.55);
+    ell(g, 8, 3.4, 1.5, 3, C.green);
+    g.beginPath();
+    g.moveTo(8, 15.2);
+    g.bezierCurveTo(4.6, 12.6, 2.6, 10, 3.8, 8);
+    g.bezierCurveTo(5.2, 6.2, 10.8, 6.2, 12.2, 8);
+    g.bezierCurveTo(13.4, 10, 11.4, 12.6, 8, 15.2);
+    fs(g, '#d98aa8');
+    line(g, [5.4, 9, 6.6, 11.6], C.paper, 1);
+  },
+  clay: (g) => {
+    // a soft lump of wet red clay, a wire-cut sliver lifting off and thumb dents
+    g.beginPath();
+    g.moveTo(1.5, 13.5);
+    g.bezierCurveTo(0.8, 9, 3.5, 6.6, 6, 6.8);
+    g.bezierCurveTo(7.6, 3.4, 12.8, 3.6, 13.6, 7.4);
+    g.bezierCurveTo(15.4, 9.4, 15, 12.6, 14, 13.5);
+    g.closePath();
+    fs(g, C.clay);
+    line(g, [4.2, 9.4, 6.4, 7.8], C.clayLight, 1.2);
+    line(g, [8.6, 6.2, 11.4, 5.6], C.clayLight, 1.2);
+    ell(g, 6, 11.2, 1.4, 1, C.rust, 0.3, false);
+    ell(g, 10.6, 10, 1.4, 1, C.rust, -0.3, false);
+    line(g, [1.5, 13.5, 14, 13.5], C.ink, OUTLINE);
+  },
+  rubber: (g) => {
+    // a tapped tree: latex runs down the spiral cut and drips into a cup
+    rect(g, 1, 0.5, 5.5, 15, C.brassDark);
+    line(g, [1.8, 3.6, 5.8, 6.6], C.paper, 1.3);
+    g.beginPath();
+    g.moveTo(10.8, 6.4);
+    g.quadraticCurveTo(12.8, 8.8, 12.6, 9.4);
+    g.arc(10.8, 9.4, 1.8, 0, Math.PI);
+    g.quadraticCurveTo(8.8, 8.8, 10.8, 6.4);
+    fs(g, C.paper);
+    g.beginPath();
+    g.moveTo(6.8, 11.6);
+    g.lineTo(15, 11.6);
+    g.quadraticCurveTo(14.6, 15.2, 10.9, 15.2);
+    g.quadraticCurveTo(7.2, 15.2, 6.8, 11.6);
+    g.closePath();
+    fs(g, C.crust);
+    ell(g, 10.9, 11.7, 3.6, 0.9, C.paper);
+  },
+  bauxite: (g) => {
+    // ochre pebbles studded with dark pisolites
+    blob(g, [[4.8, 10.4, 3.5], [11, 10.6, 3.5], [8, 5.8, 3.4], [8, 10, 2.8]], C.ochre);
+    for (const [x, y, r] of [[4.4, 11, 0.9], [7.6, 5.4, 0.9], [11.6, 11.4, 1], [9.6, 8.6, 0.75], [7, 12.6, 0.7], [12, 8.6, 0.6]]) circ(g, x, y, r, C.rust, false);
+    line(g, [5.8, 4.8, 7.6, 3.6], C.paper, 0.9);
+  },
+  copper: (g) => {
+    // a cast ingot: lit top face, sloped front
+    poly(g, [1.5, 13.5, 3.4, 8.5, 12.6, 8.5, 14.5, 13.5], C.copper);
+    poly(g, [3.4, 8.5, 5.4, 4, 10.6, 4, 12.6, 8.5], C.copperLight);
+    line(g, [6.4, 5.6, 9.6, 5.6], C.paper, 1);
+    line(g, [4.6, 11.4, 11.4, 11.4], C.rust, 1);
+  },
+  leather: (g) => {
+    // a stretched hide: four splayed legs, a neck and a tail, a paler flesh side
+    poly(g, [6.6, 1, 9.4, 1, 10.2, 3.2, 14.8, 2.2, 12.6, 6, 13.2, 10, 15, 13.8, 10.4, 12.6, 8.8, 15.2, 7.2, 15.2, 5.6, 12.6, 1, 13.8, 2.8, 10, 3.4, 6, 1.2, 2.2, 5.8, 3.2], C.hide);
+    poly(g, [8, 4.2, 10.6, 5.6, 11, 9, 10, 11.6, 8, 12.6, 6, 11.6, 5, 9, 5.4, 5.6], '#d2ab88', false);
+  },
+  sugar: (g) => {
+    // a sugarloaf, its base wrapped in blue paper
+    g.beginPath();
+    g.moveTo(3.5, 14.5);
+    g.lineTo(7, 2.6);
+    g.quadraticCurveTo(8, 0.9, 9, 2.6);
+    g.lineTo(12.5, 14.5);
+    g.closePath();
+    fs(g, C.paper);
+    poly(g, [5, 9.4, 11, 9.4, 12.5, 14.5, 3.5, 14.5], C.blue);
+    line(g, [6.6, 4.4, 5.4, 8.4], C.paperShade, 1);
+    line(g, [8.5, 9.4, 8.5, 14.5], '#24578f', 1);
+  },
+  bricks: (g) => {
+    // a stack of three bricks, two below and one across the top, lit top faces
+    for (const [x, y] of [[0.8, 10.2], [7.8, 10.2], [4.3, 5]]) {
+      poly(g, [x, y, x + 1.6, y - 1.8, x + 8.6, y - 1.8, x + 7, y], '#d4614e');
+      poly(g, [x, y, x + 7, y, x + 7, y + 4.2, x, y + 4.2], C.red);
+      poly(g, [x + 7, y, x + 8.6, y - 1.8, x + 8.6, y + 2.4, x + 7, y + 4.2], '#7e2120');
+    }
+  },
+  paper: (g) => {
+    // a ream: a stack of sheets fanned out, the top one ruled
+    rect(g, 1.5, 6.5, 10, 8, C.paperShade);
+    rect(g, 3, 4.5, 10, 8, C.paperShade);
+    rect(g, 4.5, 2.5, 10, 8, C.paper);
+    for (const [x1, y] of [[13, 4.8], [13, 6.6], [10.6, 8.4]]) line(g, [6, y, x1, y], C.smoke, 0.9);
+  },
+  chemicals: (g) => {
+    // a round-bottomed flask of bubbling lime liquor
+    rect(g, 6.4, 2.5, 3.2, 5.5, C.glass);
+    circ(g, 8, 10.5, 4.6, C.glass);
+    g.beginPath();
+    g.arc(8, 10.5, 4.6, -0.2, Math.PI + 0.2);
+    g.closePath();
+    fs(g, C.lime, false);
+    g.beginPath();
+    g.arc(8, 10.5, 4.6, 0, TAU);
+    g.stroke();
+    bar(g, [5.6, 2.5, 10.4, 2.5], C.paperShade, 1.2);
+    circ(g, 6.4, 11.4, 0.8, C.paper, false);
+    circ(g, 9.4, 12.6, 0.6, C.paper, false);
+    circ(g, 11.8, 2.6, 1.1, C.lime);
+    circ(g, 13.4, 5, 0.8, C.lime);
+  },
+  aluminium: (g) => {
+    // two bright sheets, one leant on the other, with a cold sheen
+    poly(g, [5, 1.5, 14.5, 1.5, 12, 11, 2.5, 11], C.steel);
+    poly(g, [3.5, 5, 13, 5, 10.5, 14.5, 1, 14.5], '#c9d1d9');
+    line(g, [5.2, 12.8, 7.4, 6.8], C.paper, 1.2);
+    line(g, [8, 12.8, 9.2, 9.4], C.paper, 1);
+  },
+  silicon: (g) => {
+    // a wafer with its flat, ruled into dies
+    g.beginPath();
+    g.arc(8, 8, 6.8, Math.PI / 2 + 0.55, Math.PI / 2 - 0.55 + TAU);
+    g.closePath();
+    fs(g, C.wafer);
+    for (const v of [5.3, 8, 10.7]) {
+      line(g, [v, 3, v, 13], '#a9b9d6', 0.8);
+      line(g, [2.6, v, 13.4, v], '#a9b9d6', 0.8);
+    }
+    line(g, [4.6, 5.8, 6.6, 3.6], C.paper, 1.2);
+  },
+  wire: (g) => {
+    // a spool of copper wire between wooden flanges, the loose end trailing
+    rect(g, 4, 3.5, 8, 9, C.copper);
+    for (const y of [5.5, 7.5, 9.5]) line(g, [4.6, y, 11.4, y + 0.8], C.rust, 0.9);
+    line(g, [5, 4.8, 11, 4.8], C.copperLight, 1);
+    rrect(g, 1.5, 1.5, 3, 13, 1, C.brassDark);
+    rrect(g, 11.5, 1.5, 3, 13, 1, C.brassDark);
+    bar(g, [13, 12.5, 15, 15], C.copper, 1);
+  },
+  tyres: (g) => {
+    // a whitewall tyre on a steel rim
+    circ(g, 8, 8, 7, C.coal);
+    g.beginPath();
+    g.arc(8, 8, 4.9, 0, TAU);
+    g.strokeStyle = C.paperShade;
+    g.lineWidth = 1.3;
+    g.stroke();
+    g.strokeStyle = C.ink;
+    g.lineWidth = OUTLINE;
+    circ(g, 8, 8, 3.3, C.steel);
+    circ(g, 8, 8, 1.2, C.slate, false);
+  },
+  engines: (g) => {
+    // an engine block: red rocker cover, a belt pulley, an oil sump
+    rect(g, 1.5, 6, 10, 6.5, C.steel);
+    rrect(g, 2.5, 2.8, 8, 3.2, 1, C.red);
+    for (const x of [4.5, 6.5, 8.5]) circ(g, x, 4.4, 0.6, '#7e2120', false);
+    poly(g, [3, 12.5, 10, 12.5, 9, 14.8, 4, 14.8], C.slate);
+    for (const y of [8.2, 10.3]) line(g, [2.6, y, 10.4, y], C.smoke, 0.9);
+    circ(g, 12.6, 9.4, 2.6, C.slate);
+    circ(g, 12.6, 9.4, 0.9, C.paperShade, false);
+  },
+  electric_motors: (g) => {
+    // a finned blue motor on its feet, the shaft out of the end bell
+    rect(g, 3.5, 12, 7, 2.6, C.slate);
+    rrect(g, 1.5, 3.5, 10, 9, 2, '#3e7cb1');
+    for (const x of [4, 6.5, 9]) line(g, [x, 5, x, 11], '#7fb0dc', 1);
+    rect(g, 11.5, 5, 2, 6, C.steel);
+    bar(g, [13.5, 8, 15.2, 8], C.steel, 1.4);
+    rect(g, 4.5, 1.5, 3.5, 2, C.slate);
+  },
+  vacuum_tubes: (g) => {
+    // a glass valve: anode plate, glowing filament, bakelite base and pins
+    for (const x of [6, 10]) bar(g, [x, 13.5, x, 15.2], C.steel, 0.9);
+    g.beginPath();
+    g.moveTo(4, 11.5);
+    g.lineTo(4, 5.5);
+    g.arc(8, 5.5, 4, Math.PI, 0);
+    g.lineTo(12, 11.5);
+    g.closePath();
+    fs(g, C.glass);
+    circ(g, 8, 1.4, 0.8, C.glass);
+    rect(g, 6, 4.5, 4, 6, C.slate);
+    ell(g, 8, 7.5, 1, 2.2, C.amber, 0, false);
+    rrect(g, 3.5, 11, 9, 3, 0.8, C.coal);
+  },
+  microchips: (g) => {
+    // a black chip on three legs a side, its green die and pin-1 dot
+    for (const y of [4.5, 8, 11.5]) {
+      rect(g, 1.2, y - 0.8, 3, 1.6, C.steel);
+      rect(g, 11.8, y - 0.8, 3, 1.6, C.steel);
+    }
+    rrect(g, 3.5, 1.5, 9, 13, 0.8, C.coal);
+    rect(g, 6, 6, 4, 4, '#4fae3c');
+    circ(g, 5.4, 3.5, 0.8, C.paperShade, false);
+  },
+  displays: (g) => {
+    // a slim flat panel on a stand, a glint across the glass
+    rect(g, 6.8, 11.5, 2.4, 2, C.slate);
+    rect(g, 4, 13.3, 8, 1.6, C.slate);
+    rrect(g, 0.8, 2, 14.4, 9.8, 0.8, C.slate);
+    rect(g, 2.2, 3.4, 11.6, 7, C.screen);
+    line(g, [3.8, 9, 7.4, 4.6], '#8fd6ea', 1.2);
+    line(g, [6.6, 9, 9, 6], '#8fd6ea', 0.9);
+  },
+  shoes: (g) => {
+    // a laced work boot on a dark sole
+    poly(g, [4, 1.5, 9, 1.5, 9, 7.5, 13, 9.2, 14.5, 11, 14.5, 13, 2.5, 13, 2.5, 9, 4, 7.5], C.leather);
+    rect(g, 2.5, 12.6, 12, 2.2, C.coal);
+    rect(g, 3.6, 1.5, 5.8, 1.8, C.walnut);
+    for (const y of [4.4, 6.4]) line(g, [5.4, y, 8.2, y], C.paperShade, 1);
+    line(g, [8.6, 8.4, 10.6, 9.6], C.paperShade, 1);
+  },
+  candy: (g) => {
+    // a wrapped sweet: twisted ends, a striped middle
+    poly(g, [1, 4.5, 5, 8, 1, 11.5, 2.4, 8], C.pinkLight);
+    poly(g, [15, 4.5, 11, 8, 15, 11.5, 13.6, 8], C.pinkLight);
+    ell(g, 8, 8, 4.2, 3.6, C.pink);
+    line(g, [6, 5, 8.6, 11], C.paper, 1.1);
+    line(g, [8.6, 4.6, 10.8, 9.6], C.paper, 1.1);
+  },
+  books: (g) => {
+    // a cloth-bound book, page edges showing, a brass title plate
+    rect(g, 4, 3, 10.5, 12, C.paper);
+    for (const y of [12.6, 13.8]) line(g, [5.4, y, 13.6, y], C.paperShade, 0.8);
+    rect(g, 1.5, 1.5, 10.5, 12, C.maroon);
+    rect(g, 1.5, 1.5, 2.2, 12, '#5e1f33', false);
+    rect(g, 5, 4, 5, 2.4, C.brass);
+    line(g, [5.4, 9, 9.6, 9], '#c9707e', 1);
+  },
+  canned_food: (g) => {
+    // a tin can: steel ends, a red label with a white roundel
+    g.beginPath();
+    g.moveTo(3, 4);
+    g.lineTo(3, 13);
+    g.ellipse(8, 13, 5, 1.6, 0, Math.PI, 0, true);
+    g.lineTo(13, 4);
+    g.closePath();
+    fs(g, C.steel);
+    g.beginPath();
+    g.moveTo(3, 6.2);
+    g.lineTo(3, 11.2);
+    g.ellipse(8, 11.2, 5, 1.6, 0, Math.PI, 0, true);
+    g.lineTo(13, 6.2);
+    g.ellipse(8, 6.2, 5, 1.6, 0, 0, Math.PI, false);
+    g.closePath();
+    fs(g, C.red, false);
+    ell(g, 8, 9.3, 2.4, 1.6, C.paper, 0, false);
+    ell(g, 8, 4, 5, 1.6, C.paperShade);
+    ell(g, 8, 4, 3.4, 0.8, C.steel, 0, false);
+  },
+  phonographs: (g) => {
+    // a gramophone: wooden case, the brass horn flaring up and out
+    rect(g, 1.5, 10.5, 9.5, 4.2, C.brassDark);
+    ell(g, 6, 10.4, 4, 1.1, C.coal, 0, false);
+    poly(g, [7.6, 10, 9.4, 10.6, 15, 6.6, 10.4, 1], C.brass);
+    ell(g, 12.7, 3.8, 1.9, 3.6, C.brassLight, -0.72);
+    ell(g, 12.7, 3.8, 0.8, 1.7, C.brassDark, -0.72, false);
+  },
+  bicycles: (g) => {
+    // a safety bicycle: two spoked rims, a diamond frame, saddle and bars
+    for (const x of [3.8, 12.2]) {
+      g.beginPath();
+      g.arc(x, 11, 3.2, 0, TAU);
+      g.lineWidth = 3.2;
+      g.stroke();
+      g.strokeStyle = C.slate;
+      g.lineWidth = 1.2;
+      g.stroke();
+      g.strokeStyle = C.ink;
+      g.lineWidth = OUTLINE;
+      circ(g, x, 11, 0.8, C.steel, false);
+    }
+    bar(g, [3.8, 11, 6.6, 6.2, 8, 11, 3.8, 11], C.teal, 1.1);
+    bar(g, [6.6, 6.2, 11, 6.2, 8, 11], C.teal, 1.1);
+    bar(g, [11, 6.2, 12.2, 11], C.teal, 1.1);
+    bar(g, [10.6, 4, 11, 6.2], C.steel, 0.9);
+    bar(g, [9.6, 3.8, 12, 3.8], C.steel, 0.9);
+    rrect(g, 4.6, 4, 3.4, 1.4, 0.6, C.coal);
+  },
+  motorcycles: (g) => {
+    // a motorcycle: red tank, saddle, engine, front fork and lamp
+    wheel(g, 3.6, 11.6, 2.9);
+    wheel(g, 12.4, 11.6, 2.9);
+    bar(g, [12.4, 11.6, 11.2, 5.4], C.steel, 1);
+    rect(g, 5.8, 8.6, 4.2, 3.6, C.steel);
+    poly(g, [3, 8.8, 5.2, 6, 11, 6, 12, 8.8], '#9a2a2a');
+    rrect(g, 2.4, 4.8, 4.6, 1.8, 0.8, C.coal);
+    bar(g, [10.2, 3.6, 12.2, 3.6], C.steel, 0.9);
+    circ(g, 13.2, 6, 1.2, C.brassLight);
+  },
+  refrigerators: (g) => {
+    // a two-door ice box: freezer above, steel handles
+    rrect(g, 3.5, 1.5, 9, 13.5, 1.8, C.frost);
+    line(g, [3.5, 6, 12.5, 6], C.ink, 1);
+    bar(g, [10.4, 3, 10.4, 4.6], C.steel, 0.9);
+    bar(g, [10.4, 7.6, 10.4, 10.6], C.steel, 0.9);
+    line(g, [5, 7.8, 5, 13], '#ffffff', 1);
+  },
+  washing_machines: (g) => {
+    // a front-loader: control strip, porthole door onto blue water
+    rrect(g, 2, 1.5, 12, 13.5, 1.2, C.frost);
+    rect(g, 2, 1.5, 12, 3, '#8fb8d8');
+    g.beginPath();
+    g.rect(2, 1.5, 12, 3);
+    g.stroke();
+    circ(g, 11.6, 3, 0.8, C.slate, false);
+    circ(g, 8, 9.6, 4.2, C.steel);
+    circ(g, 8, 9.6, 2.9, '#5f95c4');
+    g.beginPath();
+    g.arc(8, 9.6, 1.8, Math.PI * 0.9, Math.PI * 1.6);
+    g.strokeStyle = C.paper;
+    g.lineWidth = 1;
+    g.stroke();
+    g.strokeStyle = C.ink;
+    g.lineWidth = OUTLINE;
+  },
+  cosmetics: (g) => {
+    // a lipstick: brass case, the slanted pink bullet
+    poly(g, [5.8, 6.5, 5.8, 3.6, 10.2, 1.2, 10.2, 6.5], '#d65a8c');
+    rect(g, 5.2, 6.5, 5.6, 2.8, C.brassLight);
+    rect(g, 4.5, 9.3, 7, 5.5, C.brass);
+    line(g, [6, 10.5, 6, 13.6], C.brassLight, 1);
+  },
+  calculators: (g) => {
+    // a desk calculator: a lit read-out over a grid of keys
+    rrect(g, 2.5, 1.5, 11, 13.5, 1.2, '#707070');
+    rect(g, 4, 3, 8, 3, C.lcd);
+    line(g, [7.6, 4.5, 11, 4.5], '#3d5a2e', 1);
+    for (const y of [7.6, 10, 12.4]) for (const x of [4.2, 6.9, 9.6]) rect(g, x, y, 2.2, 1.7, C.paper, false);
+  },
+  video_games: (g) => {
+    // a gamepad: purple body with grips, cross pad and two buttons
+    blob(g, [[4.4, 9.6, 3.4], [11.6, 9.6, 3.4], [8, 8, 3.4]], C.purple);
+    rect(g, 4.4, 5.8, 7.2, 4, C.purple, false);
+    rect(g, 2.6, 7.8, 3.6, 1.3, C.paper, false);
+    rect(g, 3.75, 6.65, 1.3, 3.6, C.paper, false);
+    circ(g, 11, 7.6, 1, C.red, false);
+    circ(g, 12.8, 9.4, 1, C.brassLight, false);
+  },
+  mobile_phones: (g) => {
+    // a brick handset: stub aerial, small screen, keypad
+    bar(g, [10.6, 3.5, 10.6, 0.8], C.coal, 1.2);
+    rrect(g, 4.5, 3, 7, 12, 1.4, C.navy);
+    rect(g, 5.8, 4.4, 4.4, 2.8, C.lcd);
+    for (const y of [8.6, 10.5, 12.4]) for (const x of [5.9, 7.6, 9.3]) rect(g, x, y, 1.1, 1, C.paperShade, false);
   },
 };
 

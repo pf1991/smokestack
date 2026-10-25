@@ -22,6 +22,7 @@ import { companyIds } from './companies';
 import { regionalMonth } from './regional/firms';
 import { exchangeDay, exchangeMonth } from './exchange/prices';
 import { logisticsDay, logisticsMonth, logisticsYear } from './logistics';
+import { tradeDay } from './trade';
 import type { SimContext } from './types';
 import { vehicleMaintenanceMonth, vehiclesTick } from './vehicles';
 
@@ -125,4 +126,6 @@ export const SYSTEMS: SimSystem[] = [
   { id: 'exchange', onDay: exchangeDay, onMonth: exchangeMonth },
   // Phase 4b logistics (hubs, automatic routes, managers); each hook early-outs when no company uses the feature
   { id: 'logistics', onDay: logisticsDay, onMonth: logisticsMonth, onYear: logisticsYear },
+  // R4 the Trading House: sales at the national price, then saturation and drift (own rng stream)
+  { id: 'trade', onDay: tradeDay },
 ];

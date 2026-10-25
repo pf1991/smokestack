@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../../data/buildings';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
+import { canMake } from '../eras';
 import { loadSource } from '../inventory';
 import { monthlyDemand, salePrice, supplyRatio } from '../market';
 import { demandModifier } from '../production';
@@ -14,8 +15,10 @@ import { atPrices, priceIndex } from '../society/economy';
 /** rough allowance for access roads when judging whether a project is affordable */
 const ROAD_BUDGET = 10000;
 
-const tier2Goods = (state: GameState): GoodId[] =>
-  Object.keys(DEMAND_PER_1000).filter((g) => GOODS[g]?.tier === 2 && state.unlocked.includes(g));
+const consumerGoods = (state: GameState): GoodId[] =>
+  Object.keys(DEMAND_PER_1000).filter(
+    (g) => GOODS[g]?.kind === 'consumer' && state.unlocked.includes(g) && canMake(state, g),
+  );
 
 /** Hops followed back through stations/warehouses when tracing where a good comes from. */
 const SUPPLY_DEPTH = 3;
@@ -99,7 +102,7 @@ export function chooseProject(state: GameState): Candidate | null {
   const blockedKeys = blocked(state);
   const newest = modelSpec(newestModel(state));
   const plans = new Map<GoodId, { plan: ChainPlan; cost: number; upkeep: number; capacity: number }>();
-  for (const g of tier2Goods(state)) {
+  for (const g of consumerGoods(state)) {
     const plan = planChain(g, state);
     if (!plan) continue;
     const cost = plan.nodes.reduce((s, n) => s + BUILDINGS[n.typeId].cost, 0) + plan.edges.length * newest.cost + ROAD_BUDGET;

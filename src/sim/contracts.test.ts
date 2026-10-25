@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { GOODS } from '../data/goods';
 import { addDays } from './clock';
-import { acceptContract, contractsDay, offerContracts, onSale } from './contracts';
-import { testCtx, testState } from './testkit';
+import { acceptContract, contractsDay, offerContracts, onSale, onTradeSale } from './contracts';
+import { canMake } from './eras';
+import { must, testCtx, testState } from './testkit';
+import { placeBuilding, unlockedAt } from './state';
+import { tradeDay } from './trade';
 import type { Contract, SimContext } from './types';
 
 function setup() {
@@ -29,18 +32,44 @@ function mk(ctx: SimContext, over: Partial<Contract> = {}): Contract {
 describe('contracts', () => {
   it('offer targets low-satisfaction goods', () => {
     const ctx = setup();
-    // city 0 is fully satisfied for every tier-2 good; only city 1 can be targeted
+    // city 0 is fully satisfied for every consumer good; only city 1 can be targeted
     for (const g of Object.keys(GOODS)) ctx.state.cities[0].market[g] = { sold30: 100, demand30: 100, pending: 0 };
     offerContracts(ctx);
     const offered = ctx.state.contracts.filter((c) => c.status === 'offered');
     expect(offered.length).toBeGreaterThan(0);
     for (const c of offered) {
       expect(c.cityId).toBe(1);
-      expect(GOODS[c.goodId].tier).toBe(2);
+      expect(GOODS[c.goodId].kind).toBe('consumer');
       expect(c.reward).toBe(Math.round(c.qty * GOODS[c.goodId].basePrice * 1.5));
       expect(c.delivered).toBe(0);
     }
     expect(ctx.state.news.some((n) => n.kind === 'contract')).toBe(true);
+  });
+
+  it('a 1900 state never offers a good nobody can make yet (canMake)', () => {
+    const ctx = setup();
+    ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'r_shoes');
+    expect(ctx.state.unlocked).toContain('shoes');
+    expect(canMake(ctx.state, 'shoes')).toBe(false);
+    expect(canMake(ctx.state, 'bread')).toBe(true);
+    const seen = new Set<string>();
+    for (let i = 0; i < 120; i++) {
+      offerContracts(ctx);
+      for (const c of ctx.state.contracts) seen.add(c.goodId);
+      for (const c of ctx.state.contracts) expect(canMake(ctx.state, c.goodId), c.goodId).toBe(true);
+      // clear the board so every round draws again
+      ctx.state.contracts = [];
+    }
+    expect(seen.size, 'the board drew several goods').toBeGreaterThan(5);
+    expect(seen.has('shoes')).toBe(false);
+  });
+
+  it('canMake needs both the building and the recipe unlocked', () => {
+    const ctx = setup();
+    expect(canMake(ctx.state, 'shoes')).toBe(true);
+    ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'shoe_factory');
+    expect(canMake(ctx.state, 'shoes')).toBe(false);
+    expect(canMake(ctx.state, 'cars')).toBe(false); // 1910
   });
 
   it('offers never exceed 3 and are deterministic', () => {
@@ -117,5 +146,99 @@ describe('contracts', () => {
     expect(ctx.state.contracts.includes(c)).toBe(false);
     expect(ctx.state.contracts.includes(keep)).toBe(true);
     expect(ctx.state.contracts.filter((x) => x.status === 'done').length).toBe(30);
+  });
+});
+
+describe('component contracts (R4, P7)', () => {
+  /** Offers `n` times from an empty board; returns every contract offered. */
+  function offers(ctx: SimContext, n: number): Contract[] {
+    const all: Contract[] = [];
+    for (let i = 0; i < n; i++) {
+      ctx.state.contracts = [];
+      const c = offerContracts(ctx);
+      if (c) all.push(c);
+    }
+    return all;
+  }
+  const house = (ctx: SimContext) => must(placeBuilding(ctx, 'player', 'trading_house', { x: 1, y: 25 }));
+
+  it('with no Trading House, no component contract is offered over 24 odd months', () => {
+    const ctx = setup();
+    expect(canMake(ctx.state, 'wire')).toBe(true);
+    const all = offers(ctx, 24);
+    expect(all.length).toBeGreaterThan(0);
+    for (const c of all) expect(GOODS[c.goodId].kind).toBe('consumer');
+  });
+
+  it('with a Trading House and wire makeable, a wire contract of 180 appears and 180 wire sold through the house completes it', () => {
+    const ctx = setup();
+    ctx.state.companies.player.money = 1e6;
+    const b = house(ctx);
+    const news: string[] = [];
+    let wire: Contract | undefined;
+    for (let i = 0; i < 60 && !wire; i++) {
+      ctx.state.contracts = [];
+      ctx.state.news = [];
+      wire = offerContracts(ctx) ?? undefined;
+      if (wire?.goodId !== 'wire') wire = undefined;
+      else news.push(...ctx.state.news.map((n) => `${n.headline} ${n.body}`));
+    }
+    expect(wire).toBeDefined();
+    const c = wire!;
+    expect(c.qty).toBe(180);
+    expect(c.reward).toBe(Math.round(180 * GOODS.wire.basePrice * 1.5));
+    expect(news.join(' ')).toContain('pleads for telegraph wire!');
+    expect(news.join(' ')).toContain(`for 180 sold through any Trading House within four months.`);
+    expect(acceptContract(ctx, c.id).ok).toBe(true);
+    // a store sale in the contract's town does not count; the house's national sales do, anywhere
+    onSale(ctx.state, { ownerId: 'player', cityId: c.cityId, goodId: 'bread', qty: 50 });
+    b.input.wire = 180;
+    for (let d = 0; d < 5; d++) tradeDay(ctx);
+    expect(c.delivered).toBe(180);
+    contractsDay(ctx);
+    expect(c.status).toBe('done');
+  });
+
+  it('onTradeSale credits only the player, only components', () => {
+    const ctx = setup();
+    const w = mk(ctx, { goodId: 'wire', status: 'active', cityId: 1 });
+    const s = mk(ctx, { goodId: 'steel', status: 'active' });
+    onTradeSale(ctx.state, { ownerId: 'rival', goodId: 'wire', qty: 10 });
+    onTradeSale(ctx.state, { ownerId: 'player', goodId: 'steel', qty: 10 });
+    onTradeSale(ctx.state, { ownerId: 'player', goodId: 'wire', qty: 7 });
+    expect(w.delivered).toBe(7);
+    expect(s.delivered).toBe(0);
+  });
+
+  it('a component that canMake rejects is never offered', () => {
+    const ctx = setup();
+    ctx.state.companies.player.money = 1e6;
+    house(ctx);
+    ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'r_wire');
+    expect(canMake(ctx.state, 'wire')).toBe(false);
+    for (const c of offers(ctx, 60)) expect(c.goodId).not.toBe('wire');
+  });
+
+  it('1971 never offers microchips; calculators canMake via tubes (C7)', () => {
+    const ctx = setup();
+    ctx.state.date = { year: 1971, month: 6, day: 1, hour: 0 };
+    ctx.state.unlocked = unlockedAt(1971);
+    ctx.state.companies.player.money = 1e6;
+    house(ctx);
+    // C7: microchips are not unlocked before their good era (1972)
+    expect(ctx.state.unlocked).not.toContain('microchips');
+    expect(ctx.state.unlocked).toContain('calculators');
+    expect(canMake(ctx.state, 'calculators')).toBe(true);
+    for (const c of offers(ctx, 60)) expect(c.goodId).not.toBe('microchips');
+  });
+
+  it('canMake(microchips) is false when r_microchips is removed (C7)', () => {
+    const ctx = setup();
+    ctx.state.date = { year: 1972, month: 1, day: 1, hour: 0 };
+    ctx.state.unlocked = unlockedAt(1972);
+    expect(ctx.state.unlocked).toContain('microchips');
+    expect(canMake(ctx.state, 'microchips')).toBe(true);
+    ctx.state.unlocked = ctx.state.unlocked.filter((id) => id !== 'r_microchips');
+    expect(canMake(ctx.state, 'microchips')).toBe(false);
   });
 });

@@ -9,8 +9,11 @@ import {
   satisfaction,
   monthlyGrowth,
   urbanRadius,
+  averageSatisfaction,
   type StoreStock,
 } from './market';
+import { BASELINE_GOODS } from '../data/goods';
+import { testState } from './testkit';
 import type { City } from './types';
 import { defaultOpinion } from '../data/factions';
 import { newCityPolitics } from './politics/elections';
@@ -162,5 +165,38 @@ describe('market', () => {
       return sales.filter((x) => x.goodId === 'bread').reduce((a, x) => a + x.qty, 0);
     };
     expect(run(2)).toBe(2 * run(1));
+  });
+
+  describe('baseline rule (P4)', () => {
+    // a 1900 town wants furniture, bread, tools, clothes, cheese, juice, toys and the four R4 1900 goods
+    const town = () => {
+      const state = testState({ cities: [{ x: 10, y: 10, population: 6000 }] });
+      const c = state.cities[0];
+      const sats: Record<string, number> = { furniture: 0.9, bread: 0.5, tools: 0.2, clothes: 0.7, cheese: 0.3, juice: 0.1, toys: 0.6 };
+      for (const [g, s] of Object.entries(sats)) c.market[g] = { sold30: s * 100, demand30: 100, pending: 0 };
+      const base = Object.values(sats).reduce((a, b) => a + b, 0) / Object.keys(sats).length;
+      return { state, c, base };
+    };
+
+    it('a town sold only baseline goods gets the mean over its wanted baseline goods', () => {
+      const { state, c, base } = town();
+      expect([...BASELINE_GOODS].filter((g) => c.market[g])).toHaveLength(7);
+      expect(averageSatisfaction(state, c)).toBeCloseTo(base, 12);
+    });
+
+    it('a new good at satisfaction 1 raises the result; one at 0 leaves it unchanged', () => {
+      const { state, c, base } = town();
+      c.market.shoes = { sold30: 0, demand30: 100, pending: 0 };
+      expect(averageSatisfaction(state, c)).toBeCloseTo(base, 12);
+      c.market.candy = { sold30: 100, demand30: 100, pending: 0 };
+      expect(averageSatisfaction(state, c)).toBeGreaterThan(base);
+      // 7 baseline goods plus shoes, candy, books, canned_food: candy counts 1, the rest count the base
+      expect(averageSatisfaction(state, c)).toBeCloseTo((base * 10 + 1) / 11, 12);
+    });
+
+    it('wanting nothing gives 0.4', () => {
+      const state = testState({ cities: [{ x: 10, y: 10, population: 0 }] });
+      expect(averageSatisfaction(state, state.cities[0])).toBe(0.4);
+    });
   });
 });

@@ -10,10 +10,10 @@ import { TRUCK, VEHICLE_KINDS } from './vehicles';
 /** Ticks in a game month (30 days x 24 ticks). */
 export const TICKS_PER_MONTH = 720;
 
-/** Goods a building hands to trucks: its recipe outputs, or whatever a warehouse/station holds. */
+/** Goods a building hands to trucks: its recipe outputs, or whatever a warehouse/station holds (stores and Trading Houses hand out nothing). */
 export function offeredGoods(b: Building): GoodId[] {
   const def = BUILDINGS[b.typeId];
-  if (!def || def.category === 'retail' || !handlesCargo(b)) return [];
+  if (!def || def.category === 'retail' || def.category === 'trade' || !handlesCargo(b)) return [];
   if (def.category === 'logistics') return Object.keys(loadSource(b));
   const recipe = b.recipeId ? RECIPES[b.recipeId] : undefined;
   return recipe ? Object.keys(recipe.outputs) : [];

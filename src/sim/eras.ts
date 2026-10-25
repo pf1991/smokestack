@@ -1,9 +1,10 @@
 import { BUILDINGS } from '../data/buildings';
-import { GOODS } from '../data/goods';
+import { GOODS, goodPlural } from '../data/goods';
 import { lifecycleFactor } from './market';
 import { publishNews } from './news';
 import { unlockedAt } from './state';
-import type { GameState, SimContext } from './types';
+import { RECIPES } from '../data/recipes';
+import type { GameState, GoodId, SimContext } from './types';
 
 export interface Era {
   name: string;
@@ -30,7 +31,22 @@ export function isUnlocked(state: GameState, id: string): boolean {
   return state.unlocked.includes(id);
 }
 
-/** Flavourful announcements for buildings and tier-2 (or plastic) goods, keyed by id. */
+/**
+ * Whether anyone can make `goodId` now: some unlocked building lists an unlocked recipe that outputs
+ * it. A good can be unlocked (its era has come) before any recipe for it is, e.g. microchips (1972).
+ */
+export function canMake(state: GameState, goodId: GoodId): boolean {
+  const have = state.unlocked;
+  for (const def of Object.values(BUILDINGS)) {
+    if (!have.includes(def.id)) continue;
+    for (const rid of def.recipes) {
+      if (have.includes(rid) && RECIPES[rid]?.outputs[goodId] !== undefined) return true;
+    }
+  }
+  return false;
+}
+
+/** Flavourful announcements for buildings and consumer (or plastic) goods, keyed by id. */
 const INVENTIONS: Record<string, [headline: string, body: string]> = {
   oil_well: ['BLACK GOLD! Oil found beneath the plains', 'Wildcatters strike crude: oil wells, refineries and fuel are now possible.'],
   refinery: ['BLACK GOLD! Oil found beneath the plains', 'Refineries now turn crude into fuel.'],
@@ -41,6 +57,18 @@ const INVENTIONS: Record<string, [headline: string, body: string]> = {
   plastic: ['PLASTICS: The material of tomorrow arrives', 'Chemists unveil a miracle material that moulds into anything.'],
   tvs: ['PICTURES IN THE PARLOUR: Television arrives', 'Television sets are now in the shops.'],
   computers: ['THE MICROCHIP REVOLUTION: Computers come home', 'Home computers are now possible.'],
+  phonographs: ['TALKING MACHINES: The phonograph sings in the parlour', 'Appliance plants now press phonographs from lumber and copper.'],
+  bicycles: ['SAFETY BICYCLES FOR EVERY CLERK', 'Cycle works turn steel and tyres into bicycles.'],
+  motorcycles: ['THE MOTOR-CYCLE ROARS INTO TOWN', 'Engines and tyres make motorcycles: a machine shop and a cycle works.'],
+  electronics_works: ['THE VALVE AGE: Electronics works open', 'Wire and glass become vacuum tubes for radios and more.'],
+  aluminium: ['ALUMINIUM: The metal of the air age', 'Smelters now win aluminium from bauxite.'],
+  refrigerators: ['ICE WITHOUT THE ICEMAN: The electric refrigerator', 'Appliance plants build refrigerators from steel, motors and chemicals.'],
+  washing_machines: ['WASHDAY REVOLUTION', 'The electric washing machine arrives.'],
+  cosmetics: ['THE BEAUTY COUNTER', 'Chemical works now bottle cosmetics.'],
+  microchips: ['THE INTEGRATED CIRCUIT', 'Electronics works etch microchips from silicon.'],
+  calculators: ['SUMS IN YOUR POCKET', 'Gadget assembly plants build electronic calculators.'],
+  video_games: ['SPACE INVADERS AT HOME', 'Video games are now in the shops.'],
+  mobile_phones: ['THE TELEPHONE LEAVES THE WALL', 'Mobile phones need chips, displays and aluminium.'],
 };
 
 const unlockKind = (id: string): 'good' | 'building' | 'recipe' => (GOODS[id] ? 'good' : BUILDINGS[id] ? 'building' : 'recipe');
@@ -75,6 +103,8 @@ export function checkUnlocks(ctx: SimContext): void {
 
 const FADE_LINES: Record<string, string> = {
   radios: 'Radios losing their crackle with the young set',
+  phonographs: 'The gramophone falls silent in the modern home',
+  calculators: 'Pocket calculators give way to the home computer',
 };
 
 /** On year: warn the year before a good fades, and when its demand first halves. */
@@ -84,7 +114,7 @@ export function fadeWarnings(ctx: SimContext): void {
     if (g.fadeYear === null) continue;
     const line = FADE_LINES[g.id] ?? `${g.name} sales are fading`;
     if (year === g.fadeYear - 1) {
-      publishNews(ctx, 'warning', line, `Demand for ${g.name.toLowerCase()}s is expected to decline from next year.`);
+      publishNews(ctx, 'warning', line, `Demand for ${goodPlural(g).toLowerCase()} is expected to decline from next year.`);
     } else if (lifecycleFactor(g.id, year) <= 0.5 && lifecycleFactor(g.id, year - 1) > 0.5) {
       publishNews(ctx, 'warning', `${g.name} demand halves`, `Shoppers have moved on: ${g.name.toLowerCase()} demand is down by half.`);
     }

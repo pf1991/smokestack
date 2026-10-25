@@ -49,6 +49,28 @@ export const BUILDING_HEIGHT: Record<BuildingTypeId, number> = {
   warehouse: 14,
   train_station: 12,
   company_housing: 10,
+  // R4: Table B (painters and keys for ids the catalogue does not hold yet are harmless)
+  ranch: 8,
+  clay_pit: 6,
+  copper_mine: 10,
+  rubber_plantation: 8,
+  bauxite_quarry: 8,
+  smelter: 20,
+  tannery: 14,
+  sugar_refinery: 16,
+  brickworks: 16,
+  paper_mill: 16,
+  chemical_works: 18,
+  machine_shop: 16,
+  electronics_works: 18,
+  shoe_factory: 14,
+  confectionery: 14,
+  print_works: 16,
+  cannery: 14,
+  cycle_works: 16,
+  appliance_plant: 18,
+  gadget_assembly: 16,
+  trading_house: 12,
 };
 
 /** Chimney room above the footprint in the flat layout the painters draw in. */
@@ -133,6 +155,12 @@ function flatChimneys(typeId: string): Vec2[] {
     juice_plant: [[0.2, 8]],
     toy_factory: [[0.25, 8]],
     electronics_plant: [[0.15, 9]],
+    smelter: [[0.2, 3], [0.7, 5]],
+    brickworks: [[0.25, 4], [0.75, 4]],
+    chemical_works: [[0.15, 2], [0.5, 6], [0.85, 3]],
+    tannery: [[0.3, 7]],
+    paper_mill: [[0.2, 5]],
+    sugar_refinery: [[0.25, 6]],
   };
   const t = table[typeId] ?? [[0.25, 6]];
   return t.map(([f, y]) => ({ x: Math.round(W * f), y }));
@@ -212,7 +240,7 @@ type WinRect = { x: number; y: number; w: number; h: number };
 function flatWindowRects(typeId: string): WinRect[] {
   const def = BUILDINGS[typeId];
   if (!def) return [];
-  if (['farm', 'sand_pit', 'oil_well', 'lumber_camp', 'warehouse'].includes(typeId)) return [];
+  if (['farm', 'sand_pit', 'oil_well', 'lumber_camp', 'warehouse', 'trading_house'].includes(typeId)) return [];
   if (typeId === 'dairy_farm') {
     return [10, 16, 38, 44].map(x => ({ x, y: HR0 + 17, w: 4, h: 3 }));
   }
@@ -231,6 +259,11 @@ function facadeWindowRects(typeId: string): WinRect[] {
   if (!def || !isBox(def)) return [];
   const { top, lift } = facadeGap(def);
   const out: WinRect[] = [];
+  // the Trading House lights the bays of its colonnade (the middle bay is the doorway)
+  if (typeId === 'trading_house') {
+    for (const x of TH_COLUMNS) if (x !== 37 && x !== 85) out.push({ x: x + 5, y: top + 4, w: 2, h: Math.max(1, lift - 6) });
+    return out;
+  }
   if (typeId === 'store') {
     const { W } = dims(def);
     for (let y = top + 3; y + 3 <= top + lift - 2; y += 6) {
@@ -420,6 +453,7 @@ function paintFarm(g: Ctx, def: BuildingDef, W: number, H: number, variant: stri
     grain: ['#d8bd4e', '#b89a2e', '#e9d77a'],
     cotton: ['#e9e6dc', '#7f9a55', '#ffffff'],
     fruit: ['#5f8f3a', '#437228', '#d9463b'],
+    sugar_beet: ['#6f9a3c', '#4f7a2a', '#c77d9b'],
   };
   const [a, b, dot] = pal[variant] ?? pal.grain;
   const fx = 0, fy = HR0, fw = W - SHADOW, fh = H - HR0 - SHADOW;
@@ -427,7 +461,7 @@ function paintFarm(g: Ctx, def: BuildingDef, W: number, H: number, variant: stri
   for (let i = 0; i < fh - 2; i += 4) {
     rect(g, fx + 1, fy + 1 + i, fw - 2, 3, i % 8 ? a : b);
     if (variant === 'fruit') for (let x = 5; x < fw - 4; x += 7) circle(g, fx + x, fy + 2 + i, 1.6, hash(x + i) > 0.5 ? dot : '#3f6b25');
-    if (variant === 'cotton') for (let x = 4; x < fw - 3; x += 5) circle(g, fx + x, fy + 2 + i, 1.3, dot);
+    if (variant === 'cotton' || variant === 'sugar_beet') for (let x = 4; x < fw - 3; x += 5) circle(g, fx + x, fy + 2 + i, 1.3, dot);
   }
   // farmyard, farmhouse and silo in the NW corner, owner-neutral
   rect(g, fx + 1, fy + 1, 32, 18, '#9a8456');
@@ -541,8 +575,211 @@ function paintOil(g: Ctx, def: BuildingDef, W: number, H: number): void {
   rect(g, W - 17, base - 6, 3, 8, '#56565e');
 }
 
-/** Shadow casters per extractor, matching the painters above (footprint-local px). */
-function extractorCasters(def: BuildingDef): ShadowCaster[] {
+/** Cattle ranch: dry range, a post-and-rail corral of brown cattle, a red gambrel barn and a stock trough. */
+function paintRanch(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  const fw = W - SHADOW, fh = H - HR0 - SHADOW;
+  rect(g, 0, HR0, fw, fh, '#a3a25a'); // open range
+  for (let i = 0; i < 18; i++) rect(g, 2 + hash(i + 3) * (fw - 6), HR0 + 2 + hash(i + 71) * (fh - 4), 3, 1, i % 2 ? '#8c8c48' : '#b9b66c');
+  // trampled corral, south of the barn
+  const cx = 4, cy = HR0 + 30, cw = fw - 8, ch = fh - 34;
+  rect(g, cx, cy, cw, ch, '#b8996a');
+  for (let i = 0; i < 10; i++) rect(g, cx + 2 + hash(i + 120) * (cw - 6), cy + 2 + hash(i + 150) * (ch - 4), 2, 1, '#a07f52');
+  // post-and-rail fence: rails in shadow and light, posts every 8 px
+  rect(g, cx, cy, cw, 1, '#6b4a2a'); rect(g, cx, cy + ch - 1, cw, 1, '#6b4a2a');
+  rect(g, cx, cy, 1, ch, '#6b4a2a'); rect(g, cx + cw - 1, cy, 1, ch, '#6b4a2a');
+  rect(g, cx, cy + ch, cw, 1, 'rgba(0,0,0,0.25)');
+  for (let x = cx; x <= cx + cw - 2; x += 8) { rect(g, x, cy - 1, 2, 3, '#4a3320'); rect(g, x, cy + ch - 2, 2, 3, '#4a3320'); }
+  for (let y = cy + 8; y < cy + ch - 4; y += 8) { rect(g, cx - 1, y, 3, 2, '#4a3320'); rect(g, cx + cw - 2, y, 3, 2, '#4a3320'); }
+  // gate gap on the east side
+  rect(g, cx + cw - 1, cy + 14, 1, 8, '#b8996a');
+  // cattle: brown bodies, white faces, a couple of black ones
+  for (let i = 0; i < 9; i++) {
+    const x = cx + 6 + (i % 3) * 26 + hash(i + 11) * 10, y = cy + 6 + Math.floor(i / 3) * 13 + hash(i + 29) * 4;
+    const body = i % 4 === 3 ? '#2e2420' : '#7a4b3a';
+    const east = hash(i + 51) > 0.5;
+    rect(g, x + 1, y + 1, 7, 4, 'rgba(0,0,0,0.25)');
+    rect(g, x, y, 7, 4, body);
+    rect(g, x, y, 7, 1, shade(body, 0.25));
+    rect(g, east ? x + 7 : x - 2, y, 2, 3, '#efe6d6'); // face
+    rect(g, east ? x + 7 : x - 2, y - 1, 2, 1, '#d9cfb8'); // horns
+  }
+  // stock trough
+  rect(g, cx + 40, cy + 3, 12, 3, '#5b3a1e'); rect(g, cx + 41, cy + 4, 10, 1, '#6f9ec4');
+  // red gambrel barn with a white-trimmed hayloft door, hay bales beside it
+  const b = raised(g, 6, HR0 + 3, 34, 12, 6, L, '#a8392b', '#842b20');
+  poly(g, [[6, b.top + 3], [12, b.top - 3], [34, b.top - 3], [40, b.top + 3]], '#7a2a20');
+  rect(g, 12, b.top - 3, 22, 1, shade('#7a2a20', 0.3));
+  rect(g, 6, b.top + 6, 34, 1, 'rgba(0,0,0,0.3)');
+  rect(g, 19, b.seam + 2, 8, 4 + L, '#f1e6d0');
+  rect(g, 20, b.seam + 3, 6, 3 + L, '#6a2a20');
+  rect(g, 20, b.seam + 3, 6, 1, '#f1e6d0');
+  rect(g, 10, b.seam + 3, 4, 3, '#2b2320'); rect(g, 32, b.seam + 3, 4, 3, '#2b2320');
+  for (const [hx, hy] of [[48, HR0 + 8], [55, HR0 + 10], [51, HR0 + 15]]) {
+    circle(g, hx + 1, hy + 1, 3.2, 'rgba(0,0,0,0.25)');
+    circle(g, hx, hy, 3.2, '#d8b860');
+    circle(g, hx - 1, hy - 1, 1.3, '#efd98a');
+  }
+  // windpump on a lattice tower over the trough
+  const wx = 76, wy = HR0 + 18;
+  g.strokeStyle = '#4a3a2a';
+  g.lineWidth = 1;
+  g.beginPath(); g.moveTo(wx - 4, wy); g.lineTo(wx, wy - 22); g.lineTo(wx + 4, wy); g.moveTo(wx - 3, wy - 6); g.lineTo(wx + 3, wy - 6); g.stroke();
+  circle(g, wx, wy - 22, 4, '#c9c4b8');
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; rect(g, wx + Math.cos(a) * 2.5 - 0.5, wy - 22 + Math.sin(a) * 2.5 - 0.5, 1, 1, '#6e6a62'); }
+  circle(g, wx, wy - 22, 1, '#4a3a2a');
+}
+
+/** Clay pit: wet orange-red terraces stepping down to a puddled floor, a drying shed of green bricks on the rim. */
+function paintClayPit(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  const fw = W - SHADOW, fh = H - HR0 - SHADOW;
+  rect(g, 0, HR0, fw, fh, '#8a9a58'); // grass rim
+  const cols = ['#c9784a', '#b8653d', '#a55534', '#8f462a'];
+  // terraces step down toward the south-west corner, each a bench with a lit lip
+  for (let i = 0; i < 4; i++) {
+    const x = 2 + i * 3, y = HR0 + 16 + i * 6, w = fw - 4 - i * 9, h = fh - 18 - i * 7;
+    rect(g, x, y, w, h, cols[i]);
+    rect(g, x, y, w, 1, 'rgba(255,230,200,0.35)');
+    rect(g, x + w - 1, y, 1, h, 'rgba(0,0,0,0.25)');
+    for (let k = 0; k < 4; k++) rect(g, x + 2 + hash(i * 9 + k) * (w - 6), y + 2 + hash(i * 9 + k + 40) * (h - 4), 2, 1, 'rgba(0,0,0,0.18)');
+  }
+  // water lying on the pit floor
+  g.fillStyle = '#6f8c96';
+  g.beginPath(); g.ellipse(18, H - 12, 7, 3, 0, 0, Math.PI * 2); g.fill();
+  rect(g, 14, H - 13, 4, 1, '#a9c7cf');
+  // barrow plank up the benches
+  g.strokeStyle = '#7a5a38';
+  g.lineWidth = 2;
+  g.beginPath(); g.moveTo(30, H - 10); g.lineTo(44, HR0 + 18); g.stroke();
+  g.lineWidth = 1;
+  // open-sided drying shed: a dark roof on posts over racks of green bricks
+  const s = raised(g, 4, HR0 + 2, 34, 8, 4, L, '#5e5248', '#3f362e');
+  rect(g, 4, s.top + 4, 34, 1, 'rgba(0,0,0,0.3)');
+  for (let x = 6; x < 36; x += 4) rect(g, x, s.seam + 1, 3, 3 + L, (x / 4) % 2 ? '#c98f6a' : '#b07a58');
+  for (const x of [4, 20, 36]) rect(g, x, s.seam + 1, 2, 3 + L, '#2a221c');
+  // fired-brick stack waiting by the shed
+  for (let i = 0; i < 3; i++) rect(g, 44, HR0 + 4 + i * 3, 10, 2, i % 2 ? '#a63d2a' : '#8f3322');
+  rect(g, 44, HR0 + 13, 10, 1, 'rgba(0,0,0,0.3)');
+}
+
+/** Copper mine: a timber headframe over the shaft, a little winding house and heaps of green-stained spoil. */
+function paintCopperMine(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  const fw = W - SHADOW, fh = H - HR0 - SHADOW;
+  rect(g, 0, HR0, fw, fh, '#7f7a68');
+  for (let i = 0; i < 10; i++) circle(g, 3 + hash(i + 5) * (fw - 6), HR0 + 3 + hash(i + 17) * (fh - 6), 1.2, i % 2 ? '#5f5a4e' : '#9a9482');
+  // spoil heaps, verdigris green with pale crests
+  for (const [x, y, r] of [[44, H - 14, 11], [56, H - 22, 7], [10, H - 10, 7]] as [number, number, number][]) {
+    poly(g, [[x - r + 2, y + 2], [x + 2, y - r * 0.8 + 2], [x + r + 2, y + 2]], 'rgba(0,0,0,0.22)');
+    poly(g, [[x - r, y], [x, y - r * 0.8], [x + r, y]], '#4f8a6e');
+    poly(g, [[x - r, y], [x, y - r * 0.8], [x - r * 0.15, y]], '#6faa8a');
+    for (let k = 0; k < 3; k++) rect(g, x - r * 0.5 + k * r * 0.4, y - 2 - (k % 2) * 2, 1, 1, '#b8e0c8');
+  }
+  // shaft collar
+  rect(g, 10, HR0 + 18, 16, 6, '#2a2622');
+  rect(g, 10, HR0 + 18, 16, 1, '#6b5a40');
+  // timber headframe: twin legs, a back brace and cross ties, a sheave on top
+  softShadow(g, 10, HR0 + 2, 16, 16);
+  g.strokeStyle = '#a0723e';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(10, HR0 + 22); g.lineTo(16, 4); g.moveTo(26, HR0 + 22); g.lineTo(20, 4);
+  g.moveTo(12, HR0 + 10); g.lineTo(24, HR0 + 10); g.moveTo(14, HR0 - 2); g.lineTo(22, HR0 - 2);
+  g.stroke();
+  g.strokeStyle = '#6e4a24';
+  g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(18, 6); g.lineTo(34, HR0 + 14); g.stroke();
+  g.lineWidth = 1;
+  rect(g, 14, 3, 8, 2, '#6e4a24');
+  circle(g, 18, 5, 3.5, '#3a3530');
+  circle(g, 18, 5, 2.2, '#c46f3b');
+  circle(g, 18, 5, 0.8, '#3a3530');
+  // winding house with the rope running out to the sheave
+  const w = raised(g, 34, HR0 + 6, 22, 8, 5, L, '#6b5a48', '#4e4034');
+  rect(g, 34, w.top + 4, 22, 1, 'rgba(0,0,0,0.3)');
+  rect(g, 38, w.seam + 3, 4, 3, '#2b3a4a'); rect(g, 47, w.seam + 3, 4, 3, '#2b3a4a');
+  g.strokeStyle = '#2a2622';
+  g.beginPath(); g.moveTo(20, 5); g.lineTo(34, w.top + 3); g.stroke();
+}
+
+/** Rubber plantation: rows of round tree crowns on dark soil, a tapping shed with its latex tubs. */
+function paintRubberPlantation(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  const fw = W - SHADOW, fh = H - HR0 - SHADOW;
+  rect(g, 0, HR0, fw, fh, '#5e5434'); // estate soil
+  for (let y = HR0 + 6; y < H - SHADOW; y += 12) rect(g, 1, y, fw - 2, 1, '#6e6440'); // planting rows
+  // the tapping shed in the north-west corner, a cleared yard in front
+  rect(g, 1, HR0 + 1, 38, 24, '#8a7a52');
+  // tree crowns on a staggered grid, skipping the yard
+  for (let row = 0; row < 7; row++) {
+    for (let col = 0; col < 8; col++) {
+      const x = 7 + col * 11.5 + (row % 2 ? 5 : 0), y = HR0 + 6 + row * 12;
+      if (x > fw - 5) continue;
+      if (x < 44 && y < HR0 + 28) continue;
+      const k = row * 8 + col;
+      const r = 4.6 + hash(k + 300) * 0.9;
+      circle(g, x + 2, y + 2, r, 'rgba(0,0,0,0.3)');
+      circle(g, x, y, r, hash(k + 330) > 0.5 ? '#3f6b2e' : '#4a7a34');
+      circle(g, x - 1.2, y - 1.4, r * 0.5, '#6a9a48');
+      if (hash(k + 360) > 0.6) rect(g, x + 2, y + r - 1, 1, 2, '#e8e0c8'); // a tapping cup on the trunk
+    }
+  }
+  // tapping shed: palm-thatch roof, plank walls, white latex tubs out front
+  const s = raised(g, 4, HR0 + 3, 28, 10, 5, L, '#a88a4a', '#6b5434');
+  for (let x = 5; x < 32; x += 3) rect(g, x, s.top + 1, 1, 9, 'rgba(0,0,0,0.12)');
+  rect(g, 4, s.top + 5, 28, 1, 'rgba(0,0,0,0.25)');
+  rect(g, 14, s.seam + 2, 7, 3 + L, '#2a1c10');
+  for (const x of [8, 26]) rect(g, x, s.seam + 3, 3, 2, '#2b3a4a');
+  for (const x of [8, 15, 22, 29]) {
+    circle(g, x + 1, HR0 + 22, 2.4, 'rgba(0,0,0,0.25)');
+    circle(g, x, HR0 + 21, 2.4, '#7a6a52');
+    circle(g, x, HR0 + 21, 1.6, '#f4efe0');
+  }
+}
+
+/** Bauxite quarry: ochre benches cut into the hill, a belt conveyor climbing to a crusher house and hopper. */
+function paintBauxiteQuarry(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  const fw = W - SHADOW, fh = H - HR0 - SHADOW;
+  rect(g, 0, HR0, fw, fh, '#8f8a6a'); // hill top
+  const cols = ['#d89a68', '#d08a5a', '#bb7446', '#a35f36', '#8a4c2a'];
+  // horizontal benches, each lower one darker, with a bright bench edge and a shadowed riser
+  for (let i = 0; i < 5; i++) {
+    const y = HR0 + 18 + i * 8, h = fh - 18 - i * 8;
+    rect(g, 2, y, fw - 4, h, cols[i]);
+    rect(g, 2, y, fw - 4, 1, 'rgba(255,235,205,0.4)');
+    rect(g, 2, y + 1, fw - 4, 2, 'rgba(0,0,0,0.18)');
+    for (let k = 0; k < 4; k++) rect(g, 3 + hash(i * 13 + k) * (fw - 8), y + 4 + hash(i * 13 + k + 50) * 3, 2, 1, 'rgba(90,40,20,0.35)');
+  }
+  // a little loaded tipper on the bottom bench
+  rect(g, 8, H - 13, 9, 4, '#5a5048'); rect(g, 9, H - 15, 7, 2, '#c07a4a');
+  circle(g, 10, H - 8, 1.5, '#111'); circle(g, 15, H - 8, 1.5, '#111');
+  // crusher house on the rim with a hopper on its roof
+  const c = raised(g, W - 26, HR0 + 2, 20, 10, 6, L, '#6e6a66', '#4c4844');
+  rect(g, W - 26, c.top + 5, 20, 1, 'rgba(0,0,0,0.3)');
+  poly(g, [[W - 22, c.top + 1], [W - 10, c.top + 1], [W - 13, c.top + 7], [W - 19, c.top + 7]], '#3a3632');
+  rect(g, W - 21, c.top + 1, 10, 2, '#c07a4a');
+  rect(g, W - 22, c.seam + 3, 4, 3, '#2b3a4a');
+  // belt conveyor from the pit floor up to the hopper: a dark gantry with a rust belt and rollers
+  const x0 = 20, y0 = H - 12, x1 = W - 18, y1 = c.top + 3;
+  g.strokeStyle = 'rgba(0,0,0,0.25)';
+  g.lineWidth = 4;
+  g.beginPath(); g.moveTo(x0 + 2, y0 + 2); g.lineTo(x1 + 2, y1 + 2); g.stroke();
+  g.strokeStyle = '#3a3632';
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  g.strokeStyle = '#b5683a';
+  g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(x0, y0 - 0.5); g.lineTo(x1, y1 - 0.5); g.stroke();
+  g.lineWidth = 1;
+  for (let t = 0.2; t < 0.95; t += 0.25) {
+    const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+    rect(g, x - 0.5, y + 1, 1, (y0 - y) * 0.35 + 2, '#3a3632'); // trestle legs
+  }
+}
+
+/** Shadow casters per extractor, matching the painters above (footprint-local px). Exported for tests. */
+export function extractorCasters(def: BuildingDef): ShadowCaster[] {
   const L = BUILDING_HEIGHT[def.id];
   const { W, H } = dims(def);
   switch (def.id) {
@@ -559,6 +796,11 @@ function extractorCasters(def: BuildingDef): ShadowCaster[] {
     }
     case 'sand_pit': return [raisedCaster(6, HR0 + 2, 12, 5, 4, L), { x: W - 22, y: H - HR0 - 14, w: 10, d: 2, z: 8, taper: true }];
     case 'oil_well': return [siloCaster(10, HR0 + 12, 5, L + 6), { x: W / 2 - 10, y: H - HR0 - 17, w: 20, d: 3, z: H - 14 - 3, taper: true }];
+    case 'ranch': return [raisedCaster(6, HR0 + 3, 34, 12, 6, L), { x: 72, y: 16, w: 8, d: 3, z: 26, taper: true }];
+    case 'clay_pit': return [raisedCaster(4, HR0 + 2, 34, 8, 4, L)];
+    case 'copper_mine': return [raisedCaster(34, HR0 + 6, 22, 8, 5, L), { x: 10, y: 20, w: 16, d: 3, z: HR0 + 22 - 4, taper: true }];
+    case 'rubber_plantation': return [raisedCaster(4, HR0 + 3, 28, 10, 5, L)];
+    case 'bauxite_quarry': return [raisedCaster(W - 26, HR0 + 2, 20, 10, 6, L)];
     default: return [];
   }
 }
@@ -789,6 +1031,133 @@ function paintStation(g: Ctx, _def: BuildingDef, W: number, H: number, owner: Ow
   pennant(g, W, owner);
 }
 
+// ---------------------------------------------------------------- the Trading House (R4)
+
+const TH_STONE = '#ddd3bc';
+const TH_STONE_LIT = '#f1ead8';
+const TH_STONE_DARK = '#a99d82';
+const TH_RECESS = '#3d362d';
+const TH_BRASS = '#c99a32';
+const TH_BRASS_LIT = '#f0d27a';
+const TH_BRASS_DARK = '#7d5d1c';
+/** Left edges of the portico's columns (4 px each, flat and facade alike); the middle bay holds the doors. */
+const TH_COLUMNS = [5, 13, 21, 29, 37, 53, 61, 69, 77, 85];
+
+/** A column of the portico, x..x+4, from y down `hgt` px: lit west side, shaded east side. */
+function thColumn(g: Ctx, x: number, y: number, hgt: number): void {
+  rect(g, x, y, 4, hgt, TH_STONE);
+  rect(g, x, y, 1, hgt, TH_STONE_LIT);
+  rect(g, x + 3, y, 1, hgt, TH_STONE_DARK);
+}
+
+/** A brass dome on a stone drum, seen from above and a little south. */
+function thDome(g: Ctx, cx: number, cy: number, r: number): void {
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.beginPath();
+  g.ellipse(cx + 3, cy + 3, r + 3, r + 2, 0, 0, Math.PI * 2);
+  g.fill();
+  circle(g, cx, cy, r + 3, TH_STONE_DARK); // drum
+  circle(g, cx, cy - 1, r + 2, TH_STONE);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    rect(g, Math.round(cx + Math.cos(a) * (r + 1.5)) - 0.5, Math.round(cy - 1 + Math.sin(a) * (r + 1.5)) - 0.5, 1, 1, TH_STONE_DARK);
+  }
+  const grd = g.createRadialGradient(cx - r * 0.4, cy - r * 0.55, 1, cx, cy, r);
+  grd.addColorStop(0, TH_BRASS_LIT);
+  grd.addColorStop(0.55, TH_BRASS);
+  grd.addColorStop(1, TH_BRASS_DARK);
+  g.fillStyle = grd;
+  g.beginPath();
+  g.arc(cx, cy - 1, r, 0, Math.PI * 2);
+  g.fill();
+  // ribs, then the lantern on top
+  g.strokeStyle = 'rgba(90,62,16,0.55)';
+  g.lineWidth = 0.75;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(cx, cy - 2);
+    g.lineTo(cx + Math.cos(a) * r, cy - 1 + Math.sin(a) * r);
+    g.stroke();
+  }
+  circle(g, cx, cy - 2, 3, TH_STONE_LIT);
+  circle(g, cx, cy - 2, 1.6, TH_BRASS_LIT);
+}
+
+/**
+ * The Trading House: a pale stone exchange under a brass dome, a colonnaded portico with a
+ * pediment and a brass clock, skylit trading-floor roofs either side and brass doors on the steps.
+ */
+function paintTradingHouse(g: Ctx, _def: BuildingDef, W: number, H: number, owner: OwnerId): void {
+  const b = building(g, W, H, TH_STONE, TH_STONE);
+  const seam = b.y + b.roofH;
+  const cx = Math.round(b.x + b.w / 2);
+  // lead roof inside a stone parapet, with standing seams
+  rect(g, b.x + 3, b.y + 3, b.w - 6, b.roofH - 10, '#66727b');
+  for (let x = b.x + 5; x < b.x + b.w - 4; x += 4) rect(g, x, b.y + 3, 1, b.roofH - 10, 'rgba(0,0,0,0.16)');
+  rect(g, b.x + 3, b.y + 3, b.w - 6, 1, 'rgba(0,0,0,0.35)');
+  rect(g, b.x + 3, b.y + 3, 1, b.roofH - 10, 'rgba(0,0,0,0.25)');
+  rect(g, b.x, b.y, b.w, 1, TH_STONE_LIT);
+  // skylights over the two trading floors
+  for (const sx of [b.x + 8, b.x + b.w - 26]) {
+    rect(g, sx, b.y + 9, 18, 22, '#2f4552');
+    for (let y = b.y + 10; y < b.y + 30; y += 3) rect(g, sx + 1, y, 16, 2, '#9cc6d4');
+    rect(g, sx + 1, b.y + 10, 16, 1, '#d8eef4');
+    rect(g, sx + 8, b.y + 9, 1, 22, '#2f4552');
+  }
+  // corner pavilions with brass urns
+  for (const px of [b.x, b.x + b.w - 11]) {
+    rect(g, px, b.y, 11, 11, TH_STONE_LIT);
+    rect(g, px, b.y + 10, 11, 1, TH_STONE_DARK);
+    rect(g, px + 10, b.y, 1, 11, TH_STONE_DARK);
+    circle(g, px + 5.5, b.y + 5.5, 2, TH_BRASS);
+    circle(g, px + 5, b.y + 5, 0.9, TH_BRASS_LIT);
+  }
+  thDome(g, cx, b.y + 22, 11);
+  // the entablature along the front: a cornice with dentils
+  rect(g, b.x, seam - 7, b.w, 7, TH_STONE);
+  rect(g, b.x, seam - 7, b.w, 1, TH_STONE_LIT);
+  for (let x = b.x + 2; x < b.x + b.w - 2; x += 3) rect(g, x, seam - 3, 2, 2, TH_STONE_DARK);
+  rect(g, b.x, seam - 1, b.w, 1, 'rgba(0,0,0,0.3)');
+  // pediment over the middle of the portico, a brass clock in its tympanum
+  poly(g, [[cx - 24, seam - 1], [cx, seam - 15], [cx + 24, seam - 1]], TH_STONE_DARK);
+  poly(g, [[cx - 22, seam - 2], [cx, seam - 14], [cx + 22, seam - 2]], TH_STONE_LIT);
+  poly(g, [[cx - 17, seam - 3], [cx, seam - 11], [cx + 17, seam - 3]], '#cfc4aa');
+  circle(g, cx, seam - 6, 3, TH_BRASS_DARK);
+  circle(g, cx, seam - 6, 2.4, '#f6efd9');
+  rect(g, cx, seam - 8, 0.8, 2, '#2a2620');
+  rect(g, cx, seam - 6, 1.6, 0.8, '#2a2620');
+  // ground floor: the portico's column feet, brass doors in the middle bay, then the steps
+  rect(g, b.x, seam, b.w, WALL, TH_RECESS);
+  for (const x of TH_COLUMNS) thColumn(g, x, seam, WALL - 2);
+  rect(g, b.x, seam, 4, WALL, TH_STONE_DARK);
+  rect(g, b.x + b.w - 3, seam, 3, WALL, TH_STONE_DARK);
+  rect(g, cx - 4, seam, 8, WALL - 2, '#5a3a1e');
+  rect(g, cx - 4, seam, 8, 1, TH_BRASS);
+  rect(g, cx - 0.5, seam + 1, 1, WALL - 3, TH_BRASS_DARK);
+  rect(g, cx - 2, seam + 2, 1, 1, TH_BRASS_LIT);
+  rect(g, cx + 1, seam + 2, 1, 1, TH_BRASS_LIT);
+  rect(g, b.x + 2, seam + WALL - 2, b.w - 4, 1, TH_STONE_LIT); // steps
+  rect(g, b.x + 1, seam + WALL - 1, b.w - 2, 1, TH_STONE_DARK);
+  pennant(g, W, owner);
+}
+
+/** The Trading House's grown facade: the upper colonnade, a brass frieze under the cornice. */
+function paintTradingFacade(g: Ctx, W: number, top: number, lift: number): void {
+  const bx = 1, bw = W - SHADOW - 1;
+  rect(g, bx, top, bw, lift, TH_RECESS);
+  for (const x of TH_COLUMNS) {
+    thColumn(g, x, top + 2, lift - 2);
+    rect(g, x - 1, top + 2, 6, 1, TH_STONE_LIT); // capital
+  }
+  rect(g, bx, top, 4, lift, TH_STONE_DARK);
+  rect(g, bx + bw - 3, top, 3, lift, TH_STONE_DARK);
+  rect(g, bx, top, bw, 2, TH_BRASS); // frieze
+  rect(g, bx, top, bw, 1, TH_BRASS_DARK);
+  rect(g, bx + bw - 1, top, 1, lift, 'rgba(0,0,0,0.45)');
+  rect(g, bx, top, 1, lift, 'rgba(0,0,0,0.45)');
+}
+
 /** Company housing: a brick terrace of three homes under a pitched slate roof, chimneys on the party walls. */
 function paintHousing(g: Ctx, _def: BuildingDef, W: number, H: number, owner: OwnerId): void {
   const brick = '#a9553e';
@@ -830,7 +1199,8 @@ function paintHousing(g: Ctx, _def: BuildingDef, W: number, H: number, owner: Ow
   pennant(g, W, owner);
 }
 
-function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant: string): void {
+/** Paints a building in the flat layout (exported for tests). */
+export function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant: string): void {
   const { W, H } = dims(def);
   switch (def.id) {
     case 'lumber_camp': paintLumber(g, def, W, H); break;
@@ -839,10 +1209,16 @@ function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant: string
     case 'mine': paintMine(g, def, W, H); break;
     case 'sand_pit': paintSandPit(g, def, W, H); break;
     case 'oil_well': paintOil(g, def, W, H); break;
+    case 'ranch': paintRanch(g, def, W, H); break;
+    case 'clay_pit': paintClayPit(g, def, W, H); break;
+    case 'copper_mine': paintCopperMine(g, def, W, H); break;
+    case 'rubber_plantation': paintRubberPlantation(g, def, W, H); break;
+    case 'bauxite_quarry': paintBauxiteQuarry(g, def, W, H); break;
     case 'store': paintStore(g, def, W, H, owner); return;
     case 'warehouse': paintWarehouse(g, def, W, H, owner); return;
     case 'train_station': paintStation(g, def, W, H, owner); return;
     case 'company_housing': paintHousing(g, def, W, H, owner); return;
+    case 'trading_house': paintTradingHouse(g, def, W, H, owner); return;
     default:
       if (def.category === 'factory') { paintFactory(g, def, W, H, owner); return; }
       paintWarehouse(g, def, W, H, owner); return;
@@ -864,6 +1240,10 @@ function facadeWall(def: BuildingDef): string {
 /** Fills a box building's grown facade: wall, texture, cornice under the eave, pilasters, upper windows. */
 function paintFacade(g: Ctx, def: BuildingDef, W: number, top: number, lift: number): void {
   if (lift <= 0) return;
+  if (def.id === 'trading_house') {
+    paintTradingFacade(g, W, top, lift);
+    return;
+  }
   const bx = 1, bw = W - SHADOW - 1;
   const wall = facadeWall(def);
   const brick = def.category === 'factory' || def.id === 'company_housing';

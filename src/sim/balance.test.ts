@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus, type GameEvent } from '../core/events';
 import { GOODS } from '../data/goods';
-import { chainEconomics } from './chainEconomics';
+import { chainEconomics, shallowMedian } from './chainEconomics';
 import { BANKRUPT_MONTHS } from './finance';
 import { runDays } from './simulation';
 import { createGame } from './state';
@@ -22,8 +22,8 @@ function cpuMs(): number {
 
 describe('chain economics', () => {
   it('every 1900 chain is profitable at full utilisation', () => {
-    const goods = Object.values(GOODS).filter((g) => g.tier === 2 && g.era <= 1900);
-    expect(goods.map((g) => g.id).sort()).toEqual(['bread', 'cheese', 'clothes', 'furniture', 'juice', 'tools', 'toys']);
+    const goods = Object.values(GOODS).filter((g) => g.kind === 'consumer' && g.era <= 1900);
+    expect(goods.map((g) => g.id).sort()).toEqual(['books', 'bread', 'candy', 'canned_food', 'cheese', 'clothes', 'furniture', 'juice', 'shoes', 'tools', 'toys']);
     for (const g of goods) {
       const r = chainEconomics(g.id, 1900);
       expect(r, g.id).not.toBeNull();
@@ -34,10 +34,100 @@ describe('chain economics', () => {
   });
 
   it('every later chain is profitable too once invented', () => {
-    for (const g of Object.values(GOODS).filter((x) => x.tier === 2 && x.era > 1900)) {
+    for (const g of Object.values(GOODS).filter((x) => x.kind === 'consumer' && x.era > 1900)) {
       const r = chainEconomics(g.id, g.era);
       expect(r, g.id).not.toBeNull();
       expect(r!.profitPerDay, `${g.id} daily profit`).toBeGreaterThan(0);
+    }
+  });
+});
+
+/**
+ * The balance gate (R4): a deep chain (depth >= 4) must pay at least as much per worker-month as the
+ * median shallow chain (depth <= 3) the player could already build in the deep good's own era year.
+ * Every figure is `chainEconomics(g, y)` with y = the deep good's era, so the shallow median is the
+ * one of year y (it uses every consumer good with era <= y).
+ */
+describe('deep chains pay', () => {
+  it('chain reports carry depth, workers and profit per worker-month', () => {
+    const bread = chainEconomics('bread', 1900)!;
+    expect(bread.depth).toBe(3);
+    expect(chainEconomics('cheese', 1900)!.depth).toBe(2);
+    expect(bread.workers).toBeGreaterThan(0);
+    expect(bread.profitPerWorkerMonth).toBeCloseTo((bread.profitPerDay * 30) / bread.workers, 10);
+  });
+
+  it('the 1900 rows match Table E within 10%', () => {
+    const table: [string, number, number, number][] = [
+      // good, depth, workers, $/worker-month
+      ['candy', 3, 116, 14.0],
+      ['canned_food', 3, 117, 14.1],
+      ['books', 3, 152, 11.4],
+      ['shoes', 3, 172, 10.9],
+    ];
+    for (const [id, depth, workers, perWm] of table) {
+      const r = chainEconomics(id, 1900)!;
+      expect(r.depth, id).toBe(depth);
+      expect(Math.abs(r.workers - workers) / workers, `${id} workers ${r.workers}`).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(r.profitPerWorkerMonth - perWm) / perWm, `${id} $/wk-mo ${r.profitPerWorkerMonth}`).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it('the 1905–1915 rows match Table E within 10% (bicycles and motorcycles are deep)', () => {
+    const table: [string, number, number, number, number][] = [
+      // good, era, depth, workers, $/worker-month
+      ['phonographs', 1905, 3, 144, 31.4],
+      ['bicycles', 1910, 4, 185, 23.8],
+      ['motorcycles', 1915, 4, 334, 27.9],
+    ];
+    for (const [id, era, depth, workers, perWm] of table) {
+      const r = chainEconomics(id, era)!;
+      expect(r.depth, id).toBe(depth);
+      expect(Math.abs(r.workers - workers) / workers, `${id} workers ${r.workers}`).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(r.profitPerWorkerMonth - perWm) / perWm, `${id} $/wk-mo ${r.profitPerWorkerMonth}`).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it('the 1930–1950 rows match Table E within 10% (refrigerators and washing machines are deep)', () => {
+    const table: [string, number, number, number, number][] = [
+      // good, era, depth, workers, $/worker-month
+      ['refrigerators', 1930, 5, 361, 26.5],
+      ['washing_machines', 1935, 5, 345, 26.0],
+      ['cosmetics', 1950, 3, 129, 15.1],
+    ];
+    for (const [id, era, depth, workers, perWm] of table) {
+      const r = chainEconomics(id, era)!;
+      expect(r.depth, id).toBe(depth);
+      expect(Math.abs(r.workers - workers) / workers, `${id} workers ${r.workers}`).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(r.profitPerWorkerMonth - perWm) / perWm, `${id} $/wk-mo ${r.profitPerWorkerMonth}`).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it("chainEconomics('washing_machines', 1935).depth === 5", () => {
+    expect(chainEconomics('washing_machines', 1935)!.depth).toBe(5);
+  });
+
+  it('the 1970–1990 rows match Table E within 10% (calculators, video games, mobile phones are deep)', () => {
+    const table: [string, number, number, number, number][] = [
+      // good, era, depth, workers, $/worker-month
+      ['calculators', 1970, 5, 96, 39.2],
+      ['video_games', 1978, 5, 132, 37.4],
+      ['mobile_phones', 1990, 5, 209, 61.9],
+    ];
+    for (const [id, era, depth, workers, perWm] of table) {
+      const r = chainEconomics(id, era)!;
+      expect(r.depth, id).toBe(depth);
+      expect(Math.abs(r.workers - workers) / workers, `${id} workers ${r.workers}`).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(r.profitPerWorkerMonth - perWm) / perWm, `${id} $/wk-mo ${r.profitPerWorkerMonth}`).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it('every deep consumer chain beats the shallow median of its era year', () => {
+    for (const d of Object.values(GOODS).filter((g) => g.kind === 'consumer')) {
+      const r = chainEconomics(d.id, d.era);
+      if (!r || r.depth < 4) continue;
+      const median = shallowMedian(d.era);
+      expect(r.profitPerWorkerMonth, `${d.id} (${d.era}) vs shallow median ${median.toFixed(1)} of ${d.era}`).toBeGreaterThanOrEqual(median);
     }
   });
 });
@@ -128,11 +218,11 @@ describe('economy balance', () => {
     );
     expect(events).toEqual([{ type: 'victory', reason: 'The century is over' }]);
     expect(ctx.state.date.year).toBe(2001);
-    // The run takes about 19 s of CPU alone, and up to about 25 s while the rest of the suite loads
-    // every core (CPU time inflates with core contention, not just wall time). The 30 s budget still
-    // catches a 1.5x regression without flaking. Shared CI runners are slower and noisier: the budget
-    // doubles there (CI is set by GitHub Actions).
+    // The run takes about 25–35 s of CPU with four regional firms and the R4 catalogue (CPU time also
+    // inflates with core contention while the suite loads). The 45 s budget still catches a ~1.5x
+    // regression without flaking. Shared CI runners are slower and noisier: the budget doubles there
+    // (CI is set by GitHub Actions).
     const ci = Boolean((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CI);
-    expect(cpu).toBeLessThan(ci ? 60_000 : 30_000);
+    expect(cpu).toBeLessThan(ci ? 90_000 : 45_000);
   }, 120_000);
 });

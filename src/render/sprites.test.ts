@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BUILDINGS } from '../data/buildings';
 import { TILE } from './constants';
-import { chimneyOffsets, spriteKey, houseStyle, houseTier, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS, LOCO_HALF, WAGON_HALF, drawTruck, BUILDING_HEIGHT, HOUSE_TIER_HEIGHT, HOUSE_TIERS, getBuildingSprite, buildingCasters, houseCaster, TALL_STACK, upgradeHeadroom, upgradeKey, upgradedChimneyOffsets } from './sprites';
+import type { BuildingDef } from '../data/buildings';
+import { chimneyOffsets, extractorCasters, paintBuilding, spriteKey, houseStyle, houseTier, windowRects, HEADROOM, ownerColor, REGIONAL_COLORS, LOCO_HALF, WAGON_HALF, drawTruck, BUILDING_HEIGHT, HOUSE_TIER_HEIGHT, HOUSE_TIERS, getBuildingSprite, buildingCasters, houseCaster, TALL_STACK, upgradeHeadroom, upgradeKey, upgradedChimneyOffsets } from './sprites';
 import { MAX_CASTER_Z } from './shadows';
 import { LANDMARK_CASTERS, LANDMARK_HEADROOM, LANDMARK_HEIGHT } from './landmarks';
 import { LANDMARK_IDS } from '../data/landmarks';
@@ -63,7 +64,7 @@ describe('diorama heights', () => {
     for (const def of Object.values(BUILDINGS)) {
       const hgt = BUILDING_HEIGHT[def.id as keyof typeof BUILDING_HEIGHT];
       expect(hgt, def.id).toBeTypeOf('number');
-      const [lo, hi] = def.category === 'extractor' ? [6, 10] : def.category === 'factory' ? [14, 22] : def.category === 'retail' ? [8, 12] : [6, 22];
+      const [lo, hi] = def.category === 'extractor' ? [6, 10] : def.category === 'factory' ? [14, 22] : def.category === 'retail' ? [8, 12] : def.category === 'trade' ? [8, 14] : [6, 22];
       expect(hgt, def.id).toBeGreaterThanOrEqual(lo);
       expect(hgt, def.id).toBeLessThanOrEqual(hi);
     }
@@ -191,5 +192,93 @@ describe('train trail', () => {
   it('TRAIL_MAX covers the last wagon centre (3.0 tiles) plus the rear sample', async () => {
     const { TRAIL_MAX } = await import('./world/vehicles');
     expect(TRAIL_MAX * 0.2).toBeGreaterThanOrEqual(3.25);
+  });
+});
+
+/** Table B heights for release R4's 21 buildings. */
+const R4_HEIGHTS: Record<string, number> = {
+  ranch: 8, clay_pit: 6, copper_mine: 10, rubber_plantation: 8, bauxite_quarry: 8,
+  smelter: 20, tannery: 14, sugar_refinery: 16, brickworks: 16, paper_mill: 16, chemical_works: 18,
+  machine_shop: 16, electronics_works: 18, shoe_factory: 14, confectionery: 14, print_works: 16,
+  cannery: 14, cycle_works: 16, appliance_plant: 18, gadget_assembly: 16, trading_house: 12,
+};
+
+/** Synthetic Table B extractor defs: the real ones arrive with the catalogue (Tasks 3 and 6). */
+const R4_EXTRACTORS: [string, number, string][] = [
+  ['ranch', 3, '#9c6b3f'], ['clay_pit', 2, '#b86b45'], ['copper_mine', 2, '#5f7a68'],
+  ['rubber_plantation', 3, '#4f6b3a'], ['bauxite_quarry', 2, '#b5562e'],
+];
+function syntheticExtractor(id: string, size: number, color: string): BuildingDef {
+  return {
+    id, name: id, category: 'extractor', size: { w: size, h: size }, cost: 1, maintenance: 1, allowedTerrain: ['grass'],
+    requiresDeposit: false, requiresCity: false, recipes: [], storage: 1, era: 1900, pollution: 0, color, description: '', workers: 20,
+  };
+}
+/** A context that counts fills and accepts any other call or property write. */
+function paintCtx(): { g: CanvasRenderingContext2D; fills: () => number } {
+  let n = 0;
+  const props: Record<string | symbol, unknown> = {};
+  const g = new Proxy(props, {
+    get: (t, k) => {
+      if (k in t) return t[k];
+      if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({ addColorStop() {} });
+      return () => { if (k === 'fill' || k === 'fillRect') n++; };
+    },
+    set: (t, k, v) => { t[k] = v; return true; },
+  }) as unknown as CanvasRenderingContext2D;
+  return { g, fills: () => n };
+}
+
+describe('R4 diorama art', () => {
+  it('each of the 21 new buildings has its Table B height', () => {
+    expect(Object.keys(R4_HEIGHTS)).toHaveLength(21);
+    for (const [id, hgt] of Object.entries(R4_HEIGHTS)) expect(BUILDING_HEIGHT[id], id).toBe(hgt);
+  });
+  it.each(R4_EXTRACTORS)('%s has its own painter and casts a shadow inside its footprint', (id, size, color) => {
+    const def = syntheticExtractor(id, size, color);
+    const { g, fills } = paintCtx();
+    paintBuilding(g, def, 'player', '');
+    expect(fills(), id).toBeGreaterThan(20);
+    const cs = extractorCasters(def);
+    expect(cs.length, id).toBeGreaterThan(0);
+    expect(Math.max(...cs.map((c) => c.z)), id).toBeGreaterThanOrEqual(BUILDING_HEIGHT[id]);
+    for (const c of cs) {
+      expect(c.z, id).toBeLessThanOrEqual(MAX_CASTER_Z);
+      expect(c.x, id).toBeGreaterThanOrEqual(0);
+      expect(c.x + c.w, id).toBeLessThanOrEqual(size * TILE);
+      expect(c.y + c.d, id).toBeLessThanOrEqual(size * TILE);
+    }
+  });
+  it('the five new extractors paint distinct sprites, not the warehouse fallback', () => {
+    const counts = R4_EXTRACTORS.map(([id, size, color]) => {
+      const { g, fills } = paintCtx();
+      paintBuilding(g, syntheticExtractor(id, size, color), 'player', '');
+      return fills();
+    });
+    const { g, fills } = paintCtx();
+    paintBuilding(g, syntheticExtractor('no_such_extractor', 2, '#888888'), 'player', '');
+    for (const n of counts) expect(n).not.toBe(fills());
+  });
+  it('the Trading House has its own stone-and-brass painter, not the warehouse fallback, and lights its colonnade', () => {
+    const def = BUILDINGS.trading_house;
+    expect(BUILDING_HEIGHT.trading_house).toBe(12);
+    const house = paintCtx();
+    paintBuilding(house.g, def, 'player', '');
+    const fallback = paintCtx();
+    paintBuilding(fallback.g, { ...def, id: 'no_such_house' }, 'player', '');
+    expect(house.fills()).toBeGreaterThan(fallback.fills() + 40);
+    const lit = windowRects('trading_house');
+    expect(lit.length).toBe(8);
+    for (const r of lit) {
+      expect(r.x + r.w).toBeLessThanOrEqual(def.size.w * TILE);
+      expect(r.y).toBeGreaterThanOrEqual(0);
+    }
+  });
+  it('a sugar beet farm paints its own dot rows', () => {
+    const farm = BUILDINGS.farm;
+    const grain = paintCtx(), beet = paintCtx();
+    paintBuilding(grain.g, farm, 'player', 'grain');
+    paintBuilding(beet.g, farm, 'player', 'sugar_beet');
+    expect(beet.fills()).toBeGreaterThan(grain.fills());
   });
 });

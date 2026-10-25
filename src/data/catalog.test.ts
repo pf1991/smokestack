@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GOODS, DEMAND_PER_1000 } from './goods';
+import { GOODS, DEMAND_PER_1000, CLASS_DEMAND, BASELINE_GOODS, SEASONAL_CROPS, goodPlural } from './goods';
 import { RECIPES, recipeEra } from './recipes';
 import { BUILDINGS } from './buildings';
 import { LANDMARK_IDS, LANDMARKS } from './landmarks';
@@ -8,6 +8,7 @@ import { ICON_IDS } from '../render/icons';
 import { CARDS } from './cards';
 import { resolveCard } from '../sim/politics/cards';
 import { testCtx, testState } from '../sim/testkit';
+import { planChain } from '../sim/rival/chains';
 import { LANDMARK_PAINTERS } from '../render/landmarks';
 import { BARON_TRAITS, GRUDGE_WEIGHTS } from './nemesis';
 import { BARON_LINES } from './baronLines';
@@ -45,17 +46,36 @@ describe('content catalog', () => {
         }
       }
     }
-    const consumer = Object.values(GOODS).filter((g) => g.tier === 2);
-    expect(consumer).toHaveLength(11);
+    const consumer = Object.values(GOODS).filter((g) => g.kind === 'consumer');
+    expect(consumer).toHaveLength(Object.keys(DEMAND_PER_1000).length);
     for (const good of consumer) {
       expect(reachable.has(good.id), `${good.id} not producible`).toBe(true);
     }
+  });
+
+  it('every good has a kind that agrees with its tier, and consumer goods are the demanded ones', () => {
+    for (const g of Object.values(GOODS)) {
+      expect(['raw', 'material', 'component', 'consumer'], g.id).toContain(g.kind);
+      if (g.tier === 0) expect(g.kind, g.id).toBe('raw');
+      else if (g.tier === 2) expect(g.kind, g.id).toBe('consumer');
+      else expect(['material', 'component'], g.id).toContain(g.kind);
+    }
+    const consumers = Object.values(GOODS).filter((g) => g.kind === 'consumer').map((g) => g.id);
+    expect(new Set(consumers)).toEqual(new Set(Object.keys(DEMAND_PER_1000)));
   });
 
   it('recipe era', () => {
     expect(recipeEra('r_toys_plastic')).toBe(1935);
     expect(recipeEra('r_cars')).toBe(1910);
     expect(recipeEra('r_fuel')).toBe(1910);
+    expect(recipeEra('r_sugar_beet')).toBe(1900);
+  });
+
+  it('every building is invented no later than its earliest recipe', () => {
+    for (const def of Object.values(BUILDINGS)) {
+      if (def.recipes.length === 0) continue;
+      expect(def.era, def.id).toBeLessThanOrEqual(Math.min(...def.recipes.map(recipeEra)));
+    }
   });
 
   it('every building def employs workers (company housing only houses them)', () => {
@@ -67,9 +87,11 @@ describe('content catalog', () => {
       expect(Number.isFinite(def.workers) && def.workers > 0, `${def.id} workers ${def.workers}`).toBe(true);
     }
     const byCat = (cat: string) => Object.values(BUILDINGS).filter((d) => d.category === cat);
-    for (const d of byCat('extractor')) expect(d.workers, d.id).toBe(20);
-    for (const d of byCat('factory')) expect(d.workers, d.id).toBe(d.id === 'steel_mill' || d.id === 'car_plant' ? 120 : 60);
+    const SPECIAL: Record<string, number> = { steel_mill: 120, car_plant: 120, tannery: 90, brickworks: 90, electronics_works: 30, gadget_assembly: 30 };
+    for (const d of byCat('extractor')) expect(d.workers, d.id).toBe(SPECIAL[d.id] ?? 20);
+    for (const d of byCat('factory')) expect(d.workers, d.id).toBe(SPECIAL[d.id] ?? 60);
     for (const d of byCat('retail')) expect(d.workers, d.id).toBe(12);
+    for (const d of byCat('trade')) expect(d.workers, d.id).toBe(12);
     for (const d of byCat('logistics')) expect(d.workers, d.id).toBe(d.id === 'company_housing' ? 0 : 6);
   });
 
@@ -85,7 +107,7 @@ describe('content catalog', () => {
     const value = (inv: Record<string, number>) =>
       Object.entries(inv).reduce((sum, [id, qty]) => sum + qty * GOODS[id].basePrice, 0);
     const manufacturing = Object.values(RECIPES).filter((r) =>
-      Object.keys(r.outputs).some((g) => GOODS[g].tier === 2),
+      Object.keys(r.outputs).some((g) => GOODS[g].kind === 'consumer'),
     );
     expect(manufacturing.length).toBeGreaterThan(0);
     for (const recipe of manufacturing) {
@@ -260,5 +282,335 @@ describe('content catalog', () => {
 
   it('grudge weights', () => {
     expect(GRUDGE_WEIGHTS).toEqual({ undercut: 2, contract: 3, shares: 4, city: 5, sabotage_exposed: 6, takeover_bid: 8, rivalry: 3, wake: 10 });
+  });
+});
+
+describe('R4 1900 content (Tables G, D, R and B)', () => {
+  // id, name, kind, basePrice, color (Table G; every 1900 row has era 1900 and no fade year)
+  it.each([
+    ['copper_ore', 'Copper Ore', 'raw', 6, '#4f8a6e'],
+    ['cattle', 'Cattle', 'raw', 10, '#7a4b3a'],
+    ['sugar_beet', 'Sugar Beet', 'raw', 3, '#c77d9b'],
+    ['clay', 'Clay', 'raw', 2, '#b5653d'],
+    ['copper', 'Copper', 'material', 24, '#c46f3b'],
+    ['leather', 'Leather', 'material', 14, '#b08060'],
+    ['sugar', 'Sugar', 'material', 9, '#f5efe0'],
+    ['bricks', 'Bricks', 'material', 8, '#a63d2a'],
+    ['paper', 'Paper', 'material', 10, '#efe6c8'],
+    ['wire', 'Wire', 'component', 32, '#d4a017'],
+    ['shoes', 'Shoes', 'consumer', 52, '#4a2c1a'],
+    ['candy', 'Candy', 'consumer', 16, '#ff7eb6'],
+    ['books', 'Books', 'consumer', 36, '#7d2e46'],
+    ['canned_food', 'Canned Food', 'consumer', 18, '#b0413e'],
+  ] as const)('good %s', (id, name, kind, basePrice, color) => {
+    const tier = kind === 'raw' ? 0 : kind === 'consumer' ? 2 : 1;
+    expect(GOODS[id]).toEqual({ id, name, tier, kind, basePrice, era: 1900, fadeYear: null, color });
+  });
+
+  const MIDDLE = { working: 0.8, middle: 1.5, upper: 1.2 };
+  const STAPLE = { working: 1.2, middle: 1.0, upper: 0.7 };
+  const PLAIN = { working: 1, middle: 1, upper: 1 };
+  it.each([
+    ['shoes', 14, STAPLE],
+    ['candy', 30, PLAIN],
+    ['books', 10, MIDDLE],
+    ['canned_food', 40, STAPLE],
+  ] as const)('demand %s', (id, per1000, cls) => {
+    expect(DEMAND_PER_1000[id]).toBe(per1000);
+    expect(CLASS_DEMAND[id]).toEqual(cls);
+  });
+
+  it('new demand entries come after the v1 goods, in Table D order', () => {
+    const v1 = ['furniture', 'bread', 'tools', 'clothes', 'cheese', 'juice', 'toys', 'cars', 'radios', 'tvs', 'computers'];
+    expect(Object.keys(DEMAND_PER_1000).slice(0, 15)).toEqual([...v1, 'shoes', 'candy', 'books', 'canned_food']);
+    expect(Object.keys(CLASS_DEMAND)).toEqual(Object.keys(DEMAND_PER_1000));
+    expect([...BASELINE_GOODS]).toEqual(v1);
+    expect(SEASONAL_CROPS).toEqual(['grain', 'cotton', 'fruit', 'sugar_beet']);
+  });
+
+  it.each([
+    ['r_copper_ore', {}, { copper_ore: 10 }],
+    ['r_cattle', {}, { cattle: 4 }],
+    ['r_sugar_beet', {}, { sugar_beet: 12 }],
+    ['r_clay', {}, { clay: 12 }],
+    ['r_copper', { copper_ore: 8, coal: 2 }, { copper: 4 }],
+    ['r_leather', { cattle: 2 }, { leather: 4 }],
+    ['r_sugar', { sugar_beet: 12 }, { sugar: 6 }],
+    ['r_bricks', { clay: 10, coal: 2 }, { bricks: 8 }],
+    ['r_paper', { wood: 10 }, { paper: 6 }],
+    ['r_wire', { copper: 4 }, { wire: 4 }],
+    ['r_shoes', { leather: 4 }, { shoes: 2 }],
+    ['r_candy', { sugar: 3, milk: 2 }, { candy: 6 }],
+    ['r_books', { paper: 6 }, { books: 3 }],
+    ['r_canned_food', { cattle: 2, steel: 1 }, { canned_food: 6 }],
+  ] as const)('recipe %s', (id, inputs, outputs) => {
+    expect(RECIPES[id]).toEqual({ id, inputs, outputs, days: 1 });
+    expect(recipeEra(id)).toBe(1900);
+  });
+
+  it('new recipes come after every older recipe for the same good', () => {
+    const ids = Object.keys(RECIPES);
+    expect(ids.indexOf('r_sugar_beet')).toBeGreaterThan(ids.indexOf('r_computers'));
+    expect(BUILDINGS.farm.recipes).toEqual(['r_grain', 'r_cotton', 'r_fruit', 'r_sugar_beet']);
+  });
+
+  // id, name, category, size, cost, maintenance, terrain, recipes, storage, pollution, workers, color, description
+  it.each([
+    ['ranch', 'Cattle Ranch', 'extractor', [3, 3], 14000, 200, ['grass'], ['r_cattle'], 120, 1, 20, '#9c6b3f', 'Longhorns on the open range, driven to the railhead.'],
+    ['clay_pit', 'Clay Pit', 'extractor', [2, 2], 8000, 125, ['grass', 'hills'], ['r_clay'], 160, 1, 20, '#b86b45', 'Stiff red clay, dug wet for the brick kilns.'],
+    ['copper_mine', 'Copper Mine', 'extractor', [2, 2], 22000, 350, ['hills', 'mountain'], ['r_copper_ore'], 160, 3, 20, '#5f7a68', 'Green-stained adits worked for copper ore.'],
+    ['smelter', 'Smelter', 'factory', [3, 3], 45000, 600, ['grass', 'sand', 'hills'], ['r_copper', 'r_aluminium'], 120, 6, 60, '#7a4e3a', 'Roaring furnaces that win copper, and later aluminium, from ore.'],
+    ['tannery', 'Tannery', 'factory', [2, 2], 18000, 250, ['grass', 'sand'], ['r_leather'], 120, 3, 90, '#8c6d4f', 'Pits of bark liquor; the smell carries for a mile.'],
+    ['sugar_refinery', 'Sugar Refinery', 'factory', [3, 3], 25000, 300, ['grass', 'sand'], ['r_sugar'], 120, 2, 60, '#e9d9d0', 'Beet sliced, boiled and crystallised into white sugar.'],
+    ['brickworks', 'Brickworks', 'factory', [3, 3], 20000, 250, ['grass', 'sand', 'hills'], ['r_bricks'], 160, 5, 90, '#9e3b2b', 'Kilns fired day and night; the town is built of their bricks.'],
+    ['paper_mill', 'Paper Mill', 'factory', [3, 3], 28000, 350, ['grass', 'sand'], ['r_paper'], 120, 3, 60, '#d9cfb0', 'Pulp and rollers turn timber into reams of paper.'],
+    ['machine_shop', 'Machine Shop', 'factory', [3, 3], 40000, 500, ['grass', 'sand', 'hills'], ['r_wire', 'r_tyres', 'r_engines', 'r_electric_motors'], 100, 3, 60, '#56606b', 'Lathes and drop hammers making parts for other works.'],
+    ['shoe_factory', 'Shoe Factory', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_shoes'], 80, 1, 60, '#5a3a26', 'Lasts, awls and stitching machines: boots for the nation.'],
+    ['confectionery', 'Confectionery', 'factory', [2, 2], 16000, 200, ['grass', 'sand'], ['r_candy'], 80, 1, 60, '#f29bc0', 'Copper pans of boiling sugar, wrapped by the penny.'],
+    ['print_works', 'Print Works', 'factory', [3, 3], 25000, 300, ['grass', 'sand'], ['r_books'], 80, 1, 60, '#6e2f40', 'Presses thunder out books and almanacs.'],
+    ['cannery', 'Cannery', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_canned_food'], 80, 2, 60, '#a8473f', 'Sealed tins of meat that keep a winter or a war.'],
+    ['trading_house', 'Trading House', 'trade', [3, 2], 35000, 400, ['grass', 'sand', 'hills'], [], 600, 0, 12, '#7d6b4f', 'Brokers on the telephone sell your materials and parts to the whole nation.'],
+  ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, pollution, workers, color, description) => {
+    expect(BUILDINGS[id]).toEqual({
+      id, name, category, size: { w, h: hgt }, cost, maintenance, allowedTerrain, requiresDeposit: false, requiresCity: false,
+      recipes, storage, era: 1900, pollution, color, description, workers,
+    });
+  });
+
+  it('new works stand before the store', () => {
+    const ids = Object.keys(BUILDINGS);
+    for (const id of ['ranch', 'clay_pit', 'copper_mine', 'smelter', 'cannery']) expect(ids.indexOf(id), id).toBeLessThan(ids.indexOf('store'));
+  });
+  it('the Trading House stands after the store', () => {
+    const ids = Object.keys(BUILDINGS);
+    expect(ids.indexOf('trading_house')).toBe(ids.indexOf('store') + 1);
+  });
+});
+
+describe('R4 1905–1929 content (Tables G, D, R and B)', () => {
+  it.each([
+    ['rubber', 'Rubber', 'raw', 1910, null, 8, '#5a5f3c', undefined],
+    ['bauxite', 'Bauxite', 'raw', 1920, null, 6, '#d08a5a', undefined],
+    ['chemicals', 'Chemicals', 'material', 1920, null, 24, '#9bcf3c', undefined],
+    ['aluminium', 'Aluminium', 'material', 1925, null, 45, '#c9d1d9', undefined],
+    ['tyres', 'Tyres', 'component', 1910, null, 20, '#34495e', undefined],
+    ['engines', 'Engines', 'component', 1910, null, 150, '#5b6770', undefined],
+    ['electric_motors', 'Electric Motors', 'component', 1920, null, 140, '#3e7cb1', undefined],
+    ['vacuum_tubes', 'Vacuum Tubes', 'component', 1920, null, 22, '#ffb347', undefined],
+    ['phonographs', 'Phonograph', 'consumer', 1905, 1955, 120, '#a67c00', 'Phonographs'],
+    ['bicycles', 'Bicycle', 'consumer', 1910, null, 120, '#2f8f83', 'Bicycles'],
+    ['motorcycles', 'Motorcycle', 'consumer', 1915, null, 480, '#6d1a1a', 'Motorcycles'],
+  ] as const)('good %s', (id, name, kind, era, fadeYear, basePrice, color, plural) => {
+    const tier = kind === 'raw' ? 0 : kind === 'consumer' ? 2 : 1;
+    const expected: Record<string, unknown> = { id, name, tier, kind, basePrice, era, fadeYear, color };
+    if (plural !== undefined) expected.plural = plural;
+    expect(GOODS[id]).toEqual(expected);
+  });
+
+  it('existing consumer goods get plurals; goodPlural falls back to name', () => {
+    expect(GOODS.radios.plural).toBe('Radios');
+    expect(GOODS.tvs.plural).toBe('Televisions');
+    expect(GOODS.computers.plural).toBe('Computers');
+    expect(GOODS.cars.plural).toBe('Automobiles');
+    expect(goodPlural(GOODS.phonographs)).toBe('Phonographs');
+    expect(goodPlural(GOODS.bread)).toBe('Bread');
+  });
+
+  const MIDDLE = { working: 0.8, middle: 1.5, upper: 1.2 };
+  const STAPLE = { working: 1.2, middle: 1.0, upper: 0.7 };
+  const PLAIN = { working: 1, middle: 1, upper: 1 };
+  it.each([
+    ['phonographs', 3, MIDDLE],
+    ['bicycles', 4, STAPLE],
+    ['motorcycles', 1.5, PLAIN],
+  ] as const)('demand %s', (id, per1000, cls) => {
+    expect(DEMAND_PER_1000[id]).toBe(per1000);
+    expect(CLASS_DEMAND[id]).toEqual(cls);
+  });
+
+  it('1905–1929 demand entries follow the 1900 ones in Table D order', () => {
+    const keys = Object.keys(DEMAND_PER_1000);
+    const i = keys.indexOf('canned_food');
+    expect(keys.slice(i, i + 4)).toEqual(['canned_food', 'phonographs', 'bicycles', 'motorcycles']);
+  });
+
+  it.each([
+    ['r_rubber', {}, { rubber: 8 }, 1910],
+    ['r_bauxite', {}, { bauxite: 10 }, 1920],
+    ['r_aluminium', { bauxite: 8, coal: 4 }, { aluminium: 2 }, 1925],
+    ['r_chemicals', { coal: 4, oil: 4 }, { chemicals: 4 }, 1920],
+    ['r_tyres', { rubber: 4, fabric: 1 }, { tyres: 4 }, 1910],
+    ['r_engines', { steel: 3, fuel: 1 }, { engines: 1 }, 1910],
+    ['r_electric_motors', { wire: 2, steel: 1 }, { electric_motors: 1 }, 1920],
+    ['r_vacuum_tubes', { glass: 2, wire: 1 }, { vacuum_tubes: 6 }, 1920],
+    ['r_phonographs', { lumber: 2, copper: 2 }, { phonographs: 2 }, 1905],
+    ['r_bicycles', { steel: 2, tyres: 2 }, { bicycles: 2 }, 1910],
+    ['r_motorcycles', { engines: 1, tyres: 2, steel: 1 }, { motorcycles: 1 }, 1915],
+    ['r_radios_tubes', { vacuum_tubes: 2, lumber: 2 }, { radios: 2 }, 1925],
+  ] as const)('recipe %s', (id, inputs, outputs, era) => {
+    expect(RECIPES[id]).toEqual({ id, inputs, outputs, days: 1 });
+    expect(recipeEra(id)).toBe(era);
+  });
+
+  it('r_radios_tubes is after r_computers; a 1930 radios chain still uses r_radios', () => {
+    const ids = Object.keys(RECIPES);
+    expect(ids.indexOf('r_radios_tubes')).toBeGreaterThan(ids.indexOf('r_computers'));
+    expect(BUILDINGS.electronics_plant.recipes).toEqual(['r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes']);
+    const s = testState({ year: 1930 });
+    expect(planChain('radios', s)!.nodes.at(-1)!.recipeId).toBe('r_radios');
+  });
+
+  it.each([
+    ['rubber_plantation', 'Rubber Plantation', 'extractor', [3, 3], 15000, 200, ['grass', 'forest'], ['r_rubber'], 120, 1910, 0, 20, '#4f6b3a', 'Rows of tapped trees weeping latex into tin cups.'],
+    ['bauxite_quarry', 'Bauxite Quarry', 'extractor', [2, 2], 20000, 300, ['hills'], ['r_bauxite'], 160, 1920, 3, 20, '#b5562e', 'Red benches blasted from the hillside for the smelters.'],
+    ['chemical_works', 'Chemical Works', 'factory', [3, 3], 65000, 850, ['grass', 'sand'], ['r_chemicals', 'r_silicon', 'r_cosmetics'], 120, 1920, 7, 60, '#7fa83a', 'Retorts and towers distilling coal and oil into chemicals.'],
+    ['electronics_works', 'Electronics Works', 'factory', [3, 3], 80000, 800, ['grass', 'sand'], ['r_vacuum_tubes', 'r_microchips', 'r_displays'], 80, 1920, 1, 30, '#3b7f9e', 'Clean benches where valves, then chips, are made by the tray.'],
+    ['cycle_works', 'Cycle Works', 'factory', [3, 3], 35000, 450, ['grass', 'sand'], ['r_bicycles', 'r_motorcycles'], 80, 1910, 2, 60, '#3b9a8c', 'Frames brazed and wheels trued: bicycles, then motorcycles.'],
+    ['appliance_plant', 'Appliance Plant', 'factory', [3, 3], 70000, 900, ['grass', 'sand'], ['r_phonographs', 'r_refrigerators', 'r_washing_machines'], 60, 1905, 3, 60, '#9fb5c8', 'From talking machines to iceboxes that need no ice.'],
+  ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, era, pollution, workers, color, description) => {
+    expect(BUILDINGS[id]).toEqual({
+      id, name, category, size: { w, h: hgt }, cost, maintenance, allowedTerrain, requiresDeposit: false, requiresCity: false,
+      recipes, storage, era, pollution, color, description, workers,
+    });
+  });
+
+  it('smelter and machine_shop gain the new recipes', () => {
+    expect(BUILDINGS.smelter.recipes).toEqual(['r_copper', 'r_aluminium']);
+    expect(BUILDINGS.machine_shop.recipes).toEqual(['r_wire', 'r_tyres', 'r_engines', 'r_electric_motors']);
+  });
+});
+
+describe('R4 1930–1959 content (Tables G, D, R and B)', () => {
+  it.each([
+    ['refrigerators', 'Refrigerator', 'consumer', 1930, null, 520, '#dfe7ee', 'Refrigerators'],
+    ['washing_machines', 'Washing Machine', 'consumer', 1935, null, 480, '#8fb8d8', 'Washing Machines'],
+    ['cosmetics', 'Cosmetics', 'consumer', 1950, null, 40, '#d65a8c', undefined],
+  ] as const)('good %s', (id, name, kind, era, fadeYear, basePrice, color, plural) => {
+    const expected: Record<string, unknown> = { id, name, tier: 2, kind, basePrice, era, fadeYear, color };
+    if (plural !== undefined) expected.plural = plural;
+    expect(GOODS[id]).toEqual(expected);
+  });
+
+  const MIDDLE = { working: 0.8, middle: 1.5, upper: 1.2 };
+  const LUXURY = { working: 0.6, middle: 1.2, upper: 2.0 };
+  it.each([
+    ['refrigerators', 1.5, MIDDLE],
+    ['washing_machines', 1.5, MIDDLE],
+    ['cosmetics', 12, LUXURY],
+  ] as const)('demand %s', (id, per1000, cls) => {
+    expect(DEMAND_PER_1000[id]).toBe(per1000);
+    expect(CLASS_DEMAND[id]).toEqual(cls);
+  });
+
+  it('1930–1959 demand entries follow the 1905–1929 ones in Table D order', () => {
+    const keys = Object.keys(DEMAND_PER_1000);
+    const i = keys.indexOf('motorcycles');
+    expect(keys.slice(i, i + 4)).toEqual(['motorcycles', 'refrigerators', 'washing_machines', 'cosmetics']);
+  });
+
+  it.each([
+    ['r_refrigerators', { steel: 3, electric_motors: 1, chemicals: 1 }, { refrigerators: 1 }, 1930],
+    ['r_washing_machines', { steel: 3, electric_motors: 1, rubber: 1 }, { washing_machines: 1 }, 1935],
+    ['r_cosmetics', { chemicals: 2, glass: 1 }, { cosmetics: 4 }, 1950],
+  ] as const)('recipe %s', (id, inputs, outputs, era) => {
+    expect(RECIPES[id]).toEqual({ id, inputs, outputs, days: 1 });
+    expect(recipeEra(id)).toBe(era);
+  });
+
+  it('appliance_plant and chemical_works gain the 1930–1959 recipes', () => {
+    expect(BUILDINGS.appliance_plant.recipes).toEqual(['r_phonographs', 'r_refrigerators', 'r_washing_machines']);
+    // silicon (Task 8) sits between chemicals and cosmetics per Table B
+    expect(BUILDINGS.chemical_works.recipes).toEqual(['r_chemicals', 'r_silicon', 'r_cosmetics']);
+  });
+
+  it("planChain('refrigerators') is post-order length 10 (C5)", () => {
+    const s = testState({ year: 1930 });
+    const plan = planChain('refrigerators', s);
+    expect(plan).not.toBeNull();
+    const nodes = plan!.nodes;
+    expect(nodes.map((n) => n.good)).toEqual([
+      'iron_ore', 'coal', 'steel', 'copper_ore', 'copper', 'wire', 'electric_motors', 'oil', 'chemicals', 'refrigerators',
+    ]);
+    expect(nodes).toHaveLength(10);
+    const last = nodes.at(-1)!;
+    expect(last.typeId).toBe('appliance_plant');
+    expect(last.recipeId).toBe('r_refrigerators');
+  });
+});
+
+describe('R4 1960–2000 content (Tables G, D, R and B)', () => {
+  it('final kind counts: 15 raw, 15 material, 7 component, 24 consumer, 61 goods', () => {
+    const by = (k: string) => Object.values(GOODS).filter((g) => g.kind === k);
+    expect(by('raw')).toHaveLength(15);
+    expect(by('material')).toHaveLength(15);
+    expect(by('component')).toHaveLength(7);
+    expect(by('consumer')).toHaveLength(24);
+    expect(Object.keys(GOODS)).toHaveLength(61);
+  });
+
+  it.each([
+    ['silicon', 'Silicon', 'material', 1, 1965, null, 45, '#6b7fa3', undefined],
+    ['microchips', 'Microchips', 'component', 1, 1972, null, 50, '#3a7d2c', undefined],
+    ['displays', 'Displays', 'component', 1, 1975, null, 90, '#0f6e8c', undefined],
+    ['calculators', 'Calculator', 'consumer', 2, 1970, 1995, 120, '#707070', 'Calculators'],
+    ['video_games', 'Video Games', 'consumer', 2, 1978, null, 150, '#7b3fe4', undefined],
+    ['mobile_phones', 'Mobile Phone', 'consumer', 2, 1990, null, 650, '#14213d', 'Mobile Phones'],
+  ] as const)('good %s', (id, name, kind, tier, era, fadeYear, basePrice, color, plural) => {
+    const expected: Record<string, unknown> = { id, name, tier, kind, basePrice, era, fadeYear, color };
+    if (plural !== undefined) expected.plural = plural;
+    expect(GOODS[id]).toEqual(expected);
+  });
+
+  const MIDDLE = { working: 0.8, middle: 1.5, upper: 1.2 };
+  const PLAIN = { working: 1, middle: 1, upper: 1 };
+  it.each([
+    ['calculators', 3, MIDDLE],
+    ['video_games', 4, PLAIN],
+    ['mobile_phones', 2, PLAIN],
+  ] as const)('demand %s', (id, per1000, cls) => {
+    expect(DEMAND_PER_1000[id]).toBe(per1000);
+    expect(CLASS_DEMAND[id]).toEqual(cls);
+  });
+
+  it('1960–2000 demand entries follow the 1930–1959 ones in Table D order', () => {
+    const keys = Object.keys(DEMAND_PER_1000);
+    const i = keys.indexOf('cosmetics');
+    expect(keys.slice(i, i + 4)).toEqual(['cosmetics', 'calculators', 'video_games', 'mobile_phones']);
+  });
+
+  it.each([
+    ['r_silicon', { sand: 8, coal: 2 }, { silicon: 2 }, 1965],
+    ['r_microchips', { silicon: 2, wire: 1 }, { microchips: 4 }, 1972],
+    ['r_displays', { glass: 2, chemicals: 1, plastic: 1 }, { displays: 2 }, 1975],
+    ['r_calculators', { vacuum_tubes: 2, plastic: 1 }, { calculators: 2 }, 1970],
+    ['r_calculators_chip', { microchips: 1, plastic: 1 }, { calculators: 2 }, 1972],
+    ['r_video_games', { microchips: 2, plastic: 1 }, { video_games: 2 }, 1978],
+    ['r_mobile_phones', { microchips: 2, displays: 1, aluminium: 1 }, { mobile_phones: 1 }, 1990],
+  ] as const)('recipe %s', (id, inputs, outputs, era) => {
+    expect(RECIPES[id]).toEqual({ id, inputs, outputs, days: 1 });
+    expect(recipeEra(id)).toBe(era);
+  });
+
+  it('r_calculators precedes r_calculators_chip so the tube chain stays default', () => {
+    const ids = Object.keys(RECIPES);
+    expect(ids.indexOf('r_calculators')).toBeLessThan(ids.indexOf('r_calculators_chip'));
+    const s = testState({ year: 1972 });
+    expect(planChain('calculators', s)!.nodes.at(-1)!.recipeId).toBe('r_calculators');
+  });
+
+  it.each([
+    ['gadget_assembly', 'Gadget Assembly', 'factory', [3, 3], 60000, 800, ['grass', 'sand'],
+      ['r_calculators', 'r_calculators_chip', 'r_video_games', 'r_mobile_phones'], 60, 1970, 1, 30, '#6b4fd1',
+      'Pocket wonders assembled under bright lamps.'],
+  ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, era, pollution, workers, color, description) => {
+    expect(BUILDINGS[id]).toEqual({
+      id, name, category, size: { w, h: hgt }, cost, maintenance, allowedTerrain, requiresDeposit: false, requiresCity: false,
+      recipes, storage, era, pollution, color, description, workers,
+    });
+  });
+
+  it('chemical_works and electronics_works gain silicon/chips/displays', () => {
+    expect(BUILDINGS.chemical_works.recipes).toEqual(['r_chemicals', 'r_silicon', 'r_cosmetics']);
+    expect(BUILDINGS.electronics_works.recipes).toEqual(['r_vacuum_tubes', 'r_microchips', 'r_displays']);
   });
 });

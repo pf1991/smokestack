@@ -381,8 +381,22 @@ export interface GameState {
   exchange: ExchangeState;
   /** Phase 4b logistics: managers, their market, hub statistics (sim/logistics); added by the v8 migration */
   logistics: LogisticsState;
+  /** R4 the national market for materials and components (sim/trade.ts); added by the v9 migration */
+  trade: TradeState;
   /** JEV decision mailbox (sim/ai/mailbox.ts); created lazily, absent in older saves and until a decision is posted */
   ai?: AiMailbox;
+}
+
+/**
+ * R4 the national market a Trading House sells into (sim/trade.ts). Drift draws come from its own
+ * stream. A missing `factor[g]` reads as 1, a missing `sold30[g]` as 0.
+ */
+export interface TradeState {
+  rngState: number;
+  /** each good's drifting price factor, within [0.75, 1.25] */
+  factor: Record<GoodId, number>;
+  /** units sold nationally, decayed by 29/30 a day (about a month's sales) */
+  sold30: Record<GoodId, number>;
 }
 
 export interface AiOption { key: string; label: string }

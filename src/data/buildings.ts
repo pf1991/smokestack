@@ -1,6 +1,7 @@
 import type { BuildingTypeId, Terrain } from '../sim/types';
 
-export type BuildingCategory = 'extractor' | 'factory' | 'retail' | 'logistics';
+/** `trade` is the Trading House (sim/trade.ts): it sells materials and components to the nation. */
+export type BuildingCategory = 'extractor' | 'factory' | 'retail' | 'trade' | 'logistics';
 
 export interface BuildingDef {
   id: BuildingTypeId;
@@ -33,7 +34,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   farm: {
     id: 'farm', name: 'Farm', ...EX, size: { w: 3, h: 3 }, cost: 10000, maintenance: 150,
-    allowedTerrain: ['grass'], requiresDeposit: false, recipes: ['r_grain', 'r_cotton', 'r_fruit'], storage: 120, era: 1900, pollution: 0,
+    allowedTerrain: ['grass'], requiresDeposit: false, recipes: ['r_grain', 'r_cotton', 'r_fruit', 'r_sugar_beet'], storage: 120, era: 1900, pollution: 0,
     color: '#8fae3e', description: 'Grain, cotton and fruit, as the seasons allow.',
   },
   dairy_farm: {
@@ -128,13 +129,120 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   electronics_plant: {
     id: 'electronics_plant', name: 'Electronics Plant', ...FA, size: { w: 3, h: 3 }, cost: 90000, maintenance: 1250,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_radios', 'r_tvs', 'r_computers'], storage: 60, era: 1925, pollution: 2,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes'], storage: 60, era: 1925, pollution: 2,
     color: '#2aa198', description: 'Valves, circuits and glowing screens, assembled with care.',
+  },
+  // R4 1900–1929 works (before the store; none makes an old good except electronics_plant above)
+  ranch: {
+    id: 'ranch', name: 'Cattle Ranch', ...EX, size: { w: 3, h: 3 }, cost: 14000, maintenance: 200,
+    allowedTerrain: ['grass'], requiresDeposit: false, recipes: ['r_cattle'], storage: 120, era: 1900, pollution: 1,
+    color: '#9c6b3f', description: 'Longhorns on the open range, driven to the railhead.',
+  },
+  clay_pit: {
+    id: 'clay_pit', name: 'Clay Pit', ...EX, size: { w: 2, h: 2 }, cost: 8000, maintenance: 125,
+    allowedTerrain: ['grass', 'hills'], requiresDeposit: false, recipes: ['r_clay'], storage: 160, era: 1900, pollution: 1,
+    color: '#b86b45', description: 'Stiff red clay, dug wet for the brick kilns.',
+  },
+  copper_mine: {
+    id: 'copper_mine', name: 'Copper Mine', ...EX, size: { w: 2, h: 2 }, cost: 22000, maintenance: 350,
+    allowedTerrain: ['hills', 'mountain'], requiresDeposit: false, recipes: ['r_copper_ore'], storage: 160, era: 1900, pollution: 3,
+    color: '#5f7a68', description: 'Green-stained adits worked for copper ore.',
+  },
+  rubber_plantation: {
+    id: 'rubber_plantation', name: 'Rubber Plantation', ...EX, size: { w: 3, h: 3 }, cost: 15000, maintenance: 200,
+    allowedTerrain: ['grass', 'forest'], requiresDeposit: false, recipes: ['r_rubber'], storage: 120, era: 1910, pollution: 0,
+    color: '#4f6b3a', description: 'Rows of tapped trees weeping latex into tin cups.',
+  },
+  bauxite_quarry: {
+    id: 'bauxite_quarry', name: 'Bauxite Quarry', ...EX, size: { w: 2, h: 2 }, cost: 20000, maintenance: 300,
+    allowedTerrain: ['hills'], requiresDeposit: false, recipes: ['r_bauxite'], storage: 160, era: 1920, pollution: 3,
+    color: '#b5562e', description: 'Red benches blasted from the hillside for the smelters.',
+  },
+  smelter: {
+    id: 'smelter', name: 'Smelter', ...FA, size: { w: 3, h: 3 }, cost: 45000, maintenance: 600,
+    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, recipes: ['r_copper', 'r_aluminium'], storage: 120, era: 1900, pollution: 6,
+    color: '#7a4e3a', description: 'Roaring furnaces that win copper, and later aluminium, from ore.',
+  },
+  tannery: {
+    id: 'tannery', name: 'Tannery', ...FA, workers: 90, size: { w: 2, h: 2 }, cost: 18000, maintenance: 250,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_leather'], storage: 120, era: 1900, pollution: 3,
+    color: '#8c6d4f', description: 'Pits of bark liquor; the smell carries for a mile.',
+  },
+  sugar_refinery: {
+    id: 'sugar_refinery', name: 'Sugar Refinery', ...FA, size: { w: 3, h: 3 }, cost: 25000, maintenance: 300,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_sugar'], storage: 120, era: 1900, pollution: 2,
+    color: '#e9d9d0', description: 'Beet sliced, boiled and crystallised into white sugar.',
+  },
+  brickworks: {
+    id: 'brickworks', name: 'Brickworks', ...FA, workers: 90, size: { w: 3, h: 3 }, cost: 20000, maintenance: 250,
+    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, recipes: ['r_bricks'], storage: 160, era: 1900, pollution: 5,
+    color: '#9e3b2b', description: 'Kilns fired day and night; the town is built of their bricks.',
+  },
+  paper_mill: {
+    id: 'paper_mill', name: 'Paper Mill', ...FA, size: { w: 3, h: 3 }, cost: 28000, maintenance: 350,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_paper'], storage: 120, era: 1900, pollution: 3,
+    color: '#d9cfb0', description: 'Pulp and rollers turn timber into reams of paper.',
+  },
+  chemical_works: {
+    id: 'chemical_works', name: 'Chemical Works', ...FA, size: { w: 3, h: 3 }, cost: 65000, maintenance: 850,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_chemicals', 'r_silicon', 'r_cosmetics'], storage: 120, era: 1920, pollution: 7,
+    color: '#7fa83a', description: 'Retorts and towers distilling coal and oil into chemicals.',
+  },
+  machine_shop: {
+    id: 'machine_shop', name: 'Machine Shop', ...FA, size: { w: 3, h: 3 }, cost: 40000, maintenance: 500,
+    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, recipes: ['r_wire', 'r_tyres', 'r_engines', 'r_electric_motors'], storage: 100, era: 1900, pollution: 3,
+    color: '#56606b', description: 'Lathes and drop hammers making parts for other works.',
+  },
+  electronics_works: {
+    id: 'electronics_works', name: 'Electronics Works', ...FA, workers: 30, size: { w: 3, h: 3 }, cost: 80000, maintenance: 800,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_vacuum_tubes', 'r_microchips', 'r_displays'], storage: 80, era: 1920, pollution: 1,
+    color: '#3b7f9e', description: 'Clean benches where valves, then chips, are made by the tray.',
+  },
+  shoe_factory: {
+    id: 'shoe_factory', name: 'Shoe Factory', ...FA, size: { w: 2, h: 2 }, cost: 20000, maintenance: 250,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_shoes'], storage: 80, era: 1900, pollution: 1,
+    color: '#5a3a26', description: 'Lasts, awls and stitching machines: boots for the nation.',
+  },
+  confectionery: {
+    id: 'confectionery', name: 'Confectionery', ...FA, size: { w: 2, h: 2 }, cost: 16000, maintenance: 200,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_candy'], storage: 80, era: 1900, pollution: 1,
+    color: '#f29bc0', description: 'Copper pans of boiling sugar, wrapped by the penny.',
+  },
+  print_works: {
+    id: 'print_works', name: 'Print Works', ...FA, size: { w: 3, h: 3 }, cost: 25000, maintenance: 300,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_books'], storage: 80, era: 1900, pollution: 1,
+    color: '#6e2f40', description: 'Presses thunder out books and almanacs.',
+  },
+  cannery: {
+    id: 'cannery', name: 'Cannery', ...FA, size: { w: 2, h: 2 }, cost: 20000, maintenance: 250,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_canned_food'], storage: 80, era: 1900, pollution: 2,
+    color: '#a8473f', description: 'Sealed tins of meat that keep a winter or a war.',
+  },
+  cycle_works: {
+    id: 'cycle_works', name: 'Cycle Works', ...FA, size: { w: 3, h: 3 }, cost: 35000, maintenance: 450,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_bicycles', 'r_motorcycles'], storage: 80, era: 1910, pollution: 2,
+    color: '#3b9a8c', description: 'Frames brazed and wheels trued: bicycles, then motorcycles.',
+  },
+  appliance_plant: {
+    id: 'appliance_plant', name: 'Appliance Plant', ...FA, size: { w: 3, h: 3 }, cost: 70000, maintenance: 900,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_phonographs', 'r_refrigerators', 'r_washing_machines'], storage: 60, era: 1905, pollution: 3,
+    color: '#9fb5c8', description: 'From talking machines to iceboxes that need no ice.',
+  },
+  gadget_assembly: {
+    id: 'gadget_assembly', name: 'Gadget Assembly', ...FA, workers: 30, size: { w: 3, h: 3 }, cost: 60000, maintenance: 800,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_calculators', 'r_calculators_chip', 'r_video_games', 'r_mobile_phones'], storage: 60, era: 1970, pollution: 1,
+    color: '#6b4fd1', description: 'Pocket wonders assembled under bright lamps.',
   },
   store: {
     id: 'store', name: 'Store', category: 'retail', workers: 12, size: { w: 2, h: 2 }, cost: 15000, maintenance: 200,
     allowedTerrain: ['grass', 'sand'], requiresDeposit: false, requiresCity: true, recipes: [], storage: 300, era: 1900, pollution: 0,
     color: '#e3b04b', description: 'A bright shopfront where the city comes to buy.',
+  },
+  // R4: sells materials and components at the national price (sim/trade.ts); stands outside towns
+  trading_house: {
+    id: 'trading_house', name: 'Trading House', category: 'trade', workers: 12, size: { w: 3, h: 2 }, cost: 35000, maintenance: 400,
+    allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, requiresCity: false, recipes: [], storage: 600, era: 1900, pollution: 0,
+    color: '#7d6b4f', description: 'Brokers on the telephone sell your materials and parts to the whole nation.',
   },
   warehouse: {
     id: 'warehouse', name: 'Warehouse', category: 'logistics', workers: 6, size: { w: 3, h: 3 }, cost: 20000, maintenance: 150,

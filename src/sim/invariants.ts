@@ -7,6 +7,7 @@ import { STRIKE_MAX_DAYS } from './society/strikeState';
 import { classesValid } from './society/classes';
 import { GRUDGE_CAP } from './nemesis/grudges';
 import { HEIR_MIN_AGE, HEIR_TRAITS, MAX_CHILDREN, successor } from './dynasty/types';
+import { FACTOR_MAX, FACTOR_MIN } from './tradeState';
 import { PRICE_HISTORY_MONTHS, SENTIMENT_MAX, SENTIMENT_MIN } from './exchange/types';
 import { MAX_LOG, MAX_PENDING } from './ai/mailbox';
 import { WAREHOUSE_LEVELS, WORKS_LEVELS } from '../data/levels';
@@ -120,6 +121,7 @@ export function checkInvariants(state: GameState): string[] {
   out.push(...dynastyProblems(state));
   out.push(...exchangeProblems(state));
   out.push(...managerProblems(state));
+  out.push(...tradeProblems(state));
 
   const ai = state.ai;
   if (ai) {
@@ -137,6 +139,21 @@ export function checkInvariants(state: GameState): string[] {
   const n = map.width * map.height;
   for (const [id, l] of Object.entries(state.layers)) {
     if (l.length !== n) out.push(`layer ${id}: length ${l.length}, expected ${n}`);
+  }
+  return out;
+}
+
+/** The national market (sim/trade.ts): an integer rng stream, factors within the drift bounds, sales finite and ≥ 0. */
+function tradeProblems(state: GameState): string[] {
+  const t = state.trade;
+  if (!t || typeof t !== 'object' || !t.factor || !t.sold30) return ['trade: state missing'];
+  const out: string[] = [];
+  if (typeof t.rngState !== 'number' || !Number.isInteger(t.rngState)) out.push(`trade: rngState ${t.rngState} is not an integer`);
+  for (const [g, f] of Object.entries(t.factor)) {
+    if (typeof f !== 'number' || !Number.isFinite(f) || f < FACTOR_MIN || f > FACTOR_MAX) out.push(`trade: ${g} factor ${f} outside [${FACTOR_MIN}, ${FACTOR_MAX}]`);
+  }
+  for (const [g, n] of Object.entries(t.sold30)) {
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) out.push(`trade: ${g} sold30 ${n} is not a finite number ≥ 0`);
   }
   return out;
 }

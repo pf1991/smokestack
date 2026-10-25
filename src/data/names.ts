@@ -10,4 +10,9 @@ export const COMPANY_NAMES: string[] = [
 ];
 
 /** Regional firm names, one per firm in founding order; `{city}` is the firm's home town. */
-export const REGIONAL_FIRM_NAMES: string[] = ['{city} Mercantile', '{city} Drapery Co.', '{city} Creamery & Provisions'];
+export const REGIONAL_FIRM_NAMES: string[] = [
+  '{city} Mercantile',
+  '{city} Drapery Co.',
+  '{city} Creamery & Provisions',
+  '{city} Boot & Shoe Co.',
+];

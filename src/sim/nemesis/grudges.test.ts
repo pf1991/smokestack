@@ -8,22 +8,22 @@ import { createGame, placeBuilding, wealth } from '../state';
 import { must, testCtx, testState } from '../testkit';
 import type { Contract } from '../types';
 import { RETALIATE_AT } from './retaliation';
-import { addGrudge, baronMood, RIVALRY_SHARE, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, salesGrudges } from './grudges';
+import { addGrudge, baronMood, RIVALRY_SHARE, GRUDGE_CAP, GRUDGE_DECAY, grudgesYear, grudgeTotal, nemesisMonth, noteContested, salesGrudges } from './grudges';
 
 function twoTowns() {
   return testCtx(testState({ width: 60, height: 30, money: 1e7, cities: [{ x: 10, y: 10, population: 6000 }, { x: 45, y: 15, population: 2000 }] }));
 }
 
-/** Both companies sold coal in town 0 this month, at equal revenue (an undercut, not a rout). */
-function contestCoal(ctx: ReturnType<typeof twoTowns>): void {
-  recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'coal', qty: 5 });
-  recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'coal', qty: 5 });
+/** Both companies sold bread in town 0 this month, at equal revenue (an undercut, not a rout). */
+function contestBread(ctx: ReturnType<typeof twoTowns>): void {
+  recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'bread', qty: 5 });
+  recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'bread', qty: 5 });
   notePoliticsSale(ctx.state, 'player', 0, 100);
   notePoliticsSale(ctx.state, 'rival', 0, 100);
 }
 
 const contract = (id: number, cityId: number, status: Contract['status']): Contract => ({
-  id, cityId, goodId: 'coal', qty: 10, delivered: 10, deadline: { year: 1901, month: 1, day: 1, hour: 0 }, reward: 1000, status,
+  id, cityId, goodId: 'bread', qty: 10, delivered: 10, deadline: { year: 1901, month: 1, day: 1, hour: 0 }, reward: 1000, status,
 });
 
 describe('nemesis state', () => {
@@ -150,9 +150,9 @@ describe('rivalry', () => {
 describe('grudge causes', () => {
   it('undercut: both sold a good in a town, once per town per month', () => {
     const ctx = twoTowns();
-    contestCoal(ctx);
-    recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'lumber', qty: 5 });
-    recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'lumber', qty: 5 });
+    contestBread(ctx);
+    recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'furniture', qty: 5 });
+    recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'furniture', qty: 5 });
     salesGrudges(ctx.state);
     expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId])).toEqual([['undercut', 0]]);
   });
@@ -198,7 +198,7 @@ describe('grudge causes', () => {
     ctx.state.companies.rival.active = false;
     must(placeBuilding(ctx, 'rival', 'store', { x: 12, y: 12 }));
     ctx.state.contracts.push(contract(1, 0, 'done'));
-    contestCoal(ctx);
+    contestBread(ctx);
     notePoliticsSale(ctx.state, 'player', 1, 300);
     notePoliticsSale(ctx.state, 'rival', 1, 100);
     salesGrudges(ctx.state);
@@ -208,7 +208,7 @@ describe('grudge causes', () => {
   it('in the running sim, a contested month adds one undercut grudge and a quiet month none', () => {
     const ctx = twoTowns();
     ctx.state.date = { year: 1900, month: 4, day: 30, hour: 0 };
-    contestCoal(ctx);
+    contestBread(ctx);
     runDays(ctx, 1);
     expect(ctx.state.date.month).toBe(5);
     expect(ctx.state.nemesis.grudges.map((g) => [g.kind, g.cityId])).toEqual([['undercut', 0]]);
@@ -216,6 +216,19 @@ describe('grudge causes', () => {
     runDays(ctx, 31);
     expect(ctx.state.nemesis.grudges).toHaveLength(1);
     expect(checkInvariants(ctx.state)).toEqual([]);
+  });
+  it('noteContested iterates only demand goods; seller:0:steel is ignored', () => {
+    const ctx = twoTowns();
+    recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'steel', qty: 5 });
+    recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'steel', qty: 5 });
+    recordSale(ctx.state, { ownerId: 'player', cityId: 0, goodId: 'bread', qty: 5 });
+    recordSale(ctx.state, { ownerId: 'rival', cityId: 0, goodId: 'bread', qty: 5 });
+    notePoliticsSale(ctx.state, 'player', 0, 100);
+    notePoliticsSale(ctx.state, 'rival', 0, 100);
+    expect(ctx.state.flags['seller:0:steel']).toBe('both');
+    noteContested(ctx.state);
+    expect(ctx.state.nemesis.track.contested).toEqual(['0:bread']);
+    expect(ctx.state.nemesis.track.contested).not.toContain('0:steel');
   });
 });
 

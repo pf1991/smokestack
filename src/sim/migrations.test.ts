@@ -5,6 +5,8 @@ import { checkInvariants } from './invariants';
 import { urbanRadius } from './market';
 import { migrateSave, runAfterLoad, SAVE_VERSION, type Migration } from './migrations';
 import { runDays } from './simulation';
+import { checkUnlocks } from './eras';
+import { newTrade } from './trade';
 import { testCtx, testState } from './testkit';
 import type { GameState } from './types';
 import { defaultWeather } from './weather';
@@ -202,7 +204,7 @@ describe('v5 -> v6: smog and society', () => {
 
 describe('v6 -> v7: nemesis', () => {
   it('is the current version', () => {
-    expect(SAVE_VERSION).toBe(8);
+    expect(SAVE_VERSION).toBe(9);
   });
   it('rolls the old Baron 2 distinct traits from the save rng, with no grudges', () => {
     const o: Record<string, unknown> = { version: 6, rngState: 42, date: { year: 1930, month: 1 }, cities: [] };
@@ -300,7 +302,7 @@ describe('v6 -> v7: nemesis', () => {
     const r = unpackState(phase4);
     if (!r.ok) throw new Error(r.error);
     const s = r.value;
-    expect(s.version).toBe(8);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(Object.keys(s.buildings).length).toBeGreaterThan(0);
     for (const b of Object.values(s.buildings)) expect(b.level).toBe(1);
     for (const v of Object.values(s.vehicles)) {
@@ -326,5 +328,38 @@ describe('v6 -> v7: nemesis', () => {
       runDays(ctx, 360);
       expect(checkInvariants(ctx.state), name).toEqual([]);
     }
+  });
+});
+
+describe('v8 -> v9: the national market', () => {
+  it('a v8 object gets trade equal to newTrade(seed), and a missing seed reads as 0', () => {
+    const o: Record<string, unknown> = { version: 8, seed: 1234, rngState: 7, date: { year: 1950, month: 1 } };
+    expect(migrateSave(o).ok).toBe(true);
+    expect(o.version).toBe(9);
+    expect(o.trade).toEqual(newTrade(1234));
+    expect(o.rngState).toBe(7);
+    const bad: Record<string, unknown> = { version: 8, seed: 'x', date: { year: 1950, month: 1 } };
+    expect(migrateSave(bad).ok).toBe(true);
+    expect(bad.trade).toEqual(newTrade(0));
+  });
+  it('phase4b.save.json (v8) migrates with a fresh market and holds invariants', () => {
+    const raw = JSON.parse(phase4b) as { version: number; seed: number; trade?: unknown };
+    expect(raw.version).toBe(8);
+    expect(raw.trade).toBeUndefined();
+    const r = unpackState(phase4b);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.value.version).toBe(9);
+    expect(r.value.trade).toEqual(newTrade(raw.seed));
+    expect(checkInvariants(r.value)).toEqual([]);
+  });
+  it('after migration, the first checkUnlocks unlocks the new 1900 goods and works', () => {
+    const r = unpackState(phase4b);
+    if (!r.ok) throw new Error(r.error);
+    const ctx = testCtx(r.value);
+    checkUnlocks(ctx);
+    for (const id of ['copper', 'leather', 'sugar', 'bricks', 'paper', 'wire', 'shoes', 'candy', 'books', 'canned_food', 'trading_house', 'machine_shop', 'r_wire']) {
+      expect(ctx.state.unlocked, id).toContain(id);
+    }
+    expect(checkInvariants(ctx.state)).toEqual([]);
   });
 });
