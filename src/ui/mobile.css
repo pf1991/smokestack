@@ -25,8 +25,37 @@
     padding: 0 var(--sp-2);
   }
 
-  .hud-delta {
+  .hud-delta,
+  .hud-wind {
     display: none;
+  }
+
+  /* group chips + map layers + settings overflow the strip — one Menu lists every panel */
+  .hud-groups,
+  .hud-layers,
+  .hud-settings-btn {
+    display: none !important;
+  }
+
+  .hud-nav-btn {
+    display: inline-flex;
+  }
+
+  .hud-nav-btn .hud-btn-label {
+    display: inline;
+  }
+
+  .hud-menu {
+    /* long panel list on a short phone: scroll inside the popover */
+    max-height: min(70vh, 420px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hud-right {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: var(--sp-1);
   }
 
   .hud-speed-btn {

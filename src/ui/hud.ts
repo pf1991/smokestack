@@ -326,6 +326,17 @@ export class Hud {
     this.overlayButtons.set('factions', factions);
     layers.append(smog, h('div', { class: 'hud-split' }, factions, modes.wrap));
 
+    // One Menu holds every panel on narrow screens (the three group chips overflow and vanish).
+    const nav = this.dropdown(
+      'Menu',
+      'library',
+      'hud-nav-btn hud-labelled',
+      this.navItems(),
+      'menu',
+      'Menu: every company, operations and world panel',
+    );
+    nav.button.appendChild(this.badge());
+
     const more = this.dropdown('More', 'more', 'hud-more-btn', this.moreItems());
     const onMenu = handlers.onMenu;
     const settings = onMenu
@@ -349,6 +360,7 @@ export class Hud {
       h('div', { class: 'hud-right' },
         groups,
         layers,
+        nav.wrap,
         // the controller mounts the alerts bell, chain strip and rival strip here
         this.alertsSlot,
         this.chainSlot,
@@ -437,6 +449,16 @@ export class Hud {
       title: key ? `${label} (${key})` : label,
       onClick: run,
     }, iconEl(icon, 18), h('span', { class: 'hud-menu-label' }, label), ...(key ? [h('kbd', { class: 'hud-menu-key' }, key)] : []));
+  }
+
+  /** Flat panel list for the narrow-screen Menu chip (GROUPS order, including Routes). */
+  private navItems(): HTMLElement[] {
+    const out: HTMLElement[] = [];
+    for (const g of GROUPS) {
+      out.push(h('div', { class: 'hud-menu-section', role: 'presentation' }, g.label));
+      for (const it of g.items) out.push(this.menuItem(it));
+    }
+    return out;
   }
 
   private moreItems(): HTMLElement[] {

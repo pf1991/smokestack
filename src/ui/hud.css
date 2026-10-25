@@ -396,6 +396,28 @@
   display: none;
 }
 
+/* section labels inside the narrow-screen Menu list */
+.hud-menu-section {
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.hud-menu-section:not(:first-child) {
+  margin-top: var(--sp-1);
+  border-top: 1px solid var(--accent-quiet);
+}
+
+/* desktop: groups stay; the compact Menu is phone-only (mobile.css) */
+.hud-nav-btn {
+  display: none;
+}
+
 .hud-menu-item {
   position: relative;
   display: flex;

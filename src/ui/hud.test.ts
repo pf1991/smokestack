@@ -163,13 +163,31 @@ describe('one-row bar with grouped menus', () => {
     const bars = root.querySelectorAll('.hud-bar');
     expect(bars).toHaveLength(1);
     const bar = bars[0];
-    for (const sel of ['.hud-money', '.hud-date', '.hud-wind', '.hud-speed', '.hud-groups', '.hud-more-btn']) {
+    for (const sel of ['.hud-money', '.hud-date', '.hud-wind', '.hud-speed', '.hud-groups', '.hud-more-btn', '.hud-nav-btn']) {
       expect(bar.querySelector(sel), sel).not.toBeNull();
     }
     // the GROUPS data drives the group buttons
     for (const g of GROUPS) expect(group(root, g.id), g.id).not.toBeNull();
     // the old caption labels are gone: one row only
     expect(bar.querySelector('.hud-label')).toBeNull();
+  });
+
+  it('narrow Menu lists every panel so phones are not stuck with two clipped group chips', () => {
+    const { root, handlers } = setup();
+    const nav = root.querySelector<HTMLButtonElement>('.hud-nav-btn')!;
+    const menu = menuOf(nav);
+    expect(nav.getAttribute('aria-haspopup')).toBe('menu');
+    // every GROUPS panel (including Routes) appears once
+    const panels = GROUPS.flatMap((g) => g.items.map((i) => i.panel));
+    for (const id of panels) {
+      expect(menu.querySelectorAll(`[data-panel="${id}"]`)).toHaveLength(1);
+    }
+    expect(menu.querySelectorAll('.hud-menu-section').length).toBe(GROUPS.length);
+    nav.click();
+    expect(menu.hidden).toBe(false);
+    menu.querySelector<HTMLElement>('[data-panel="finance"]')!.click();
+    expect(handlers.onOpenPanel).toHaveBeenCalledWith('finance');
+    expect(menu.hidden).toBe(true);
   });
 
   it('Company, then Finance, opens the finance panel and closes the dropdown', () => {
@@ -228,11 +246,12 @@ describe('one-row bar with grouped menus', () => {
 
   it('Routes is a direct button with data-panel="routes"', () => {
     const { root, handlers } = setup();
+    // desktop direct chip + the same entry inside the narrow Menu list
     const routes = root.querySelectorAll<HTMLElement>('[data-panel="routes"]');
-    expect(routes).toHaveLength(1);
-    expect(routes[0].matches('.hud-panel-btn')).toBe(true);
-    expect(routes[0].closest('[role="menu"]')).toBeNull();
-    routes[0].click();
+    expect(routes).toHaveLength(2);
+    const direct = root.querySelector<HTMLElement>('.hud-panel-btn[data-panel="routes"]')!;
+    expect(direct.closest('[role="menu"]')).toBeNull();
+    direct.click();
     expect(handlers.onOpenPanel).toHaveBeenCalledWith('routes');
   });
 
@@ -424,7 +443,8 @@ describe('one-row bar with grouped menus', () => {
   it('groups and Routes are labelled from 1280 px; toggles and More only from 1600 px', () => {
     const { root } = setup();
     const labelled = [...root.querySelectorAll<HTMLElement>('.hud-labelled')];
-    expect(labelled.map((b) => b.dataset.group ?? b.dataset.panel).sort()).toEqual(['company', 'operations', 'routes', 'world']);
+    expect(labelled.map((b) => b.dataset.group ?? b.dataset.panel).filter(Boolean).sort()).toEqual(['company', 'operations', 'routes', 'world']);
+    expect(root.querySelector('.hud-nav-btn')!.matches('.hud-labelled')).toBe(true);
     for (const sel of ['.hud-smog', '.hud-factions', '.hud-more-btn']) expect(root.querySelector(sel)!.matches('.hud-labelled'), sel).toBe(false);
     const css = hudCss.replace(/\s+/g, ' ');
     expect(css).toMatch(/@media \(min-width: 1280px\) \{ \.hud-labelled \.hud-btn-label \{ display: inline; \}/);
@@ -472,7 +492,8 @@ describe('top bar layout (release r1-r3)', () => {
     expect(rival.childElementCount).toBe(0);
     const kids = [...right.children];
     const at = (el: Element) => kids.findIndex((k) => k === el || k.contains(el));
-    expect(at(right.querySelector('.hud-groups')!)).toBeLessThan(at(alerts));
+    expect(at(right.querySelector('.hud-groups')!)).toBeLessThan(at(right.querySelector('.hud-nav-btn')!));
+    expect(at(right.querySelector('.hud-nav-btn')!)).toBeLessThan(at(alerts));
     expect(at(alerts)).toBeLessThan(at(chain));
     expect(at(chain)).toBeLessThan(at(rival));
     expect(at(rival)).toBeLessThan(at(right.querySelector('.hud-settings-btn')!));
