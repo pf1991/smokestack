@@ -192,7 +192,21 @@ function achievementsView(): HTMLElement {
 
 // ---------------------------------------------------------------------------
 
-type Screen = 'home' | 'new' | 'load' | 'achievements' | 'settings';
+type Screen = 'home' | 'new' | 'load' | 'achievements' | 'about' | 'settings';
+
+/** Credits copy for the About screen (main menu). */
+function aboutView(): HTMLElement {
+  return h('div', { class: 'mn-about' },
+    h('p', { class: 'mn-about-lead' },
+      'SMOKESTACK is a browser industry tycoon: extract, refine, haul and sell across a century (1900\u20132000) while Baron Cornelius Smogsworth competes for the same markets.'),
+    h('p', { class: 'mn-about-overline' }, 'Interface'),
+    h('p', null, 'Brass & Ledger design system \u2014 walnut panels, brass trim, cream paper.'),
+    h('p', { class: 'mn-about-overline' }, 'Type'),
+    h('p', null, 'Playfair Display for titles; Source Sans 3 for UI and figures (SIL Open Font License).'),
+    h('p', { class: 'mn-about-overline' }, 'Smart events'),
+    h('p', null, 'Optional JEV decisions need the self-hosted proxy (see README). GitHub Pages runs without them.'),
+    h('p', { class: 'mn-about-foot' }, 'Made for play in the browser. No account, no CDN at runtime.'));
+}
 
 export class MainMenu {
   private readonly backdrop: MenuBackdrop | null;
@@ -248,6 +262,9 @@ export class MainMenu {
       case 'achievements':
         this.body.replaceChildren(h('h2', null, 'Achievements'), achievementsView(), back);
         break;
+      case 'about':
+        this.body.replaceChildren(h('h2', null, 'About'), aboutView(), back);
+        break;
       case 'settings':
         this.body.replaceChildren(h('h2', null, 'Settings'), settingsView(() => {}), back);
         break;
@@ -278,6 +295,7 @@ export class MainMenu {
       h('div', { class: 'mn-quiet-row' },
         button('Load game', () => this.show('load'), { variant: 'quiet' }),
         button('Achievements', () => this.show('achievements'), { variant: 'quiet' }),
+        button('About', () => this.show('about'), { variant: 'quiet' }),
         button('Settings', () => this.show('settings'), { variant: 'quiet' }))), this.status);
   }
 

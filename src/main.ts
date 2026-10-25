@@ -52,7 +52,7 @@ import { startStrike } from './sim/society/strikes';
  *  - `hudmenu=<id>` (dev) open a top-bar dropdown: company, operations, world, more
  *  - `scenario=<id>`   start a scenario
  *  - `buildtab=<extract|refine|manufacture|retail|transport>` (dev) open a build bar flyout; `ticker=scroll|headline|off` (dev) set the news strip
- *  - `menuscreen=new|load|achievements|settings` (dev) open a menu sub-screen
+ *  - `menuscreen=new|load|achievements|about|settings` (dev) open a menu sub-screen
  *  - `pause=1` (dev, with a debug start) open the pause menu
  *  - `tutorial=1`      show the tutorial card (even if it was skipped or finished before)
  *  - `skipYears=<n>` (dev) after autoplay, simulate n*360 more days before first paint; with
@@ -420,7 +420,7 @@ if (debugStart) {
 } else {
   const menu = app.showMenu();
   const screen = params.get('menuscreen');
-  if (import.meta.env.DEV && (screen === 'new' || screen === 'load' || screen === 'achievements' || screen === 'settings')) menu.show(screen);
+  if (import.meta.env.DEV && (screen === 'new' || screen === 'load' || screen === 'achievements' || screen === 'about' || screen === 'settings')) menu.show(screen);
 }
 
 if (import.meta.env.DEV) (window as unknown as { app: App }).app = app;
