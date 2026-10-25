@@ -47,7 +47,7 @@ export function canMake(state: GameState, goodId: GoodId): boolean {
 }
 
 /** Flavourful announcements for buildings and consumer (or plastic) goods, keyed by id. */
-const INVENTIONS: Record<string, [headline: string, body: string]> = {
+export const INVENTIONS: Record<string, [headline: string, body: string]> = {
   oil_well: ['BLACK GOLD! Oil found beneath the plains', 'Wildcatters strike crude: oil wells, refineries and fuel are now possible.'],
   refinery: ['BLACK GOLD! Oil found beneath the plains', 'Refineries now turn crude into fuel.'],
   car_plant: ['HORSELESS CARRIAGE TAKES TOWN BY STORM', 'Automobile plants now possible.'],

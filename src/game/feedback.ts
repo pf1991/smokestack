@@ -3,8 +3,10 @@ import type { GameState, Route, SimContext } from '../sim/types';
 import { ACHIEVEMENTS } from './achievements';
 import { BUILDINGS } from '../data/buildings';
 import { RETALIATION_LABELS } from '../data/nemesis';
+import { INVENTIONS } from '../sim/eras';
 import { formatMoney } from '../ui/format';
 import { crossedMilestone, showStamp } from '../ui/juice';
+import { tabForUnlock, tabLabel, type TabId } from '../ui/toolbar';
 
 /** At most one "stuck" toast per route per this many real milliseconds. */
 export const STUCK_TOAST_GAP_MS = 10_000;
@@ -108,6 +110,36 @@ export function reportLostStops(ctx: SimContext, affected: Route[]): void {
       ctx.bus.emit({ type: 'toast', message: `${route.name} has too few stops — its trucks are idle`, tone: 'bad' });
     }
   }
+}
+
+/**
+ * Toast + stamp + toolbar pulse when an invention story unlocks (sim/eras.ts INVENTIONS).
+ * Dedupes by headline so oil_well/refinery share one fanfare. `pulseTab` / `openTab` are optional
+ * (tests may omit). Returns an unsubscribe.
+ */
+export function attachInventionFanfare(
+  ctx: SimContext,
+  opts: { pulseTab?: (tab: TabId) => void; openTab?: (tab: TabId) => void } = {},
+): () => void {
+  const told = new Set<string>();
+  return ctx.bus.on('unlock', (e) => {
+    const story = INVENTIONS[e.defId];
+    if (!story || told.has(story[0])) return;
+    told.add(story[0]);
+    const tab = tabForUnlock(e.defId);
+    const label = tab ? `Open ${tabLabel(tab)}` : undefined;
+    showStamp(story[0], 'good');
+    ctx.bus.emit({
+      type: 'toast',
+      message: story[0],
+      tone: 'good',
+      ...(tab && opts.openTab
+        ? { action: { label: label!, run: () => opts.openTab!(tab) } }
+        : {}),
+      duration: 8000,
+    });
+    if (tab) opts.pulseTab?.(tab);
+  });
 }
 
 /**

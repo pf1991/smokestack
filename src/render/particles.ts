@@ -1,4 +1,5 @@
 import type { Camera } from './constants';
+import { drawIcon, type IconId } from './icons';
 
 /** Render-only particle effects. Positions are world pixels. */
 
@@ -13,6 +14,7 @@ const TEXT_RISE = 24 / 1.2; // 24 px over 1.2 s, px/s
 const SPARK_LIFE = 600;
 const SPARK_COUNT = 8;
 const GRAVITY = 600; // px/s^2
+const FLOAT_ICON = 12;
 
 type Kind = 'smoke' | 'text' | 'spark';
 
@@ -26,6 +28,7 @@ interface Particle {
   life: number;
   color: string;
   text?: string;
+  icon?: IconId;
 }
 
 /** Slowly varying global wind in px/s, derived from internal time. */
@@ -62,7 +65,7 @@ export class ParticleSystem {
     this.add({ kind: 'smoke', x: wx, y: wy, vx: 0, vy: -SMOKE_RISE, age: 0, life: SMOKE_LIFE / 2, color: '#3a332b' });
   }
 
-  emitFloatText(wx: number, wy: number, text: string, color: string): void {
+  emitFloatText(wx: number, wy: number, text: string, color: string, icon?: IconId): void {
     this.add({
       kind: 'text',
       x: wx,
@@ -73,6 +76,7 @@ export class ParticleSystem {
       life: TEXT_LIFE,
       color,
       text,
+      ...(icon ? { icon } : {}),
     });
   }
 
@@ -149,13 +153,24 @@ export class ParticleSystem {
         ctx.fill();
       } else {
         ctx.globalAlpha = alpha;
+        const z = cam.zoom;
+        const icon = p.icon;
+        const text = p.text ?? '';
         ctx.font = 'bold 12px serif';
+        // measureText is missing on some test mocks; ~7px/char is close enough for layout
+        const tw = typeof ctx.measureText === 'function' ? ctx.measureText(text).width : text.length * 7;
+        const gap = icon ? 3 * z : 0;
+        const iw = icon ? FLOAT_ICON * z : 0;
+        const total = iw + gap + tw;
+        const left = sx - total / 2;
+        if (icon) drawIcon(ctx, icon, left, sy - FLOAT_ICON * z * 0.75, FLOAT_ICON * z);
+        const tx = left + iw + gap + tw / 2;
         ctx.textAlign = 'center';
         ctx.lineWidth = 3;
         ctx.strokeStyle = '#1a1208';
-        ctx.strokeText(p.text ?? '', sx, sy);
+        ctx.strokeText(text, tx, sy);
         ctx.fillStyle = p.color;
-        ctx.fillText(p.text ?? '', sx, sy);
+        ctx.fillText(text, tx, sy);
       }
     }
     ctx.restore();

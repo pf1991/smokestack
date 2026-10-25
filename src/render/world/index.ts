@@ -26,10 +26,13 @@
  */
 import type { EventBus } from '../../core/events';
 import { BUILDINGS } from '../../data/buildings';
+import { SaleFloatAggregator, saleFloatLabel, shouldShowSaleFloats } from '../../game/saleFloats';
+import { dateToDays } from '../../sim/clock';
 import { LANDMARK_LAYER } from '../../sim/landmarkTiles';
 import { layerAt } from '../../sim/layers';
 import type { Building, City, GameState, OwnerId, Vec2 } from '../../sim/types';
 import { ownerColor } from '../ownerColors';
+import { ICON_IDS, type IconId } from '../icons';
 import { applyAtmosphere, cssFilterFor, easeLight, isLit } from '../atmosphere';
 import { TILE, type Camera, visibleTileRange } from '../camera';
 import { OVERLAYS } from '../overlays';
@@ -98,8 +101,7 @@ export function floatColor(ownerId: OwnerId): string {
 }
 
 
-const MONEY = (n: number): string => '$' + Math.round(n).toLocaleString('en-US');
-/** Sales per building are summed and shown as at most one floater per this many real ms. */
+/** Quiet period before flushing a day's aggregated sale float (real ms). */
 export const FLOAT_FLUSH_MS = 800;
 const FLOAT_JITTER_PX = 14;
 
@@ -147,8 +149,9 @@ export class WorldRenderer {
   private readonly constructing = new Map<number, { start: number; burst: boolean }>();
   /** sale floaters live apart from smoke/sparks so they can be drawn on the unfiltered overlay */
   private readonly floaters = new ParticleSystem();
-  private pendingSales = new Map<number, { revenue: number; ownerId: Building['ownerId'] }>();
-  private lastFloat = new Map<number, number>();
+  private readonly saleFloats = new SaleFloatAggregator();
+  /** earliest real-ms we may flush the aggregator (set when a player sale arrives) */
+  private saleFloatReadyAt: number | null = null;
   private light: number | null = null;
   /** Rendered sun: eased toward the golden-hour sun while running, the clock's while paused (see targetSun). */
   private sun: SunVector | null = null;
@@ -235,10 +238,11 @@ export class WorldRenderer {
   attachEffects(bus: EventBus): () => void {
     const offs = [
       bus.on('sale', (e) => {
-        // summed per store and flushed by render() at most every FLOAT_FLUSH_MS
-        const p = this.pendingSales.get(e.buildingId);
-        if (p) p.revenue += e.revenue;
-        else this.pendingSales.set(e.buildingId, { revenue: e.revenue, ownerId: e.ownerId });
+        // player sales: ≤1 aggregated float per building per game-day (game/saleFloats.ts)
+        this.saleFloats.record(e, dateToDays(this.state.date));
+        if (e.ownerId === 'player' && this.saleFloatReadyAt === null) {
+          this.saleFloatReadyAt = performance.now() + FLOAT_FLUSH_MS;
+        }
       }),
       bus.on('buildingPlaced', (e) => {
         const b = e.building;
@@ -310,8 +314,8 @@ export class WorldRenderer {
       this.lastPuff.clear();
       this.constructing.clear();
       this.tiltBudget.reset();
-      this.pendingSales.clear();
-      this.lastFloat.clear();
+      this.saleFloats.clear();
+      this.saleFloatReadyAt = null;
       this.light = null;
       this.sun = null;
     }
@@ -386,7 +390,7 @@ export class WorldRenderer {
       drawSurveySymbols(ctx, state, visBuildings, r, this.vehicleDir, alpha, z);
       ctx.restore();
     }
-    this.flushFloaters(state, nowMs);
+    this.flushFloaters(state, cam, nowMs);
     this.floaters.update(dt);
 
     // with an overlay canvas these go on top, unfiltered, after the atmosphere (see below)
@@ -485,22 +489,23 @@ export class WorldRenderer {
     this.floaters.draw(ctx, cam);
   }
 
-  /** Emits one summed floater per building whose last one is at least FLOAT_FLUSH_MS old. */
-  private flushFloaters(state: GameState, nowMs: number): void {
-    for (const [id, p] of this.pendingSales) {
-      const last = this.lastFloat.get(id);
-      if (last !== undefined && nowMs - last < FLOAT_FLUSH_MS && nowMs >= last) continue;
-      this.pendingSales.delete(id);
-      const b = state.buildings[id];
+  /**
+   * After FLOAT_FLUSH_MS of quiet, emits ≤1 aggregated player floater per building for the
+   * current game-day. Skipped in photo mode and when zoomed out below 1.
+   */
+  private flushFloaters(state: GameState, cam: Camera, nowMs: number): void {
+    if (this.saleFloatReadyAt === null || nowMs < this.saleFloatReadyAt) return;
+    if (!shouldShowSaleFloats({ photo: this.uiHidden, zoom: cam.zoom })) return;
+    this.saleFloatReadyAt = null;
+    const day = dateToDays(state.date);
+    for (const p of this.saleFloats.take(day)) {
+      const b = state.buildings[p.buildingId];
       if (!b) continue;
-      this.lastFloat.set(id, nowMs);
       const def = BUILDINGS[b.typeId];
       const wx = (b.pos.x + def.size.w / 2) * TILE + (Math.random() - 0.5) * 2 * FLOAT_JITTER_PX;
       const wy = b.pos.y * TILE - 4;
-      this.floaters.emitFloatText(wx, wy, `+${MONEY(p.revenue)}`, floatColor(p.ownerId));
-    }
-    if (this.lastFloat.size > 256) {
-      for (const [id, t] of this.lastFloat) if (nowMs - t > FLOAT_FLUSH_MS) this.lastFloat.delete(id);
+      const icon = p.goodId && (ICON_IDS as readonly string[]).includes(p.goodId) ? (p.goodId as IconId) : undefined;
+      this.floaters.emitFloatText(wx, wy, saleFloatLabel(p.revenue), floatColor(p.ownerId), icon);
     }
   }
 

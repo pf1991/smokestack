@@ -1,0 +1,65 @@
+/* Compact Inputs → Works → Shelves strip in the top bar (game/chainHealth.ts). */
+.chain-health {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 32px;
+  margin-left: var(--sp-1);
+  padding: 2px;
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.chain-seg {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 0 var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1.1;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.chain-seg:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.chain-seg:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.chain-seg:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.chain-seg-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.chain-seg-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.chain-seg[data-tone='positive'] {
+  color: var(--positive);
+}
+
+.chain-seg[data-tone='warning'] {
+  color: var(--warning);
+}
+
+.chain-seg[data-tone='negative'] {
+  color: var(--negative);
+}
