@@ -1,0 +1,50 @@
+/* Compact rival challenge strip in the top bar (ui/rivalStrip.ts). */
+.rival-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 280px;
+  height: 32px;
+  margin-left: var(--sp-1);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--rival);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+}
+
+.rival-strip-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.rival-strip-jump {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rival-strip-jump:hover {
+  background: var(--surface-1);
+  color: var(--rival);
+}
+
+.rival-strip-jump:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}

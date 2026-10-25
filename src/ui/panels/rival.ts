@@ -89,6 +89,15 @@ export function grudgeLine(state: GameState, g: Grudge): string {
   return `${GRUDGE_LABELS[g.kind]}${town ? ` in ${town}` : ''}, ${g.year}`;
 }
 
+/** Active-fights row: kind · town · weight · year. */
+export function fightLine(state: GameState, g: Grudge): string {
+  const town = g.cityId === null ? undefined : state.cities.find((c) => c.id === g.cityId)?.name;
+  const parts = [GRUDGE_LABELS[g.kind]];
+  if (town) parts.push(town);
+  parts.push(`wt ${g.weight.toFixed(1)}`, String(g.year));
+  return parts.join(' · ');
+}
+
 /** The heaviest LIST_MAX grudges, heaviest first (older first among equals). */
 function topGrudges(state: GameState): Grudge[] {
   return [...state.nemesis.grudges].sort((a, b) => b.weight - a.weight).slice(0, LIST_MAX);
@@ -121,16 +130,17 @@ function traitChips(state: GameState): HTMLElement {
       h('span', { class: 'rival-trait-blurb' }, BARON_TRAITS[t].blurb))));
 }
 
-function grudgeList(state: GameState): HTMLElement {
+/** Active fights: the heaviest grudges with kind, town, and weight. */
+function fightList(state: GameState): HTMLElement {
   const top = topGrudges(state);
   const heaviest = top[0]?.weight ?? 1;
-  if (top.length === 0) return none('rival-grudges', 'No grudges', 'He barely knows your name.');
-  return h('ul', { class: 'rival-grudges' },
+  if (top.length === 0) return none('rival-fights', 'No active fights', 'He barely knows your name.');
+  return h('ul', { class: 'rival-fights rival-grudges' },
     top.map((g) => h('li', {
       title: `Weight ${g.weight.toFixed(1)}`,
-      // the bar behind each grudge is its weight against the heaviest
+      // the bar behind each fight is its weight against the heaviest
       style: { background: `linear-gradient(90deg, var(--negative-bg) ${Math.round((g.weight / heaviest) * 100)}%, transparent 0)` },
-    }, grudgeLine(state, g))));
+    }, fightLine(state, g))));
 }
 
 function strikeList(state: GameState): HTMLElement {
@@ -205,7 +215,7 @@ function render(game: GameController, refresh: () => void): HTMLElement {
     h('div', { class: 'rival-header' }, panelHeader({ title: 'Rival', summary: `${nem.head.name}: ${rival.active ? mood : 'ousted'}`, tone: MOOD_TONE[mood] })),
     head,
     section('His character', traitChips(state)),
-    section('Grudges against you', grudgeList(state)),
+    section('Active fights', fightList(state)),
     section('His last strikes', strikeList(state)),
     section('Net worth', worthBar(mine, his, state.companies.player.name)),
     storeList,

@@ -30,7 +30,7 @@ function rivalCtx(): SimContext {
 }
 
 describe('rival panel', () => {
-  it('shows the head, his age, his traits with blurbs and his top 5 grudges', () => {
+  it('shows the head, his age, his traits with blurbs and his top 5 Active fights', () => {
     const ctx = rivalCtx();
     const [a, b] = ctx.state.cities;
     ctx.state.nemesis.grudges = [
@@ -48,13 +48,14 @@ describe('rival panel', () => {
     const chips = [...p.querySelectorAll<HTMLElement>('.rival-trait')];
     expect(chips.map((c) => c.querySelector('.rival-trait-label')!.textContent)).toEqual(['Greedy', 'Showman']);
     expect(chips[0].textContent).toContain(BARON_TRAITS.greedy.blurb);
-    const grudges = [...p.querySelectorAll<HTMLElement>('.rival-grudges li')].map((li) => li.textContent);
-    expect(grudges).toEqual([
-      'Takeover bid, 1925',
-      `Stores routed in ${a.name}, 1922`,
-      `Contract taken in ${b.name}, 1924`,
-      `Undercut in ${a.name}, 1923`,
-      `Undercut in ${b.name}, 1920`,
+    expect(p.textContent).toContain('Active fights');
+    const fights = [...p.querySelectorAll<HTMLElement>('.rival-fights li')].map((li) => li.textContent);
+    expect(fights).toEqual([
+      'Takeover bid · wt 8.0 · 1925',
+      `Stores routed · ${a.name} · wt 5.0 · 1922`,
+      `Contract taken · ${b.name} · wt 3.0 · 1924`,
+      `Undercut · ${a.name} · wt 2.0 · 1923`,
+      `Undercut · ${b.name} · wt 1.5 · 1920`,
     ]);
     expect(p.querySelector('canvas')!.getAttribute('aria-label')).toContain('furious'); // 20.5 >= 12
   });
@@ -76,7 +77,7 @@ describe('rival panel', () => {
   it('says so when the ledger and the history are empty, and keeps the takeover button', () => {
     const ctx = rivalCtx();
     PANELS.rival.open(game(ctx));
-    expect(panel().querySelector('.rival-grudges')!.textContent).toContain('No grudges');
+    expect(panel().querySelector('.rival-fights')!.textContent).toContain('No active fights');
     expect(panel().querySelector('.rival-strikes')!.textContent).toContain('not struck');
     expect(panel().querySelector('.rival-takeover')).not.toBeNull();
     expect(panel().querySelector('canvas')!.getAttribute('aria-label')).toContain('smug');

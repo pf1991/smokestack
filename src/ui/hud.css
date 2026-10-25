@@ -218,13 +218,15 @@
 /* the map toggles and the system controls each start a new cluster */
 .hud-layers,
 .hud-alerts,
-.hud-chain {
+.hud-chain,
+.hud-rival {
   padding-left: var(--sp-2);
   border-left: 1px solid var(--accent-quiet);
 }
 
 .hud-alerts,
-.hud-chain {
+.hud-chain,
+.hud-rival {
   display: flex;
   align-items: center;
   align-self: stretch;
@@ -237,6 +239,10 @@
 }
 
 .hud-chain:empty {
+  display: none;
+}
+
+.hud-rival:empty {
   display: none;
 }
 

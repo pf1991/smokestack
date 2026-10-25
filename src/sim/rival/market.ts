@@ -94,6 +94,18 @@ interface Candidate {
   goodId: GoodId;
   score: number;
   playerThere: boolean;
+  /** rivalry heat: player already sells this good here and/or an active grudge names this town */
+  heat: number;
+}
+
+/** True when the Baron holds any grudge tied to `cityId`. */
+function grudgeInCity(state: GameState, cityId: number): boolean {
+  return state.nemesis.grudges.some((g) => g.cityId === cityId);
+}
+
+/** Contested-market heat: +1 if the player sells this good here, +1 if a grudge names the town. */
+function rivalryHeat(state: GameState, cityId: number, playerThere: boolean): number {
+  return Number(playerThere) + Number(grudgeInCity(state, cityId));
 }
 
 /** The best (city, good) the rival can afford while keeping its reserve, or null. */
@@ -125,13 +137,17 @@ export function chooseProject(state: GameState): Candidate | null {
       // a new chain can only serve as much of the gap as it produces, and must pay its own upkeep
       const score = Math.min(unmet, capacity) * price - atPrices(state, upkeep);
       if (score <= 0) continue;
-      cands.push({ city, goodId, score, playerThere: playerSells(state, city.id, goodId) });
+      const playerThere = playerSells(state, city.id, goodId);
+      cands.push({ city, goodId, score, playerThere, heat: rivalryHeat(state, city.id, playerThere) });
     }
   }
+  // under rivalry (any heat > 0) prefer contested towns; otherwise keep the empty-niche preference
+  const anyRivalry = cands.some((c) => c.heat > 0);
   cands.sort(
     (a, b) =>
       b.score - a.score ||
-      Number(a.playerThere) - Number(b.playerThere) ||
+      b.heat - a.heat ||
+      (anyRivalry ? Number(b.playerThere) - Number(a.playerThere) : Number(a.playerThere) - Number(b.playerThere)) ||
       a.city.id - b.city.id ||
       (a.goodId < b.goodId ? -1 : a.goodId > b.goodId ? 1 : 0),
   );

@@ -15,7 +15,7 @@ import type { ToolSpec } from '../ui/tools';
 import { startAiClient } from '../ai/client';
 import { attachAmbitions } from '../sim/ambitions';
 import { attachAchievements } from './achievements';
-import { attachBaronStrikeToasts, attachHostileBidToasts, attachInventionFanfare, attachManagerToasts, attachMilestoneStamps, attachStrikeToasts, attachStuckToasts } from './feedback';
+import { attachBaronStrikeToasts, attachHostileBidToasts, attachInventionFanfare, attachManagerToasts, attachMilestoneStamps, attachStrikeToasts, attachStuckToasts, attachUndercutToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
 import { enterPhotoMode } from './photoMode';
@@ -28,6 +28,7 @@ import { biggestCity } from './autoplay';
 import { attachCardModal } from '../ui/cardModal';
 import { mountAlerts } from '../ui/alertsTray';
 import { mountChainHealth } from '../ui/chainHealth';
+import { mountRivalStrip } from '../ui/rivalStrip';
 import { dateToDays } from '../sim/clock';
 import { AlertTracker, type Alert } from './alerts';
 
@@ -150,6 +151,7 @@ export class GameController {
     this.input = new Input(canvas, this);
     this.disposers.push(mountAlerts(this.hud.alertsSlot, this));
     this.disposers.push(mountChainHealth(this.hud.chainSlot, this));
+    this.disposers.push(mountRivalStrip(this.hud.rivalSlot, this));
     // the alerts are re-collected once per in-game day, not every frame (chain strip listens too)
     this.addFrameHook(() => {
       if (!this.ctx) return;
@@ -207,6 +209,7 @@ export class GameController {
       attachStuckToasts(this.ctx),
       attachStrikeToasts(this.ctx, (id) => this.openPanel('building', id)),
       attachBaronStrikeToasts(this.ctx, () => this.openPanel('rival')),
+      attachUndercutToasts(this.ctx, (cityId) => this.openPanel('city', cityId)),
       attachHostileBidToasts(this.ctx, () => this.openPanel('exchange')),
       attachManagerToasts(this.ctx, () => this.openPanel('managers')),
       attachMilestoneStamps(this.ctx),
