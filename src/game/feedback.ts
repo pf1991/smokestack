@@ -4,10 +4,17 @@ import { ACHIEVEMENTS } from './achievements';
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { RETALIATION_LABELS } from '../data/nemesis';
+import { monthProfit } from '../sim/finance';
 import { INVENTIONS } from '../sim/eras';
+import { openMonth } from '../ui/ledger';
+import { coachSeen, markCoachSeen } from '../ui/disclosure';
 import { formatMoney } from '../ui/format';
 import { crossedMilestone, showStamp } from '../ui/juice';
 import { tabForUnlock, tabLabel, type TabId } from '../ui/toolbar';
+
+/** localStorage keys for one-shot toolbar coaches (E5). */
+export const COACH_COMPONENTS = 'components-tab';
+export const COACH_TRADING_HOUSE = 'trading-house';
 
 /** At most one "stuck" toast per route per this many real milliseconds. */
 export const STUCK_TOAST_GAP_MS = 10_000;
@@ -180,5 +187,55 @@ export function attachMilestoneStamps(ctx: SimContext): () => void {
   return () => {
     offDay();
     offAch();
+  };
+}
+
+/** True when the player has sold at least one consumer good. */
+export function hasSoldConsumer(state: GameState): boolean {
+  for (const [k, v] of Object.entries(state.flags ?? {})) {
+    if (!k.startsWith('sold:') || typeof v !== 'number' || v <= 0) continue;
+    if (GOODS[k.slice(5)]?.kind === 'consumer') return true;
+  }
+  return false;
+}
+
+/** Open month (or last closed) is in the black. */
+export function monthLooksProfitable(state: GameState): boolean {
+  const open = openMonth(state.companies.player.ledger, state.date);
+  if (open && monthProfit(open) >= 0.5) return true;
+  const prev = [...state.companies.player.ledger].reverse().find((m) => m !== open);
+  return prev !== undefined && monthProfit(prev) >= 0.5;
+}
+
+/**
+ * E5 toolbar coaches: pulse Components on first component unlock; pulse Trading House when the
+ * first consumer chain is profitable. Each fires once per browser (`smokestack:coach:…`).
+ */
+export function attachSystemsCoach(
+  ctx: SimContext,
+  opts: {
+    pulseTab?: (tab: TabId) => void;
+    pulseBuilding?: (typeId: string) => void;
+    showTab?: (tab: TabId) => void;
+  } = {},
+): () => void {
+  const offUnlock = ctx.bus.on('unlock', (e) => {
+    if (coachSeen(COACH_COMPONENTS)) return;
+    if (tabForUnlock(e.defId) !== 'components') return;
+    markCoachSeen(COACH_COMPONENTS);
+    opts.pulseTab?.('components');
+    opts.showTab?.('components');
+  });
+  const offDay = ctx.bus.on('dayStart', () => {
+    if (coachSeen(COACH_TRADING_HOUSE)) return;
+    if (!hasSoldConsumer(ctx.state) || !monthLooksProfitable(ctx.state)) return;
+    markCoachSeen(COACH_TRADING_HOUSE);
+    opts.showTab?.('retail');
+    opts.pulseBuilding?.('trading_house');
+    opts.pulseTab?.('retail');
+  });
+  return () => {
+    offUnlock();
+    offDay();
   };
 }

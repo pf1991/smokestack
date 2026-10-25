@@ -148,6 +148,19 @@ describe('city panel philanthropy', () => {
     expect(full.hidden).toBe(false);
   });
 
+  it('Price column explains Base × supply × price index', async () => {
+    const { CITY_PRICE_TIP } = await import('./city');
+    const ctx = testCtx(testState({ money: 50000, cities: [{ x: 10, y: 10, population: 6000 }] }));
+    // unlock a consumer good so the demand table has a Price header
+    ctx.state.unlocked.push('furniture');
+    PANELS.city.open(game(ctx) as never, 0);
+    const root = document.querySelector('.insp-city') as HTMLElement;
+    (root.querySelector('[data-disc="toggle"]') as HTMLElement).click();
+    const th = root.querySelector('th[data-col="price"]') as HTMLElement;
+    expect(th.title).toBe(CITY_PRICE_TIP);
+    expect(CITY_PRICE_TIP).toMatch(/Base.*supply.*price index/i);
+  });
+
   it('offers the three gifts, disabled with a reason when unaffordable or already built', () => {
     const ctx = testCtx(testState({ money: 50000, cities: [{ x: 10, y: 10, population: 6000 }] }));
     PANELS.city.open(game(ctx) as never, 0);

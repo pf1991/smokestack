@@ -15,7 +15,7 @@ import type { ToolSpec } from '../ui/tools';
 import { startAiClient } from '../ai/client';
 import { attachAmbitions } from '../sim/ambitions';
 import { attachAchievements } from './achievements';
-import { attachBaronStrikeToasts, attachHostileBidToasts, attachInventionFanfare, attachManagerToasts, attachMilestoneStamps, attachStrikeToasts, attachStuckToasts, attachUndercutToasts } from './feedback';
+import { attachBaronStrikeToasts, attachHostileBidToasts, attachInventionFanfare, attachManagerToasts, attachMilestoneStamps, attachStrikeToasts, attachStuckToasts, attachSystemsCoach, attachUndercutToasts } from './feedback';
 import { attachAutosave } from './saves';
 import { loadSettings } from './settings';
 import { enterPhotoMode } from './photoMode';
@@ -216,6 +216,11 @@ export class GameController {
       attachInventionFanfare(this.ctx, {
         pulseTab: (tab) => this.toolbar.pulseTab(tab),
         openTab: (tab) => this.toolbar.showTab(tab),
+      }),
+      attachSystemsCoach(this.ctx, {
+        pulseTab: (tab) => this.toolbar.pulseTab(tab),
+        pulseBuilding: (id) => this.toolbar.pulseBuilding(id),
+        showTab: (tab) => this.toolbar.showTab(tab),
       }),
       this.hud.attach(bus),
       attachAutosave(this.ctx),

@@ -127,6 +127,7 @@ export class Toolbar {
   private readonly priced: { el: HTMLElement; base: number; text: (money: string) => string }[] = [];
   private priceSig = -1;
   private pulseTimer: ReturnType<typeof setTimeout> | null = null;
+  private cardPulseTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(root: HTMLElement, private readonly onSelect: (t: ToolSpec) => void) {
     this.root = root;
@@ -315,6 +316,25 @@ export class Toolbar {
       this.pulseTimer = null;
       const btn = this.tabButtons.get(id);
       if (btn) delete btn.dataset.pulse;
+    }, ms);
+  }
+
+  /**
+   * Pulses a building tool card for ~10s (E5 systems coach: Trading House). Clears any prior card pulse.
+   */
+  pulseBuilding(typeId: string, ms = 10_000): void {
+    if (this.cardPulseTimer !== null) {
+      clearTimeout(this.cardPulseTimer);
+      this.cardPulseTimer = null;
+    }
+    for (const c of this.cards) {
+      if (c.def.id === typeId) c.el.dataset.pulse = '1';
+      else delete c.el.dataset.pulse;
+    }
+    this.cardPulseTimer = setTimeout(() => {
+      this.cardPulseTimer = null;
+      const card = this.cards.find((c) => c.def.id === typeId);
+      if (card) delete card.el.dataset.pulse;
     }, ms);
   }
 

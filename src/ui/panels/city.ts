@@ -30,6 +30,9 @@ import { dataTable, meter, panelHeader, section, statRow, statTile, type Tone } 
 import { laborPool } from '../../sim/politics/workforce';
 import type { PanelDef } from './index';
 
+/** City Price column: Base × supply pressure × national price index (E5). */
+export const CITY_PRICE_TIP = 'Price = Base × supply × price index. Thin shelves raise the supply factor; inflation raises the index.';
+
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const PLAYER_COLOR = '#2f6fb5';
 const RIVAL_COLOR = '#b5302f';
@@ -110,7 +113,13 @@ function demandTable(state: GameState, rows: DemandRow[]): HTMLElement {
         label: 'Supplied',
         render: (r) => h('span', { class: 'insp-sat' }, meter(r.sat, 1, { tone: r.sat >= 0.8 ? 'positive' : r.sat >= 0.4 ? 'warning' : 'negative', label: `Supplied ${formatPercent(r.sat)}` }), h('span', { class: 'insp-sat-val' }, formatPercent(r.sat))),
       },
-      { key: 'price', label: 'Price', align: 'right', render: (r) => formatMoney(r.price) },
+      {
+        key: 'price',
+        label: 'Price',
+        align: 'right',
+        title: () => CITY_PRICE_TIP,
+        render: (r) => formatMoney(r.price),
+      },
       {
         key: 'stores',
         label: 'Stores',
@@ -125,6 +134,7 @@ function demandTable(state: GameState, rows: DemandRow[]): HTMLElement {
       },
     ],
   });
+  table.querySelector('th[data-col="price"]')?.setAttribute('title', CITY_PRICE_TIP);
   const body = (table as HTMLTableElement).tBodies[0];
   if (rows.length > 0) {
     [...body.rows].forEach((tr, i) => {

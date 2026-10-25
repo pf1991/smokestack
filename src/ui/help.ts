@@ -9,6 +9,15 @@ const MOUSE: [string, string][] = [
   ['W A S D or arrows', 'Pan with the keyboard'],
 ];
 
+/** Production loop primer above the hotkeys (E5). */
+export const SYSTEMS_PRIMER: { step: string; detail: string }[] = [
+  { step: 'Extract', detail: 'Pull raw goods from the land (wood, ore, grain).' },
+  { step: 'Refine', detail: 'Turn raw into materials (lumber, steel, flour).' },
+  { step: 'Components', detail: 'Make parts (wire, motors) for deeper consumer chains.' },
+  { step: 'Manufacture', detail: 'Assemble finished goods towns will buy.' },
+  { step: 'Retail / Trade', detail: 'Sell in stores, or dump materials and parts at a Trading House.' },
+];
+
 let open: { root: HTMLElement; prevFocus: Element | null } | null = null;
 
 export function isHelpOpen(): boolean {
@@ -26,6 +35,13 @@ export function closeHelp(): void {
 export function openHelp(): void {
   if (open) return;
   const card = h('div', { class: 'help-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Help', tabindex: '-1' },
+    h('h2', null, 'How the works run'),
+    h('ol', { class: 'help-primer', 'data-help': 'primer' },
+      SYSTEMS_PRIMER.map((s) =>
+        h('li', null, h('strong', null, s.step), h('span', null, s.detail)))),
+    h('p', { class: 'help-primer-pointers', 'data-help': 'pointers' },
+      'Open the ', h('kbd', { class: 'help-key' }, 'I'), ' Codex for every good and recipe, and ',
+      h('kbd', { class: 'help-key' }, 'T'), ' Alerts when something needs fixing.'),
     h('h2', null, 'Controls'),
     SHORTCUT_GROUPS.map((g) => {
       // H duplicates "?" so list each label once
