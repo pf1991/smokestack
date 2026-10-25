@@ -1,5 +1,5 @@
 /**
- * Regional firms (Phase 4): three small local companies founded on a schedule, each running one
+ * Regional firms (Phase 4): four small local companies founded on a schedule, each running one
  * supply chain into its home town's store. They play by the player's rules: every building, road,
  * route and truck goes through the public sim API (sim/chainBuilder.ts) and is paid with the firm's
  * own money. Each month a firm tops up trucks on backed-up legs, renews worn assets and borrows or
@@ -45,6 +45,7 @@ export const REGIONAL_FIRMS: RegionalFirmDef[] = [
   { id: 'regional_1', year: 1905, chain: 'furniture' },
   { id: 'regional_2', year: 1920, chain: 'clothes' },
   { id: 'regional_3', year: 1935, chain: 'cheese' },
+  { id: 'regional_4', year: 1912, chain: 'shoes' },
 ];
 
 /** A firm's founding capital, in 1900 dollars (× price index). */

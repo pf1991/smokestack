@@ -1,14 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
+import { BASELINE_GOODS } from '../data/goods';
+import { modelSpec, newestModel } from './logistics/models';
 import { connectToRoads, roadCost } from './roads';
+import { planChain } from './rival/chains';
+import { clearProjectFlags, F_BLOCKED, rivalReserve } from './rival/shared';
 import { chainFor, chooseProject, MAX_STALL_MONTHS, maxRivalChains, netWorth, RIVAL_RESERVE, rivalChainCount, rivalMonth, rivalSupply, rivalTaunt, takeover, TAUNTS } from './rival';
+import { atPrices } from './society/economy';
 import { deserialize, runDays, serialize } from './simulation';
 import { buildRoad, createGame, lPath, placeBuilding } from './state';
 import { must, testCtx, testState } from './testkit';
-import type { GameState, SimContext } from './types';
+import type { GameState, GoodId, SimContext } from './types';
 import { buyTruck, createRoute, deleteRoute, sellVehicle } from './vehicles';
 import { buildRail, buyTrain, stationAccess } from './rail';
+
+/** Table D consumer goods (R4 product expansion). */
+const TABLE_D: readonly GoodId[] = [
+  'shoes', 'candy', 'books', 'canned_food', 'phonographs', 'bicycles', 'motorcycles',
+  'refrigerators', 'washing_machines', 'cosmetics', 'calculators', 'video_games', 'mobile_phones',
+];
+/** Matches rival/projects.ts; not exported. */
+const MAX_FAILS = 2;
 
 function rivalGame(seed = 7): SimContext {
   return { state: createGame({ seed, companyName: 'Acme Works', rival: true }), bus: new EventBus() };
@@ -533,5 +546,80 @@ describe('rival railways', () => {
     delete (s as { rivalRail?: unknown }).rivalRail;
     const loaded = must(deserialize(serialize(s))).state;
     expect(() => rivalMonth({ state: loaded, bus: ctx.bus })).not.toThrow();
+  });
+});
+
+describe('R4 AI adoption (Baron)', () => {
+  it('1935 rich Baron: with baseline demand zeroed, chooseProject returns a Table D consumer good', () => {
+    const s = testState({
+      year: 1935,
+      rivalMoney: 10_000_000,
+      cities: [{ x: 20, y: 15, population: 20000 }],
+    });
+    const until = { year: 2100, month: 1, day: 1, hour: 0 };
+    for (const goodId of BASELINE_GOODS) {
+      s.modifiers.push({ id: `zero:${goodId}`, goodId, cityId: null, factor: 0, until });
+    }
+    const pick = chooseProject(s);
+    expect(pick).not.toBeNull();
+    expect(TABLE_D).toContain(pick!.goodId);
+  });
+
+  it('phonographs on a map with no hills: started directly, abandoned within the fail budget, blocks the market', () => {
+    const s = testState({
+      year: 1905,
+      rivalMoney: 5_000_000,
+      width: 40,
+      height: 30,
+      cities: [{ x: 20, y: 15, population: 10000, name: 'Hillless' }],
+    });
+    for (const t of s.map.tiles) {
+      if (t.terrain === 'hills' || t.terrain === 'mountain') t.terrain = 'grass';
+    }
+    const ctx = testCtx(s);
+    s.rivalProject = { cityId: 0, goodId: 'phonographs', stage: 0 };
+    clearProjectFlags(s);
+    const plan = planChain('phonographs', s);
+    expect(plan).not.toBeNull();
+    // store + each node, then MAX_FAILS placement failures (and one spare month)
+    const budget = plan!.nodes.length + 1 + MAX_FAILS + 1;
+    for (let i = 0; i < budget; i++) {
+      rivalMonth(ctx);
+      if (!s.rivalProject) break;
+    }
+    expect(s.rivalProject).toBeNull();
+    expect(String(s.flags[F_BLOCKED] ?? '')).toContain('0:phonographs');
+    const rivalBuildings = Object.values(s.buildings).filter((b) => b.ownerId === 'rival');
+    expect(rivalBuildings.every((b) => BUILDINGS[b.typeId].category === 'retail')).toBe(true);
+    for (const r of Object.values(s.routes)) {
+      if (r.ownerId !== 'rival') continue;
+      expect(Object.values(s.vehicles).some((v) => v.routeId === r.id)).toBe(true);
+    }
+  });
+
+  it('chooseProject skips a chain whose whole cost the Baron cannot afford', () => {
+    const s = testState({
+      year: 1905,
+      rivalMoney: 10_000_000,
+      cities: [{ x: 20, y: 15, population: 20000 }],
+    });
+    const until = { year: 2100, month: 1, day: 1, hour: 0 };
+    for (const goodId of [...BASELINE_GOODS, ...TABLE_D]) {
+      if (goodId === 'phonographs') continue;
+      s.modifiers.push({ id: `zero:${goodId}`, goodId, cityId: null, factor: 0, until });
+    }
+    const plan = planChain('phonographs', s);
+    expect(plan).not.toBeNull();
+    const newest = modelSpec(newestModel(s));
+    const ROAD_BUDGET = 10000;
+    const cost =
+      plan!.nodes.reduce((sum, n) => sum + BUILDINGS[n.typeId].cost, 0) +
+      plan!.edges.length * newest.cost +
+      ROAD_BUDGET +
+      BUILDINGS.store.cost;
+    s.companies.rival.money = Math.floor(atPrices(s, cost) + rivalReserve(s) - 1);
+    expect(chooseProject(s)).toBeNull();
+    s.companies.rival.money = Math.ceil(atPrices(s, cost) + rivalReserve(s));
+    expect(chooseProject(s)?.goodId).toBe('phonographs');
   });
 });

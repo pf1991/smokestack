@@ -15,7 +15,7 @@ import { canPlaceBuilding, findPlacement, placeBuilding } from './state';
 import type { Building, BuildingTypeId, City, OwnerId, SimContext, Vec2 } from './types';
 import { buyTruck, createRoute } from './vehicles';
 
-export type ChainId = 'furniture' | 'clothes' | 'cheese';
+export type ChainId = 'furniture' | 'clothes' | 'cheese' | 'shoes';
 
 export interface ChainStage {
   typeId: BuildingTypeId;
@@ -27,6 +27,7 @@ const CHAIN_RECIPES: Record<ChainId, string[]> = {
   furniture: ['r_wood', 'r_lumber', 'r_furniture'],
   clothes: ['r_cotton', 'r_fabric', 'r_clothes'],
   cheese: ['r_milk', 'r_cheese'],
+  shoes: ['r_cattle', 'r_leather', 'r_shoes'],
 };
 
 /** The building type that makes `recipeId` (first match in BUILDINGS). */

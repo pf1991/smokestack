@@ -218,11 +218,11 @@ describe('economy balance', () => {
     );
     expect(events).toEqual([{ type: 'victory', reason: 'The century is over' }]);
     expect(ctx.state.date.year).toBe(2001);
-    // The run takes about 19 s of CPU alone, and up to about 25 s while the rest of the suite loads
-    // every core (CPU time inflates with core contention, not just wall time). The 30 s budget still
-    // catches a 1.5x regression without flaking. Shared CI runners are slower and noisier: the budget
-    // doubles there (CI is set by GitHub Actions).
+    // The run takes about 25–35 s of CPU with four regional firms and the R4 catalogue (CPU time also
+    // inflates with core contention while the suite loads). The 45 s budget still catches a ~1.5x
+    // regression without flaking. Shared CI runners are slower and noisier: the budget doubles there
+    // (CI is set by GitHub Actions).
     const ci = Boolean((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CI);
-    expect(cpu).toBeLessThan(ci ? 60_000 : 30_000);
+    expect(cpu).toBeLessThan(ci ? 90_000 : 45_000);
   }, 120_000);
 });

@@ -34,12 +34,29 @@ const owned = (state: GameState, id: string) => ({
 });
 
 describe('regional firms', () => {
-  it('schedule: furniture 1905, clothes 1920, cheese 1935', () => {
+  it('schedule: furniture 1905, clothes 1920, cheese 1935, shoes 1912', () => {
     expect(REGIONAL_FIRMS.map((f) => [f.id, f.year, f.chain])).toEqual([
       ['regional_1', 1905, 'furniture'],
       ['regional_2', 1920, 'clothes'],
       ['regional_3', 1935, 'cheese'],
+      ['regional_4', 1912, 'shoes'],
     ]);
+  });
+
+  it('1912 January founding builds ranch, tannery, shoe factory and three routes', () => {
+    const ctx = fresh();
+    const { state } = ctx;
+    january(ctx, 1905);
+    january(ctx, 1912);
+    const c = state.companies.regional_4;
+    expect(c).toBeDefined();
+    expect(c.kind).toBe('regional');
+    expect(c.active).toBe(true);
+    expect(c.name).toBe(`${state.cities.find((x) => x.id === c.homeCityId)!.name} Boot & Shoe Co.`);
+    const { buildings, routes, vehicles } = owned(state, 'regional_4');
+    expect(buildings.map((b) => b.typeId).sort()).toEqual(['ranch', 'shoe_factory', 'store', 'tannery']);
+    expect(routes).toHaveLength(3);
+    expect(vehicles).toHaveLength(3);
   });
 
   it('none before 1905; in 1905 the first is founded in the largest city, owning its chain', () => {
@@ -82,14 +99,15 @@ describe('regional firms', () => {
     expect(state.companies.regional_1.homeCityId).toBe(next.id);
   });
 
-  it('companyIds order is player, rival, regional_1…3; each firm in a different city', () => {
+  it('companyIds order is player, rival, regional_1…4; each firm in a different city; four by 1936', () => {
     const ctx = fresh();
-    for (const y of [1905, 1920, 1935]) january(ctx, y);
-    expect(companyIds(ctx.state)).toEqual(['player', 'rival', 'regional_1', 'regional_2', 'regional_3']);
-    const homes = ['regional_1', 'regional_2', 'regional_3'].map((id) => ctx.state.companies[id].homeCityId);
-    expect(new Set(homes).size).toBe(3);
+    for (const y of [1905, 1912, 1920, 1935]) january(ctx, y);
+    expect(companyIds(ctx.state)).toEqual(['player', 'rival', 'regional_1', 'regional_2', 'regional_3', 'regional_4']);
+    const homes = ['regional_1', 'regional_2', 'regional_3', 'regional_4'].map((id) => ctx.state.companies[id].homeCityId);
+    expect(new Set(homes).size).toBe(4);
     expect(owned(ctx.state, 'regional_2').buildings.map((b) => b.recipeId).sort()).toEqual([null, 'r_clothes', 'r_cotton', 'r_fabric']);
     expect(owned(ctx.state, 'regional_3').buildings.map((b) => b.recipeId).sort()).toEqual([null, 'r_cheese', 'r_milk']);
+    expect(owned(ctx.state, 'regional_4').buildings.map((b) => b.recipeId).sort()).toEqual([null, 'r_cattle', 'r_leather', 'r_shoes']);
   });
 
   it('a firm that cannot build leaves no trace and retries the next year', () => {
@@ -121,7 +139,8 @@ describe('regional firms', () => {
     expect(companyIds(ctx.state)).toEqual(['player', 'rival', 'regional_1']);
     january(ctx, 1952);
     january(ctx, 1953);
-    expect(companyIds(ctx.state)).toEqual(['player', 'rival', 'regional_1', 'regional_2', 'regional_3']);
+    january(ctx, 1954);
+    expect(companyIds(ctx.state)).toEqual(['player', 'rival', 'regional_1', 'regional_2', 'regional_3', 'regional_4']);
   });
 
   it('a migrated save (phase 3 fixture, moved to 1951) founds one firm at the end of January, then holds invariants', () => {

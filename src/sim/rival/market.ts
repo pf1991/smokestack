@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../../data/buildings';
 import { DEMAND_PER_1000, GOODS } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
+import { canMake } from '../eras';
 import { loadSource } from '../inventory';
 import { monthlyDemand, salePrice, supplyRatio } from '../market';
 import { demandModifier } from '../production';
@@ -15,7 +16,9 @@ import { atPrices, priceIndex } from '../society/economy';
 const ROAD_BUDGET = 10000;
 
 const consumerGoods = (state: GameState): GoodId[] =>
-  Object.keys(DEMAND_PER_1000).filter((g) => GOODS[g]?.kind === 'consumer' && state.unlocked.includes(g));
+  Object.keys(DEMAND_PER_1000).filter(
+    (g) => GOODS[g]?.kind === 'consumer' && state.unlocked.includes(g) && canMake(state, g),
+  );
 
 /** Hops followed back through stations/warehouses when tracing where a good comes from. */
 const SUPPLY_DEPTH = 3;
