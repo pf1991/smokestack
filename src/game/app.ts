@@ -4,7 +4,8 @@ import { attachNewspaper } from '../ui/panels/newspaper';
 import { closeModal, MainMenu, openPauseMenu, showEndScreen, type PauseHost } from '../ui/menu';
 import { GameController, type NewGameOpts } from './controller';
 import { createGame } from '../sim/state';
-import { shouldOfferTutorial, Tutorial } from '../ui/tutorial';
+import { AmbitionsCard, shouldOfferAmbitionsCard } from '../ui/ambitionsCard';
+import { shouldOfferTutorial, tutorialStatus, Tutorial } from '../ui/tutorial';
 import { playColdOpen } from './coldOpen';
 import { loadSettings } from './settings';
 
@@ -55,6 +56,7 @@ export class App implements PauseHost {
     const tutorial = shouldOfferTutorial(game.state.scenarioId);
     const then = () => {
       if (tutorial) this.showTutorial(game);
+      else this.offerAmbitionsCard(game);
     };
     if (loadSettings().skipIntro) then();
     else this.playIntro(game, then);
@@ -65,11 +67,25 @@ export class App implements PauseHost {
     game.addDisposer(playColdOpen(game, onDone));
   }
 
-  /** Shows the tutorial card for `game`; it is torn down with the game. */
+  /** Shows the tutorial card for `game`; ambitions card follows when it ends. */
   showTutorial(game: GameController): Tutorial {
-    const tutorial = new Tutorial(game.uiRoot, () => game.state);
+    const tutorial = new Tutorial(game.uiRoot, () => game.state, {
+      onEnd: () => this.offerAmbitionsCard(game),
+    });
     game.addDisposer(() => tutorial.destroy());
     return tutorial;
+  }
+
+  /**
+   * Soft "Next ambitions" brass card once per browser after Free Play tutorial is done/skipped.
+   * Torn down with the game.
+   */
+  offerAmbitionsCard(game: GameController): AmbitionsCard | null {
+    const tutDone = tutorialStatus() === 'done' || tutorialStatus() === 'skipped';
+    if (!shouldOfferAmbitionsCard(game.state.scenarioId, tutDone)) return null;
+    const card = new AmbitionsCard(game.uiRoot);
+    game.addDisposer(() => card.destroy());
+    return card;
   }
 
   /** Starts a loaded save; if it still breaks the game while starting, falls back to the menu with a message. */

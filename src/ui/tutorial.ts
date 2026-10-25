@@ -150,18 +150,27 @@ export function shouldOfferTutorial(scenarioId: string | undefined): boolean {
   return scenarioId === 'sandbox' && tutorialStatus() === null;
 }
 
+export interface TutorialOpts {
+  /** Fired once when the tutorial is skipped or the cheer card is closed after finish. */
+  onEnd?: (status: TutorialStatus) => void;
+}
+
 export class Tutorial {
   private index = 0;
   private finished = false;
+  private ended: TutorialStatus | null = null;
   private card: HTMLElement | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private highlighted: Element[] = [];
   private shownKey = '';
+  private onEnd: TutorialOpts['onEnd'];
 
   constructor(
     private readonly root: HTMLElement,
     private readonly getState: () => GameState,
+    opts: TutorialOpts = {},
   ) {
+    this.onEnd = opts.onEnd;
     this.timer = setInterval(() => this.update(), POLL_MS);
     this.update();
   }
@@ -196,6 +205,7 @@ export class Tutorial {
 
   private finish(): void {
     this.finished = true;
+    this.ended = 'done';
     remember('done');
     this.clearHighlight();
     const last = TUTORIAL_STEPS[TUTORIAL_STEPS.length - 1];
@@ -210,8 +220,16 @@ export class Tutorial {
   }
 
   private skip(): void {
+    this.ended = 'skipped';
     remember('skipped');
     this.destroy();
+  }
+
+  private fireEnd(): void {
+    if (this.ended === null || !this.onEnd) return;
+    const cb = this.onEnd;
+    this.onEnd = undefined;
+    cb(this.ended);
   }
 
   private render(): void {
@@ -259,5 +277,6 @@ export class Tutorial {
     this.clearHighlight();
     this.card?.remove();
     this.card = null;
+    this.fireEnd();
   }
 }
