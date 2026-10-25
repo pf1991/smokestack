@@ -5,7 +5,7 @@ import { BUILDINGS } from '../../data/buildings';
 import { consumersOf, producersOf, upstreamTree, type ChainNode } from '../../data/chains';
 import { GOODS, type GoodKind } from '../../data/goods';
 import { RECIPES } from '../../data/recipes';
-import { tradePrice } from '../../sim/trade';
+import { buyPrice, tradePrice } from '../../sim/trade';
 import type { GameState, GoodId } from '../../sim/types';
 import { h } from '../dom';
 import { formatMoney, formatNumber } from '../format';
@@ -236,7 +236,7 @@ class CodexPanel {
             : g.kind === 'raw' ? 'Nothing yet'
               : 'Sold to the Trading House');
     const tradeLine = (g.kind === 'material' || g.kind === 'component')
-      ? h('div', { class: 'cx-line' }, `Trading House pays ${formatMoney(tradePrice(state, good))} today`)
+      ? h('div', { class: 'cx-line' }, `Market bid ${formatMoney(tradePrice(state, good))} · ask ${formatMoney(buyPrice(state, good))} today`)
       : null;
     const el = card({
       children: [

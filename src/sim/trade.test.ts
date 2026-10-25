@@ -13,10 +13,16 @@ import { runDays } from './simulation';
 import { buyTruck, createRoute } from './vehicles';
 import {
   ABSORB_VALUE,
+  BUY_PREMIUM,
   absorb,
+  buyFromMarket,
+  buyPrice,
   FACTOR_MAX,
   FACTOR_MIN,
+  isMarketDepot,
+  marketDepots,
   newTrade,
+  sellToMarket,
   TRADE_DAILY_UNITS,
   TRADE_FACTOR,
   TRADE_GOODS,
@@ -244,5 +250,57 @@ describe('the national market', () => {
     expect(lo).toBeGreaterThanOrEqual(FACTOR_MIN);
     expect(hi).toBeLessThanOrEqual(FACTOR_MAX);
     expect(checkInvariants(state)).toEqual([]);
+  });
+});
+
+describe('live commodity market', () => {
+  it('ask is bid × BUY_PREMIUM, and bread has no quote', () => {
+    const s = testState();
+    const bid = tradePrice(s, 'steel');
+    expect(buyPrice(s, 'steel')).toBe(Math.round(bid * BUY_PREMIUM));
+    expect(buyPrice(s, 'bread')).toBe(0);
+  });
+
+  it('Trading Houses and Warehouses are market depots; stores are not', () => {
+    const { ctx, houses } = houseCtx(1);
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 8, y: 2 }));
+    expect(isMarketDepot(houses[0]!)).toBe(true);
+    expect(isMarketDepot(wh)).toBe(true);
+    expect(isMarketDepot({ typeId: 'store' } as Building)).toBe(false);
+    expect(marketDepots(ctx.state).map((b) => b.id).sort()).toEqual([houses[0]!.id, wh.id].sort());
+  });
+
+  it('buyFromMarket stocks a warehouse, spends goods, and cannot print money vs sell', () => {
+    const ctx = testCtx(testState({ width: 60, height: 40, money: 5e6 }));
+    const wh = must(placeBuilding(ctx, 'player', 'warehouse', { x: 8, y: 2 }));
+    const before = ctx.state.companies.player.money;
+    const ask = buyPrice(ctx.state, 'steel');
+    const bid = tradePrice(ctx.state, 'steel');
+    expect(ask).toBeGreaterThan(bid);
+    const bought = must(buyFromMarket(ctx, wh.id, 'steel', 10));
+    expect(bought.qty).toBe(10);
+    expect(bought.paid).toBe(10 * ask);
+    expect(wh.input.steel).toBe(10);
+    expect(ctx.state.companies.player.money).toBe(before - bought.paid);
+    expect(currentLedger(ctx.state.companies.player, ctx.state.date).expense.goods).toBe(bought.paid);
+    const sold = must(sellToMarket(ctx, wh.id, 'steel', 10));
+    expect(sold.qty).toBe(10);
+    expect(sold.revenue).toBe(10 * bid);
+    expect(wh.input.steel ?? 0).toBe(0);
+    expect(ctx.state.companies.player.money).toBe(before - bought.paid + sold.revenue);
+    expect(before - bought.paid + sold.revenue).toBeLessThan(before);
+  });
+
+  it('refuses buys without cash, room, or a valid good', () => {
+    const ctx = testCtx(testState({ width: 60, height: 40, money: 5e6 }));
+    const house = must(placeBuilding(ctx, 'player', 'trading_house', { x: 2, y: 2 }));
+    ctx.state.companies.player.money = 0;
+    expect(buyFromMarket(ctx, house.id, 'steel', 1).ok).toBe(false);
+    ctx.state.companies.player.money = 5e6;
+    expect(buyFromMarket(ctx, house.id, 'bread', 1).ok).toBe(false);
+    const cap = storageLeft(house, 'steel');
+    house.input.steel = cap;
+    expect(storageLeft(house, 'steel')).toBe(0);
+    expect(buyFromMarket(ctx, house.id, 'steel', 1).ok).toBe(false);
   });
 });

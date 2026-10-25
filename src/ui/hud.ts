@@ -91,6 +91,7 @@ export const GROUPS: HudGroup[] = [
     items: [
       { panel: 'routes', label: 'Routes', icon: 'route', direct: true },
       { panel: 'fleet', label: 'Fleet', icon: 'truck' },
+      { panel: 'market', label: 'Market', icon: 'crate' },
       { panel: 'contracts', label: 'Contracts', icon: 'permit' },
       { panel: 'managers', label: 'Managers', icon: 'manager' },
     ],

@@ -18,6 +18,11 @@ export const ABSORB_VALUE = 30_000;
 export const SATURATION_FLOOR = 0.5;
 /** Units a fully staffed Trading House sells a day. */
 export const TRADE_DAILY_UNITS = 40;
+/**
+ * Ask / bid spread for live imports. Buy price is sell price × this, so routing goods to a house
+ * and buying them back the same day cannot print money.
+ */
+export const BUY_PREMIUM = 1.4;
 
 const TRADE_SEED_SALT = 0x54524144; // "TRAD"
 

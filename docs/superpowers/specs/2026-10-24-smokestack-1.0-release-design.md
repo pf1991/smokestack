@@ -220,7 +220,7 @@ Existing class names that tests and the tutorial depend on (`.window*`, `.hud-pa
 | Question | Answer |
 |---|---|
 | The tier's name | **components** |
-| An import market | **No.** Selling only, through the Trading House. |
+| An import market | **Later (shipped):** live Commodity Market panel — bid/ask on materials and components into a Warehouse or Trading House; auto-sell at the house still runs daily. |
 | Stronger fading | **Yes, gently.** Phonographs fade in 1955 and calculators in 1995. |
 | How many goods | **About 34** (below) |
 | Quality tiers | **Later** |

@@ -1,0 +1,30 @@
+/* Commodity Market board. Tokens only (see cssGate.test.ts). */
+.market-panel { display: flex; flex-direction: column; gap: var(--sp-2); color: var(--text); font-family: var(--font-body); font-size: var(--fs-sm); min-width: 0; }
+.market-panel .mkt-header { margin-bottom: var(--sp-1); }
+.market-panel .mkt-header .kit-ph { padding: 0 0 var(--sp-2); }
+
+.mkt-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); }
+.mkt-depot-label { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--text-muted); }
+.mkt-depot {
+  min-width: 160px;
+  padding: 2px var(--sp-2);
+  background: var(--surface-0);
+  color: var(--text);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-sm);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+.mkt-hint { font-size: var(--fs-xs); color: var(--text-muted); }
+
+.mkt-good { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.mkt-acts { display: inline-flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; }
+.mkt-acts .kit-btn { padding: 2px var(--sp-1); font-size: var(--fs-xs); }
+
+.mkt-trend { font-weight: 600; }
+.mkt-up { color: var(--good); }
+.mkt-down { color: var(--bad); }
+.mkt-flat { color: var(--text-muted); }
+
+.mkt-note { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--text-muted); }
+.mkt-table { width: 100%; }

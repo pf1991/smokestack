@@ -172,7 +172,7 @@ describe('Trading House inspector', () => {
     const house = place(ctx, 'trading_house', 5, 5);
     PANELS.building.open(host(ctx) as never, house.id);
     expect(document.querySelector('.kit-empty')!.textContent).toContain('Route materials or components here to sell them');
-    expect(text()).toContain('Nothing to sell: route materials or components here');
+    expect(text()).toContain('Empty: route goods here, or buy on the Market (U)');
     expect(statusAdvice(ctx.state, house).tone).toBe('warning');
   });
 });

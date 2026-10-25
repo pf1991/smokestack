@@ -61,3 +61,7 @@ PANELS.managers = managersPanel;
 import { codexPanel } from './codex';
 
 PANELS.codex = codexPanel;
+
+import { marketPanel } from './market';
+
+PANELS.market = marketPanel;

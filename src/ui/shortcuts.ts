@@ -31,6 +31,7 @@ export const SHORTCUTS: readonly (Shortcut & { action: ShortcutAction })[] = [
   { key: '4', label: 'Fastest', group: 'Time', action: { kind: 'speed', speed: 8 } },
   { key: 'R', label: 'Routes', group: 'Panels', action: { kind: 'panel', id: 'routes' } },
   { key: 'V', label: 'Fleet', group: 'Panels', action: { kind: 'panel', id: 'fleet' } },
+  { key: 'U', label: 'Market', group: 'Panels', action: { kind: 'panel', id: 'market' } },
   { key: 'F', label: 'Finance', group: 'Panels', action: { kind: 'panel', id: 'finance' } },
   { key: 'N', label: 'Newspaper', group: 'Panels', action: { kind: 'panel', id: 'newspaper' } },
   { key: 'C', label: 'Contracts', group: 'Panels', action: { kind: 'panel', id: 'contracts' } },

@@ -134,10 +134,10 @@ describe('codex panel', () => {
     expect(last.title).toBe(`Unlocks ${latest.era}`);
   });
 
-  it("wire's detail shows what the Trading House pays today", () => {
+  it("wire's detail shows today's market bid and ask", () => {
     const { game } = setup();
     PANELS.codex.open(game, 'wire');
-    expect(q('.cx-detail')!.textContent).toMatch(/Trading House pays \$[\d,]+ today/);
+    expect(q('.cx-detail')!.textContent).toMatch(/Market bid \$[\d,]+ · ask \$[\d,]+ today/);
   });
 
   it('the list shows icon, name, base price and town demand', () => {

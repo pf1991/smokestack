@@ -138,7 +138,7 @@ export function ageLine(state: GameState, b: Building): string {
 export { storeStocked };
 
 const TRADE_SELLING = 'Selling to the national market';
-const TRADE_EMPTY = 'Nothing to sell: route materials or components here';
+const TRADE_EMPTY = 'Empty: route goods here, or buy on the Market (U)';
 
 /** Plain-language explanation of what the building is doing (exported for tests). */
 export function statusReason(state: GameState, b: Building, routes: Route[]): string {

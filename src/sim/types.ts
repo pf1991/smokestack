@@ -233,7 +233,9 @@ export type LedgerCategory =
   /** share trades and takeover settlements (exchange/trading.ts): capital flows, not operating profit */
   | 'shares'
   /** managers' pay (sim/logistics) */
-  | 'salaries';
+  | 'salaries'
+  /** materials and components bought on the national commodity market (sim/trade.ts) */
+  | 'goods';
 
 export interface LedgerMonth {
   year: number;
