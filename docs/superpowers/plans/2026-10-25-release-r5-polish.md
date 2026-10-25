@@ -1,6 +1,6 @@
 # SMOKESTACK 1.0 R5: Release Polish Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Ship the last 1.0 slice: First Season teaches the alerts tray and the production
 codex; the static landing has meta tags, a favicon and an About screen; a bundle-size budget
@@ -59,7 +59,7 @@ constraints).
   `#hud-alerts` and `.hud-menu-item[data-panel="codex"]`.
 - Produces: two new step ids after `first_sale`: `alerts`, `codex`. `doneText` moves to `codex`.
 
-- [ ] **Step 1: Write the failing expectations**
+- [x] **Step 1: Write the failing expectations**
 
 In `tutorial.test.ts`:
 - `IDS` becomes
@@ -70,12 +70,12 @@ In `tutorial.test.ts`:
 - Alerts / codex steps are `manual: true`; their `done()` stays false on a post-sale state.
 - Highlight test still finds matches for every step with `highlight` (including the new ones).
 
-- [ ] **Step 2: Run the tutorial tests (expect fail)**
+- [x] **Step 2: Run the tutorial tests (expect fail)**
 
 Run: `npx vitest run --pool=forks src/ui/tutorial.test.ts`
 Expected: FAIL on step count / IDS.
 
-- [ ] **Step 3: Implement the two steps in `tutorial.ts`**
+- [x] **Step 3: Implement the two steps in `tutorial.ts`**
 
 After `first_sale` (keep its sale `done`; remove its `doneText`):
 
@@ -99,12 +99,12 @@ After `first_sale` (keep its sale `done`; remove its `doneText`):
 
 (Adjust highlight selectors if the World button class differs; they must match a real Hud mount.)
 
-- [ ] **Step 4: Run tutorial tests**
+- [x] **Step 4: Run tutorial tests**
 
 Run: `npx vitest run --pool=forks src/ui/tutorial.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/ui/tutorial.ts src/ui/tutorial.test.ts
@@ -132,14 +132,14 @@ EOF
 - Produces: `Screen` includes `'about'`; home quiet row has About; About lists short credits
   (SMOKESTACK, Brass & Ledger UI, fonts Playfair Display + Source Sans 3, optional JEV note).
 
-- [ ] **Step 1: Failing menu test**
+- [x] **Step 1: Failing menu test**
 
 Assert home has a quiet About button; clicking it shows heading `About` and credit copy that
 mentions fonts / Brass & Ledger; Back returns home.
 
-- [ ] **Step 2: Run `npx vitest run --pool=forks src/ui/menu.test.ts` — expect FAIL**
+- [x] **Step 2: Run `npx vitest run --pool=forks src/ui/menu.test.ts` — expect FAIL**
 
-- [ ] **Step 3: Implement About + meta**
+- [x] **Step 3: Implement About + meta**
 
 - `index.html` head: meta description (~160 chars), `og:title`, `og:description`, `og:image`
   (`./og.png`), `og:type` website, Twitter `summary_large_image`, `link rel="icon"` →
@@ -148,13 +148,13 @@ mentions fonts / Brass & Ledger; Back returns home.
 - `og.png`: generate once (ImageMagick or Node canvas); commit the binary under `public/`.
 - Menu About screen + quiet-row button; extend DEV `menuscreen` allow-list.
 
-- [ ] **Step 4: Tests + build smoke**
+- [x] **Step 4: Tests + build smoke**
 
 Run: `npx vitest run --pool=forks src/ui/menu.test.ts && npm run build`
 Expected: PASS; `dist/favicon.svg` and `dist/og.png` exist; `dist/index.html` contains `og:image`
 and relative favicon href (no `href="/`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add index.html public/favicon.svg public/og.png src/ui/menu.ts src/ui/menu.css src/ui/menu.test.ts src/main.ts scripts/shots.sh
@@ -187,14 +187,14 @@ moves them:
 
 Also print raw + gzip sizes on success for the README / gate log.
 
-- [ ] **Step 1: Implement checker; run against current `dist/`**
+- [x] **Step 1: Implement checker; run against current `dist/`**
 
 Run: `npm run build && node scripts/check-bundle.mjs` (or `npm run check-dist`)
 Expected: PASS and print sizes; temporarily lower a ceiling to prove FAIL, then restore.
 
-- [ ] **Step 2: Wire into `check-dist` / confirm `.github/workflows/pages.yml` still calls it**
+- [x] **Step 2: Wire into `check-dist` / confirm `.github/workflows/pages.yml` still calls it**
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/check-bundle.mjs scripts/check-dist.mjs package.json
@@ -212,7 +212,7 @@ EOF
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Rewrite the top of the README**
+- [x] **Step 1: Rewrite the top of the README**
 
 Order:
 1. One-paragraph pitch.
@@ -226,7 +226,7 @@ Order:
 6. Drop or fold redundant “What's new in Phase N” walls into a shorter changelog blurb if the
    top becomes unwieldy — prefer lead with Play Online; do not delete useful controls/JEV detail.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add README.md
@@ -245,7 +245,7 @@ EOF
 - Modify: `docs/superpowers/plans/2026-10-25-release-r5-polish.md` (checkboxes)
 - Optional: `scripts/shots.sh` About + tutorial showcase if not done in Task 2
 
-- [ ] **Step 1: Full gate**
+- [x] **Step 1: Full gate**
 
 Run:
 ```bash
@@ -257,7 +257,7 @@ npm run check-dist
 
 Expected: all PASS; check-dist prints path OK + bundle sizes under budget; favicon/og present.
 
-- [ ] **Step 2: Commit gate note**
+- [x] **Step 2: Commit gate note**
 
 ```bash
 git add docs/superpowers/plans/2026-10-25-release-r5-polish.md scripts/shots.sh
