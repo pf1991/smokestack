@@ -1,9 +1,10 @@
 # SMOKESTACK 1.0: Release Design (GitHub Pages, design system, products)
 
-Status: **approved by owner pre-authorisation** (2026-10-24). The owner asked for a plan and
-for implementation to start "without asking me for permission. Just do it non stop". The
-decisions marked *(decided)* below were made on the owner's behalf and can be revisited at any
-phase gate.
+Status: **R1–R5 implemented and merged to `main`** (2026-10-25). Approved by owner
+pre-authorisation (2026-10-24) to plan and implement without stopping for permission. The
+decisions marked *(decided)* below were made on the owner's behalf. Remaining for the owner:
+make the repository public, enable Pages (Settings → Pages → Source: GitHub Actions), and push
+`main` so `.github/workflows/pages.yml` deploys.
 
 ## 1. Intent
 
