@@ -12,13 +12,20 @@ vi.mock('./coldOpen', () => ({
   }),
 }));
 
-const tutorials: unknown[] = [];
+const tutorials: { onEnd?: (s: string) => void }[] = [];
 vi.mock('../ui/tutorial', () => ({
   shouldOfferTutorial: () => true,
+  tutorialStatus: () => null,
   Tutorial: class {
-    constructor() {
-      tutorials.push(this);
+    constructor(_root: unknown, _getState: unknown, opts: { onEnd?: (s: string) => void } = {}) {
+      tutorials.push(opts);
     }
+    destroy() {}
+  },
+}));
+vi.mock('../ui/ambitionsCard', () => ({
+  shouldOfferAmbitionsCard: () => false,
+  AmbitionsCard: class {
     destroy() {}
   },
 }));

@@ -405,7 +405,13 @@ function pruneEffects(state: GameState): void {
   const active = baronActive(state);
   const kept = n.effects.filter((e) => active && today < e.untilDay);
   for (const e of n.effects) {
-    if (kept.includes(e) || e.kind !== 'fund_opponent') continue;
+    if (kept.includes(e)) continue;
+    if (e.kind === 'price_war' && (state.companies[PLAYER_ID]?.money ?? 0) >= 0) {
+      // outlasted the Baron's price war while solvent
+      state.flags ??= {};
+      state.flags.priceWarSurvived = true;
+    }
+    if (e.kind !== 'fund_opponent') continue;
     const city = state.cities.find((c) => c.id === e.cityId);
     if (city && city.politics.baronBacks === e.faction) city.politics.baronBacks = null;
   }

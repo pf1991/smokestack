@@ -50,10 +50,10 @@ dependencies. Node 24 for tests:
   (Wire). Dismiss = Next / Got it.
 - Does not block the sim. Highlights use existing selectors.
 
-- [ ] **Step 1:** Failing test — after tutorial status `done`, card mounts once; second New Game
+- [x] **Step 1:** Failing test — after tutorial status `done`, card mounts once; second New Game
   does not remount if storage set.
-- [ ] **Step 2:** Implement.
-- [ ] **Step 3:** Commit `feat(ui): post-tutorial ambitions card`.
+- [x] **Step 2:** Implement.
+- [x] **Step 3:** Commit `feat(ui): post-tutorial ambitions card`.
 
 ### Task E1.2: Free Play soft ambitions
 
@@ -66,9 +66,9 @@ needed, `src/ui/panels/goals.ts`, tests.
 - One active at a time; on complete → toast + roll next unmet; never fails the game.
 - Goals panel replaces the shrug empty state with the active ambition + "Completed" list.
 
-- [ ] **Step 1:** Failing tests for roll / complete / Free Play only.
-- [ ] **Step 2:** Implement + migration if state shape changes.
-- [ ] **Step 3:** Commit `feat(game): Free Play soft ambitions with meters`.
+- [x] **Step 1:** Failing tests for roll / complete / Free Play only.
+- [x] **Step 2:** Implement + migration if state shape changes.
+- [x] **Step 3:** Commit `feat(game): Free Play soft ambitions with meters`.
 
 ### Task E1.3: Chaseable achievements
 
@@ -80,10 +80,10 @@ needed, `src/ui/panels/goals.ts`, tests.
 - HUD or Goals chip: `Next: <name> · <progress>` for the nearest incomplete with a numeric
   progress; otherwise the next by catalogue order.
 
-- [ ] **Step 1:** Tests for new achievements + chip copy.
-- [ ] **Step 2:** Implement.
-- [ ] **Step 3:** Commit `feat(game): mid-game achievements and progress chip`.
-- [ ] **Step 4:** `npm test`; screenshot Goals Free Play + ambitions card. Merge note for E1.
+- [x] **Step 1:** Tests for new achievements + chip copy.
+- [x] **Step 2:** Implement.
+- [x] **Step 3:** Commit `feat(game): mid-game achievements and progress chip`.
+- [x] **Step 4:** `npm test`; screenshot Goals Free Play + ambitions card. Merge note for E1.
 
 ---
 

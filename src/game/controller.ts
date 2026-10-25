@@ -13,6 +13,7 @@ import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
 import type { ToolSpec } from '../ui/tools';
 import { startAiClient } from '../ai/client';
+import { attachAmbitions } from '../sim/ambitions';
 import { attachAchievements } from './achievements';
 import { attachBaronStrikeToasts, attachHostileBidToasts, attachManagerToasts, attachMilestoneStamps, attachStrikeToasts, attachStuckToasts } from './feedback';
 import { attachAutosave } from './saves';
@@ -210,6 +211,7 @@ export class GameController {
       this.hud.attach(bus),
       attachAutosave(this.ctx),
       attachAchievements(this.ctx),
+      attachAmbitions(this.ctx),
       startAiClient(this, { enabled: () => loadSettings().smartEvents }),
       bus.on('unlock', () => this.toolbar.update(this.state)),
       bus.on('monthEnd', () => this.toolbar.update(this.state)),
