@@ -89,6 +89,8 @@ export class GameController {
   private busOffs: (() => void)[] = [];
   /** extra teardown run by destroy() (e.g. the tutorial card and its timer) */
   private disposers: (() => void)[] = [];
+  /** top-bar chrome that needs ctx (chain health, rival strip); remounted each load() */
+  private chromeOffs: (() => void)[] = [];
   private toolListeners: ((t: ToolSpec) => void)[] = [];
   /** run at the start of every frame, before the sim step and render (e.g. the cold-open camera) */
   private frameHooks = new Set<(now: number) => void>();
@@ -149,9 +151,8 @@ export class GameController {
       onMenu: (screen) => this.onPause?.(screen),
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
+    // alerts mount is safe before load (it only reads game.alerts); chain/rival need ctx → load()
     this.disposers.push(mountAlerts(this.hud.alertsSlot, this));
-    this.disposers.push(mountChainHealth(this.hud.chainSlot, this));
-    this.disposers.push(mountRivalStrip(this.hud.rivalSlot, this));
     // the alerts are re-collected once per in-game day, not every frame (chain strip listens too)
     this.addFrameHook(() => {
       if (!this.ctx) return;
@@ -204,6 +205,12 @@ export class GameController {
     this.renderer.setSelection(null);
     // listen for map input only once the world exists (constructor is too early for the menu handoff)
     if (!this.input) this.input = new Input(this.canvas, this);
+    // chain health + rival strip read ctx.state / ctx.bus — must not mount in the constructor
+    for (const off of this.chromeOffs) off();
+    this.chromeOffs = [
+      mountChainHealth(this.hud.chainSlot, this),
+      mountRivalStrip(this.hud.rivalSlot, this),
+    ];
     this.followId = null;
     this.busOffs = [
       this.renderer.attachEffects(bus),
@@ -537,6 +544,7 @@ export class GameController {
     clearInterval(this.watchdog);
     for (const off of this.busOffs) off();
     this.busOffs = [];
+    for (const off of this.chromeOffs.splice(0)) off();
     this.input?.destroy();
     this.input = null;
     window.removeEventListener('resize', this.onResize);

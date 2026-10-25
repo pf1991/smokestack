@@ -16,7 +16,8 @@ import { h } from './dom';
 import './chainHealth.css';
 
 export interface ChainHealthHost {
-  readonly ctx: { state: GameState; bus: EventBus };
+  /** Absent on GameController until load(); paint/jump no-op then. */
+  readonly ctx?: { state: GameState; bus: EventBus };
   centerOn(tile: Vec2): void;
   openPanel(id: string, arg?: unknown): void;
   /** Re-score when alerts refresh (same cadence). */
@@ -67,17 +68,21 @@ export function mountChainHealth(slot: HTMLElement, game: ChainHealthHost): () =
   slot.appendChild(root);
 
   const paint = () => {
-    const health = chainHealth(game.ctx.state);
+    const ctx = game.ctx;
+    if (!ctx) return;
+    const health = chainHealth(ctx.state);
     for (const s of CHAIN_SEGMENTS) paintSeg(buttons.get(s.id)!, health, s.id);
   };
 
   function jump(id: ChainSegmentId): void {
-    const health = chainHealth(game.ctx.state);
+    const ctx = game.ctx;
+    if (!ctx) return;
+    const health = chainHealth(ctx.state);
     const jumpId = health[id].jumpId;
     if (jumpId === null) return;
-    const pos = footprintCenter(game.ctx.state, jumpId);
+    const pos = footprintCenter(ctx.state, jumpId);
     if (!pos) {
-      game.ctx.bus.emit({ type: 'toast', message: 'That is no longer there', tone: 'info' });
+      ctx.bus.emit({ type: 'toast', message: 'That is no longer there', tone: 'info' });
       paint();
       return;
     }

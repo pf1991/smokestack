@@ -10,7 +10,8 @@ import { h } from './dom';
 import './rivalStrip.css';
 
 export interface RivalStripHost {
-  readonly ctx: { state: GameState; bus: EventBus };
+  /** Absent on GameController until load(); mount returns a no-op disposer then. */
+  readonly ctx?: { state: GameState; bus: EventBus };
   openPanel(id: string, arg?: unknown): void;
 }
 
@@ -75,20 +76,23 @@ export function mountRivalStrip(slot: HTMLElement, game: RivalStripHost): () => 
     else game.openPanel('rival');
   }
 
+  const ctx = game.ctx;
+  if (!ctx) return () => {};
+
   const offs = [
-    game.ctx.bus.on('baronStrike', (e) => {
+    ctx.bus.on('baronStrike', (e) => {
       setBeat({
         text: `Smogsworth strikes: ${RETALIATION_LABELS[e.kind]}`,
         cityId: e.cityId,
       });
     }),
-    game.ctx.bus.on('undercut', (e) => {
+    ctx.bus.on('undercut', (e) => {
       setBeat({
-        text: undercutText(game.ctx.state, e.cityId, e.goodId),
+        text: undercutText(ctx.state, e.cityId, e.goodId),
         cityId: e.cityId,
       });
     }),
-    game.ctx.bus.on('news', (e) => {
+    ctx.bus.on('news', (e) => {
       if (e.item.kind !== 'rival') return;
       // taunts and desk copy; strikes already painted by baronStrike
       let text = e.item.headline;

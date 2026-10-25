@@ -32,6 +32,15 @@ describe('mountRivalStrip', () => {
     return { slot, g, off, state };
   }
 
+  it('survives a host with no ctx yet (GameController before load)', () => {
+    const slot = document.createElement('span');
+    document.body.appendChild(slot);
+    slots.push(slot);
+    const off = mountRivalStrip(slot, { openPanel: () => {} });
+    expect(slot.querySelector('.rival-strip')).toBeNull();
+    expect(() => off()).not.toThrow();
+  });
+
   it('stays empty until a rival beat arrives', () => {
     const { slot } = mount();
     expect(slot.querySelector('.rival-strip')).toBeNull();
@@ -39,7 +48,7 @@ describe('mountRivalStrip', () => {
 
   it('shows a baronStrike beat and Jump opens the rival panel', () => {
     const { slot, g } = mount();
-    g.ctx.bus.emit({ type: 'baronStrike', kind: 'price_war', cityId: 0 });
+    g.ctx!.bus.emit({ type: 'baronStrike', kind: 'price_war', cityId: 0 });
     const strip = slot.querySelector<HTMLElement>('.rival-strip')!;
     expect(strip.textContent).toContain(`Smogsworth strikes: ${RETALIATION_LABELS.price_war}`);
     strip.querySelector<HTMLButtonElement>('.rival-strip-jump')!.click();
@@ -48,7 +57,7 @@ describe('mountRivalStrip', () => {
 
   it('shows an undercut beat with town and good, Jump opens the city', () => {
     const { slot, g } = mount();
-    g.ctx.bus.emit({ type: 'undercut', cityId: 0, goodId: 'furniture' });
+    g.ctx!.bus.emit({ type: 'undercut', cityId: 0, goodId: 'furniture' });
     const strip = slot.querySelector<HTMLElement>('.rival-strip')!;
     expect(strip.querySelector('.rival-strip-text')!.textContent).toBe(
       `Undercutting you in Rivermouth — ${GOODS.furniture.name}`,
@@ -59,7 +68,7 @@ describe('mountRivalStrip', () => {
 
   it('shows the latest rival news taunt and Jump opens the rival panel', () => {
     const { slot, g, state } = mount();
-    publishNews({ state, bus: g.ctx.bus }, 'rival', "Smogsworth: 'Your lorries are so slow'", 'body');
+    publishNews({ state, bus: g.ctx!.bus }, 'rival', "Smogsworth: 'Your lorries are so slow'", 'body');
     const strip = slot.querySelector<HTMLElement>('.rival-strip')!;
     expect(strip.querySelector('.rival-strip-text')!.textContent).toContain('Your lorries are so slow');
     strip.querySelector<HTMLButtonElement>('.rival-strip-jump')!.click();
@@ -68,7 +77,7 @@ describe('mountRivalStrip', () => {
 
   it('baronStrike with no city Jump opens the rival panel', () => {
     const { slot, g } = mount();
-    g.ctx.bus.emit({ type: 'baronStrike', kind: 'smear', cityId: null });
+    g.ctx!.bus.emit({ type: 'baronStrike', kind: 'smear', cityId: null });
     slot.querySelector<HTMLButtonElement>('.rival-strip-jump')!.click();
     expect(g.panels).toEqual([['rival', undefined]]);
   });

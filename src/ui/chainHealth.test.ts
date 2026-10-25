@@ -80,4 +80,17 @@ describe('mountChainHealth', () => {
     mountChainHealth(slot, host(state));
     expect(slot.querySelector<HTMLButtonElement>('[data-seg="inputs"]')!.disabled).toBe(true);
   });
+
+  it('survives a host with no ctx yet (GameController before load)', () => {
+    const slot = document.createElement('span');
+    document.body.appendChild(slot);
+    slots.push(slot);
+    const g: ChainHealthHost = {
+      centerOn: () => {},
+      openPanel: () => {},
+      onAlerts: () => () => {},
+    };
+    expect(() => mountChainHealth(slot, g)()).not.toThrow();
+    expect(slot.querySelectorAll('.chain-seg')).toHaveLength(3);
+  });
 });
