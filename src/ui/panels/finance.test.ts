@@ -37,14 +37,22 @@ function month(year: number, m: number, income: LedgerMonth['income'], expense: 
 
 describe('finance panel', () => {
   beforeEach(() => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => { mem.set(k, String(v)); },
+      removeItem: (k: string) => { mem.delete(k); },
+      clear: () => mem.clear(),
+      get length() { return mem.size; },
+      key: () => null,
+    });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-    localStorage.clear();
   });
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
     closeAllWindows();
     document.body.replaceChildren();
-    localStorage.clear();
   });
 
   it('opens on a Now summary; Show full ledger reveals charts and statement', () => {

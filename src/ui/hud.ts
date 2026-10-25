@@ -3,6 +3,8 @@ import { GREENS_YEAR } from '../data/factions';
 import { eraName } from '../sim/eras';
 import { monthProfit } from '../sim/finance';
 export { eraName };
+import { cycleLabel, cyclePhase } from '../sim/society/economy';
+import { taxRateLabel } from '../sim/society/taxes';
 import type { GameState, NewsItem, Speed, Weather } from '../sim/types';
 import { setOverlay } from '../render/overlays';
 import { factionOverlay, factionModes, setFactionMode, getFactionMode, type FactionMode } from '../render/factionOverlay';
@@ -729,6 +731,11 @@ export class Hud {
     this.updateProfit(state);
     const d = state.date;
     setText(this.date, `${d.day} ${MONTHS[d.month - 1] ?? '???'} ${d.year}`);
+    const phase = cyclePhase(state.economy);
+    const clock = this.date.parentElement;
+    if (clock) {
+      clock.title = `${cycleLabel(phase)} · ${taxRateLabel(state)}`;
+    }
     setText(this.era, eraName(d.year));
     if (!this.newsSeeded) {
       // a fresh game or a load: what was printed before this session counts as read

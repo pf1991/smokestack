@@ -1,5 +1,6 @@
 import { BASELINE_GOODS, CLASS_DEMAND, DEMAND_PER_1000, GOODS, type GoodDef } from '../data/goods';
 import { compareDates } from './clock';
+import { cycleDemandFactor } from './society/economy';
 import type { City, CityClasses, GameState, GoodId, Inventory, MarketEntry, OwnerId } from './types';
 
 export interface StoreStock {
@@ -231,11 +232,12 @@ export function urbanRadius(population: number): number {
   return Math.min(MAX_URBAN_RADIUS, 3 + Math.floor(Math.sqrt(population / 250)));
 }
 
-/** Product of active (unexpired) modifiers matching the good (or '*') and the city (or null). */
+/** Product of active (unexpired) modifiers matching the good (or '*') and the city (or null), times the soft business cycle. */
 export function demandModifier(state: GameState, cityId: number, goodId: GoodId): number {
+  // cycleDemandFactor is 1 in steady times; import is lazy-safe via society/economy
+  let f = cycleDemandFactor(state.economy);
   const mods = state.modifiers;
-  if (mods.length === 0) return 1;
-  let f = 1;
+  if (mods.length === 0) return f;
   for (const m of mods) {
     if (compareDates(m.until, state.date) <= 0) continue;
     if (m.goodId !== '*' && m.goodId !== goodId) continue;
@@ -254,14 +256,12 @@ export function demandModifier(state: GameState, cityId: number, goodId: GoodId)
 export function averageSatisfaction(state: GameState, city: City): number {
   const year = state.date.year;
   const cityId = city.id;
-  const mods = state.modifiers;
-  const noMods = mods.length === 0;
   let baseSum = 0;
   let baseN = 0;
   let otherN = 0;
   for (let gi = 0; gi < DEMAND_GOODS.length; gi++) {
     const g = DEMAND_GOODS[gi];
-    const mod = noMods ? 1 : demandModifier(state, cityId, g);
+    const mod = demandModifier(state, cityId, g);
     if (monthlyDemandAt(city, gi, year, mod) <= 0) continue;
     const s = satisfaction(city, g);
     if (IS_BASELINE_AT[gi]) {

@@ -7,7 +7,9 @@ import { escalationMonth } from './society/escalation';
 import { classesMonth } from './society/classes';
 import { regulationMonth } from './society/regulation';
 import { strikesMonth } from './society/strikes';
-import { economyMonth } from './society/economy';
+import { cycleLabel, economyMonth } from './society/economy';
+import { taxesMonth } from './society/taxes';
+import { publishNews } from './news';
 import { growthMonth, maintenanceMonth, productionDay, retailDay } from './production';
 import { wealth } from './state';
 import { rivalMonth, rivalTaunt } from './rival';
@@ -111,9 +113,35 @@ export const SYSTEMS: SimSystem[] = [
   politicsSystem,
   // Phase 3 strikes: after politics, so this month's workers' opinion decides who walks out
   { id: 'strikes', onMonth: strikesMonth },
-  // Phase 3 inflation: last, so every price charged this month used the month's index; finance (always
-  // run last) then values the month-end net worth at the new index that next month's prices use
-  { id: 'economy', onMonth: economyMonth },
+  // Sales tax on this month's booked sales (after retail days have run); same rules for every company
+  { id: 'taxes', onMonth: taxesMonth },
+  // Phase 3 inflation + soft cycle: late, so every price charged this month used the month's index;
+  // finance (always run last) then values the month-end net worth at the new index next month uses
+  {
+    id: 'economy',
+    onMonth(ctx) {
+      const flipped = economyMonth(ctx);
+      if (flipped === 'boom') {
+        publishNews(
+          ctx,
+          'historic',
+          'FACTORIES HUM! SHOPKEEPERS REPORT QUEUES AT THE DOOR',
+          'Orders are brisk from coast to coast. Stock the shelves while the public still has coin.',
+          'cycle:boom',
+        );
+        ctx.bus.emit({ type: 'toast', message: cycleLabel('boom'), tone: 'good' });
+      } else if (flipped === 'recession') {
+        publishNews(
+          ctx,
+          'historic',
+          'TRADE SLACKENS! WAGONS WAIT IDLE FOR ORDERS',
+          'Tills ring thin and warehouses fill. Cut costs, woo the mayors, and keep a cash cushion.',
+          'cycle:recession',
+        );
+        ctx.bus.emit({ type: 'toast', message: cycleLabel('recession'), tone: 'bad' });
+      }
+    },
+  },
   // Phase 4 the Baron's grudge ledger. onDay reads the month's sales on its last day (goalsMonth and
   // factionsMonth clear them during onMonth); onMonth adds contract grudges, then retaliates
   { id: 'nemesis', onDay: nemesisDay, onMonth: nemesisMonth, onYear: grudgesYear },

@@ -39,6 +39,7 @@ const LABELS: Record<LedgerCategory, string> = {
   shares: 'Share trades',
   salaries: 'Manager salaries',
   goods: 'Market goods',
+  taxes: 'Sales tax',
 };
 // rows come from the sim's category lists, so the statement and monthProfit cannot drift apart
 const INCOME_CATS = INCOME_CATEGORIES.map((cat) => ({ cat, label: LABELS[cat] }));

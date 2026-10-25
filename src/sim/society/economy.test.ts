@@ -16,7 +16,20 @@ import { assetValue, demolitionRefund, roadTileCost } from '../state';
 import { buildReferenceStrategy, must, testCtx, testState } from '../testkit';
 import type { GameState, LedgerMonth, SimContext } from '../types';
 import { sellRefund, vehicleMaintenanceMonth, vehiclePrice } from '../vehicles';
-import { DECADE_INFLATION, ECONOMY_HISTORY_MONTHS, economyMonth, indexAtYear, inflationRate, priceIndex } from './economy';
+import {
+  advanceCycle,
+  CYCLE_DEMAND,
+  CYCLE_MONTHS,
+  cycleDemandFactor,
+  cyclePhase,
+  DECADE_INFLATION,
+  defaultEconomy,
+  ECONOMY_HISTORY_MONTHS,
+  economyMonth,
+  indexAtYear,
+  inflationRate,
+  priceIndex,
+} from './economy';
 import { createGame, placeBuilding } from '../state';
 import '../rail';
 
@@ -83,6 +96,42 @@ describe('inflation (DECADE_INFLATION, ruling R-S12)', () => {
     runDays(ctx, 30);
     expect(priceIndex(ctx.state)).toBeCloseTo(Math.pow(1.01, 1 / 12), 12);
     expect(ctx.state.economy.history.length).toBe(1);
+  });
+});
+
+describe('soft business cycle', () => {
+  it('defaults to steady demand ×1 and fills missing fields on old saves', () => {
+    const e = defaultEconomy();
+    expect(cyclePhase(e)).toBe('steady');
+    expect(cycleDemandFactor(e)).toBe(1);
+    const legacy = { priceIndex: 1, history: [] as number[] };
+    expect(cycleDemandFactor(legacy)).toBe(1);
+    expect((legacy as { cycle?: string }).cycle).toBe('steady');
+  });
+
+  it('advances steady → boom → steady → recession → steady', () => {
+    const e = defaultEconomy();
+    e.cycleLeft = 1;
+    expect(advanceCycle(e)).toBe('boom');
+    expect(e.cycleLeft).toBe(CYCLE_MONTHS.boom);
+    expect(cycleDemandFactor(e)).toBe(CYCLE_DEMAND.boom);
+    e.cycleLeft = 1;
+    expect(advanceCycle(e)).toBe('steady');
+    e.cycleLeft = 1;
+    expect(advanceCycle(e)).toBe('recession');
+    expect(cycleDemandFactor(e)).toBe(CYCLE_DEMAND.recession);
+    e.cycleLeft = 1;
+    expect(advanceCycle(e)).toBe('steady');
+  });
+
+  it('economyMonth returns the flipped phase and demandModifier feels it', async () => {
+    const { demandModifier } = await import('../market');
+    const ctx = testCtx();
+    ctx.state.economy.cycle = 'steady';
+    ctx.state.economy.cycleLeft = 1;
+    ctx.state.economy.cycleFlip = 'boom';
+    expect(economyMonth(ctx)).toBe('boom');
+    expect(demandModifier(ctx.state, 0, 'furniture')).toBeCloseTo(CYCLE_DEMAND.boom, 8);
   });
 });
 
@@ -177,7 +226,7 @@ describe('migration', () => {
       vehicles: { 2: { id: 2, kind: 'truck' } },
     };
     expect(migrateSave(o).ok).toBe(true);
-    expect(o.economy).toEqual({ priceIndex: 1, history: [] });
+    expect(o.economy).toEqual(defaultEconomy(1));
     expect((o.buildings as Record<string, { builtYear: number }>)[1].builtYear).toBe(1962);
     expect((o.vehicles as Record<string, { builtYear: number }>)[2].builtYear).toBe(1962);
   });

@@ -235,7 +235,9 @@ export type LedgerCategory =
   /** managers' pay (sim/logistics) */
   | 'salaries'
   /** materials and components bought on the national commodity market (sim/trade.ts) */
-  | 'goods';
+  | 'goods'
+  /** corporate sales tax (sim/society/taxes.ts) */
+  | 'taxes';
 
 export interface LedgerMonth {
   year: number;
@@ -418,12 +420,21 @@ export interface AiMailbox {
   log: { id: string; picked: string; usedAi: boolean }[];
 }
 
-/** The price level (sim/society/economy.ts). */
+/** Soft national demand cycle (sim/society/economy.ts). */
+export type CyclePhase = 'boom' | 'steady' | 'recession';
+
+/** The price level and soft business cycle (sim/society/economy.ts). */
 export interface EconomyState {
   /** 1 in 1900; every price and cost is its 1900 figure × this */
   priceIndex: number;
   /** the index at each of the last 120 month ends, oldest first */
   history: number[];
+  /** soft boom / recession; absent on pre-cycle saves until economyMonth fills it */
+  cycle?: CyclePhase;
+  /** months left in `cycle` */
+  cycleLeft?: number;
+  /** after a steady phase, which swing comes next */
+  cycleFlip?: 'boom' | 'recession';
 }
 
 export interface SimContext {

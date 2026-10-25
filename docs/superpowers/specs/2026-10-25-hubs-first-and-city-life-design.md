@@ -62,7 +62,11 @@ is mostly `population × opinion × smog health`. Lean into that:
 Start by teaching the existing staffing loop (alerts + inspector), then add one amenity that
 clearly grows or retains population before stacking more systems.
 
-## 5. Taxes, factions & the business cycle *(proposed)*
+## 5. Taxes, factions & the business cycle
+
+**Thin slice shipped 2026-10-25:** national **sales tax** (ledger `taxes`, rate from mayor
+opinion + tax-break edicts) and a soft **boom / steady / recession** demand cycle (newspaper +
+toast; clock tooltip shows phase and rate).
 
 Everything should tug on everything else. Pieces already in the game:
 - **Factions + opinion** (0–100) and **mayor edicts** (permits, tax break, truck tolls, wages…).
@@ -102,4 +106,5 @@ game-over — the player’s job is to **tilt the odds**.
    is preparation, not surprise death.
 - Baron / AI play the same rules — recessions hit them too (drama, not just player pain).
 - Start thin: **one visible tax channel + a soft demand cycle**, wired to existing edicts and
-  opinion, before a full macro model.
+  opinion, before a full macro model. *(Done for the thin slice above.)*
+
