@@ -41,6 +41,23 @@ describe('historic events', () => {
     expect(demandModifier(ctx.state, 0, 'cars')).toBeCloseTo(0.6);
     expect(demandModifier(ctx.state, 0, 'bread')).toBe(1);
   });
+  it('wartime 1942 spikes canned food, clothes and tools (E4)', () => {
+    const ctx = at(1942, 1);
+    historicDay(ctx);
+    expect(demandModifier(ctx.state, 0, 'canned_food')).toBeCloseTo(1.45);
+    expect(demandModifier(ctx.state, 0, 'clothes')).toBeCloseTo(1.45);
+    expect(demandModifier(ctx.state, 0, 'tools')).toBeCloseTo(1.45);
+    expect(demandModifier(ctx.state, 0, 'bread')).toBe(1);
+    expect(ctx.state.news.some((n) => n.kind === 'historic' && /WAR CONTRACTS/.test(n.headline))).toBe(true);
+  });
+  it('suburban appliance boom 1955 spikes refrigerators and washers (E4)', () => {
+    const ctx = at(1955, 3);
+    historicDay(ctx);
+    expect(demandModifier(ctx.state, 0, 'refrigerators')).toBeCloseTo(1.5);
+    expect(demandModifier(ctx.state, 0, 'washing_machines')).toBeCloseTo(1.5);
+    expect(demandModifier(ctx.state, 0, 'cars')).toBe(1);
+    expect(ctx.state.news.some((n) => n.kind === 'historic' && /SUBURBAN KITCHENS/.test(n.headline))).toBe(true);
+  });
 });
 
 describe('pruneModifiers', () => {
