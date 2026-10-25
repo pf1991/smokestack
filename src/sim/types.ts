@@ -182,6 +182,11 @@ export interface Route {
   autoSize?: AutoSize;
   jobs?: AutoJob[];
   stats?: RouteStats;
+  /**
+   * Hub trunk (hubs-first §2): auto train that shuttles surplus between warehouse sheds paired with
+   * its station stops. Absent/false on ordinary written rail lines.
+   */
+  hubTrunk?: boolean;
 }
 
 export type VehicleState = 'moving' | 'loading' | 'stuck' | 'idle';

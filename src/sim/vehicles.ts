@@ -13,6 +13,7 @@ import {
   AUTO_RECHECK_TICKS, autoPickup, autoRoutesChanged, clampMaxTrucks, departAuto, dropAutoJobs, leaveAutoRoute, MIN_LOAD_MAX_WAIT_TICKS, noteDeparture,
 } from './logistics/autoRoutes';
 import { advanceHubJob, fleetChanged, hubLoadCap, hubRoute, joinHub, leaveHub } from './logistics/jobRoute';
+import { shedForStation } from './logistics/hubPairing';
 import type { AutoSize, HubJob, RouteMode, VehicleModelId } from './logistics/types';
 import type { Building, GameState, GoodId, OwnerId, Route, RouteStop, SimContext, Vec2, Vehicle } from './types';
 
@@ -134,7 +135,9 @@ export function updateRoute(
     const v = validateStops(state, route.ownerId, route.kind, patch.stops);
     if (!v.ok) return v;
   }
-  if ((patch.mode === 'auto' || patch.autoSize?.on) && route.kind !== 'truck') return err('Rail lines run as written');
+  if ((patch.mode === 'auto' || patch.autoSize?.on) && route.kind !== 'truck' && !route.hubTrunk) {
+    return err('Rail lines run as written');
+  }
   if (patch.mode !== undefined && patch.mode !== 'manual' && patch.mode !== 'auto') return err('Unknown route mode');
   if (patch.name !== undefined) route.name = patch.name;
   if (patch.color !== undefined) route.color = patch.color;
@@ -492,15 +495,25 @@ function cargoTotal(veh: Vehicle): number {
  * Unload `stop.unload` goods the building accepts (bounded by storageLeft), then load `stop.load`;
  * with `onlyGood` (an auto route's pickup) load just that good if the stop loads it, and with null nothing.
  * `max` caps the units loaded (a hub truck takes only its job's quantity).
+ * Hub-trunk trains dock at stations but move shed (warehouse hub) stock.
  */
-function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building, onlyGood?: GoodId | null, max?: number): void {
+function transfer(
+  state: GameState,
+  veh: Vehicle,
+  stop: RouteStop,
+  b: Building,
+  onlyGood?: GoodId | null,
+  max?: number,
+  route?: Route,
+): void {
+  const dock = route?.hubTrunk ? shedForStation(state, b) ?? b : b;
   let unloaded: string[] | null = null;
   for (const g of stop.unload) {
     const carried = veh.cargo[g] ?? 0;
-    if (carried <= 0 || !acceptsGood(b, g)) continue;
-    const n = Math.min(carried, storageLeft(b, g));
+    if (carried <= 0 || !acceptsGood(dock, g)) continue;
+    const n = Math.min(carried, storageLeft(dock, g));
     if (n <= 0) continue;
-    b.input[g] = (b.input[g] ?? 0) + n;
+    dock.input[g] = (dock.input[g] ?? 0) + n;
     if (carried - n > 0) veh.cargo[g] = carried - n;
     else delete veh.cargo[g];
     (unloaded ??= []).push(g);
@@ -512,7 +525,7 @@ function transfer(state: GameState, veh: Vehicle, stop: RouteStop, b: Building, 
     while (log.length > 0 && log[0] <= cutoff) log.shift();
   }
 
-  const src = loadSource(b);
+  const src = loadSource(dock);
   const goods = onlyGood === undefined ? stop.load : onlyGood !== null && stop.load.includes(onlyGood) ? [onlyGood] : NO_GOODS;
   const k = goods.length;
   let free = veh.capacity - cargoTotal(veh);
@@ -604,7 +617,9 @@ function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
     plan(ctx, veh, route, def);
     return;
   }
-  transfer(state, veh, stop, b, route.mode === 'auto' ? autoPickup(veh) : undefined, route.id < 0 ? hubLoadCap(veh) : undefined);
+  const only = route.mode === 'auto' ? autoPickup(veh) : undefined;
+  const cap = route.id < 0 ? hubLoadCap(veh) : route.hubTrunk && veh.job?.qty ? veh.job.qty : undefined;
+  transfer(state, veh, stop, b, only, cap, route);
   veh.state = 'loading';
   veh.waitTicks = def.spec.loadTicks;
 }
@@ -613,7 +628,7 @@ function arrive(ctx: SimContext, veh: Vehicle, route: Route, def: VehicleKindDef
 function waitHere(state: GameState, veh: Vehicle, route: Route): void {
   const stop = route.stops[veh.stopIndex];
   const b = stop ? state.buildings[stop.buildingId] : undefined;
-  if (b) transfer(state, veh, stop, b, route.mode === 'auto' ? null : undefined);
+  if (b) transfer(state, veh, stop, b, route.mode === 'auto' ? null : undefined, undefined, route);
   veh.waitTicks = AUTO_RECHECK_TICKS;
 }
 

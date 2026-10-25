@@ -10,12 +10,14 @@ import { accessTiles } from '../state';
 import type { Building, GameState, GoodId, OwnerId, SimContext, Vehicle } from '../types';
 import { newVehicle, sellVehicle, vehiclePrice } from '../vehicles';
 import { atPrices } from '../society/economy';
+import { footprintGap, HUB_STATION_GAP, shedForStation, stationBesideHub } from './hubPairing';
 import { buildingStorage, hubRange, levelDef, levelRate } from './levels';
 import { managerAt, managerRate } from './managers';
 import { newestModel } from './models';
 import { fleetChanged, fleetRevision } from './jobRoute';
 import type { HubJob, HubJobKind, HubState, Skill } from './types';
 
+export { footprintGap, HUB_STATION_GAP, shedForStation, stationBesideHub };
 /**
  * Warehouse hubs (spec §8): a warehouse with its own trucks, dispatched daily (greedily, Manhattan
  * distances, no pathfinding) by the manager posted there. Skill 3+ looks ahead, 4+ balances with
@@ -170,15 +172,6 @@ let maxSide = 0;
 function largestSide(): number {
   if (maxSide === 0) for (const d of Object.values(BUILDINGS)) maxSide = Math.max(maxSide, d.size.w, d.size.h);
   return maxSide;
-}
-
-/** Chebyshev distance between two footprints, tile to tile (1 for neighbours, 0 when they overlap). */
-export function footprintGap(a: Building, b: Building): number {
-  const sa = BUILDINGS[a.typeId].size;
-  const sb = BUILDINGS[b.typeId].size;
-  const dx = Math.max(0, b.pos.x - (a.pos.x + sa.w - 1), a.pos.x - (b.pos.x + sb.w - 1));
-  const dy = Math.max(0, b.pos.y - (a.pos.y + sa.h - 1), a.pos.y - (b.pos.y + sb.h - 1));
-  return Math.max(dx, dy);
 }
 
 /**

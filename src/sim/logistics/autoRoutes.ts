@@ -2,9 +2,15 @@ import { BUILDINGS } from '../../data/buildings';
 import { GOODS } from '../../data/goods';
 import { acceptsGood, loadSource, storageLeft } from '../inventory';
 import type { Building, GameState, GoodId, Route, RouteStop, SimContext, Vehicle } from '../types';
+import { shedForStation } from './hubPairing';
 import { fleetRevision } from './jobRoute';
 import { modelSpec, newestModel } from './models';
 import type { AutoJob, HubJob, RouteStats } from './types';
+
+/** Cargo dock for a stop: the paired warehouse shed on a hub trunk, else the stop building. */
+function dockOf(state: GameState, route: Route, stopBuilding: Building): Building {
+  return route.hubTrunk ? shedForStation(state, stopBuilding) ?? stopBuilding : stopBuilding;
+}
 
 /**
  * Automatic routes (spec §6): a daily job board per auto route and the per-departure job pick
@@ -120,6 +126,7 @@ function rebuildBoard(state: GameState, route: Route, trucks: Vehicle[]): void {
           if (j === i || !stops[j].unload.includes(g) || (isPool(stops[i], g) && isPool(stops[j], g))) continue;
           const to = state.buildings[stops[j].buildingId];
           if (!to || to === from || !acceptsGood(to, g)) continue;
+          // hubTrunk boards are rebuilt in hubTrunkDay; this path is truck auto only
           const qty = Math.min(avail, storageLeft(to, g));
           if (qty < AUTO_MIN_JOB) continue;
           jobs.push({ from: i, to: j, good: g, qty, score: (qty * GOODS[g].basePrice) / (distance(from, to) + DIST_BIAS) });
@@ -201,6 +208,8 @@ export function autoRoutesDay(ctx: SimContext): void {
   for (const key in state.routes) {
     const route = state.routes[key];
     if (!tracksStats(route)) continue;
+    // hub trunks own their board (shed surplus/need); see hubTrunkDay
+    if (route.hubTrunk) continue;
     byRoute ??= vehiclesByRoute(state);
     const trucks = byRoute.get(route.id) ?? [];
     if (route.mode === 'auto') rebuildBoard(state, route, trucks);
@@ -227,7 +236,8 @@ export function departAuto(state: GameState, veh: Vehicle, route: Route): number
     if (!dj && veh.job) veh.job = null;
     if (dj && dj.to !== here && (veh.cargo[dj.good] ?? 0) > 0 && stops[dj.to].unload.includes(dj.good)) {
       const drop = state.buildings[stops[dj.to].buildingId];
-      if (drop && storageLeft(drop, dj.good) > 0) return dj.to;
+      const dock = drop ? dockOf(state, route, drop) : undefined;
+      if (dock && storageLeft(dock, dj.good) > 0) return dj.to;
     }
     const origin = dj ? dj.from : -1;
     let best = -1;
@@ -237,14 +247,15 @@ export function departAuto(state: GameState, veh: Vehicle, route: Route): number
     for (let j = 0; j < n; j++) {
       const b = state.buildings[stops[j].buildingId];
       if (!b) continue;
+      const dock = dockOf(state, route, b);
       let unloads = false;
       let room = false;
       for (const g in veh.cargo) {
-        if (!stops[j].unload.includes(g) || !acceptsGood(b, g)) continue;
+        if (!stops[j].unload.includes(g) || !acceptsGood(dock, g)) continue;
         // never back to where this good was picked up (other goods aboard came from elsewhere)
         if ((j === origin && g === dj?.good) || (origin >= 0 && isPool(stops[origin], g) && isPool(stops[j], g))) continue;
         unloads = true;
-        if (storageLeft(b, g) > 0) room = true;
+        if (storageLeft(dock, g) > 0) room = true;
       }
       if (!unloads) continue;
       const d = at ? distance(at, b) : Math.abs(veh.pos.x - b.pos.x) + Math.abs(veh.pos.y - b.pos.y);
