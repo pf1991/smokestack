@@ -22,6 +22,7 @@ describe('help primer', () => {
     const touch = document.querySelector('[data-help="touch"]')!.textContent!;
     expect(touch).toMatch(/Always pan/);
     expect(touch).toMatch(/Tap, tap/);
+    expect(touch).toMatch(/Done/);
   });
 
   it('toggle opens and closes', () => {

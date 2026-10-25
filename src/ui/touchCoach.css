@@ -5,6 +5,9 @@
   transform: translateX(-50%);
   bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 56px);
   z-index: 48;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   max-width: min(420px, calc((100 * var(--uvw)) - 24px));
   padding: var(--sp-2) var(--sp-3);
   text-align: center;
@@ -20,6 +23,37 @@
   pointer-events: none;
 }
 
+.touch-coach--armed {
+  pointer-events: auto;
+  padding-left: var(--sp-2);
+}
+
+.touch-coach-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.touch-coach-done {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 var(--sp-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--accent-strong);
+  background: var(--surface-0);
+  border: 1px solid var(--surface-0);
+  border-radius: 999px;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-coach-done:active {
+  transform: scale(0.96);
+}
+
 .touch-coach[hidden] {
   display: none;
 }
@@ -28,5 +62,10 @@
   .touch-coach {
     bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 52px);
     font-size: var(--fs-xs);
+  }
+
+  .touch-coach-done {
+    min-height: 32px;
+    min-width: 56px;
   }
 }

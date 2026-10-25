@@ -99,7 +99,11 @@
 }
 
 .tb-inspect {
-  margin-left: var(--sp-2);
+  margin-right: var(--sp-2);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
 }
 
 .tb-tab.tb-inspect.selected {
@@ -107,8 +111,24 @@
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 
+/* sticky tool armed: Inspect chip reads as Done so phones can stop placing */
+.tb-tab.tb-inspect.tb-inspect--done {
+  color: var(--surface-0);
+  background: var(--accent-strong);
+  box-shadow: none;
+}
+
 @media (max-width: 720px) {
   .tb-label {
+    display: none;
+  }
+
+  /* keep the word Done visible when a tool is armed (icons alone are ambiguous) */
+  .tb-inspect.tb-inspect--done .tb-label {
+    display: inline;
+  }
+
+  .tb-inspect .tb-key {
     display: none;
   }
 }

@@ -221,6 +221,31 @@ describe('Toolbar', () => {
     expect(tb.drawerOpen).toBe(false);
   });
 
+  it('Inspect sits first so phones can stop placing without scrolling the tab strip', () => {
+    const { root } = setup();
+    const kids = [...root.querySelector('.tb-tabs')!.children] as HTMLElement[];
+    expect(kids[0]!.dataset.tool).toBe('inspect');
+  });
+
+  it('re-tapping the selected build card returns to Inspect (no Esc on phones)', () => {
+    const { root, onSelect, tb } = setup();
+    tab(root, 'extract');
+    const card = root.querySelector('[data-building="lumber_camp"]') as HTMLElement;
+    card.click();
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'lumber_camp' });
+    expect(root.querySelector('[data-tool="inspect"]')!.classList.contains('tb-inspect--done')).toBe(true);
+    expect(root.querySelector('[data-tool="inspect"] .tb-label')!.textContent).toBe('Done');
+    // flyout closed after first pick — open again to re-tap the card
+    tab(root, 'extract');
+    card.click();
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'inspect' });
+    expect(root.querySelector('[data-tool="inspect"]')!.classList.contains('tb-inspect--done')).toBe(false);
+    // programmatic select does not toggle off
+    tb.select({ kind: 'build', typeId: 'lumber_camp' });
+    tb.select({ kind: 'build', typeId: 'lumber_camp' });
+    expect(onSelect).toHaveBeenLastCalledWith({ kind: 'build', typeId: 'lumber_camp' });
+  });
+
   it('picking a card selects its tool and closes the flyout', () => {
     const { root, onSelect, tb } = setup();
     tab(root, 'extract');

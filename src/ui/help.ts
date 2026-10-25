@@ -14,6 +14,7 @@ const TOUCH: [string, string][] = [
   ['Pinch', 'Zoom'],
   ['Tap', 'Inspect, place, or demolish'],
   ['Tap, tap', 'Road / rail / trees: one end, then the other'],
+  ['Done', 'Stop placing: Done on the coach, the Done chip, or re-tap the tool'],
 ];
 
 /** Production loop primer above the hotkeys (E5). */

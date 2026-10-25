@@ -1,6 +1,7 @@
 /**
  * Map-first touch copy: drag pans, pinch zooms, tap acts. Shown above the build bar on coarse
- * pointers so players are not stuck inventing two-finger gestures.
+ * pointers so players are not stuck inventing two-finger gestures. When a build/road tool is
+ * active, a Done control returns to Inspect (phones have no Esc).
  */
 import type { ToolSpec } from './tools';
 import { h } from './dom';
@@ -18,7 +19,7 @@ export function touchCoachText(tool: ToolSpec, hasAnchor: boolean, force = prefe
     case 'inspect':
       return 'Drag to move · Pinch to zoom · Tap to inspect';
     case 'build':
-      return 'Tap to place · Drag to move the map';
+      return 'Tap the map to place';
     case 'road':
       return hasAnchor ? 'Tap the other end of the road' : 'Tap one end of the road · Drag to move';
     case 'rail':
@@ -34,26 +35,43 @@ export function touchCoachText(tool: ToolSpec, hasAnchor: boolean, force = prefe
 
 /** Floating hint above the toolbar; call `set` whenever the tool or anchor changes. */
 export class TouchCoach {
+  private readonly hint = h('span', { class: 'touch-coach-hint' });
+  private readonly done = h('button', {
+    type: 'button',
+    class: 'touch-coach-done',
+    hidden: true,
+    'aria-label': 'Done — stop building',
+  }, 'Done') as HTMLButtonElement;
   readonly el = h('div', {
     class: 'touch-coach',
     hidden: true,
     role: 'status',
     'aria-live': 'polite',
-  });
+  }, this.done, this.hint);
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, private readonly onDone: () => void) {
     parent.appendChild(this.el);
+    this.done.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.onDone();
+    });
   }
 
   set(tool: ToolSpec, hasAnchor: boolean): void {
     const text = touchCoachText(tool, hasAnchor);
     if (!text) {
       this.el.hidden = true;
-      this.el.textContent = '';
+      this.hint.textContent = '';
+      this.done.hidden = true;
       return;
     }
     this.el.hidden = false;
-    this.el.textContent = text;
+    this.hint.textContent = text;
+    // Done only while a sticky tool would keep placing / drawing on every tap
+    const sticky = tool.kind !== 'inspect';
+    this.done.hidden = !sticky;
+    this.el.classList.toggle('touch-coach--armed', sticky);
   }
 
   destroy(): void {

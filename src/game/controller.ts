@@ -153,7 +153,7 @@ export class GameController {
       onMenu: (screen) => this.onPause?.(screen),
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
-    this.touchCoach = new TouchCoach(uiRoot);
+    this.touchCoach = new TouchCoach(uiRoot, () => this.setTool({ kind: 'inspect' }));
     this.disposers.push(() => this.touchCoach.destroy());
     this.refreshTouchCoach();
     // alerts mount is safe before load (it only reads game.alerts); chain/rival need ctx → load()

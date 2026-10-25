@@ -135,6 +135,15 @@ export class Toolbar {
     const body = h('div', { class: 'tb-flyout' });
     this.body = body;
     body.hidden = true;
+    // Inspect / Done first so phones never have to scroll past every build tab to stop placing
+    const inspect = h('button', {
+      class: 'tb-tab tb-inspect',
+      'data-tool': 'inspect',
+      title: withShortcut('Inspect', 'escape'),
+      onClick: () => this.select({ kind: 'inspect' }),
+    }, iconEl('star', 18), h('span', { class: 'tb-label' }, 'Inspect'), h('kbd', { class: 'tb-key' }, shortcutFor('escape') ?? ''));
+    this.toolButtons.set('inspect', inspect);
+    tabsRow.appendChild(inspect);
     for (const t of TABS) {
       const btn = h('button', {
         class: 'tb-tab',
@@ -150,14 +159,6 @@ export class Toolbar {
       this.panels.set(t.id, panel);
       body.appendChild(panel);
     }
-    const inspect = h('button', {
-      class: 'tb-tab tb-inspect',
-      'data-tool': 'inspect',
-      title: withShortcut('Inspect', 'escape'),
-      onClick: () => this.select({ kind: 'inspect' }),
-    }, iconEl('star', 18), h('span', { class: 'tb-label' }, 'Inspect'), h('kbd', { class: 'tb-key' }, shortcutFor('escape') ?? ''));
-    this.toolButtons.set('inspect', inspect);
-    tabsRow.appendChild(inspect);
 
     for (const def of Object.values(BUILDINGS)) {
       const tab = tabOf(def);
@@ -174,7 +175,7 @@ export class Toolbar {
         'data-building': def.id,
         title: `${def.name}: ${def.description}\n${PRICE_NOTE}`,
         disabled: soon,
-        onClick: () => !el.disabled && this.select({ kind: 'build', typeId: def.id }),
+        onClick: () => !el.disabled && this.select({ kind: 'build', typeId: def.id }, { toggle: true }),
       },
         h('div', { class: 'tc-head' }, iconEl(buildingIcon(def), 28), h('div', { class: 'tc-name' }, def.name)),
         recipeStrip(def),
@@ -194,7 +195,7 @@ export class Toolbar {
         'data-tool': key,
         title: desc,
         disabled: spec === null,
-        onClick: () => spec && this.select(spec),
+        onClick: () => spec && this.select(spec, { toggle: true }),
       },
         h('div', { class: 'tc-head' }, iconEl(icon, 28), h('div', { class: 'tc-name' }, name)),
         h('div', { class: 'tc-flow' }, desc),
@@ -261,11 +262,25 @@ export class Toolbar {
     return t.kind === 'build' ? `build:${t.typeId}` : t.kind;
   }
 
-  select(t: ToolSpec): void {
+  /**
+   * Selects a tool. Pass `{ toggle: true }` from a tool-card click so a second tap on the same
+   * sticky tool returns to Inspect (phones have no Esc). Programmatic callers must omit toggle.
+   */
+  select(t: ToolSpec, opts?: { toggle?: boolean }): void {
     this.closeDrawer();
+    const key = Toolbar.keyOf(t);
+    if (opts?.toggle && t.kind !== 'inspect' && key === this.selectedKey) t = { kind: 'inspect' };
     this.selectedKey = Toolbar.keyOf(t);
     for (const c of this.cards) c.el.classList.toggle('selected', `build:${c.def.id}` === this.selectedKey);
     for (const [k, el] of this.toolButtons) el.classList.toggle('selected', k === this.selectedKey);
+    const inspect = this.toolButtons.get('inspect');
+    if (inspect) {
+      const armed = this.selectedKey !== 'inspect';
+      inspect.classList.toggle('tb-inspect--done', armed);
+      const label = inspect.querySelector('.tb-label');
+      if (label) label.textContent = armed ? 'Done' : 'Inspect';
+      inspect.title = withShortcut(armed ? 'Done — stop building' : 'Inspect', 'escape');
+    }
     this.onSelect(t);
   }
 
