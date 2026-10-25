@@ -112,6 +112,11 @@ export class ToolController {
     return this.tool;
   }
 
+  /** True while a touch tap-tap stroke is waiting for its second corner / end. */
+  get hasAnchor(): boolean {
+    return this.dragStart !== null;
+  }
+
   /** False until GameController.load has attached ctx + renderer (menu→game handoff). */
   private get ready(): boolean {
     return this.game.ctx !== undefined && this.game.renderer !== undefined;
@@ -151,6 +156,49 @@ export class ToolController {
     this.hover = null;
     this.hoverWorld = null;
     if (!this.dragStart) this.refreshGhost();
+  }
+
+  /**
+   * Map-first touch: a deliberate tap (Input already decided this was not a pan). Build / bulldoze /
+   * inspect act once; road / rail / trees need two taps (anchor, then end).
+   */
+  tap(tile: Vec2, world?: Vec2): void {
+    if (!this.ready) return;
+    this.hover = { ...tile };
+    this.hoverWorld = world ? { ...world } : null;
+    this.pressed = false;
+    const t = this.tool;
+    switch (t.kind) {
+      case 'build':
+        this.build(t.typeId, tile);
+        break;
+      case 'bulldoze':
+        this.bulldoze(tile, true, world);
+        break;
+      case 'inspect':
+        this.inspect(tile, world);
+        break;
+      case 'pickStop': {
+        const id = this.buildingAt(tile, world);
+        if (id !== null && id !== undefined) this.onPick?.(id);
+        break;
+      }
+      case 'road':
+      case 'rail':
+      case 'trees':
+        if (!this.dragStart) {
+          this.dragStart = { ...tile };
+          this.toast(
+            t.kind === 'trees' ? 'Tap the opposite corner' : `Tap the other end of the ${t.kind}`,
+            'info',
+          );
+        } else {
+          this.commitStroke(this.dragStart, tile);
+          this.dragStart = null;
+        }
+        break;
+    }
+    this.refreshGhost();
   }
 
   /** `world` is the exact world-px point clicked (picks raised roofs); without it the tile centre is used. */
@@ -207,17 +255,21 @@ export class ToolController {
     this.pressed = false;
     const start = this.dragStart;
     this.dragStart = null;
+    if (start) this.commitStroke(start, tile);
+    this.refreshGhost();
+  }
+
+  private commitStroke(start: Vec2, end: Vec2): void {
     const ctx = this.ctx;
-    if (start && (this.tool.kind === 'road' || this.tool.kind === 'rail')) {
-      const tiles = lPath(start, tile);
+    if (this.tool.kind === 'road' || this.tool.kind === 'rail') {
+      const tiles = lPath(start, end);
       const r = this.tool.kind === 'rail' ? buildRail(ctx, 'player', tiles) : buildRoad(ctx, 'player', tiles);
       if (!r.ok) this.toast(r.error, 'bad');
     }
-    if (start && this.tool.kind === 'trees') {
-      const r = plantForest(ctx, 'player', rectTiles(start, tile));
+    if (this.tool.kind === 'trees') {
+      const r = plantForest(ctx, 'player', rectTiles(start, end));
       if (!r.ok) this.toast(r.error, 'bad');
     }
-    this.refreshGhost();
   }
 
   // ------------------------------------------------------------------ actions

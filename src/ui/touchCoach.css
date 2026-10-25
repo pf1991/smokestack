@@ -1,0 +1,32 @@
+/* Map-first touch hint (touchCoach.ts). Tokens only (cssGate). */
+.touch-coach {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 56px);
+  z-index: 48;
+  max-width: min(420px, calc((100 * var(--uvw)) - 24px));
+  padding: var(--sp-2) var(--sp-3);
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  color: var(--surface-0);
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  border: 1px solid var(--accent-strong);
+  border-radius: 999px;
+  box-shadow: var(--shadow-2), var(--glow-brass);
+  pointer-events: none;
+}
+
+.touch-coach[hidden] {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .touch-coach {
+    bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 52px);
+    font-size: var(--fs-xs);
+  }
+}

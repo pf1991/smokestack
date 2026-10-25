@@ -21,7 +21,7 @@ function setup() {
   const host = {
     camera: { x: 0, y: 0, zoom: 1, viewW: 800, viewH: 600 },
     map: flatMap(50, 50),
-    tools: { pointerDown: vi.fn(), pointerMove: vi.fn(), pointerUp: vi.fn(), leave: vi.fn(), cancel: vi.fn() },
+    tools: { pointerDown: vi.fn(), pointerMove: vi.fn(), pointerUp: vi.fn(), tap: vi.fn(), leave: vi.fn(), cancel: vi.fn() },
     setSpeed: vi.fn(),
     togglePause: vi.fn(),
     setTool: vi.fn(),

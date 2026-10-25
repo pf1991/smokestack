@@ -11,6 +11,7 @@ import type { PauseScreen } from '../ui/menu';
 import { PANELS } from '../ui/panels/index';
 import { Toasts } from '../ui/toasts';
 import { Toolbar } from '../ui/toolbar';
+import { TouchCoach } from '../ui/touchCoach';
 import type { ToolSpec } from '../ui/tools';
 import { startAiClient } from '../ai/client';
 import { attachAmbitions } from '../sim/ambitions';
@@ -73,6 +74,7 @@ export class GameController {
   readonly tools: ToolController;
   readonly hud: Hud;
   readonly toolbar: Toolbar;
+  private readonly touchCoach: TouchCoach;
   readonly sfx = new Sfx();
   /**
    * Called when Esc is pressed with no tool or drawer to cancel (the pause menu hooks in here), and
@@ -151,6 +153,9 @@ export class GameController {
       onMenu: (screen) => this.onPause?.(screen),
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
+    this.touchCoach = new TouchCoach(uiRoot);
+    this.disposers.push(() => this.touchCoach.destroy());
+    this.refreshTouchCoach();
     // alerts mount is safe before load (it only reads game.alerts); chain/rival need ctx → load()
     this.disposers.push(mountAlerts(this.hud.alertsSlot, this));
     // the alerts are re-collected once per in-game day, not every frame (chain strip listens too)
@@ -330,8 +335,18 @@ export class GameController {
 
   private applyTool(t: ToolSpec): void {
     this.tools.setTool(t);
+    this.refreshTouchCoach();
     if (this.audioOn) this.sfx.play('click');
     for (const fn of this.toolListeners) fn(t);
+  }
+
+  /** Input calls this after a touch tap that may have set/cleared a road anchor. */
+  onTouchCoach(): void {
+    this.refreshTouchCoach();
+  }
+
+  private refreshTouchCoach(): void {
+    this.touchCoach.set(this.tools.activeTool, this.tools.hasAnchor);
   }
 
   /** Subscribes to tool changes; returns an unsubscribe. */

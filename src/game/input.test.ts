@@ -29,7 +29,16 @@ function setup(photoActive: boolean, activeToolKind = 'inspect') {
   const host = {
     camera: { x: 0, y: 0, zoom: 1, viewW: 800, viewH: 600 },
     map: flatMap(200, 200),
-    tools: { pointerDown: vi.fn(), pointerMove: vi.fn(), pointerUp: vi.fn(), leave: vi.fn(), cancel: vi.fn() },
+    tools: {
+      pointerDown: vi.fn(),
+      pointerMove: vi.fn(),
+      pointerUp: vi.fn(),
+      tap: vi.fn(),
+      leave: vi.fn(),
+      cancel: vi.fn(),
+      abortDrag: vi.fn(),
+      hasAnchor: false,
+    },
     setSpeed: vi.fn(),
     togglePause: vi.fn(),
     setTool: vi.fn(),
@@ -203,31 +212,34 @@ describe('Input with other tools', () => {
   });
 });
 
-describe('Input two-finger touch', () => {
-  it('two fingers pinch-zoom and pan; one-finger tool is aborted', () => {
-    const { canvas, host, input } = setup(false, 'road');
-    const abortDrag = vi.fn();
-    (host.tools as { abortDrag?: () => void }).abortDrag = abortDrag;
+describe('Input map-first touch', () => {
+  it('a finger drag pans even with the road tool (never draws while dragging)', () => {
+    const { canvas, host } = setup(false, 'road');
     pointer(canvas, 'pointerdown', 0, 100, 100, 1, 'touch');
-    expect(host.tools.pointerDown).toHaveBeenCalledTimes(1);
-    pointer(canvas, 'pointerdown', 0, 200, 100, 2, 'touch');
-    expect(abortDrag).toHaveBeenCalledTimes(1);
-    pointer(canvas, 'pointermove', 0, 100, 100, 1, 'touch');
-    pointer(canvas, 'pointermove', 0, 300, 100, 2, 'touch'); // distance 100 → 200
-    input.update(500);
-    expect(host.camera.zoom).toBeGreaterThan(1);
-    expect(host.onManualPan).toHaveBeenCalled();
-    pointer(canvas, 'pointerup', 0, 100, 100, 1, 'touch');
-    pointer(canvas, 'pointerup', 0, 300, 100, 2, 'touch');
+    pointer(canvas, 'pointermove', 0, 40, 100, 1, 'touch');
+    pointer(canvas, 'pointerup', 0, 40, 100, 1, 'touch');
+    expect(host.camera.x).toBe(60);
+    expect(host.tools.tap).not.toHaveBeenCalled();
+    expect(host.tools.pointerDown).not.toHaveBeenCalled();
   });
 
-  it('two-finger midpoint drag pans without zoom when distance is steady', () => {
-    const { canvas, host } = setup(false, 'inspect');
+  it('a finger tap calls tools.tap, not pointerDown', () => {
+    const { canvas, host } = setup(false, 'build');
+    pointer(canvas, 'pointerdown', 0, 100, 100, 1, 'touch');
+    pointer(canvas, 'pointerup', 0, 100, 100, 1, 'touch');
+    expect(host.tools.tap).toHaveBeenCalledTimes(1);
+    expect(host.tools.pointerDown).not.toHaveBeenCalled();
+  });
+
+  it('pinch still zooms; a second finger does not need to “own” panning', () => {
+    const { canvas, host, input } = setup(false, 'road');
     pointer(canvas, 'pointerdown', 0, 100, 100, 1, 'touch');
     pointer(canvas, 'pointerdown', 0, 200, 100, 2, 'touch');
-    const x0 = host.camera.x;
-    pointer(canvas, 'pointermove', 0, 80, 100, 1, 'touch');
-    pointer(canvas, 'pointermove', 0, 180, 100, 2, 'touch'); // mid moved −20, dist still 100
-    expect(host.camera.x).toBe(x0 + 20);
+    pointer(canvas, 'pointermove', 0, 100, 100, 1, 'touch');
+    pointer(canvas, 'pointermove', 0, 300, 100, 2, 'touch');
+    input.update(500);
+    expect(host.camera.zoom).toBeGreaterThan(1);
+    pointer(canvas, 'pointerup', 0, 100, 100, 1, 'touch');
+    pointer(canvas, 'pointerup', 0, 300, 100, 2, 'touch');
   });
 });

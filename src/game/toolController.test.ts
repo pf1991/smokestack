@@ -68,6 +68,22 @@ describe('ToolController', () => {
     expect(after?.kind === 'tiles' ? after.tiles : []).toHaveLength(1);
   });
 
+  it('road tap–tap anchors then commits (map-first touch)', () => {
+    const { ctx, tc, toasts } = setup();
+    tc.setTool({ kind: 'road' });
+    const before = ctx.state.companies.player.money;
+    expect(tc.hasAnchor).toBe(false);
+    tc.tap({ x: 2, y: 2 });
+    expect(tc.hasAnchor).toBe(true);
+    expect(toasts().at(-1)?.message).toMatch(/other end/i);
+    expect(ctx.state.map.tiles[2 * 40 + 2].road).toBe(false);
+    tc.tap({ x: 5, y: 2 });
+    expect(tc.hasAnchor).toBe(false);
+    const W = ctx.state.map.width;
+    for (const x of [2, 3, 4, 5]) expect(ctx.state.map.tiles[2 * W + x].road).toBe(true);
+    expect(ctx.state.companies.player.money).toBe(before - 4 * ROAD_COST);
+  });
+
   it('tree drag plants a rectangle of grass with a cost preview, and names a refused tile', () => {
     const { ctx, tc, toasts } = setup();
     const W = ctx.state.map.width;

@@ -5,10 +5,15 @@ import './help.css';
 const MOUSE: [string, string][] = [
   ['Left-drag', 'Pan the map in Inspect'],
   ['Right or middle drag', 'Pan the map'],
-  ['Wheel or pinch', 'Zoom at the cursor'],
-  ['Two fingers', 'Pan and pinch-zoom on a phone or tablet'],
-  ['One finger', 'Use the current tool (roads, build, …)'],
+  ['Wheel', 'Zoom at the cursor'],
   ['W A S D or arrows', 'Pan with the keyboard'],
+];
+
+const TOUCH: [string, string][] = [
+  ['Drag', 'Always pan the map'],
+  ['Pinch', 'Zoom'],
+  ['Tap', 'Inspect, place, or demolish'],
+  ['Tap, tap', 'Road / rail / trees: one end, then the other'],
 ];
 
 /** Production loop primer above the hotkeys (E5). */
@@ -64,6 +69,9 @@ export function openHelp(): void {
     h('h3', null, 'Mouse'),
     h('ul', { class: 'help-list' },
       MOUSE.map(([k, l]) => h('li', null, h('kbd', { class: 'help-key' }, k), h('span', null, l)))),
+    h('h3', null, 'Touch'),
+    h('ul', { class: 'help-list', 'data-help': 'touch' },
+      TOUCH.map(([k, l]) => h('li', null, h('kbd', { class: 'help-key' }, k), h('span', null, l)))),
     h('p', { class: 'help-hint' }, 'Esc or click outside to close'));
   const root = h('div', { class: 'help-modal' }, card);
   root.addEventListener('pointerdown', (e) => {

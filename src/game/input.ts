@@ -13,11 +13,16 @@ export interface InputHost {
     pointerDown(t: Vec2, world?: Vec2): void;
     pointerMove(t: Vec2, world?: Vec2): void;
     pointerUp(t: Vec2): void;
+    /** map-first touch: deliberate tap (never a pan) */
+    tap(t: Vec2, world?: Vec2): void;
     leave(): void;
     cancel(): void;
     /** drop an in-progress road/rail drag without changing the tool (second finger / pinch) */
     abortDrag?(): void;
+    readonly hasAnchor?: boolean;
   };
+  /** refresh the on-screen touch coaching strip after a tap changes the anchor */
+  onTouchCoach?(): void;
   setSpeed(s: Speed): void;
   togglePause(): void;
   setTool(t: ToolSpec): void;
@@ -63,7 +68,7 @@ export const DRAG_THRESHOLD_PX = 6;
 /** Touch taps wobble more than mouse clicks. */
 export const TOUCH_DRAG_THRESHOLD_PX = 12;
 
-/** True for finger / pen input (one-finger tools, two-finger pan + pinch). */
+/** True for finger / pen — uses map-first controls (drag pans, tap acts, pinch zooms). */
 export function isTouchPointer(e: Pick<PointerEvent, 'pointerType'>): boolean {
   return e.pointerType === 'touch' || e.pointerType === 'pen';
 }
@@ -76,17 +81,20 @@ export function isTyping(target: EventTarget | null): boolean {
 }
 
 /**
- * Mouse, wheel, touch and keyboard handling. Left button → current tool; right/middle drag pans;
- * wheel zooms; WASD/arrows pan. On touch: one finger uses the tool (or pans in Inspect), two
- * fingers pan and pinch-zoom. Photo mode: left pans; only Esc, P and pan keys act.
+ * Mouse, wheel, touch and keyboard handling.
+ *
+ * Desktop: left → tool; right/middle drag → pan; wheel → zoom.
+ * Touch (map-first): **drag pans**, **pinch zooms**, **tap acts** (roads are tap–tap). Never requires
+ * two fingers just to move the map.
+ * Photo mode: left pans; only Esc, P and pan keys act.
  */
 export class Input {
   private held = new Set<string>();
   private pan: { x: number; y: number; id: number; moved: boolean } | null = null;
-  /** an Inspect left press that has not yet moved far enough to be a pan */
-  private pending: { x: number; y: number; id: number; world: Vec2; tile: Vec2 } | null = null;
+  /** left press not yet classified as pan vs click/tap */
+  private pending: { x: number; y: number; id: number; world: Vec2; tile: Vec2; touch: boolean } | null = null;
   private toolPointer: number | null = null;
-  /** live pointers on the canvas (touch needs two for pan/pinch) */
+  /** live pointers on the canvas (pinch uses two) */
   private readonly pointers = new Map<number, { x: number; y: number }>();
   private pinch: { dist: number; midX: number; midY: number } | null = null;
   private readonly offs: (() => void)[] = [];
@@ -152,13 +160,12 @@ export class Input {
       midX: (a.x + b.x) / 2,
       midY: (a.y + b.y) / 2,
     };
-    // a second finger cancels any one-finger pan / tool / pending inspect
+    // a second finger cancels any one-finger pan / tool / pending inspect / tap–tap anchor
     this.pending = null;
     this.pan = null;
-    if (this.toolPointer !== null) {
-      this.host.tools.abortDrag?.();
-      this.toolPointer = null;
-    }
+    this.toolPointer = null;
+    this.host.tools.abortDrag?.();
+    this.host.onTouchCoach?.();
     this.setCursor('grabbing');
     this.host.onManualPan?.();
   }
@@ -223,6 +230,20 @@ export class Input {
       this.beginPinch();
       return;
     }
+    // Touch map-first: every single finger is "pending" until we know pan vs tap
+    if (isTouchPointer(e) && (e.button === 0 || e.button === -1)) {
+      e.preventDefault();
+      const p = this.local(e);
+      this.pending = {
+        x: e.clientX,
+        y: e.clientY,
+        id: e.pointerId,
+        world: screenToWorld(this.host.camera, p.x, p.y),
+        tile: this.tileOf(e),
+        touch: true,
+      };
+      return;
+    }
     if (e.button === 0 && this.inspecting()) {
       const p = this.local(e);
       this.pending = {
@@ -231,6 +252,7 @@ export class Input {
         id: e.pointerId,
         world: screenToWorld(this.host.camera, p.x, p.y),
         tile: this.tileOf(e),
+        touch: false,
       };
       return;
     }
@@ -289,6 +311,12 @@ export class Input {
       const pd = this.pending;
       this.pending = null;
       if (e.type === 'pointercancel') return;
+      if (this.host.photoActive) return;
+      if (pd.touch) {
+        this.host.tools.tap(pd.tile, pd.world);
+        this.host.onTouchCoach?.();
+        return;
+      }
       this.host.tools.pointerDown(pd.tile, pd.world);
       this.host.tools.pointerUp(pd.tile);
       return;

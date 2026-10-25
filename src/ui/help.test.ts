@@ -19,6 +19,9 @@ describe('help primer', () => {
     expect(pointers).toMatch(/T/);
     // hotkeys still present below
     expect(document.querySelector('.help-card')!.textContent).toContain('Controls');
+    const touch = document.querySelector('[data-help="touch"]')!.textContent!;
+    expect(touch).toMatch(/Always pan/);
+    expect(touch).toMatch(/Tap, tap/);
   });
 
   it('toggle opens and closes', () => {
