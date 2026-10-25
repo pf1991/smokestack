@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays, dateToDays } from '../sim/clock';
 import { testState } from '../sim/testkit';
 import type { Building, BuildingStatus, GameState } from '../sim/types';
-import { AlertTracker } from './alerts';
+import { AlertTracker, buildingAlertDays } from './alerts';
 
 function mk(state: GameState, id: number, status: BuildingStatus, ownerId: 'player' | 'rival' = 'player', typeId = 'sawmill'): Building {
   const b = {
@@ -14,9 +14,35 @@ function mk(state: GameState, id: number, status: BuildingStatus, ownerId: 'play
 }
 const advance = (s: GameState, n: number) => { s.date = addDays(s.date, n); };
 
+describe('buildingAlertDays', () => {
+  it('is 2 before 1905 and 7 from 1905 on', () => {
+    expect(buildingAlertDays(1900)).toBe(2);
+    expect(buildingAlertDays(1904)).toBe(2);
+    expect(buildingAlertDays(1905)).toBe(7);
+    expect(buildingAlertDays(1950)).toBe(7);
+  });
+});
+
 describe('AlertTracker', () => {
-  it('alerts after 7 days of no_input, not 6', () => {
+  it('alerts after 2 days of no_input when year < 1905, not 1', () => {
     const s = testState();
+    expect(s.date.year).toBeLessThan(1905);
+    mk(s, 1, 'no_input');
+    const t = new AlertTracker();
+    expect(t.collect(s)).toHaveLength(0);
+    advance(s, 1);
+    expect(t.collect(s)).toHaveLength(0);
+    advance(s, 1);
+    const a = t.collect(s);
+    expect(a).toHaveLength(1);
+    expect(a[0].id).toBe('b:1:no_input');
+    expect(a[0].tone).toBe('warning');
+    expect(a[0].target).toEqual({ kind: 'building', id: 1 });
+  });
+
+  it('alerts after 7 days of no_input when year >= 1905, not 6', () => {
+    const s = testState();
+    s.date = { ...s.date, year: 1910 };
     mk(s, 1, 'no_input');
     const t = new AlertTracker();
     expect(t.collect(s)).toHaveLength(0);
@@ -44,6 +70,7 @@ describe('AlertTracker', () => {
 
   it('restarts the count when a status clears and returns', () => {
     const s = testState();
+    s.date = { ...s.date, year: 1910 };
     const b = mk(s, 1, 'no_input');
     const t = new AlertTracker();
     t.collect(s);
@@ -79,8 +106,9 @@ describe('AlertTracker', () => {
     expect(t.collect(s)).toHaveLength(0);
   });
 
-  it('a store unstocked for 7 days warns of empty shelves, not at 6', () => {
+  it('a store unstocked for 7 days warns of empty shelves when year >= 1905, not at 6', () => {
     const s = testState();
+    s.date = { ...s.date, year: 1910 };
     mk(s, 1, 'idle', 'player', 'store');
     const t = new AlertTracker();
     t.collect(s);
@@ -93,6 +121,20 @@ describe('AlertTracker', () => {
     expect(a[0].title).toBe('Store has empty shelves');
     expect(a[0].detail).toBe('Shelves empty: route goods here');
     expect(a[0].target).toEqual({ kind: 'building', id: 1 });
+  });
+
+  it('a store unstocked for 2 days warns when year < 1905, not at 1', () => {
+    const s = testState();
+    expect(s.date.year).toBeLessThan(1905);
+    mk(s, 1, 'idle', 'player', 'store');
+    const t = new AlertTracker();
+    t.collect(s);
+    advance(s, 1);
+    expect(t.collect(s)).toHaveLength(0);
+    advance(s, 1);
+    const a = t.collect(s);
+    expect(a).toHaveLength(1);
+    expect(a[0].title).toBe('Store has empty shelves');
   });
 
   it('a strike alerts for any category', () => {

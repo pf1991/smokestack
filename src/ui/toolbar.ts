@@ -18,7 +18,7 @@ import { currentUiScale } from './scale';
 import { CATEGORY_ICON } from './buildingIcons';
 import './toolbar.css';
 
-type TabId = 'extract' | 'refine' | 'components' | 'manufacture' | 'retail' | 'transport';
+export type TabId = 'extract' | 'refine' | 'components' | 'manufacture' | 'retail' | 'transport';
 
 const TABS: { id: TabId; label: string; icon: IconId }[] = [
   { id: 'extract', label: 'Extract', icon: 'pick' },
@@ -29,7 +29,10 @@ const TABS: { id: TabId; label: string; icon: IconId }[] = [
   { id: 'transport', label: 'Transport', icon: 'truck' },
 ];
 
-function tabOf(def: BuildingDef): TabId | null {
+const TAB_LABEL: Record<TabId, string> = Object.fromEntries(TABS.map((t) => [t.id, t.label])) as Record<TabId, string>;
+
+/** Build-bar tab for a building (same rules as the toolbar cards). */
+export function tabOf(def: BuildingDef): TabId | null {
   if (def.category === 'extractor') return 'extract';
   if (def.category === 'retail' || def.category === 'trade' || def.category === 'logistics') return 'retail';
   const first = Object.keys(RECIPES[def.recipes[0]]?.outputs ?? {})[0];
@@ -37,6 +40,22 @@ function tabOf(def: BuildingDef): TabId | null {
   if (kind === 'material') return 'refine';
   if (kind === 'component') return 'components';
   return 'manufacture';
+}
+
+/** Tab to pulse / open when an unlock id (building or good) arrives. */
+export function tabForUnlock(defId: string): TabId | null {
+  const b = BUILDINGS[defId];
+  if (b) return tabOf(b);
+  const g = GOODS[defId];
+  if (!g) return null;
+  if (g.kind === 'raw') return 'extract';
+  if (g.kind === 'material') return 'refine';
+  if (g.kind === 'component') return 'components';
+  return 'manufacture';
+}
+
+export function tabLabel(id: TabId): string {
+  return TAB_LABEL[id];
 }
 
 /** One good in a recipe strip: its icon (or colour chip) with the good tooltip. `data-good` is the codex hook. */
@@ -107,6 +126,7 @@ export class Toolbar {
   /** tool cards whose price follows the price index: [nums element, 1900 price, text around it] */
   private readonly priced: { el: HTMLElement; base: number; text: (money: string) => string }[] = [];
   private priceSig = -1;
+  private pulseTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(root: HTMLElement, private readonly onSelect: (t: ToolSpec) => void) {
     this.root = root;
@@ -272,6 +292,30 @@ export class Toolbar {
   toggle(): void {
     this.closeDrawer();
     this.bar.classList.toggle('collapsed');
+  }
+
+  /** Opens a build tab (used by invention toast actions). */
+  showTab(id: TabId): void {
+    if (this.activeTab !== id) this.openTab(id);
+  }
+
+  /**
+   * Pulses a build-bar tab for ~10s (invention fanfare). Clears any prior pulse first.
+   */
+  pulseTab(id: TabId, ms = 10_000): void {
+    if (this.pulseTimer !== null) {
+      clearTimeout(this.pulseTimer);
+      this.pulseTimer = null;
+    }
+    for (const [tid, btn] of this.tabButtons) {
+      if (tid === id) btn.dataset.pulse = '1';
+      else delete btn.dataset.pulse;
+    }
+    this.pulseTimer = setTimeout(() => {
+      this.pulseTimer = null;
+      const btn = this.tabButtons.get(id);
+      if (btn) delete btn.dataset.pulse;
+    }, ms);
   }
 
   update(state: GameState): void {

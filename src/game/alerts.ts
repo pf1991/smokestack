@@ -31,7 +31,10 @@ export interface Alert {
 }
 
 export const MAX_ALERTS = 50;
-const BUILDING_DAYS = 7;
+/** Days a building fault must last before it becomes an alert. Faster early-game (pre-1905). */
+export function buildingAlertDays(year: number): number {
+  return year < 1905 ? 2 : 7;
+}
 const VEHICLE_DAYS = 14;
 const CONTRACT_WINDOW = 30;
 const TONE_RANK: Record<AlertTone, number> = { negative: 0, warning: 1, info: 2 };
@@ -80,7 +83,7 @@ export class AlertTracker {
       if (!rule) continue;
       const id = `b:${b.id}:${rule.key}`;
       const days = see(id);
-      if (days >= BUILDING_DAYS) add({ id, tone: rule.tone, icon: rule.icon, title: rule.title, detail: detail(), target }, now.get(id)!);
+      if (days >= buildingAlertDays(state.date.year)) add({ id, tone: rule.tone, icon: rule.icon, title: rule.title, detail: detail(), target }, now.get(id)!);
     }
 
     for (const v of Object.values(state.vehicles)) {
