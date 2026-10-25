@@ -139,9 +139,9 @@ needed, `src/ui/panels/goals.ts`, tests.
   an active grudge involving that town/good, prefer it (descending `playerThere` / grudge
   boost). Keep empty-niche fill when no rivalry signal.
 
-- [ ] **Step 1:** Failing tests (shared town + grudge vs empty map).
-- [ ] **Step 2:** Implement.
-- [ ] **Step 3:** Commit `feat(ai): Baron contests shared markets under rivalry`.
+- [x] **Step 1:** Failing tests (shared town + grudge vs empty map).
+- [x] **Step 2:** Implement.
+- [x] **Step 3:** Commit `feat(ai): Baron contests shared markets under rivalry`.
 
 ### Task E3.2: Top-bar rival strip + grudge list
 
@@ -150,10 +150,10 @@ needed, `src/ui/panels/goals.ts`, tests.
 - Compact strip under top bar (or in alerts area): latest rival beat + Jump.
 - Rival panel: "Active fights" section from grudges.
 
-- [ ] **Step 1:** UI tests.
-- [ ] **Step 2:** Implement.
-- [ ] **Step 3:** Soak 3 seeds × 101y. Commit `feat(ui): rival challenge strip and active fights`.
-- [ ] **Step 4:** E3 gate.
+- [x] **Step 1:** UI tests.
+- [x] **Step 2:** Implement.
+- [x] **Step 3:** Soak 3 seeds × 101y. Commit `feat(ui): rival challenge strip and active fights`.
+- [x] **Step 4:** E3 gate.
 
 ---
 
