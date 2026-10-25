@@ -411,7 +411,7 @@ the goods always pays more.
 - [ ] **Step 4:** Add `kind` and migrate every listed site. Then run `grep -rnE "(GOODS\[[^]]+\]\??|\bg|\bgood)\.tier\b" src scripts`.
   Expected: hits only in `goods.ts` and in `catalog.test.ts`'s mapping test.
 - [ ] **Step 5:** Run `npm test`. Expected: PASS, including the unchanged inline hash.
-- [ ] **Step 6: Commit** with `refactor(data): GoodDef.kind replaces tier at every call site`.
+- [x] **Step 6: Commit** with `refactor(data): GoodDef.kind replaces tier at every call site`.
 
 ### Task 2: Art batch: good icons, new extractor sprites and heights
 
@@ -497,7 +497,7 @@ that don't exist yet are harmless.
 - [ ] **Step 4:** Run `npm test`. Expected: PASS. Render a dev sheet of the 34 icons at 16 and 32 px,
   using the existing icon preview if there is one, or a temporary `?icons=1` dev page that you
   delete before the commit. Read it: every glyph is legible on walnut and on paper.
-- [ ] **Step 5: Commit** with `feat(render): R4 good icons, extractor sprites and diorama heights`.
+- [x] **Step 5: Commit** with `feat(render): R4 good icons, extractor sprites and diorama heights`.
 
 ### Task 3: 1900 goods, works and the balance gate
 
@@ -581,7 +581,7 @@ that don't exist yet are harmless.
   - If a rival, city-panel or inspector test pins the old set of 1900 goods, update it to the
     computed list (`demandGoods()`), not to a new hard-coded count.
   - List every expectation you changed in the commit body.
-- [ ] **Step 5: Commit** with `feat(data): 1900 products: copper, leather, sugar, bricks, paper, wire and four consumer goods`.
+- [x] **Step 5: Commit** with `feat(data): 1900 products: copper, leather, sugar, bricks, paper, wire and four consumer goods`.
 
 ### Task 4: Trading House and the national market (save v9)
 
@@ -728,7 +728,7 @@ that don't exist yet are harmless.
 - [ ] **Step 4:** Run `npm test`, then `npm run dev` with `?seed=7&autoplay=1&skipYears=5&inspecttrade=1`.
   `inspecttrade` places a Trading House beside the player's sawmill, routes lumber there and opens
   the inspector. Screenshot it at 1366.
-- [ ] **Step 5: Commit** with `feat(sim): Trading House sells materials and components at a drifting national price (save v9)`.
+- [x] **Step 5: Commit** with `feat(sim): Trading House sells materials and components at a drifting national price (save v9)`.
 
 ### Task 5: UI at 60 goods: Components tab, codex filters and route chips
 
@@ -790,7 +790,7 @@ that don't exist yet are harmless.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run `npm test`, then screenshot `buildtab=components` and `panel=codex` at 1366
   and 1920, and at UI scale 1.3 at 1366. The tab row must stay on one line.
-- [ ] **Step 5: Commit** with `feat(ui): components build tab, codex kind filters and capped route chips`.
+- [x] **Step 5: Commit** with `feat(ui): components build tab, codex kind filters and capped route chips`.
 
 ### Task 6: 1905–1929 goods: rubber, bauxite, chemicals, aluminium, the first components and three consumer goods
 
@@ -847,7 +847,7 @@ that don't exist yet are harmless.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run `npx tsx scripts/chain-report.ts` and check the rows against Table E. Run
   `npm test`; the deep-chains gate must pass.
-- [ ] **Step 5: Commit** with `feat(data): 1905-1929 products: rubber, aluminium, chemicals, tyres, engines, motors, valves`.
+- [x] **Step 5: Commit** with `feat(data): 1905-1929 products: rubber, aluminium, chemicals, tyres, engines, motors, valves`.
 
 ### Task 7: 1930–1959 goods: refrigerators, washing machines and cosmetics
 
@@ -880,7 +880,7 @@ that don't exist yet are harmless.
 - [ ] **Step 2:** Run those tests. Expected: FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run `npx tsx scripts/chain-report.ts` and `npm test`.
-- [ ] **Step 5: Commit** with `feat(data): 1930-1959 products: refrigerators, washing machines, cosmetics`.
+- [x] **Step 5: Commit** with `feat(data): 1930-1959 products: refrigerators, washing machines, cosmetics`.
 
 ### Task 8: 1960–2000 goods: silicon, chips, displays and the gadget age
 
@@ -921,7 +921,7 @@ that don't exist yet are harmless.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run `npx tsx scripts/chain-report.ts`. Every per-era line must show the deep
   minimum at or above the shallow median. Run `npm test`.
-- [ ] **Step 5: Commit** with `feat(data): 1960-2000 products: silicon, microchips, displays, calculators, video games, mobile phones`.
+- [x] **Step 5: Commit** with `feat(data): 1960-2000 products: silicon, microchips, displays, calculators, video games, mobile phones`.
 
 ### Task 9: AI adoption: the Baron, the nemesis and regional firms
 
@@ -963,7 +963,7 @@ that don't exist yet are harmless.
 - [ ] **Step 4:** Run `npm test`, then `npm run soak -- --seeds 7 --years 101`. The Phase 4 gate
   must still pass: at least 2 firms active in 2000 and at least 5 retaliations. The soak prints
   each firm's founding year; `regional_4` must be founded.
-- [ ] **Step 5: Commit** with `feat(ai): Baron and nemesis over demanded goods; a regional shoe firm`.
+- [x] **Step 5: Commit** with `feat(ai): Baron and nemesis over demanded goods; a regional shoe firm`.
 
 ### Task 10: Balance, soak, fixture and screenshot gate
 
@@ -995,6 +995,6 @@ that don't exist yet are harmless.
   codex and routes shots at 1366 and 1920. Fix anything clipped, overlapping or unreadable:
   the tab row, the 61-row codex list, the `+N` chip and the five extractor sprites.
 - [ ] **Step 6:** Run `docker compose build`.
-- [ ] **Step 7: Commit** with `test: release r4 gate (chain report, soak, phase4c fixture, shots)`.
+- [x] **Step 7: Commit** with `test: release r4 gate (chain report, soak, phase4c fixture, shots)`.
   The body carries the chain-report era lines, the soak's trade lines and the timing against the
   baseline.
