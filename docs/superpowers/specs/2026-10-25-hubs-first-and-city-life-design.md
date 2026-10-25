@@ -61,3 +61,45 @@ is mostly `population × opinion × smog health`. Lean into that:
 
 Start by teaching the existing staffing loop (alerts + inspector), then add one amenity that
 clearly grows or retains population before stacking more systems.
+
+## 5. Taxes, factions & the business cycle *(proposed)*
+
+Everything should tug on everything else. Pieces already in the game:
+- **Factions + opinion** (0–100) and **mayor edicts** (permits, tax break, truck tolls, wages…).
+- **Inflation** (`economy.priceIndex`) — costs drift up; not yet a boom/bust cycle.
+- **Labour** — population × workers’ opinion × smog → staffing → output.
+- **Demand** — towns buy what they can afford; classes shift slowly.
+
+### 5.1 Tighten the loop
+
+| Pressure | Effect |
+|---|---|
+| Faction happiness | Softens or hardens **taxes / tolls / permits**; workers’ mood hits staffing |
+| Corporate / sales tax | Monthly cash drain scaled by activity and political climate |
+| Boom | Demand ×↑, easier credit, factions slightly forgiving |
+| Recession | Demand ×↓, tax pressure up or relief politics, bankruptcies / empty stores |
+
+A recession should feel bad for *business* (thin sales, idle trucks) without being an instant
+game-over — the player’s job is to **tilt the odds**.
+
+### 5.2 How the player stacks the deck
+
+1. **Pick mayors / woo factions** — endorse, donate, house workers, cut smog, build what that
+   faction likes; chase tax breaks and kill truck tolls in your hub towns.
+2. **Clean & cool cities** (§4) — population and opinion feed labour and sales; scrubbers and
+   trees are economic tools, not cosmetics.
+3. **Diversify** — deep chains + Trading House dump + multiple towns so one recession town
+   does not freeze the company.
+4. **Cash buffer & frugal managers** — survive thin months; refinance before the crash.
+5. **Counter-cyclical bets** — buy rivals’ distressed assets, lock long contracts before a
+   downturn, stock warehouses when goods are cheap.
+6. **National politics** (if extended) — lobby for industry-friendly national tax; risk backlash.
+
+### 5.3 Design guardrails
+
+- Taxes must be **readable** (one ledger line, one HUD tip: “Ashford workers levy 4%”).
+- Boom/bust should be **telegraphed** (newspaper, Exchange, faction chatter) so skilled play
+   is preparation, not surprise death.
+- Baron / AI play the same rules — recessions hit them too (drama, not just player pain).
+- Start thin: **one visible tax channel + a soft demand cycle**, wired to existing edicts and
+  opinion, before a full macro model.
