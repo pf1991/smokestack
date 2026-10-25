@@ -455,9 +455,24 @@ describe('R4 1905–1929 content (Tables G, D, R and B)', () => {
   it('r_radios_tubes is after r_computers; a 1930 radios chain still uses r_radios', () => {
     const ids = Object.keys(RECIPES);
     expect(ids.indexOf('r_radios_tubes')).toBeGreaterThan(ids.indexOf('r_computers'));
-    expect(BUILDINGS.electronics_plant.recipes).toEqual(['r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes']);
+    expect(BUILDINGS.electronics_plant.recipes).toEqual([
+      'r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes', 'r_computers_legacy',
+    ]);
     const s = testState({ year: 1930 });
     expect(planChain('radios', s)!.nodes.at(-1)!.recipeId).toBe('r_radios');
+  });
+
+  it('r_computers is deep (chips+displays); legacy shallow is after it so AI stays deep', () => {
+    expect(RECIPES.r_computers).toEqual({
+      id: 'r_computers', inputs: { microchips: 2, displays: 1, plastic: 1 }, outputs: { computers: 1 }, days: 2,
+    });
+    expect(RECIPES.r_computers_legacy).toEqual({
+      id: 'r_computers_legacy', inputs: { plastic: 2, steel: 1, glass: 1 }, outputs: { computers: 1 }, days: 2,
+    });
+    const ids = Object.keys(RECIPES);
+    expect(ids.indexOf('r_computers_legacy')).toBeGreaterThan(ids.indexOf('r_computers'));
+    const s = testState({ year: 1980 });
+    expect(planChain('computers', s)!.nodes.at(-1)!.recipeId).toBe('r_computers');
   });
 
   it.each([

@@ -34,6 +34,7 @@ import { levelCostShare } from './logistics/levels';
 import { delist, listCompany } from './exchange/shares';
 import { SCENARIOS } from './scenarios';
 import { atPrices, priceIndex } from './society/economy';
+import { brickCostFactor, consumeBricksForJob } from './society/bricks';
 import { TREE_COST } from './society/upgrades';
 import { dropAutoJobs } from './logistics/autoRoutes';
 import type { Building, BuildingTypeId, City, GameMap, GameState, OwnerId, SimContext, Tile, Vec2 } from './types';
@@ -45,8 +46,10 @@ export const DEMOLITION_REFUND = 0.25;
 export const ROAD_UPKEEP = 5;
 
 /** Price of one tile of road (or bridge over water) at today's prices, rounded. */
-export function roadTileCost(state: GameState, water: boolean): number {
-  return Math.round(atPrices(state, water ? BRIDGE_COST : ROAD_COST));
+export function roadTileCost(state: GameState, water: boolean, owner?: OwnerId): number {
+  const base = atPrices(state, water ? BRIDGE_COST : ROAD_COST);
+  const factor = owner !== undefined ? brickCostFactor(state, owner) : 1;
+  return Math.round(base * factor);
 }
 const RIVAL_NAME = 'Smogsworth Consolidated';
 
@@ -446,6 +449,8 @@ export function placeBuilding(
   const { state } = ctx;
   const plan = planPlacement(state, owner, typeId, pos, recipeId);
   if (!plan.ok) return plan;
+  // bricks discount: quote already used brickCostFactor; consume only when it actually applied
+  if (brickCostFactor(state, owner) < 1) consumeBricksForJob(state, owner);
   spend(state.companies[owner], 'construction', plan.value.cost, state.date);
   const building: Building = {
     id: nextId(state),
@@ -596,8 +601,8 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
   const seen = new Set<number>();
   const todo: Vec2[] = [];
   let cost = 0;
-  const road = roadTileCost(state, false);
-  const bridge = roadTileCost(state, true);
+  const road = roadTileCost(state, false, owner);
+  const bridge = roadTileCost(state, true, owner);
   for (const p of tiles) {
     const t = tileOf(map, p.x, p.y);
     if (!t || !Number.isInteger(p.x) || !Number.isInteger(p.y)) return err('Cannot build road there');
@@ -612,6 +617,8 @@ export function buildRoad(ctx: SimContext, owner: OwnerId, tiles: Vec2[]): Resul
   const company = state.companies[owner];
   if (!canAfford(company, cost)) return err('Not enough money');
   if (todo.length === 0) return ok({ built: 0, cost: 0 });
+  // one job's bricks cover the whole road stretch (same as a building placement)
+  if (todo.length > 0 && brickCostFactor(state, owner) < 1) consumeBricksForJob(state, owner);
   for (const p of todo) {
     const t = map.tiles[p.y * map.width + p.x];
     t.road = true;

@@ -16,6 +16,7 @@ import { PLAYER_ID } from '../companies';
 import { canAfford, spend } from '../finance';
 import type { Building, GameState, SimContext } from '../types';
 import { assetUpkeep } from './aging';
+import { brickCostFactor, consumeBricksForJob } from './bricks';
 import { atPrices, priceIndex } from './economy';
 import { scrubberTier } from './lawState';
 
@@ -90,7 +91,7 @@ export function canAbate(b: Building): boolean {
 export function upgradeCost(state: GameState, b: Building, kind: UpgradeKind): number {
   const def = BUILDINGS[b.typeId];
   const share = kind === 'tallChimney' ? TALL_CHIMNEY_COST : SCRUBBER_TIERS[Math.min(scrubberTier(b), 2)].cost;
-  return Math.round(def.cost * share * priceIndex(state));
+  return Math.round(def.cost * share * priceIndex(state) * brickCostFactor(state, b.ownerId));
 }
 
 /** The next scrubber tier on offer, or null at tier 3. */
@@ -128,6 +129,7 @@ export function buyUpgrade(ctx: SimContext, buildingId: number, kind: UpgradeKin
   const refusal = upgradeRefusal(state, b, kind);
   if (refusal) return err(refusal);
   const cost = upgradeCost(state, b, kind);
+  if (brickCostFactor(state, PLAYER_ID) < 1) consumeBricksForJob(state, PLAYER_ID);
   spend(state.companies[PLAYER_ID], 'construction', cost, state.date);
   const up = b.upgrades ?? { scrubber: 0, tallChimney: false };
   if (kind === 'tallChimney') up.tallChimney = true;

@@ -171,10 +171,12 @@ describe('codex panel', () => {
     expect(q('.cx-list tr[data-key="tools"]')!.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('bricks, used in no recipe, are sold to the Trading House (C11)', () => {
+  it('bricks, used in no recipe, discount construction when stocked (E4)', () => {
     const { game } = setup();
     PANELS.codex.open(game, 'bricks');
-    expect(q('.cx-line--used')!.textContent).toBe('Used in: Sold to the Trading House');
+    expect(q('.cx-line--used')!.textContent).toBe(
+      'Used in: Construction (−8% when ≥20 stocked in a warehouse or Trading House)',
+    );
   });
 
   it('a second open with a good re-selects in the open window', () => {
