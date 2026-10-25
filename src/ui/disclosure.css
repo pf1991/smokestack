@@ -1,4 +1,4 @@
-/* Progressive disclosure (E5): Now summary + Show full … for dense panels. */
+/* Progressive disclosure (E5 + U1): Now sticks while the panel's one scroller moves. */
 .disc {
   display: flex;
   flex-direction: column;
@@ -8,6 +8,12 @@
 
 .disc-now-wrap {
   min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface-1);
+  padding-bottom: var(--sp-1);
+  margin-bottom: calc(-1 * var(--sp-1));
 }
 
 .disc-now .kit-card-body {

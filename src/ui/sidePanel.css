@@ -159,6 +159,16 @@
   box-shadow: none;
   background: var(--surface-1);
   color: var(--text);
+  animation: sp-panel-in 140ms ease-out;
+}
+
+@keyframes sp-panel-in {
+  from { opacity: 0; transform: translateX(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-panel .window { animation: none; }
 }
 
 /* The tab carries the title and close button: the window's own title bar stays in the DOM, hidden. */
@@ -166,12 +176,16 @@
   display: none;
 }
 
-/* the body is a flex column: content scrolls, a trailing .p-actions bar pins to the foot */
+/*
+ * U1 no-scroll shell: the body itself never scrolls. The direct child fills the dock and may
+ * scroll once; disclosure panels keep Now sticky and scroll only .disc-full (disclosure.css).
+ * A trailing .p-actions bar still pins via sticky (panels.css).
+ */
 .side-panel .window-body {
   display: flex;
   flex-direction: column;
   max-height: none;
-  overflow: auto;
+  overflow: hidden;
   padding: var(--sp-3);
   font-size: var(--fs-md);
   scrollbar-width: thin;
@@ -179,8 +193,16 @@
 }
 
 .side-panel .window-body > * {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.side-panel .window-body > .p-actions {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .side-panel .window-body.has-footer {

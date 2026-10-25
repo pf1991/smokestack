@@ -31,11 +31,11 @@
   --r-sm: 3px;
   --r-md: 6px;
 
-  /* Colour roles */
-  --surface-0: #1f150f;
-  --surface-1: #2b1d14;
-  --surface-2: #37261b;
-  --surface-3: #45301f;
+  /* Colour roles — U2: deeper chrome, brighter brass so CTAs and paper tables read clearly */
+  --surface-0: #140e0a;
+  --surface-1: #221810;
+  --surface-2: #322318;
+  --surface-3: #43301f;
   --paper: #f3e9d2;
   --paper-shade: #e4d5b2;
   --paper-ink: #1d1a16;
@@ -44,12 +44,12 @@
   --paper-positive: #2f6a2c;
   --paper-negative: #9e2a1f;
   --ink: var(--paper-ink);
-  --text: #f1e6cf;
-  --text-muted: #c3b394;
-  --text-faint: #9a8a6c;
-  --accent: #d4ab3a;
-  --accent-strong: #e8c75a;
-  --accent-quiet: rgba(212,171,58,0.35);
+  --text: #f6ecd6;
+  --text-muted: #cbb892;
+  --text-faint: #a08f6e;
+  --accent: #e2b43c;
+  --accent-strong: #f3d26a;
+  --accent-quiet: rgba(226,180,60,0.42);
   --positive: #7cc47c;
   --negative: #ef7d6d;
   --warning: #f0b44c;

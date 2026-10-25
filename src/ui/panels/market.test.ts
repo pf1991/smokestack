@@ -7,7 +7,7 @@ import { must } from '../../sim/testkit';
 import type { SimContext } from '../../sim/types';
 import { buyPrice, tradePrice } from '../../sim/trade';
 import { PANELS } from './index';
-import { marketHeadline, marketNow } from './market';
+import { filterMarketRows, marketHeadline, marketNow } from './market';
 
 afterEach(() => {
   for (const b of document.querySelectorAll<HTMLElement>('.window-close')) b.click();
@@ -40,6 +40,8 @@ describe('commodity market panel', () => {
     expect(pos).not.toBeNull();
     const wh = must(placeBuilding(ctx, 'player', 'warehouse', pos!));
     PANELS.market.open(game);
+    document.querySelector<HTMLButtonElement>('[data-disc="toggle"]')?.click();
+    document.querySelector<HTMLButtonElement>('[data-glance="all"]')!.click();
     const panel = document.querySelector('.market-panel')!;
     expect(panel.querySelector('.mkt-depot')).toBeTruthy();
     expect(panel.textContent).toContain('Steel');
@@ -50,9 +52,21 @@ describe('commodity market panel', () => {
     expect(buy.disabled).toBe(false);
     buy.click();
     expect(wh.input.steel).toBe(10);
+    document.querySelector<HTMLButtonElement>('[data-glance="held"]')!.click();
     const sell = document.querySelector<HTMLButtonElement>('[data-act="sell-steel-10"]')!;
     expect(sell.disabled).toBe(false);
     sell.click();
     expect(wh.input.steel ?? 0).toBe(0);
+  });
+
+  it('glance filters shrink the board', () => {
+    const rows = [
+      { goodId: 'steel' as const, bid: 1, ask: 2, stock: 0, factor: 1 },
+      { goodId: 'lumber' as const, bid: 1, ask: 2, stock: 4, factor: 1.2 },
+      { goodId: 'wire' as const, bid: 1, ask: 2, stock: 0, factor: 0.9 },
+    ];
+    expect(filterMarketRows(rows, 'all')).toHaveLength(3);
+    expect(filterMarketRows(rows, 'held').map((r) => r.goodId)).toEqual(['lumber']);
+    expect(filterMarketRows(rows, 'moving').map((r) => r.goodId).sort()).toEqual(['lumber', 'wire']);
   });
 });

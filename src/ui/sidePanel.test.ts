@@ -334,6 +334,11 @@ function cssRule(sel: string): string {
 }
 
 describe('side panel fix round', () => {
+  it('U1: the dock body does not scroll; the panel child is the scroller', () => {
+    expect(cssRule('.side-panel .window-body')).toMatch(/overflow:\s*hidden/);
+    expect(cssRule('.side-panel .window-body > *')).toMatch(/overflow-y:\s*auto/);
+  });
+
   it('hides the window title bar inside the panel (the tab already carries title and close) but keeps it in the DOM', () => {
     expect(cssRule('.side-panel .window-title')).toMatch(/display:\s*none/);
     const a = open('a');

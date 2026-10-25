@@ -138,11 +138,12 @@
   color: var(--text);
 }
 
-/* wide tables scroll sideways inside the panel (sidePanel.css relies on this wrapper) */
+/* designated inner scroller for wide ledgers (U1) */
 .finance-scroll {
-  overflow-x: auto;
+  overflow: auto;
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--accent-quiet) transparent;
 }
@@ -153,7 +154,11 @@
   border-collapse: collapse;
   font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  color: var(--paper-ink);
+  background: var(--paper);
+  border: 1px solid var(--accent-quiet);
+  border-radius: var(--r-md);
+  overflow: hidden;
 }
 
 .finance-table th,
@@ -164,9 +169,10 @@
 
 .finance-table thead th {
   border-bottom: 1px solid var(--accent-quiet);
-  color: var(--text-muted);
+  background: var(--paper-shade);
+  color: var(--paper-muted);
   font-size: var(--fs-xs);
-  font-weight: 400;
+  font-weight: 600;
   text-align: right;
 }
 
@@ -181,12 +187,12 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  background: var(--surface-0);
+  background: var(--paper);
   font-size: var(--fs-sm);
   letter-spacing: normal;
   text-transform: none;
-  color: var(--text);
-  border-bottom: 1px solid var(--surface-2);
+  color: var(--paper-ink);
+  border-bottom: 1px solid var(--paper-shade);
 }
 
 .finance-table thead th:first-child {
@@ -205,11 +211,11 @@
 }
 
 .finance .neg {
-  color: var(--negative);
+  color: var(--paper-negative);
 }
 
 .finance-table .pos {
-  color: var(--positive);
+  color: var(--paper-positive);
 }
 
 .finance-charts {

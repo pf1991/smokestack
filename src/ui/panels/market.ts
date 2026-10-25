@@ -19,6 +19,13 @@ import './market.css';
 
 const REFRESH_MS = 1000;
 const LOTS = [1, 10] as const;
+/** Glance filters (U3): keep the board short so the dock rarely scrolls. */
+export type MarketGlance = 'moving' | 'held' | 'all';
+const GLANCE_LABEL: Record<MarketGlance, string> = {
+  moving: 'Moving',
+  held: 'In stock',
+  all: 'All',
+};
 
 interface Row {
   goodId: GoodId;
@@ -26,6 +33,16 @@ interface Row {
   ask: number;
   stock: number;
   factor: number;
+}
+
+export function isMoving(factor: number): boolean {
+  return factor > 1.05 || factor < 0.95;
+}
+
+export function filterMarketRows(rows: Row[], glance: MarketGlance): Row[] {
+  if (glance === 'held') return rows.filter((r) => r.stock > 0);
+  if (glance === 'moving') return rows.filter((r) => isMoving(r.factor));
+  return rows;
 }
 
 export function marketHeadline(state: GameState): string {
@@ -85,7 +102,9 @@ function trend(r: Row): HTMLElement {
 function board(
   game: GameController,
   depotId: number | null,
+  glance: MarketGlance,
   setDepot: (id: number) => void,
+  setGlance: (g: MarketGlance) => void,
   refresh: () => void,
 ): HTMLElement {
   const { state } = game.ctx;
@@ -109,11 +128,33 @@ function board(
     ...depots.map((b) => h('option', { value: String(b.id), selected: b.id === depot.id }, depotLabel(b))),
   ) as HTMLSelectElement;
 
+  const allRows = rowsFor(state, depot);
+  const rows = filterMarketRows(allRows, glance);
+  const chips = h(
+    'div',
+    { class: 'p-chips mkt-glance', role: 'tablist', 'aria-label': 'Board filter' },
+    ...(['moving', 'held', 'all'] as const).map((g) => {
+      const n = filterMarketRows(allRows, g).length;
+      const btn = button(`${GLANCE_LABEL[g]} (${n})`, {
+        variant: glance === g ? 'primary' : 'quiet',
+        title: g === 'moving' ? 'Goods drifting firm or soft' : g === 'held' ? 'Stock in this depot' : 'Full catalogue',
+        onClick: () => setGlance(g),
+      });
+      btn.dataset.glance = g;
+      btn.setAttribute('aria-selected', String(glance === g));
+      return btn;
+    }),
+  );
+
   const money = state.companies.player.money;
+  const emptyText =
+    glance === 'moving' ? 'Nothing is moving — try All'
+      : glance === 'held' ? 'Depot is empty — buy below or switch to All'
+        : 'No goods on the board';
   const table = dataTable<Row>({
     rowKey: (r) => r.goodId,
-    emptyText: 'No goods on the board',
-    rows: rowsFor(state, depot),
+    emptyText,
+    rows,
     columns: [
       {
         key: 'good',
@@ -182,18 +223,26 @@ function board(
       'div',
       { class: 'mkt-toolbar' },
       h('label', { class: 'mkt-depot-label' }, 'Depot', sel),
-      h('span', { class: 'mkt-hint' }, 'Bid = sell · Ask = buy · warehouses store any good'),
+      chips,
+      h('span', { class: 'mkt-hint' }, 'Bid = sell · Ask = buy'),
     ),
     table,
   );
 }
 
-function render(game: GameController, depotId: number | null, setDepot: (id: number) => void, refresh: () => void): HTMLElement {
+function render(
+  game: GameController,
+  depotId: number | null,
+  glance: MarketGlance,
+  setDepot: (id: number) => void,
+  setGlance: (g: MarketGlance) => void,
+  refresh: () => void,
+): HTMLElement {
   const state = game.ctx.state;
   const full = h(
     'div',
     { class: 'mkt-full' },
-    section('Board', [board(game, depotId, setDepot, refresh)]),
+    section('Board', [board(game, depotId, glance, setDepot, setGlance, refresh)]),
     section('How the market works', [
       h(
         'p',
@@ -219,16 +268,27 @@ function render(game: GameController, depotId: number | null, setDepot: (id: num
 
 let win: GameWindow | null = null;
 let depotId: number | null = null;
+let glance: MarketGlance = 'moving';
 
 export const marketPanel: PanelDef = {
   id: 'market',
   open(game) {
     const refresh = (): void => {
       if (!win) return;
-      win.setContent(render(game, depotId, (id) => {
-        depotId = id;
-        refresh();
-      }, refresh));
+      win.setContent(render(
+        game,
+        depotId,
+        glance,
+        (id) => {
+          depotId = id;
+          refresh();
+        },
+        (g) => {
+          glance = g;
+          refresh();
+        },
+        refresh,
+      ));
     };
     if (win) {
       refresh();
@@ -240,10 +300,20 @@ export const marketPanel: PanelDef = {
       title: 'Commodity Market',
       tabTitle: 'Market',
       width: 780,
-      content: render(game, depotId, (id) => {
-        depotId = id;
-        refresh();
-      }, refresh),
+      content: render(
+        game,
+        depotId,
+        glance,
+        (id) => {
+          depotId = id;
+          refresh();
+        },
+        (g) => {
+          glance = g;
+          refresh();
+        },
+        refresh,
+      ),
       onClose: () => {
         window.clearInterval(timer);
         win = null;
