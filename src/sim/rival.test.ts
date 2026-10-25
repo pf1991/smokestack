@@ -623,3 +623,72 @@ describe('R4 AI adoption (Baron)', () => {
     expect(chooseProject(s)?.goodId).toBe('phonographs');
   });
 });
+
+describe('E3 contested market bias', () => {
+  /** Two equal towns; only furniture has demand so scores tie and the heat tie-break decides. */
+  function contestedMap(): GameState {
+    const s = testState({
+      rivalMoney: 10_000_000,
+      width: 80,
+      height: 40,
+      cities: [
+        { x: 15, y: 15, population: 20000, name: 'Alpha' },
+        { x: 60, y: 15, population: 20000, name: 'Beta' },
+      ],
+    });
+    const until = { year: 2100, month: 1, day: 1, hour: 0 };
+    for (const goodId of BASELINE_GOODS) {
+      if (goodId === 'furniture') continue;
+      s.modifiers.push({ id: `zero:${goodId}`, goodId, cityId: null, factor: 0, until });
+    }
+    return s;
+  }
+
+  /** Marks the player as selling `goodId` in `cityId` (stock on a store; no placement). */
+  function playerSellsThere(state: GameState, cityId: number, goodId: GoodId): void {
+    const city = state.cities[cityId]!;
+    const id = state.nextId++;
+    state.buildings[id] = {
+      id,
+      typeId: 'store',
+      ownerId: 'player',
+      pos: { x: city.center.x, y: city.center.y },
+      recipeId: null,
+      input: { [goodId]: 50 },
+      output: {},
+      progress: 0,
+      status: 'ok',
+      cityId,
+      haltedUntil: null,
+      producedThisMonth: {},
+      staffing: 1,
+      builtYear: state.date.year,
+      level: 1,
+    };
+  }
+
+  it('prefers the town where the player already sells that good (shared market)', () => {
+    const s = contestedMap();
+    playerSellsThere(s, 1, 'furniture');
+    const pick = chooseProject(s);
+    expect(pick).not.toBeNull();
+    expect(pick!.goodId).toBe('furniture');
+    expect(pick!.city.id).toBe(1); // Beta — contested; without heat, Alpha (0) would win
+  });
+
+  it('prefers a town with an active grudge even when the player is not selling there', () => {
+    const s = contestedMap();
+    s.nemesis.grudges = [{ kind: 'undercut', weight: 2, year: 1900, cityId: 1 }];
+    const pick = chooseProject(s);
+    expect(pick).not.toBeNull();
+    expect(pick!.city.id).toBe(1);
+  });
+
+  it('keeps the empty-niche preference when no candidate has a rivalry signal', () => {
+    const s = contestedMap();
+    // no player sales, no grudges: equal scores fall through to city id ascending
+    const pick = chooseProject(s);
+    expect(pick).not.toBeNull();
+    expect(pick!.city.id).toBe(0);
+  });
+});
