@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { EventBus } from '../core/events';
 import { BUILDINGS } from '../data/buildings';
 import { GOODS } from '../data/goods';
 import { currentLedger } from './finance';
 import { acceptsGood, storageLeft } from './inventory';
 import { priceIndex } from './society/economy';
 import { checkInvariants } from './invariants';
-import { must, testCtx, testState } from './testkit';
-import { placeBuilding } from './state';
+import { connectToRoads, must, testCtx, testState } from './testkit';
+import { createGame, findPlacement, placeBuilding } from './state';
+import { ensureRoadLink } from './roads';
+import { runDays } from './simulation';
+import { buyTruck, createRoute } from './vehicles';
 import {
   ABSORB_VALUE,
   absorb,
@@ -19,7 +23,7 @@ import {
   tradeDay,
   tradePrice,
 } from './trade';
-import type { Building, SimContext } from './types';
+import type { Building, BuildingTypeId, SimContext, Vec2 } from './types';
 
 function houseCtx(n = 1): { ctx: SimContext; houses: Building[] } {
   const ctx = testCtx(testState({ width: 60, height: 40, money: 5e6 }));
@@ -176,5 +180,69 @@ describe('the national market', () => {
     for (const g of Object.keys(GOODS)) expect(storageLeft(houses[0], g), g).toBe(0);
     houses[0].input = { steel: 400 };
     expect(storageLeft(houses[0], 'wire')).toBe(200);
+  });
+
+  // C9: a player Trading House fed by a lumber route earns over a long run; factors stay in bounds
+  it('long-run: lumber → Trading House earns for 5 years with factors in [0.75, 1.25] (C9)', () => {
+    const state = createGame({ seed: 42, companyName: 'Trade Co.', rival: false });
+    const ctx: SimContext = { state, bus: new EventBus() };
+    let city = state.cities[0];
+    let campPos: Vec2 | null = null;
+    let best = Infinity;
+    for (const c of state.cities) {
+      const p = findPlacement(state, 'player', 'lumber_camp', c.center, 30);
+      const d = p ? Math.hypot(p.x - c.center.x, p.y - c.center.y) - c.urbanRadius : Infinity;
+      if (p && d < best) {
+        best = d;
+        city = c;
+        campPos = p;
+      }
+    }
+    expect(campPos).not.toBeNull();
+    const place = (typeId: BuildingTypeId, near: Vec2): Building => {
+      const pos = findPlacement(state, 'player', typeId, near, 30);
+      if (!pos) throw new Error(`no placement for ${typeId}`);
+      const b = must(placeBuilding(ctx, 'player', typeId, pos));
+      must(connectToRoads(ctx, b));
+      return b;
+    };
+    const camp = must(placeBuilding(ctx, 'player', 'lumber_camp', campPos!));
+    must(connectToRoads(ctx, camp));
+    const mid = { x: Math.round((campPos!.x + city.center.x) / 2), y: Math.round((campPos!.y + city.center.y) / 2) };
+    const mill = place('sawmill', mid);
+    const house = place('trading_house', mid);
+    must(ensureRoadLink(ctx, 'player', camp, mill));
+    must(ensureRoadLink(ctx, 'player', mill, house));
+    for (const [from, to, good] of [
+      [camp, mill, 'wood'],
+      [mill, house, 'lumber'],
+    ] as const) {
+      const route = must(
+        createRoute(ctx, 'player', `${good} to trade`, [
+          { buildingId: from.id, load: [good], unload: [] },
+          { buildingId: to.id, load: [], unload: [good] },
+        ]),
+      );
+      must(buyTruck(ctx, 'player', route.id));
+    }
+    let tradeRevenue = 0;
+    ctx.bus.on('sale', (e) => {
+      if (e.ownerId === 'player' && e.buildingId === house.id) tradeRevenue += e.revenue;
+    });
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let m = 0; m < 5 * 12; m++) {
+      runDays(ctx, 30);
+      for (const g of TRADE_GOODS) {
+        const f = state.trade.factor[g];
+        if (f === undefined) continue;
+        if (f < lo) lo = f;
+        if (f > hi) hi = f;
+      }
+    }
+    expect(tradeRevenue).toBeGreaterThan(0);
+    expect(lo).toBeGreaterThanOrEqual(FACTOR_MIN);
+    expect(hi).toBeLessThanOrEqual(FACTOR_MAX);
+    expect(checkInvariants(state)).toEqual([]);
   });
 });

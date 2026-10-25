@@ -195,10 +195,12 @@ export function retailDay(ctx: SimContext): void {
     if (list) list.push(b);
     else storesByCity.set(b.cityId, [b]);
   }
+  const noMods = state.modifiers.length === 0;
   for (const city of state.cities) {
     const stores = storesByCity.get(city.id) ?? [];
     const stocks: StoreStock[] = stores.map((b) => ({ buildingId: b.id, ownerId: b.ownerId, stock: loadSource(b) }));
-    const mod = (g: GoodId) => demandModifier(state, city.id, g);
+    const cityId = city.id;
+    const mod = noMods ? (_g: GoodId) => 1 : (g: GoodId) => demandModifier(state, cityId, g);
     // the Baron's price wars in this town (nemesis/retaliation.ts); null, allocation-free, when none
     const sales = computeDailySales(city, stocks, state.date.year, mod, dayOffset, priceIndex(state), priceWars(state, city.id), monthly);
     const soldByGood: Record<GoodId, number> = {};

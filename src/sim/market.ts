@@ -67,7 +67,11 @@ const PER_1000_AT = DEMAND_GOODS.map((g) => DEMAND_PER_1000[g]);
 const GOOD_AT = DEMAND_GOODS.map((g) => GOODS[g]);
 const CLASS_DEMAND_AT = DEMAND_GOODS.map((g) => CLASS_DEMAND[g]);
 const CLASS_NORM_AT = DEMAND_GOODS.map((g) => CLASS_NORM[g]);
+/** 1 when DEMAND_GOODS[gi] is a v1 baseline good (averageSatisfaction). */
+const IS_BASELINE_AT = DEMAND_GOODS.map((g) => (BASELINE_GOODS.has(g) ? 1 : 0));
 const INDEX_OF = new Map<GoodId, number>(DEMAND_GOODS.map((g, gi) => [g, gi]));
+/** Scratch for non-baseline satisfactions in averageSatisfaction (avoids a per-call array). */
+const otherSatScratch = new Float64Array(DEMAND_GOODS.length);
 
 /** The goods with city demand, in catalog order (`Object.keys(DEMAND_PER_1000)`). */
 export function demandGoods(): readonly GoodId[] {
@@ -229,8 +233,10 @@ export function urbanRadius(population: number): number {
 
 /** Product of active (unexpired) modifiers matching the good (or '*') and the city (or null). */
 export function demandModifier(state: GameState, cityId: number, goodId: GoodId): number {
+  const mods = state.modifiers;
+  if (mods.length === 0) return 1;
   let f = 1;
-  for (const m of state.modifiers) {
+  for (const m of mods) {
     if (compareDates(m.until, state.date) <= 0) continue;
     if (m.goodId !== '*' && m.goodId !== goodId) continue;
     if (m.cityId !== null && m.cityId !== cityId) continue;
@@ -247,22 +253,30 @@ export function demandModifier(state: GameState, cityId: number, goodId: GoodId)
  */
 export function averageSatisfaction(state: GameState, city: City): number {
   const year = state.date.year;
+  const cityId = city.id;
+  const mods = state.modifiers;
+  const noMods = mods.length === 0;
   let baseSum = 0;
   let baseN = 0;
-  const others: number[] = [];
-  for (const g of DEMAND_GOODS) {
-    if (monthlyDemand(city, g, year, demandModifier(state, city.id, g)) <= 0) continue;
+  let otherN = 0;
+  for (let gi = 0; gi < DEMAND_GOODS.length; gi++) {
+    const g = DEMAND_GOODS[gi];
+    const mod = noMods ? 1 : demandModifier(state, cityId, g);
+    if (monthlyDemandAt(city, gi, year, mod) <= 0) continue;
     const s = satisfaction(city, g);
-    if (BASELINE_GOODS.has(g)) {
+    if (IS_BASELINE_AT[gi]) {
       baseSum += s;
       baseN++;
-    } else others.push(s);
+    } else otherSatScratch[otherN++] = s;
   }
   const base = baseN > 0 ? baseSum / baseN : 0.4;
   // mean of (base for each baseline good's share, max(s, base) for the others) = base + excess / n,
   // written so that no excess returns base bit for bit
   let excess = 0;
-  for (const s of others) if (s > base) excess += s - base;
-  return excess > 0 ? base + excess / (baseN + others.length) : base;
+  for (let i = 0; i < otherN; i++) {
+    const s = otherSatScratch[i];
+    if (s > base) excess += s - base;
+  }
+  return excess > 0 ? base + excess / (baseN + otherN) : base;
 }
 

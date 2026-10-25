@@ -19,11 +19,11 @@ import { bidOpen, startBid } from './sim/nemesis/bid';
 import { moveShares } from './sim/exchange/shares';
 import { CONTROL_SHARES } from './sim/exchange/types';
 import { runDays, stepTick } from './sim/simulation';
-import { accessTiles, canPlaceBuilding, createGame, placeBuilding } from './sim/state';
+import { accessTiles, canPlaceBuilding, createGame, findPlacement, placeBuilding } from './sim/state';
 import { ensureRoadLink } from './sim/roads';
 import { buyTruck, createRoute } from './sim/vehicles';
 import { buyUpgrade } from './sim/society/upgrades';
-import type { SmogTier, Speed } from './sim/types';
+import type { BuildingTypeId, SmogTier, Speed } from './sim/types';
 import { SMOG_TIER_THRESHOLDS } from './sim/society/tiers';
 import { autoResolve, forceCard } from './sim/politics/cards';
 import { workCity } from './sim/politics/workforce';
@@ -44,6 +44,8 @@ import { startStrike } from './sim/society/strikes';
  *  - `inspectstore=1` (dev) opens the player's first store inspector
  *  - `inspecttrade=1` (dev) places a Trading House by the player's sawmill, routes lumber to it and opens it
  *    (`tradestock=1` also stocks it with steel, wire and bricks for the price table)
+ *  - `r4showcase=1` (dev) places one of each R4 extractor (ranch, clay pit, copper mine, rubber
+ *    plantation, bauxite quarry) and a Trading House near city 0, then centres on them at zoom 2
  *  - `inspecthub=1` (dev) opens a hub on the player's first warehouse (placing one by their first works when
  *    there is none), selects it and opens its inspector
  *  - `news=1`          demo newspaper (handled by the newspaper panel)
@@ -357,6 +359,39 @@ if (debugStart) {
         g.centerOn({ x: house.pos.x + size.w / 2, y: house.pos.y + size.h / 2 });
         g.renderer.setSelection({ buildingId: house.id });
         g.openPanel('building', house.id);
+      }
+    }
+    // `r4showcase=1` places the five new extractors and a Trading House near city 0, then centres at zoom 2
+    if (import.meta.env.DEV && params.get('r4showcase') === '1' && g.ctx.state.cities[0]) {
+      const st = g.ctx.state;
+      st.companies.player.money += 1e6;
+      const city = st.cities[0];
+      // grass-friendly types first so the cluster sits just outside the town; hills types spiral from there
+      const types: BuildingTypeId[] = ['ranch', 'clay_pit', 'rubber_plantation', 'trading_house', 'copper_mine', 'bauxite_quarry'];
+      const placed: { typeId: BuildingTypeId; x: number; y: number; w: number; h: number; id: number }[] = [];
+      let anchor = { x: city.center.x + city.urbanRadius + 3, y: city.center.y };
+      for (const typeId of types) {
+        const pos = findPlacement(st, 'player', typeId, anchor, 50);
+        if (!pos) continue;
+        const b = placeBuilding(g.ctx, 'player', typeId, pos);
+        if (!b.ok) continue;
+        const size = BUILDINGS[typeId].size;
+        placed.push({ typeId, x: b.value.pos.x, y: b.value.pos.y, w: size.w, h: size.h, id: b.value.id });
+        // next search hugs the cluster so the shot keeps every sprite in frame
+        anchor = { x: b.value.pos.x + Math.floor(size.w / 2), y: b.value.pos.y + Math.floor(size.h / 2) };
+      }
+      if (placed.length > 0) {
+        // hills-only mines can sit far from the grass cluster; frame the near group so sprites read
+        const near = placed.filter((p) => p.typeId !== 'copper_mine' && p.typeId !== 'bauxite_quarry');
+        const frame = near.length >= 3 ? near : placed;
+        const minX = Math.min(...frame.map((p) => p.x));
+        const maxX = Math.max(...frame.map((p) => p.x + p.w));
+        const minY = Math.min(...frame.map((p) => p.y));
+        const maxY = Math.max(...frame.map((p) => p.y + p.h));
+        g.camera.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, 2));
+        g.centerOn({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 });
+        const house = placed.find((p) => p.typeId === 'trading_house') ?? frame[0];
+        g.renderer.setSelection({ buildingId: house.id });
       }
     }
     if (import.meta.env.DEV && params.get('inspectvehicle') === '1') {

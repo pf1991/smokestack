@@ -56,11 +56,15 @@
  * works at level 2+ and some firm with a hub; Σ hub jobs >= 1,000; at least one retirement.
  * A sixth line reports inflation and aging (Task 8): the price index at the last month end sampled in 2000, the
  * final index, each company's net worth in 1900 dollars (nominal / final index), and the average building age.
+ * A `trade` line (R4 Task 10): min and max national price factor at month ends, the player's Trading House
+ * sales total, and component contracts done and failed. A fed Trading House would bankrupt the furniture
+ * autoplay (extra works + smoke fines), so C9 is covered by the dedicated long-run test in trade.test.ts.
  */
 import { EventBus } from '../src/core/events';
 import { autoplayDefend, autoplayLogistics, autoplayNameHeir, runAutoplay } from '../src/game/autoplay';
 import { CARDS_BY_ID } from '../src/data/cards';
 import { FACTION_IDS } from '../src/data/factions';
+import { BUILDINGS } from '../src/data/buildings';
 import { checkInvariants } from '../src/sim/invariants';
 import { nationalOpinion } from '../src/sim/politics/factions';
 import type { CompanyEdicts } from '../src/sim/politics/types';
@@ -77,6 +81,8 @@ import { legacyScore } from '../src/sim/legacy';
 import { insolvencyDemolitions } from '../src/sim/rival/insolvency';
 import { TRUCK_MODEL_ORDER, type TruckModelId } from '../src/data/vehicleModels';
 import { isWorks } from '../src/sim/logistics/aiPost';
+import { isComponentContract } from '../src/sim/contracts';
+import { FACTOR_MAX, FACTOR_MIN, TRADE_GOODS } from '../src/sim/trade';
 
 const END_YEAR = 2001;
 
@@ -192,6 +198,24 @@ for (const seed of seeds) {
   let badPrice = '';
   let bidLoans = 0;
   let bidLoanTotal = 0;
+  // R4 trade: factor bounds at month ends, player Trading House sales, component contracts
+  let tradeFactorMin = Infinity;
+  let tradeFactorMax = -Infinity;
+  let tradeSales = 0;
+  let componentDone = 0;
+  let componentFailed = 0;
+  ctx.bus.on('sale', (e) => {
+    if (e.ownerId !== 'player') return;
+    const b = ctx.state.buildings[e.buildingId];
+    if (b && BUILDINGS[b.typeId]?.category === 'trade') tradeSales += e.revenue;
+  });
+  ctx.bus.on('contract', (e) => {
+    if (e.status !== 'done' && e.status !== 'failed') return;
+    const c = ctx.state.contracts.find((x) => x.id === e.contractId);
+    if (!c || !isComponentContract(c)) return;
+    if (e.status === 'done') componentDone++;
+    else componentFailed++;
+  });
   // the takeover gate (exchange/trading.ts takeoverRefusal): the first month end the player is worth
   // 1.5x the Baron, and the year (if ever) the Baron is taken over
   let gateOpen = '';
@@ -231,6 +255,12 @@ for (const seed of seeds) {
       if (!takenOver && ctx.state.flags.takeover === true) takenOver = String(ctx.state.date.year);
       for (const [id, l] of Object.entries(ctx.state.exchange.listings)) {
         if (!badPrice && !(Number.isFinite(l.price) && l.price > 0)) badPrice = `${id} ${l.price} in ${ctx.state.date.year}-${ctx.state.date.month}`;
+      }
+      for (const g of TRADE_GOODS) {
+        const f = ctx.state.trade.factor[g];
+        if (f === undefined) continue;
+        if (f < tradeFactorMin) tradeFactorMin = f;
+        if (f > tradeFactorMax) tradeFactorMax = f;
       }
       for (const l of ctx.state.companies.player.ledger) fineByMonth.set(l.year * 12 + l.month, l.expense.fines ?? 0);
       for (const c of ctx.state.cities) {
@@ -341,6 +371,11 @@ for (const seed of seeds) {
   console.log(
     `  phase4 ${seed}: crash cards ${crashCards.join(', ') || 'none'} | workers 2000 ${Number.isFinite(workers2000) ? workers2000.toFixed(1) : 'n/a'} | regional active 2000 ${Number.isFinite(firms2000) ? firms2000 : 'n/a'} | player loan ${money(state.companies.player.loan)} (bid loan ${money(state.companies.player.bidLoan ?? 0)}) | emergency bid loans ${bidLoans} (${money(bidLoanTotal)}) | wealth player ${money(wealth(state, 'player'))}, baron ${money(wealth(state, 'rival'))} | 1.5x gate first open ${gateOpen || 'never'} | control first affordable ${affordable || 'never'} | baron taken over ${takenOver || 'never'} | ${victory ? `victory: ${victory}` : 'no victory'}`,
   );
+  const factorLo = Number.isFinite(tradeFactorMin) ? tradeFactorMin : Number.NaN;
+  const factorHi = Number.isFinite(tradeFactorMax) ? tradeFactorMax : Number.NaN;
+  console.log(
+    `  trade ${seed}: factor min ${Number.isFinite(factorLo) ? factorLo.toFixed(3) : 'n/a'}, max ${Number.isFinite(factorHi) ? factorHi.toFixed(3) : 'n/a'} | Trading House sales ${money(tradeSales)} | component contracts done ${componentDone}, failed ${componentFailed}`,
+  );
   if (years >= 100) {
     const gate: string[] = [];
     if (!(firms2000 >= 2)) gate.push(`only ${firms2000} regional firms active in 2000 (need 2)`);
@@ -379,6 +414,10 @@ for (const seed of seeds) {
     if (!firmIds.some((id) => hadHub[id])) gate.push('no regional firm had a hub');
     if (hubJobsTotal < 1000) gate.push(`hub jobs in all ${hubJobsTotal} (need 1,000)`);
     if (L.stats.retirements < 1) gate.push('no manager retired');
+    // R4 trade: factors stay within the drift clamp for the century
+    if (!(factorLo >= FACTOR_MIN && factorHi <= FACTOR_MAX)) {
+      gate.push(`trade factors [${factorLo}, ${factorHi}] outside [${FACTOR_MIN}, ${FACTOR_MAX}]`);
+    }
     if (gate.length > 0) {
       failed = true;
       for (const g of gate) console.log(`  GATE FAIL (${seed}): ${g}`);
