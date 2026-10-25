@@ -107,11 +107,13 @@ describe('deep chains pay', () => {
     expect(chainEconomics('washing_machines', 1935)!.depth).toBe(5);
   });
 
-  it('the 1970–1990 rows match Table E within 10% (calculators, video games, mobile phones are deep)', () => {
+  it('the 1970–1990 rows match Table E within 10% (calculators, video games, computers, mobile phones are deep)', () => {
     const table: [string, number, number, number, number][] = [
       // good, era, depth, workers, $/worker-month
       ['calculators', 1970, 5, 96, 39.2],
       ['video_games', 1978, 5, 132, 37.4],
+      // E4: computers sit near video_games / mobile_phones, not a depth-3 cheat
+      ['computers', 1980, 5, 144, 55.1],
       ['mobile_phones', 1990, 5, 209, 61.9],
     ];
     for (const [id, era, depth, workers, perWm] of table) {

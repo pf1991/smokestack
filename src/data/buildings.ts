@@ -129,7 +129,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   electronics_plant: {
     id: 'electronics_plant', name: 'Electronics Plant', ...FA, size: { w: 3, h: 3 }, cost: 90000, maintenance: 1250,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes'], storage: 60, era: 1925, pollution: 2,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes', 'r_computers_legacy'], storage: 60, era: 1925, pollution: 2,
     color: '#2aa198', description: 'Valves, circuits and glowing screens, assembled with care.',
   },
   // R4 1900–1929 works (before the store; none makes an old good except electronics_plant above)

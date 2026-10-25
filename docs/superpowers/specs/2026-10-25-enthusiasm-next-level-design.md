@@ -155,7 +155,7 @@ Each builds on `main`, own branch `release/e<N>`, screenshot / soak gate at the 
    with a Jump / Respond affordance (open rival or city panel).
 3. **Surface active grudges** in the Rival panel as a short fight list, not only history.
 
-### E4 — Economy sense *(decided)*
+### E4 — Economy sense *(implemented on release/e4)*
 
 1. **Computers go deep**: retarget `r_computers` (and/or add `r_computers_chip`) to use
    microchips + displays (and keep a legacy shallow recipe faded or player-optional). Balance

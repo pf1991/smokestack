@@ -66,6 +66,19 @@ describe('eras', () => {
     expect(ctx.state.news.some((n) =>
       n.kind === 'warning' && n.body === 'Demand for calculators is expected to decline from next year.')).toBe(true);
   });
+  it('canned_food fade warning in 1954 (E4 early-appliance displacement)', () => {
+    const ctx = at(1954, 12, 30);
+    fadeWarnings(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'warning' && /icebox|tins/i.test(n.headline) &&
+      n.body === 'Demand for canned food is expected to decline from next year.')).toBe(true);
+  });
+  it('bicycle fade warning in 1959 (E4 car-suburb displacement)', () => {
+    const ctx = at(1959, 12, 30);
+    fadeWarnings(ctx);
+    expect(ctx.state.news.some((n) =>
+      n.kind === 'warning' && n.body === 'Demand for bicycles is expected to decline from next year.')).toBe(true);
+  });
   it("lifecycleFactor('calculators', 2000) === 0.6", () => {
     expect(lifecycleFactor('calculators', 2000)).toBe(0.6);
   });

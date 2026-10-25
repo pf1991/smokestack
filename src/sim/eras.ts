@@ -105,6 +105,8 @@ const FADE_LINES: Record<string, string> = {
   radios: 'Radios losing their crackle with the young set',
   phonographs: 'The gramophone falls silent in the modern home',
   calculators: 'Pocket calculators give way to the home computer',
+  canned_food: 'The icebox that needs no ice empties the pantry of tins',
+  bicycles: 'Bicycle bells quiet as the motorcar takes the lanes',
 };
 
 /** On year: warn the year before a good fades, and when its demand first halves. */

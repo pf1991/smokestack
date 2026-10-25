@@ -41,7 +41,8 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_cars: { id: 'r_cars', inputs: { steel: 4, glass: 2, fuel: 1 }, outputs: { cars: 1 }, days: 2 },
   r_radios: { id: 'r_radios', inputs: { steel: 2, glass: 2, lumber: 2 }, outputs: { radios: 2 }, days: 1 },
   r_tvs: { id: 'r_tvs', inputs: { plastic: 2, glass: 2, steel: 1 }, outputs: { tvs: 1 }, days: 2 },
-  r_computers: { id: 'r_computers', inputs: { plastic: 2, steel: 1, glass: 1 }, outputs: { computers: 1 }, days: 2 },
+  // Deep home computers (chips + displays); legacy shallow recipe is appended later for the inspector
+  r_computers: { id: 'r_computers', inputs: { microchips: 2, displays: 1, plastic: 1 }, outputs: { computers: 1 }, days: 2 },
 
   // R4 (after every older recipe, so firstRecipeFor and producerOf keep their choices for old goods)
   // Extraction
@@ -84,8 +85,11 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_calculators_chip: { id: 'r_calculators_chip', inputs: { microchips: 1, plastic: 1 }, outputs: { calculators: 2 }, days: 1 },
   r_video_games: { id: 'r_video_games', inputs: { microchips: 2, plastic: 1 }, outputs: { video_games: 2 }, days: 1 },
   r_mobile_phones: { id: 'r_mobile_phones', inputs: { microchips: 2, displays: 1, aluminium: 1 }, outputs: { mobile_phones: 1 }, days: 1 },
-  // Appended after r_computers so firstRecipeFor still prefers r_radios
+  // Appended after r_computers so firstRecipeFor still prefers r_radios (shallow stays the AI
+  // default; tubes are the deeper inspector path once vacuum tubes exist — by design)
   r_radios_tubes: { id: 'r_radios_tubes', inputs: { vacuum_tubes: 2, lumber: 2 }, outputs: { radios: 2 }, days: 1 },
+  // Shallow pre-chip computers kept for the inspector; after r_computers so firstRecipeFor / AI stay deep
+  r_computers_legacy: { id: 'r_computers_legacy', inputs: { plastic: 2, steel: 1, glass: 1 }, outputs: { computers: 1 }, days: 2 },
 };
 
 export function getRecipe(id: string): RecipeDef {

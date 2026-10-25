@@ -57,6 +57,28 @@ export const HISTORIC_EVENTS: HistoricEvent[] = [
     body: 'Soldiers home, rationing done, and every household wants a new everything. Merchants report queues around the block and cheerful tempers within it.',
     apply(ctx) { pushModifier(ctx, 'boom', '*', null, 1.2, 24 * DAYS_PER_MONTH); },
   },
+  // E4 mid-century spikes: wartime contracts fill 1940–45; suburban appliances fill the 1950s
+  {
+    id: 'wartime1942', year: 1942, month: 1,
+    headline: 'WAR CONTRACTS! TINS, BOOTS AND TOOLS WANTED BY THE TRAINLOAD',
+    body: 'The ministry is buying canned rations, work clothes and hand tools as if the war will last forever. Foundries and canneries that answer the call will not want for orders until peace.',
+    apply(ctx) {
+      // Jan 1942 → Dec 1945 ≈ 48 months
+      for (const g of ['canned_food', 'clothes', 'tools'] as const) {
+        pushModifier(ctx, 'wartime', g, null, 1.45, 48 * DAYS_PER_MONTH);
+      }
+    },
+  },
+  {
+    id: 'appliance_boom1955', year: 1955, month: 3,
+    headline: 'SUBURBAN KITCHENS DEMAND ICEBOXES AND WASHERS',
+    body: 'Little boxes on the hillside each want a humming refrigerator and a washing machine that does the Monday wash. Appliance works report order books full through the decade.',
+    apply(ctx) {
+      for (const g of ['refrigerators', 'washing_machines'] as const) {
+        pushModifier(ctx, 'suburb_appliances', g, null, 1.5, 36 * DAYS_PER_MONTH);
+      }
+    },
+  },
   {
     id: 'moon1969', year: 1969, month: 7,
     headline: 'MAN WALKS ON MOON! CHILDREN DEMAND ROCKET TOYS',

@@ -230,7 +230,11 @@ class CodexPanel {
     );
     const usedIn = uses.length > 0
       ? h('div', { class: 'cx-used' }, uses.map((u) => this.link(u)))
-      : h('span', { class: 'cx-muted' }, g.kind === 'consumer' ? 'Sold to towns' : g.kind === 'raw' ? 'Nothing yet' : 'Sold to the Trading House');
+      : h('span', { class: 'cx-muted' },
+        g.id === 'bricks' ? 'Construction (−8% when ≥20 stocked in a warehouse or Trading House)'
+          : g.kind === 'consumer' ? 'Sold to towns'
+            : g.kind === 'raw' ? 'Nothing yet'
+              : 'Sold to the Trading House');
     const tradeLine = (g.kind === 'material' || g.kind === 'component')
       ? h('div', { class: 'cx-line' }, `Trading House pays ${formatMoney(tradePrice(state, good))} today`)
       : null;

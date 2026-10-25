@@ -301,10 +301,16 @@ describe('R4 1900 content (Tables G, D, R and B)', () => {
     ['shoes', 'Shoes', 'consumer', 52, '#4a2c1a'],
     ['candy', 'Candy', 'consumer', 16, '#ff7eb6'],
     ['books', 'Books', 'consumer', 36, '#7d2e46'],
-    ['canned_food', 'Canned Food', 'consumer', 18, '#b0413e'],
   ] as const)('good %s', (id, name, kind, basePrice, color) => {
     const tier = kind === 'raw' ? 0 : kind === 'consumer' ? 2 : 1;
     expect(GOODS[id]).toEqual({ id, name, tier, kind, basePrice, era: 1900, fadeYear: null, color });
+  });
+
+  it('canned_food fades mid-century once refrigerators keep fresh food (E4)', () => {
+    expect(GOODS.canned_food).toEqual({
+      id: 'canned_food', name: 'Canned Food', tier: 2, kind: 'consumer', basePrice: 18, era: 1900,
+      fadeYear: 1955, color: '#b0413e', plural: 'Canned food',
+    });
   });
 
   const MIDDLE = { working: 0.8, middle: 1.5, upper: 1.2 };
@@ -398,7 +404,7 @@ describe('R4 1905–1929 content (Tables G, D, R and B)', () => {
     ['electric_motors', 'Electric Motors', 'component', 1920, null, 140, '#3e7cb1', undefined],
     ['vacuum_tubes', 'Vacuum Tubes', 'component', 1920, null, 22, '#ffb347', undefined],
     ['phonographs', 'Phonograph', 'consumer', 1905, 1955, 120, '#a67c00', 'Phonographs'],
-    ['bicycles', 'Bicycle', 'consumer', 1910, null, 120, '#2f8f83', 'Bicycles'],
+    ['bicycles', 'Bicycle', 'consumer', 1910, 1960, 120, '#2f8f83', 'Bicycles'],
     ['motorcycles', 'Motorcycle', 'consumer', 1915, null, 480, '#6d1a1a', 'Motorcycles'],
   ] as const)('good %s', (id, name, kind, era, fadeYear, basePrice, color, plural) => {
     const tier = kind === 'raw' ? 0 : kind === 'consumer' ? 2 : 1;
@@ -455,9 +461,24 @@ describe('R4 1905–1929 content (Tables G, D, R and B)', () => {
   it('r_radios_tubes is after r_computers; a 1930 radios chain still uses r_radios', () => {
     const ids = Object.keys(RECIPES);
     expect(ids.indexOf('r_radios_tubes')).toBeGreaterThan(ids.indexOf('r_computers'));
-    expect(BUILDINGS.electronics_plant.recipes).toEqual(['r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes']);
+    expect(BUILDINGS.electronics_plant.recipes).toEqual([
+      'r_radios', 'r_tvs', 'r_computers', 'r_radios_tubes', 'r_computers_legacy',
+    ]);
     const s = testState({ year: 1930 });
     expect(planChain('radios', s)!.nodes.at(-1)!.recipeId).toBe('r_radios');
+  });
+
+  it('r_computers is deep (chips+displays); legacy shallow is after it so AI stays deep', () => {
+    expect(RECIPES.r_computers).toEqual({
+      id: 'r_computers', inputs: { microchips: 2, displays: 1, plastic: 1 }, outputs: { computers: 1 }, days: 2,
+    });
+    expect(RECIPES.r_computers_legacy).toEqual({
+      id: 'r_computers_legacy', inputs: { plastic: 2, steel: 1, glass: 1 }, outputs: { computers: 1 }, days: 2,
+    });
+    const ids = Object.keys(RECIPES);
+    expect(ids.indexOf('r_computers_legacy')).toBeGreaterThan(ids.indexOf('r_computers'));
+    const s = testState({ year: 1980 });
+    expect(planChain('computers', s)!.nodes.at(-1)!.recipeId).toBe('r_computers');
   });
 
   it.each([

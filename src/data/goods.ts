@@ -80,9 +80,11 @@ export const GOODS: Record<GoodId, GoodDef> = {
   shoes: { id: 'shoes', name: 'Shoes', tier: 2, kind: 'consumer', basePrice: 52, era: 1900, fadeYear: null, color: '#4a2c1a' },
   candy: { id: 'candy', name: 'Candy', tier: 2, kind: 'consumer', basePrice: 16, era: 1900, fadeYear: null, color: '#ff7eb6' },
   books: { id: 'books', name: 'Books', tier: 2, kind: 'consumer', basePrice: 36, era: 1900, fadeYear: null, color: '#7d2e46' },
-  canned_food: { id: 'canned_food', name: 'Canned Food', tier: 2, kind: 'consumer', basePrice: 18, era: 1900, fadeYear: null, color: '#b0413e' },
+  // Fades mid-century once refrigerators keep fresh food (E4): cannery players must retool
+  canned_food: { id: 'canned_food', name: 'Canned Food', tier: 2, kind: 'consumer', basePrice: 18, era: 1900, fadeYear: 1955, color: '#b0413e', plural: 'Canned food' },
   phonographs: { id: 'phonographs', name: 'Phonograph', tier: 2, kind: 'consumer', basePrice: 120, era: 1905, fadeYear: 1955, color: '#a67c00', plural: 'Phonographs' },
-  bicycles: { id: 'bicycles', name: 'Bicycle', tier: 2, kind: 'consumer', basePrice: 120, era: 1910, fadeYear: null, color: '#2f8f83', plural: 'Bicycles' },
+  // Car suburbs thin the bicycle trade (E4); cycle works shift to motorcycles
+  bicycles: { id: 'bicycles', name: 'Bicycle', tier: 2, kind: 'consumer', basePrice: 120, era: 1910, fadeYear: 1960, color: '#2f8f83', plural: 'Bicycles' },
   motorcycles: { id: 'motorcycles', name: 'Motorcycle', tier: 2, kind: 'consumer', basePrice: 480, era: 1915, fadeYear: null, color: '#6d1a1a', plural: 'Motorcycles' },
   refrigerators: { id: 'refrigerators', name: 'Refrigerator', tier: 2, kind: 'consumer', basePrice: 520, era: 1930, fadeYear: null, color: '#dfe7ee', plural: 'Refrigerators' },
   washing_machines: { id: 'washing_machines', name: 'Washing Machine', tier: 2, kind: 'consumer', basePrice: 480, era: 1935, fadeYear: null, color: '#8fb8d8', plural: 'Washing Machines' },

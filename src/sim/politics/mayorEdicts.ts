@@ -22,6 +22,7 @@ import { companyEdictFactor, EDICTS, maintenanceFactor } from './edicts';
 import { dynastyModifier } from '../dynasty/types';
 import { NEAR_MARGIN, nationalOpinion } from './factions';
 import { forcedEdicts, SMOG_TIER_3 } from '../society/tiers';
+import { brickCostFactor } from '../society/bricks';
 import { buildingMaintenance } from '../society/upgrades';
 import { atPrices } from '../society/economy';
 import type { MayorEdictId } from './types';
@@ -188,11 +189,12 @@ export interface PlacementQuote {
 export function placementQuote(state: GameState, owner: OwnerId, typeId: BuildingTypeId, pos: Vec2): PlacementQuote {
   const def = BUILDINGS[typeId];
   const price = atPrices(state, def.cost);
-  const base = { cost: Math.round(price), permit: 0, refusal: null };
+  const bricks = brickCostFactor(state, owner);
+  const base = { cost: Math.round(price * bricks), permit: 0, refusal: null };
   if (owner !== PLAYER_ID) return base;
   const city = siteCity(state, typeId, pos);
   if (!city) return base;
-  const cost = Math.round(price * constructionFactor(city, typeId));
+  const cost = Math.round(price * constructionFactor(city, typeId) * bricks);
   const industry = def.category === 'extractor' || def.category === 'factory';
   if (!industry || !hasEdict(city, 'permits_required')) return { cost, permit: 0, refusal: null };
   if (city.opinion[city.politics.mayor.faction] < PERMIT_REFUSE_BELOW) {

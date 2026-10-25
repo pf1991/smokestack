@@ -4,6 +4,7 @@ import { err, ok, type Result } from '../../core/result';
 import { dateToDays } from '../clock';
 import { canAfford, spend } from '../finance';
 import { atPrices } from '../society/economy';
+import { brickCostFactor, consumeBricksForJob } from '../society/bricks';
 import { markRenewed } from '../society/aging';
 import { buildingList } from '../spatial';
 import type { Building, GameState, OwnerId, SimContext } from '../types';
@@ -74,7 +75,8 @@ export function levelCostShare(b: Building): number {
 /** Price of the next level: its share of the catalogue cost at today's prices, rounded. 0 at the top. */
 export function upgradeCost(state: GameState, b: Building): number {
   const next = nextLevel(b);
-  return next ? Math.round(atPrices(state, BUILDINGS[b.typeId].cost * next.costShare)) : 0;
+  if (!next) return 0;
+  return Math.round(atPrices(state, BUILDINGS[b.typeId].cost * next.costShare) * brickCostFactor(state, b.ownerId));
 }
 
 /** Why `owner` cannot start an upgrade of `b` now, or null. */
@@ -98,6 +100,7 @@ export function startUpgrade(ctx: SimContext, buildingId: number, owner?: OwnerI
   if (why) return err(why);
   const next = nextLevel(b)!;
   const cost = upgradeCost(state, b);
+  if (brickCostFactor(state, b.ownerId) < 1) consumeBricksForJob(state, b.ownerId);
   const today = dateToDays(state.date);
   spend(state.companies[b.ownerId], 'construction', cost, state.date);
   b.works = { toLevel: next.level, startDay: today, untilDay: today + next.days };
