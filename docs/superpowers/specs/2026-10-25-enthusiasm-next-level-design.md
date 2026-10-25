@@ -1,8 +1,8 @@
 # SMOKESTACK Next Level: Enthusiasm, Sense & Addiction
 
-Status: **design ready for owner review** (2026-10-25). Analysis of the shipped 1.0 on
-`main` (`11abb22` / R1–R5). Decisions marked *(decided)* are recommendations for the next
-release track; they can be revised before implementation starts.
+Status: **E1–E5 implemented** (2026-10-25). Analysis of the shipped 1.0 on
+`main` (`11abb22` / R1–R5). Decisions marked *(decided)* guided the Next Level track;
+E1–E5 are on `release/e5` ready to merge.
 
 ## 1. Intent
 
@@ -171,7 +171,7 @@ Each builds on `main`, own branch `release/e<N>`, screenshot / soak gate at the 
 5. **Tools**: either buff to near furniture or demote to a tutorial/scenario flavor with
    honest codex copy. No silent dogs.
 
-### E5 — UI invitation *(decided)*
+### E5 — UI invitation *(implemented on release/e5)*
 
 1. **Progressive disclosure**: Politics / Finance / Exchange open on a "Now" summary card;
    advanced tables behind "Full ledger" / "All factions". First-time coach marks.

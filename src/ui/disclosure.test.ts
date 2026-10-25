@@ -33,7 +33,7 @@ describe('nowCard', () => {
     ]);
     expect(el.dataset.disc).toBe('now');
     expect(el.querySelector('.kit-card-title')!.textContent).toBe('Now');
-    const items = [...el.querySelectorAll('.disc-now-item')];
+    const items = [...el.querySelectorAll<HTMLElement>('.disc-now-item')];
     expect(items).toHaveLength(2);
     expect(items[0].textContent).toContain('Election in Ashford');
     expect(items[1].dataset.tone).toBe('warning');
