@@ -11,13 +11,13 @@ The game is a static site. GitHub Actions (`.github/workflows/pages.yml`) runs `
 Once the repository is public and Pages is enabled (Settings → Pages → Source: **GitHub Actions**), play at:
 
 ```
-https://<user>.github.io/<repo>/
+https://pf1991.github.io/smokestack/
 ```
 
 Publish from this tree with:
 
 ```
-gh repo create <name> --public --source . --push
+git push -u origin main
 ```
 
 **Smart events (JEV) are off on Pages** — they need the self-hosted proxy below. The game plays fully without them.
