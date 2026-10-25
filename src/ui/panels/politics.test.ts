@@ -30,12 +30,30 @@ const win = () => document.querySelector('.window') as HTMLElement;
 beforeEach(() => {
   vi.useFakeTimers();
   calls.length = 0;
+  localStorage.clear();
 });
 
 afterEach(() => {
   for (const b of document.querySelectorAll<HTMLElement>('.window-close')) b.click();
   vi.useRealTimers();
   document.body.replaceChildren();
+  localStorage.clear();
+});
+
+describe('politics progressive disclosure', () => {
+  it('opens on a Now summary; Show full reveals edicts and faction tables', () => {
+    const ctx = testCtx(testState({ cities: [{ x: 10, y: 10, population: 6000 }] }));
+    PANELS.politics.open(game(ctx));
+    expect(win().querySelector('[data-disc="now"] .kit-card-title')!.textContent).toBe('Now');
+    expect(win().querySelector('[data-disc="now"]')!.textContent).toMatch(/Next election|No town elections/);
+    const full = win().querySelector('[data-disc="full"]') as HTMLElement;
+    expect(full.hidden).toBe(true);
+    expect(full.querySelector('.pol-edicts')).not.toBeNull();
+    expect(full.querySelector('.pol-national')).not.toBeNull();
+    (win().querySelector('[data-disc="toggle"]') as HTMLElement).click();
+    expect(full.hidden).toBe(false);
+    expect(localStorage.getItem('smokestack:coach:politics')).toBe('seen');
+  });
 });
 
 describe('politics window', () => {
@@ -118,6 +136,18 @@ describe('politics window Black Lung', () => {
 });
 
 describe('city panel philanthropy', () => {
+  it('opens on a Now summary of unmet demand; Show full reveals the demand table', () => {
+    const ctx = testCtx(testState({ money: 50000, cities: [{ x: 10, y: 10, population: 6000 }] }));
+    PANELS.city.open(game(ctx) as never, 0);
+    const root = document.querySelector('.insp-city') as HTMLElement;
+    expect(root.querySelector('[data-disc="now"] .kit-card-title')!.textContent).toBe('Now');
+    const full = root.querySelector('[data-disc="full"]') as HTMLElement;
+    expect(full.hidden).toBe(true);
+    expect(full.querySelector('.insp-demand-section')).not.toBeNull();
+    (root.querySelector('[data-disc="toggle"]') as HTMLElement).click();
+    expect(full.hidden).toBe(false);
+  });
+
   it('offers the three gifts, disabled with a reason when unaffordable or already built', () => {
     const ctx = testCtx(testState({ money: 50000, cities: [{ x: 10, y: 10, population: 6000 }] }));
     PANELS.city.open(game(ctx) as never, 0);

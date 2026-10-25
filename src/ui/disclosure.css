@@ -1,0 +1,87 @@
+/* Progressive disclosure (E5): Now summary + Show full … for dense panels. */
+.disc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.disc-now-wrap {
+  min-width: 0;
+}
+
+.disc-now .kit-card-body {
+  padding-top: var(--sp-1);
+}
+
+.disc-now-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.disc-now-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.disc-now-label {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.disc-now-detail {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.disc-now-item[data-tone='warning'] .disc-now-label,
+.disc-now-item[data-tone='negative'] .disc-now-label {
+  color: var(--warning);
+}
+
+.disc-now-item[data-tone='positive'] .disc-now-label {
+  color: var(--positive);
+}
+
+.disc-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.disc-coach {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px dashed var(--accent-quiet);
+  border-radius: var(--r-md);
+}
+
+.disc-coach-text {
+  margin: 0;
+  flex: 1;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.disc-toggle {
+  align-self: flex-start;
+}
+
+.disc-full[hidden] {
+  display: none !important;
+}
+
+.disc-full {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}

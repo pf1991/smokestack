@@ -21,6 +21,7 @@ import { forcedEdicts, SMOG_HINT, SMOG_TIER_NAMES, SMOG_TIER_THRESHOLDS } from '
 import type { City, GameState, OwnerId } from '../../sim/types';
 import { ownerColor } from '../../render/ownerColors';
 import { h } from '../dom';
+import { nowCard, progressiveDisclosure, type NowItem } from '../disclosure';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber, formatPercent } from '../format';
 import './panels.css';
@@ -62,6 +63,20 @@ export function cityDemand(state: GameState, city: City): GoodDemand[] {
     out.push({ goodId, demand, satisfaction: sat, price, unmetValue: demand * (1 - sat) * price });
   }
   return out.sort((a, b) => b.unmetValue - a.unmetValue || a.goodId.localeCompare(b.goodId));
+}
+
+/** 1–3 city decisions for the Now card: top unmet demand / empty shelves (E5). */
+export function cityNow(state: GameState, city: City): NowItem[] {
+  const demand = cityDemand(state, city);
+  const unmet = demand.filter((d) => d.unmetValue > 0).slice(0, 3);
+  if (unmet.length === 0) {
+    return [{ label: 'Shelves look stocked', detail: 'No big unmet demand right now', tone: 'positive' }];
+  }
+  return unmet.map((d) => ({
+    label: `${GOODS[d.goodId]?.name ?? d.goodId} unmet`,
+    detail: `${formatPercent(1 - d.satisfaction)} short · ${formatMoney(d.price)} each`,
+    tone: d.satisfaction < 0.4 ? 'negative' : 'warning',
+  }));
 }
 
 /** One demand row's figures, also the table's refresh key. */
@@ -296,11 +311,9 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     slushInfo);
   const demandBox = h('div', { class: 'insp-demand p-scroll' });
   const stat = (label: string, v: HTMLElement, cls = '') => h('div', { class: `p-row insp-stat ${cls}`.trim() }, h('span', { class: 'insp-label' }, label), v);
-  const el = h(
+  const full = h(
     'div',
-    { class: 'insp insp-city' },
-    headerBox,
-    statsBox,
+    { class: 'insp-city-full' },
     section('Smog', [smogTierRow]),
     section('Town', [classRow, stat('Landmarks', landmarks)]),
     section('Politics', [
@@ -317,6 +330,15 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
     h('div', { class: 'p-section insp-section insp-demand-section' }, h('div', { class: 'p-head' }, 'What the town buys each month'), demandBox),
     h('div', { class: 'p-section insp-section insp-philanthropy' }, h('div', { class: 'p-head' }, 'Philanthropy'), ...gifts.map((g) => g.btn)),
   );
+  const city0 = host.ctx.state.cities[cityId];
+  const disc = progressiveDisclosure({
+    panelId: 'city',
+    expandLabel: 'Show full City',
+    coachText: 'Top unmet demand leads. Open the full town sheet for smog, politics, every good and philanthropy.',
+    now: nowCard(city0 ? cityNow(host.ctx.state, city0) : []),
+    full,
+  });
+  const el = h('div', { class: 'insp insp-city' }, headerBox, statsBox, disc.el);
   const view: InspectorView = {
     el,
     update() {
@@ -328,6 +350,7 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       const mayorLine = `${pol.mayor.name} (${factionName(pol.mayor.faction, year)})`;
       const summary = `Pop ${formatNumber(city.population)} · Mayor ${mayorLine}`;
       swap(headerBox, `${city.name}|${summary}`, () => panelHeader({ title: city.name, summary }));
+      disc.setNow(nowCard(cityNow(state, city)));
       const diff = city.population - city.prevPopulation;
       const st = smogTierLine(city);
       const workers = Math.round(laborPool(city));
