@@ -1,3 +1,4 @@
+import { chaseChipText, loadUnlocked } from '../../game/achievements';
 import type { GameController } from '../../game/controller';
 import './panels.css';
 import {
@@ -88,7 +89,11 @@ export function buildGoals(state: GameState): HTMLElement {
   const legacyTile = statTile({ label: 'Legacy', value: formatNumber(legacyScore(state).total), title: 'Fortune, landmarks, reputation and dynasty: see the Legacy panel' });
   legacyTile.classList.add('gl-legacy');
   const head = goalsHeadline(state);
-  const header = h('div', { class: 'goals-header' }, panelHeader({ title: 'Goals', ...head }));
+  const chase = chaseChipText(state, loadUnlocked());
+  const chaseChip = chase
+    ? h('div', { class: 'gl-chase', 'data-chase': '1', title: 'Nearest incomplete achievement' }, chase)
+    : null;
+  const header = h('div', { class: 'goals-header' }, panelHeader({ title: 'Goals', ...head }), chaseChip);
   const scenario = section(sc.name, [h('p', { class: 'gl-note' }, sc.goals.length === 0 ? 'No hard deadlines. Soft ambitions keep the next chase in view until the century ends.' : sc.blurb)]);
   scenario.classList.add('gl-scenario');
   if (sc.goals.length === 0) {

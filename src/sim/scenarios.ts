@@ -149,6 +149,8 @@ export function recordNationalSale(state: GameState, e: { ownerId: string; goodI
   state.flags ??= {};
   const k = `sold:${e.goodId}`;
   state.flags[k] = flagNum(state, k) + e.qty;
+  // Trading House sales (achievements / ambitions); sticky counter
+  state.flags.thSales = flagNum(state, 'thSales') + e.qty;
 }
 
 /**
@@ -186,6 +188,13 @@ export function goalsMonth(ctx: SimContext): void {
   if (year >= 1929 && year <= 1931) {
     state.flags.crashMonths = flagNum(state, 'crashMonths') + 1;
     if (state.companies.player.money < 0) state.flags.crashBroke = true;
+  }
+  // consecutive black months for the "decade without a red month" achievement (finance already closed)
+  const player = state.companies.player;
+  if (player && player.monthsInRed === 0 && player.money >= 0) {
+    state.flags.blackMonths = flagNum(state, 'blackMonths') + 1;
+  } else {
+    state.flags.blackMonths = 0;
   }
   // monopoly: sole seller of some demand good in every city this month (sticky once earned), then start afresh
   if (state.cities.length > 0 && demandGoods().some((g) => state.cities.every((c) => state.flags[`seller:${c.id}:${g}`] === 'player'))) {

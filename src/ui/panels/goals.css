@@ -8,3 +8,9 @@
 .goals-panel .kit-stat { flex: 1 1 0; }
 .goals-panel .gl-done-list { display: flex; flex-direction: column; gap: var(--sp-1); }
 .goals-panel .gl-done-row { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.goals-panel .gl-chase {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--brass-light);
+  letter-spacing: 0.02em;
+}
