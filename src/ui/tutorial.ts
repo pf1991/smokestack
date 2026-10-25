@@ -109,6 +109,20 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text: 'Add routes with trucks for the other legs, sawmill → factory and factory → store, then let the clock run (keys 1–4) until the first sale.',
     highlight: '.hud-speeds',
     done: soldAnything,
+  },
+  {
+    id: 'alerts',
+    text: 'When a works starves or a store runs empty, the bell in the top bar lists the trouble. Press T (or click the bell) to open the alerts tray, then click a row to jump to it.',
+    highlight: '#hud-alerts, .alerts-bell',
+    manual: true,
+    done: () => false,
+  },
+  {
+    id: 'codex',
+    text: 'Press I (or World → Codex) to open the production-chain codex: every good, what makes it, what it needs, and what towns want. Browse a chain, then carry on.',
+    highlight: '.hud-group-btn[data-group="world"], .hud-menu-item[data-panel="codex"]',
+    manual: true,
+    done: () => false,
     doneText: "Ka-ching! You're in business.",
   },
 ];

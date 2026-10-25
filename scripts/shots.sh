@@ -124,6 +124,9 @@ SHOWCASE_R4="codex-r4 90 panel=codex&panelarg=mobile_phones
 components 25 buildtab=components
 trade 25 inspecttrade=1
 r4-buildings 25 r4showcase=1"
+# R5 polish: About credits on the main menu; tutorial card on a fresh Free Play
+SHOWCASE_R5="about 0 menu=1&menuscreen=about
+tutorial 0 tutorial=1&menu=0"
 MIN_SHOT_BYTES="${MIN_SHOT_BYTES:-2048}"
 export PORT CHROME_H_OFFSET MIN_SHOT_BYTES
 
@@ -144,6 +147,10 @@ done | xargs -P "$JOBS" -L 1 bash -c 'shot "$@"' _
     echo "$name $skip $extra 1366 768"
     echo "$name $skip $extra 1920 1080"
   done <<<"$SHOWCASE_R4"
+  while read -r name skip extra; do
+    echo "$name $skip $extra 1366 768"
+    echo "$name $skip $extra 1920 1080"
+  done <<<"$SHOWCASE_R5"
 } | xargs -P "$JOBS" -L 1 bash -c 'showcase "$@"' _
 
 # UI matrix (DEV params): every side-panel tab, menus, help, settings, a flyout, ticker modes,
@@ -216,5 +223,10 @@ while read -r name _; do
     if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 20480 ]; then echo "BAD: $f" >&2; bad=1; fi
   done
 done <<<"$SHOWCASE_R4"
+while read -r name _; do
+  for f in "shots/showcase-${name}.png" "shots/showcase-${name}-1920.png"; do
+    if [ ! -f "$f" ] || [ "$(stat -c %s "$f")" -le 20480 ]; then echo "BAD: $f" >&2; bad=1; fi
+  done
+done <<<"$SHOWCASE_R5"
 echo "$(ls shots/*.png 2>/dev/null | wc -l) screenshots written"
 [ "$bad" = 0 ] || { echo "some shots missing or too small; vite log: $VLOG" >&2; exit 1; }

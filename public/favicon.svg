@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="SMOKESTACK">
+  <rect width="32" height="32" rx="4" fill="#1f150f"/>
+  <path fill="#c4a35a" d="M8 26h16v2H8zm3-2h10l1-8H10zm2-10h2v-3h2v3h2V8h-2V5h-2v3h-2z"/>
+  <path fill="#8a7348" d="M14 4c0 0 .5-2 2-2s2 2 2 2c0 1-1 2-2 2s-2-1-2-2z" opacity=".85"/>
+</svg>

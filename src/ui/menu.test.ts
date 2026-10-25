@@ -35,10 +35,22 @@ describe('main menu', () => {
     expect(btn(ui, 'Continue')).toBeUndefined();
   });
 
-  it('the home buttons: New game primary, Load game, Achievements and Settings quiet', () => {
+  it('the home buttons: New game primary, Load game, Achievements, About and Settings quiet', () => {
     const { ui } = mount();
     expect(btn(ui, 'New game').classList.contains('kit-btn--primary')).toBe(true);
-    for (const label of ['Load game', 'Achievements', 'Settings']) expect(btn(ui, label).classList.contains('kit-btn--quiet'), label).toBe(true);
+    for (const label of ['Load game', 'Achievements', 'About', 'Settings']) expect(btn(ui, label).classList.contains('kit-btn--quiet'), label).toBe(true);
+  });
+
+  it('About shows credits and returns home on Back', () => {
+    const { ui } = mount();
+    btn(ui, 'About').click();
+    expect(ui.querySelector('h2')?.textContent).toBe('About');
+    const body = ui.querySelector('.mn-about')?.textContent ?? '';
+    expect(body).toMatch(/Brass & Ledger/);
+    expect(body).toMatch(/Playfair Display/);
+    expect(body).toMatch(/Source Sans 3/);
+    btn(ui, 'Back').click();
+    expect(btn(ui, 'New game')).toBeTruthy();
   });
 
   it('with a save, Continue is secondary and loads the autosave', () => {
