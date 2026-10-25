@@ -178,7 +178,7 @@ describe('ToolController', () => {
     expect(renderer.ghost).toBeNull();
     // releasing after cancel builds nothing
     tc.pointerUp({ x: 4, y: 1 });
-    expect(game.ctx.state.map.tiles[1 * 40 + 2].road).toBe(false);
+    expect(game.ctx!.state.map.tiles[1 * 40 + 2].road).toBe(false);
   });
 
   it('bulldoze on road tile removes road', () => {
@@ -309,6 +309,26 @@ describe('ToolController', () => {
       tc.pointerDown({ x: 6, y: 4 }, { x: 6 * TILE, y: 5 * TILE - 4 });
       expect(renderer.selection).toBeNull();
     });
+  });
+});
+
+describe('ToolController before load', () => {
+  it('pointer and ghost calls are no-ops until ctx and renderer exist (menu→game handoff)', () => {
+    const game: ToolHost = {
+      camera: { x: 0, y: 0, zoom: 1, viewW: 800, viewH: 600 },
+      setTool: vi.fn(),
+      openPanel: vi.fn(),
+    };
+    const tc = new ToolController(game);
+    expect(() => {
+      tc.pointerMove({ x: 1, y: 1 }, { x: 16, y: 16 });
+      tc.pointerDown({ x: 1, y: 1 }, { x: 16, y: 16 });
+      tc.pointerUp({ x: 1, y: 1 });
+      tc.leave();
+      tc.refreshGhost();
+      tc.cancel();
+    }).not.toThrow();
+    expect(tc.ghost()).toBeNull();
   });
 });
 

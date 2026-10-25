@@ -27,9 +27,11 @@ import type { ToolSpec } from '../ui/tools';
 
 /** The slice of the GameController the tool controller needs (lets tests use a small stub). */
 export interface ToolHost {
-  ctx: SimContext;
+  /** Set by GameController.load; missing between construct and first load (pointer events can fire then). */
+  ctx?: SimContext;
   camera: Camera;
-  renderer: { setGhost(g: Ghost | null): void; setSelection(s: Selection | null): void };
+  /** Same lifetime as `ctx`: absent until the world renderer is built in load(). */
+  renderer?: { setGhost(g: Ghost | null): void; setSelection(s: Selection | null): void };
   setTool(t: ToolSpec): void;
   openPanel(id: string, arg?: unknown): void;
 }
@@ -110,6 +112,11 @@ export class ToolController {
     return this.tool;
   }
 
+  /** False until GameController.load has attached ctx + renderer (menu→game handoff). */
+  private get ready(): boolean {
+    return this.game.ctx !== undefined && this.game.renderer !== undefined;
+  }
+
   /** Called by the game whenever the tool changes (only `cancel` calls back into game.setTool). */
   setTool(t: ToolSpec): void {
     this.tool = t;
@@ -127,7 +134,7 @@ export class ToolController {
     this.dragStart = null;
     this.pressed = false;
     this.tool = { kind: 'inspect' };
-    this.game.renderer.setSelection(null);
+    this.game.renderer?.setSelection(null);
     this.game.setTool({ kind: 'inspect' });
     this.refreshGhost();
   }
@@ -141,6 +148,7 @@ export class ToolController {
 
   /** `world` is the exact world-px point clicked (picks raised roofs); without it the tile centre is used. */
   pointerDown(tile: Vec2, world?: Vec2): void {
+    if (!this.ready) return;
     this.hover = { ...tile };
     this.hoverWorld = world ? { ...world } : null;
     this.pressed = true;
@@ -171,6 +179,7 @@ export class ToolController {
 
   /** `world` is the exact world-px point: the bulldoze ghost then names what a click there would pick. */
   pointerMove(tile: Vec2, world?: Vec2): void {
+    if (!this.ready) return;
     const sameTile = this.hover !== null && this.hover.x === tile.x && this.hover.y === tile.y;
     this.hoverWorld = world ? { ...world } : null;
     if (sameTile) {
@@ -186,17 +195,19 @@ export class ToolController {
   }
 
   pointerUp(tile: Vec2): void {
+    if (!this.ready) return;
     this.hover = { ...tile };
     this.pressed = false;
     const start = this.dragStart;
     this.dragStart = null;
+    const ctx = this.ctx;
     if (start && (this.tool.kind === 'road' || this.tool.kind === 'rail')) {
       const tiles = lPath(start, tile);
-      const r = this.tool.kind === 'rail' ? buildRail(this.game.ctx, 'player', tiles) : buildRoad(this.game.ctx, 'player', tiles);
+      const r = this.tool.kind === 'rail' ? buildRail(ctx, 'player', tiles) : buildRoad(ctx, 'player', tiles);
       if (!r.ok) this.toast(r.error, 'bad');
     }
     if (start && this.tool.kind === 'trees') {
-      const r = plantForest(this.game.ctx, 'player', rectTiles(start, tile));
+      const r = plantForest(ctx, 'player', rectTiles(start, tile));
       if (!r.ok) this.toast(r.error, 'bad');
     }
     this.refreshGhost();
@@ -204,16 +215,22 @@ export class ToolController {
 
   // ------------------------------------------------------------------ actions
 
+  private get ctx(): SimContext {
+    const ctx = this.game.ctx;
+    if (!ctx) throw new Error('ToolController used before GameController.load');
+    return ctx;
+  }
+
   private get state(): GameState {
-    return this.game.ctx.state;
+    return this.ctx.state;
   }
 
   private toast(message: string, tone: 'info' | 'good' | 'bad'): void {
-    this.game.ctx.bus.emit({ type: 'toast', message, tone });
+    this.game.ctx?.bus.emit({ type: 'toast', message, tone });
   }
 
   private build(typeId: string, tile: Vec2): void {
-    const r = placeBuilding(this.game.ctx, 'player', typeId, centredPos(typeId, tile));
+    const r = placeBuilding(this.ctx, 'player', typeId, centredPos(typeId, tile));
     if (!r.ok) this.toast(r.error, 'bad');
   }
 
@@ -229,15 +246,15 @@ export class ToolController {
     if (buildingId !== null) {
       if (!explicit) return;
       const affected = routesUsing(this.state, buildingId);
-      const r = demolishBuilding(this.game.ctx, buildingId, 'player');
+      const r = demolishBuilding(this.ctx, buildingId, 'player');
       if (!r.ok) this.toast(r.error, 'bad');
-      else reportLostStops(this.game.ctx, affected);
+      else reportLostStops(this.ctx, affected);
     } else if (t?.rail) {
       // rail first: on a level crossing the road stays
-      const r = removeRail(this.game.ctx, 'player', [tile]);
+      const r = removeRail(this.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
     } else if (t?.road) {
-      const r = removeRoad(this.game.ctx, 'player', [tile]);
+      const r = removeRoad(this.ctx, 'player', [tile]);
       if (!r.ok && explicit) this.toast(r.error, 'bad');
     }
   }
@@ -267,7 +284,8 @@ export class ToolController {
   }
 
   private inspect(tile: Vec2, world?: Vec2): void {
-    const { renderer } = this.game;
+    const renderer = this.game.renderer;
+    if (!renderer) return;
     // buildings are drawn over vehicles, so a raised roof hides (and wins over) a truck behind it
     const id = this.buildingAt(tile, world);
     if (id !== null) {
@@ -376,7 +394,11 @@ export class ToolController {
 
   /** Recomputes the ghost and pushes it to the renderer. Also called by the game after each sim step batch. */
   refreshGhost(): void {
+    if (!this.ready) {
+      this.current = null;
+      return;
+    }
     this.current = this.computeGhost();
-    this.game.renderer.setGhost(this.current);
+    this.game.renderer!.setGhost(this.current);
   }
 }

@@ -79,7 +79,8 @@ export class GameController {
    * by the HUD's More menu with the screen to open (Save, Load, Settings).
    */
   onPause: ((screen?: PauseScreen) => void) | null = null;
-  private readonly input: Input;
+  /** Attached on first load(), not in the constructor: the canvas can see pointer events during the menu→game handoff before ctx/renderer exist. */
+  private input: Input | null = null;
   private readonly g2d: CanvasRenderingContext2D;
   /** unfiltered canvas above the world for ghost, selection and floaters */
   readonly overlay: HTMLCanvasElement;
@@ -148,7 +149,6 @@ export class GameController {
       onMenu: (screen) => this.onPause?.(screen),
     });
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
-    this.input = new Input(canvas, this);
     this.disposers.push(mountAlerts(this.hud.alertsSlot, this));
     this.disposers.push(mountChainHealth(this.hud.chainSlot, this));
     this.disposers.push(mountRivalStrip(this.hud.rivalSlot, this));
@@ -202,6 +202,8 @@ export class GameController {
       this.renderer.attachOverlay(this.overlay);
     }
     this.renderer.setSelection(null);
+    // listen for map input only once the world exists (constructor is too early for the menu handoff)
+    if (!this.input) this.input = new Input(this.canvas, this);
     this.followId = null;
     this.busOffs = [
       this.renderer.attachEffects(bus),
@@ -492,7 +494,7 @@ export class GameController {
     const dt = this.lastFrame === null ? 0 : Math.max(0, now - this.lastFrame);
     this.lastFrame = now;
     for (const fn of this.frameHooks) fn(now);
-    this.input.update(Math.min(dt, 100));
+    this.input?.update(Math.min(dt, 100));
     if (this.followId !== null) {
       const v = this.state.vehicles[this.followId];
       if (v) this.centerOn(v.pos);
@@ -535,7 +537,8 @@ export class GameController {
     clearInterval(this.watchdog);
     for (const off of this.busOffs) off();
     this.busOffs = [];
-    this.input.destroy();
+    this.input?.destroy();
+    this.input = null;
     window.removeEventListener('resize', this.onResize);
     this.dprQuery?.removeEventListener('change', this.onDprChange);
     this.hudObserver?.disconnect();
