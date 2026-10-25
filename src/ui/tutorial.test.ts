@@ -12,22 +12,26 @@ import { Hud } from './hud';
 import { Toolbar } from './toolbar';
 import { shouldOfferTutorial, Tutorial, TUTORIAL_KEY, TUTORIAL_STEPS, tutorialStatus } from './tutorial';
 
-const IDS = ['welcome', 'lumber_camp', 'sawmill', 'furniture_factory', 'store', 'roads', 'route', 'truck', 'first_sale'];
+const IDS = [
+  'welcome', 'lumber_camp', 'sawmill', 'furniture_factory', 'store', 'roads', 'route', 'truck', 'first_sale', 'alerts', 'codex',
+];
 
-/** Index of the first step whose predicate is not yet met (9 = all done). */
+/** Index of the first step whose predicate is not yet met (11 = all done). */
 const progress = (s: GameState) => {
   const i = TUTORIAL_STEPS.findIndex((st) => !st.done(s));
   return i < 0 ? TUTORIAL_STEPS.length : i;
 };
 
 describe('TUTORIAL_STEPS', () => {
-  it('has the nine steps in order, ending with the first sale', () => {
+  it('has eleven steps in order: furniture chain, then alerts and codex', () => {
     expect(TUTORIAL_STEPS.map((s) => s.id)).toEqual(IDS);
     for (const s of TUTORIAL_STEPS) expect(s.text.length).toBeGreaterThan(10);
-    expect(TUTORIAL_STEPS[8].doneText).toBe("Ka-ching! You're in business.");
+    expect(TUTORIAL_STEPS[TUTORIAL_STEPS.length - 1].doneText).toBe("Ka-ching! You're in business.");
+    expect(TUTORIAL_STEPS.find((s) => s.id === 'alerts')?.manual).toBe(true);
+    expect(TUTORIAL_STEPS.find((s) => s.id === 'codex')?.manual).toBe(true);
   });
 
-  it('predicates follow a real game from empty map to first sale', () => {
+  it('predicates follow a real game from empty map to first sale, then stop on alerts', () => {
     const state = createGame({ seed: 42, companyName: 'Tutorial Co.', rival: false });
     const ctx: SimContext = { state, bus: new EventBus() };
     expect(progress(state)).toBe(0);
@@ -54,7 +58,11 @@ describe('TUTORIAL_STEPS', () => {
     for (const r of routes) must(buyTruck(ctx, 'player', r.id));
     expect(progress(state)).toBe(8);
     for (let d = 0; d < 120 && progress(state) < 9; d++) runDays(ctx, 1);
+    // first sale met; alerts/codex are manual and must not auto-finish
     expect(progress(state)).toBe(9);
+    expect(TUTORIAL_STEPS[9].id).toBe('alerts');
+    expect(TUTORIAL_STEPS[9].done(state)).toBe(false);
+    expect(TUTORIAL_STEPS[10].done(state)).toBe(false);
   });
 
   it('a step is not done by the rival', () => {
@@ -103,11 +111,11 @@ describe('Tutorial card', () => {
     expect(card()).not.toBeNull();
     expect(card()!.classList.contains('brass-card') || card()!.className.includes('tut')).toBe(true);
     expect(card()!.textContent).toContain(TUTORIAL_STEPS[0].text.slice(0, 20));
-    expect(card()!.textContent).toContain('1 / 9');
+    expect(card()!.textContent).toContain('1 / 11');
     // welcome advances with Next
     card()!.querySelector<HTMLButtonElement>('[data-act="next"]')!.click();
     expect(t.stepIndex).toBe(1);
-    expect(card()!.textContent).toContain('2 / 9');
+    expect(card()!.textContent).toContain('2 / 11');
     expect(root.querySelectorAll('.tut-highlight').length).toBeGreaterThan(0);
     t.destroy();
   });
