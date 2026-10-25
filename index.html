@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#07090d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>SMOKESTACK — An Industry Tycoon</title>
     <meta name="description" content="A browser industry tycoon from 1900 to 2000. Build production chains across 61 goods, supply towns, and outwit Baron Smogsworth." />
     <meta property="og:type" content="website" />
@@ -15,7 +19,7 @@
     <meta name="twitter:image" content="./og.png" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1a16; }
+      html, body { margin: 0; height: 100%; height: 100dvh; overflow: hidden; overscroll-behavior: none; background: #07090d; -webkit-tap-highlight-color: transparent; }
       #world { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
       #ui { position: fixed; inset: 0; pointer-events: none; zoom: var(--ui-scale, 1); z-index: 101; /* above the side panel (100) so top-bar dropdowns are not covered */ }
       #ui > * { pointer-events: auto; }

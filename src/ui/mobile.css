@@ -1,0 +1,99 @@
+/* Narrow / touch layout (playable phones & small tablets). Tokens only (cssGate). */
+
+/* Prefer landscape hint only — portrait still works with a full-width dock. */
+@media (max-width: 720px) {
+  .hud-bar {
+    height: calc(44px + env(safe-area-inset-top, 0px));
+    gap: var(--sp-1);
+    padding-left: max(var(--sp-2), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--sp-2), env(safe-area-inset-right, 0px));
+  }
+
+  .hud-crest,
+  .hud-era {
+    display: none;
+  }
+
+  .hud-name {
+    max-width: 100px;
+    font-size: var(--fs-sm);
+  }
+
+  .hud-money {
+    height: 28px;
+    font-size: var(--fs-md);
+    padding: 0 var(--sp-2);
+  }
+
+  .hud-delta {
+    display: none;
+  }
+
+  .hud-speed-btn {
+    min-width: 28px;
+    height: 26px;
+  }
+
+  .hud-btn {
+    height: 30px;
+    min-width: 30px;
+    padding: 0 var(--sp-1);
+  }
+
+  .toolbar {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    max-width: none;
+    width: auto;
+  }
+
+  .tb-flyout {
+    max-width: calc((100 * var(--uvw)) - 16px);
+  }
+
+  .tool-card {
+    flex-basis: 112px;
+  }
+
+  /* Dock takes the screen: map stays visible only as a thin strip when a panel is open */
+  .side-panel:not(.collapsed) {
+    border-left-width: 0;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55);
+  }
+
+  .side-panel .window-body {
+    padding: var(--sp-2);
+    font-size: var(--fs-sm);
+  }
+
+  .kit-btn {
+    min-height: 36px;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .mkt-acts .kit-btn {
+    min-height: 32px;
+  }
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  .hud-clock .hud-date {
+    font-size: var(--fs-sm);
+  }
+}
+
+/* Coarse pointers: larger hit targets without waiting for a narrow width (tablets). */
+@media (pointer: coarse) {
+  .hud-btn,
+  .hud-speed-btn,
+  .tb-tab,
+  .side-panel-tab,
+  .kit-btn {
+    min-height: 36px;
+  }
+
+  .kit-btn {
+    padding: var(--sp-2) var(--sp-3);
+  }
+}

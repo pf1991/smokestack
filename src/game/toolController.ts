@@ -139,6 +139,13 @@ export class ToolController {
     this.refreshGhost();
   }
 
+  /** Drops an in-progress stroke without changing the tool (second finger starts a pinch). */
+  abortDrag(): void {
+    this.dragStart = null;
+    this.pressed = false;
+    this.refreshGhost();
+  }
+
   /** The pointer left the map canvas. */
   leave(): void {
     this.hover = null;

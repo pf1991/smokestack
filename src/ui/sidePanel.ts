@@ -21,8 +21,14 @@ export const MIN_PANEL_W = 320;
 export const MAX_PANEL_FRAC = 0.6;
 /** Automatic widening for a wide window stops at this fraction of the viewport, so the map keeps 60%. */
 export const AUTO_WIDE_FRAC = 0.4;
+/** Below this width the dock goes nearly full-screen so phone layouts stay usable. */
+export const NARROW_VIEWPORT = 720;
 /** Width of the collapsed rail. */
 export const RAIL_W = 28;
+
+export function isNarrowViewport(vw = typeof window !== 'undefined' ? window.innerWidth : 1280): boolean {
+  return vw < NARROW_VIEWPORT;
+}
 /** Below the card modal (4000) and the menu modals (5000). */
 const Z_BASE = 100;
 const DEFAULT_WIDTH_CSS = 'min(420px, 34vw)';
@@ -83,11 +89,18 @@ function savedWidth(): number | null {
 function applyWidth(): void {
   if (!root) return;
   const s = currentUiScale();
+  const vw = window.innerWidth;
+  const narrow = isNarrowViewport(vw);
+  root.classList.toggle('narrow', narrow);
   if (collapsed) {
     root.style.width = `${RAIL_W}px`;
     return;
   }
-  const vw = window.innerWidth;
+  // phones: nearly full width so inspectors and Market stay readable
+  if (narrow) {
+    root.style.width = `${Math.max(MIN_PANEL_W, vw - 8) / s}px`;
+    return;
+  }
   const w = savedWidth();
   const asked = activeId !== null ? tabs.get(activeId)?.spec.width : undefined;
   if (w !== null) root.style.width = `${clampPanelWidth(w, vw) / s}px`;

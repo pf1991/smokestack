@@ -15,6 +15,8 @@ export interface InputHost {
     pointerUp(t: Vec2): void;
     leave(): void;
     cancel(): void;
+    /** drop an in-progress road/rail drag without changing the tool (second finger / pinch) */
+    abortDrag?(): void;
   };
   setSpeed(s: Speed): void;
   togglePause(): void;
@@ -58,6 +60,13 @@ const KEY_PAN_SPEED = 0.9;
 const WHEEL_STEP = 1.15;
 /** Manhattan screen px a left press must travel in Inspect before it becomes a pan. */
 export const DRAG_THRESHOLD_PX = 6;
+/** Touch taps wobble more than mouse clicks. */
+export const TOUCH_DRAG_THRESHOLD_PX = 12;
+
+/** True for finger / pen input (one-finger tools, two-finger pan + pinch). */
+export function isTouchPointer(e: Pick<PointerEvent, 'pointerType'>): boolean {
+  return e.pointerType === 'touch' || e.pointerType === 'pen';
+}
 
 /** True when keyboard focus is in a text field, where game shortcuts must not fire. */
 export function isTyping(target: EventTarget | null): boolean {
@@ -67,10 +76,9 @@ export function isTyping(target: EventTarget | null): boolean {
 }
 
 /**
- * Mouse, wheel and keyboard handling per Game Design → Controls. Left button → current tool;
- * right/middle drag pans; wheel zooms at the cursor; WASD/arrows pan; Space pauses; 1–4 set speeds;
- * Esc cancels the tool; B toggles the toolbar; Delete picks the bulldozer; panel, overlay and help keys come from ui/shortcuts.
- * In photo mode (`host.photoActive`) the left button pans too and only Esc, P and the pan keys act.
+ * Mouse, wheel, touch and keyboard handling. Left button → current tool; right/middle drag pans;
+ * wheel zooms; WASD/arrows pan. On touch: one finger uses the tool (or pans in Inspect), two
+ * fingers pan and pinch-zoom. Photo mode: left pans; only Esc, P and pan keys act.
  */
 export class Input {
   private held = new Set<string>();
@@ -78,6 +86,9 @@ export class Input {
   /** an Inspect left press that has not yet moved far enough to be a pan */
   private pending: { x: number; y: number; id: number; world: Vec2; tile: Vec2 } | null = null;
   private toolPointer: number | null = null;
+  /** live pointers on the canvas (touch needs two for pan/pinch) */
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private pinch: { dist: number; midX: number; midY: number } | null = null;
   private readonly offs: (() => void)[] = [];
 
   constructor(
@@ -105,12 +116,72 @@ export class Input {
     on(canvas, 'pointerup', (e) => this.up(e));
     on(canvas, 'pointercancel', (e) => this.up(e));
     on(canvas, 'pointerleave', () => {
-      if (this.toolPointer === null) this.host.tools.leave();
+      if (this.toolPointer === null && this.pointers.size === 0) this.host.tools.leave();
     });
     on(canvas, 'wheel', (e) => this.wheel(e), { passive: false });
     onWin('keydown', (e) => this.keyDown(e));
     onWin('keyup', (e) => this.held.delete(e.key.toLowerCase()));
     onWin('blur', () => this.held.clear());
+  }
+
+  private threshold(e: PointerEvent): number {
+    return isTouchPointer(e) ? TOUCH_DRAG_THRESHOLD_PX : DRAG_THRESHOLD_PX;
+  }
+
+  private track(e: PointerEvent): void {
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+
+  private untrack(id: number): void {
+    this.pointers.delete(id);
+    if (this.pointers.size < 2) this.pinch = null;
+  }
+
+  private pair(): [{ x: number; y: number }, { x: number; y: number }] | null {
+    if (this.pointers.size < 2) return null;
+    const pts = [...this.pointers.values()];
+    return [pts[0]!, pts[1]!];
+  }
+
+  private beginPinch(): void {
+    const pair = this.pair();
+    if (!pair) return;
+    const [a, b] = pair;
+    this.pinch = {
+      dist: Math.hypot(b.x - a.x, b.y - a.y) || 1,
+      midX: (a.x + b.x) / 2,
+      midY: (a.y + b.y) / 2,
+    };
+    // a second finger cancels any one-finger pan / tool / pending inspect
+    this.pending = null;
+    this.pan = null;
+    if (this.toolPointer !== null) {
+      this.host.tools.abortDrag?.();
+      this.toolPointer = null;
+    }
+    this.setCursor('grabbing');
+    this.host.onManualPan?.();
+  }
+
+  private movePinch(): void {
+    const pair = this.pair();
+    if (!pair || !this.pinch) return;
+    const [a, b] = pair;
+    const dist = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    const cam = this.host.camera;
+    const r = this.canvas.getBoundingClientRect();
+    const lx = midX - r.left;
+    const ly = midY - r.top;
+    const factor = dist / this.pinch.dist;
+    if (factor > 0 && Number.isFinite(factor) && Math.abs(factor - 1) > 0.001) {
+      setZoomTarget(cam, lx, ly, factor);
+    }
+    cam.x -= (midX - this.pinch.midX) / cam.zoom;
+    cam.y -= (midY - this.pinch.midY) / cam.zoom;
+    this.pinch = { dist, midX, midY };
+    clampCamera(cam, this.host.map);
   }
 
   private local(e: MouseEvent): Vec2 {
@@ -145,6 +216,13 @@ export class Input {
   }
 
   private down(e: PointerEvent): void {
+    this.track(e);
+    this.capture(e.pointerId);
+    if (this.pointers.size >= 2) {
+      e.preventDefault();
+      this.beginPinch();
+      return;
+    }
     if (e.button === 0 && this.inspecting()) {
       const p = this.local(e);
       this.pending = {
@@ -154,26 +232,29 @@ export class Input {
         world: screenToWorld(this.host.camera, p.x, p.y),
         tile: this.tileOf(e),
       };
-      this.capture(e.pointerId);
       return;
     }
     if (e.button === 1 || e.button === 2 || (e.button === 0 && this.host.photoActive)) {
       e.preventDefault();
       this.startPan(e.clientX, e.clientY, e.pointerId);
-      this.capture(e.pointerId);
       return;
     }
     if (e.button !== 0) return;
     this.toolPointer = e.pointerId;
-    this.capture(e.pointerId);
     const p = this.local(e);
     this.host.tools.pointerDown(this.tileOf(e), screenToWorld(this.host.camera, p.x, p.y));
   }
 
   private move(e: PointerEvent): void {
+    if (this.pointers.has(e.pointerId)) this.track(e);
+    if (this.pinch || this.pointers.size >= 2) {
+      if (!this.pinch) this.beginPinch();
+      this.movePinch();
+      return;
+    }
     if (this.pending && e.pointerId === this.pending.id) {
       const pd = this.pending;
-      if (Math.abs(e.clientX - pd.x) + Math.abs(e.clientY - pd.y) < DRAG_THRESHOLD_PX) return;
+      if (Math.abs(e.clientX - pd.x) + Math.abs(e.clientY - pd.y) < this.threshold(e)) return;
       this.pending = null;
       this.startPan(pd.x, pd.y, pd.id, true);
     }
@@ -195,6 +276,15 @@ export class Input {
   }
 
   private up(e: PointerEvent): void {
+    const wasPinch = this.pinch !== null || this.pointers.size >= 2;
+    this.untrack(e.pointerId);
+    if (wasPinch) {
+      this.pan = null;
+      this.pending = null;
+      this.toolPointer = null;
+      this.setCursor(this.inspecting() || this.host.photoActive ? 'grab' : '');
+      return;
+    }
     if (this.pending && e.pointerId === this.pending.id) {
       const pd = this.pending;
       this.pending = null;

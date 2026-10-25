@@ -4,9 +4,18 @@ import { flatMap } from '../sim/testkit';
 import { isHelpOpen, openHelp } from '../ui/help';
 import { Input, type InputHost } from './input';
 
-function pointer(target: HTMLElement, type: string, button: number, x = 100, y = 100): void {
+function pointer(
+  target: HTMLElement,
+  type: string,
+  button: number,
+  x = 100,
+  y = 100,
+  id = 1,
+  pointerType = 'mouse',
+): void {
   const e = new MouseEvent(type, { bubbles: true, cancelable: true, button, clientX: x, clientY: y });
-  Object.defineProperty(e, 'pointerId', { value: 1 });
+  Object.defineProperty(e, 'pointerId', { value: id });
+  Object.defineProperty(e, 'pointerType', { value: pointerType });
   target.dispatchEvent(e);
 }
 
@@ -191,5 +200,34 @@ describe('Input with other tools', () => {
     canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: -20, ctrlKey: true, clientX: 400, clientY: 300, cancelable: true }));
     input.update(2000);
     expect(host.camera.zoom).toBeCloseTo(Math.exp(0.2), 2);
+  });
+});
+
+describe('Input two-finger touch', () => {
+  it('two fingers pinch-zoom and pan; one-finger tool is aborted', () => {
+    const { canvas, host, input } = setup(false, 'road');
+    const abortDrag = vi.fn();
+    (host.tools as { abortDrag?: () => void }).abortDrag = abortDrag;
+    pointer(canvas, 'pointerdown', 0, 100, 100, 1, 'touch');
+    expect(host.tools.pointerDown).toHaveBeenCalledTimes(1);
+    pointer(canvas, 'pointerdown', 0, 200, 100, 2, 'touch');
+    expect(abortDrag).toHaveBeenCalledTimes(1);
+    pointer(canvas, 'pointermove', 0, 100, 100, 1, 'touch');
+    pointer(canvas, 'pointermove', 0, 300, 100, 2, 'touch'); // distance 100 → 200
+    input.update(500);
+    expect(host.camera.zoom).toBeGreaterThan(1);
+    expect(host.onManualPan).toHaveBeenCalled();
+    pointer(canvas, 'pointerup', 0, 100, 100, 1, 'touch');
+    pointer(canvas, 'pointerup', 0, 300, 100, 2, 'touch');
+  });
+
+  it('two-finger midpoint drag pans without zoom when distance is steady', () => {
+    const { canvas, host } = setup(false, 'inspect');
+    pointer(canvas, 'pointerdown', 0, 100, 100, 1, 'touch');
+    pointer(canvas, 'pointerdown', 0, 200, 100, 2, 'touch');
+    const x0 = host.camera.x;
+    pointer(canvas, 'pointermove', 0, 80, 100, 1, 'touch');
+    pointer(canvas, 'pointermove', 0, 180, 100, 2, 'touch'); // mid moved −20, dist still 100
+    expect(host.camera.x).toBe(x0 + 20);
   });
 });

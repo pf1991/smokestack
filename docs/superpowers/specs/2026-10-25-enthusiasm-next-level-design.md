@@ -30,7 +30,7 @@ Exchange) stay expert-only. Several economy choices undermine the story we told 
 - Phase 5 inventions / patents / alternate history (separate design).
 - JEV Noul follow-ups (already planned in `2026-10-17-v2-jev-decisions.md`).
 - Full audio / music score.
-- Multiplayer, mobile layout, monetisation.
+- Multiplayer, monetisation. (Mobile layout: basic touch pan/pinch + narrow dock shipped 2026-10-25.)
 
 ## 2. Diagnosis (full analysis)
 

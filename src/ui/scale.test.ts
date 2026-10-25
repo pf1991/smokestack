@@ -10,6 +10,10 @@ describe('ui scale', () => {
   });
 
   it("'auto' resolves by viewport width", () => {
+    expect(resolveUiScale('auto', 390)).toBe(0.75);
+    expect(resolveUiScale('auto', 599)).toBe(0.75);
+    expect(resolveUiScale('auto', 600)).toBe(0.8);
+    expect(resolveUiScale('auto', 899)).toBe(0.8);
     expect(resolveUiScale('auto', 1366)).toBe(0.9);
     expect(resolveUiScale('auto', 1439)).toBe(0.9);
     expect(resolveUiScale('auto', 1440)).toBe(1);

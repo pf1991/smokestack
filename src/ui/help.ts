@@ -6,6 +6,8 @@ const MOUSE: [string, string][] = [
   ['Left-drag', 'Pan the map in Inspect'],
   ['Right or middle drag', 'Pan the map'],
   ['Wheel or pinch', 'Zoom at the cursor'],
+  ['Two fingers', 'Pan and pinch-zoom on a phone or tablet'],
+  ['One finger', 'Use the current tool (roads, build, …)'],
   ['W A S D or arrows', 'Pan with the keyboard'],
 ];
 

@@ -5,10 +5,17 @@ import { loadSettings, onSettingsSaved, type UiScale } from '../game/settings';
  * modal roots (never the map canvas, so map input stays in canvas pixels).
  */
 
-/** 'auto': 0.9 below 1440 px, 1 up to 2200 px, 1.15 above. */
+/**
+ * 'auto': phones 0.75, small tablets 0.8, laptops 0.9, desktops 1, large 1.15.
+ * Narrow screens need a smaller chrome so the map keeps usable space.
+ */
 export function resolveUiScale(setting: UiScale, viewportW: number): number {
   if (setting !== 'auto') return setting;
-  return viewportW < 1440 ? 0.9 : viewportW <= 2200 ? 1 : 1.15;
+  if (viewportW < 600) return 0.75;
+  if (viewportW < 900) return 0.8;
+  if (viewportW < 1440) return 0.9;
+  if (viewportW <= 2200) return 1;
+  return 1.15;
 }
 
 /** False only when the engine positively lacks CSS zoom; the scale is then forced to 1 so no px maths diverges from the layout. */

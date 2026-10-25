@@ -8,6 +8,7 @@ import '@fontsource/source-sans-3/latin-400.css';
 import '@fontsource/source-sans-3/latin-700.css';
 import './ui/theme.css';
 import './ui/kit.css';
+import './ui/mobile.css';
 import { EventBus } from './core/events';
 import { BUILDINGS } from './data/buildings';
 import { App } from './game/app';
