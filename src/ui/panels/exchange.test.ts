@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EventBus } from '../../core/events';
 import type { GameController } from '../../game/controller';
 import { buyBackNeed, buyBackQuote, buyShares, CONTROL_SHARES, holding, quote, sellQuote } from '../../sim/exchange/trading';
@@ -19,9 +19,11 @@ const panel = () => document.querySelector('.exchange-panel') as HTMLElement;
 const row = (id: string) => panel().querySelector(`.exchange-row[data-company="${id}"]`) as HTMLElement;
 const button = (id: string, action: string) => row(id).querySelector(`button[data-action="${action}"]`) as HTMLButtonElement;
 
+beforeEach(() => localStorage.clear());
 afterEach(() => {
   for (const b of document.querySelectorAll<HTMLElement>('.window-close')) b.click();
   document.body.replaceChildren();
+  localStorage.clear();
 });
 
 function ctx(): SimContext {
@@ -34,6 +36,17 @@ function ctx(): SimContext {
 describe('exchange panel', () => {
   it('is registered as PANELS.exchange', () => {
     expect(PANELS.exchange.id).toBe('exchange');
+  });
+
+  it('opens on a Now summary; Show full reveals listed companies', () => {
+    const c = ctx();
+    PANELS.exchange.open(game(c));
+    expect(panel().querySelector('[data-disc="now"] .kit-card-title')!.textContent).toBe('Now');
+    const full = panel().querySelector('[data-disc="full"]') as HTMLElement;
+    expect(full.hidden).toBe(true);
+    expect(full.querySelector('.exchange-row')).not.toBeNull();
+    (panel().querySelector('[data-disc="toggle"]') as HTMLElement).click();
+    expect(full.hidden).toBe(false);
   });
 
   it('shows a row per listed company with its price, a sparkline and the holdings', () => {

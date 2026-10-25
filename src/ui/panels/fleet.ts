@@ -7,6 +7,7 @@ import { hasNewerModel, modelRow, newestModel } from '../../sim/logistics/models
 import { assetAge, assetEfficiency } from '../../sim/society/aging';
 import type { IconId } from '../../render/icons';
 import { h } from '../dom';
+import { nowCard, progressiveDisclosure, type NowItem } from '../disclosure';
 import { iconEl } from '../icon';
 import { formatMoney, formatNumber } from '../format';
 import { button, dataTable, emptyState, panelHeader, type Column } from '../kit';
@@ -68,6 +69,39 @@ export function fleetHeadline(state: GameState): string {
   const vs = playerVehicles(state);
   const idle = vs.filter((v) => v.state === 'idle').length;
   return `${vs.length} ${vs.length === 1 ? 'vehicle' : 'vehicles'}, ${idle} idle`;
+}
+
+/** 1–3 fleet decisions for the Now card (E5): stuck trucks, idle fleet, empty. */
+export function fleetNow(state: GameState): NowItem[] {
+  const vs = playerVehicles(state);
+  if (vs.length === 0) {
+    return [{ label: 'No vehicles yet', detail: 'Open Routes, draw a line and buy a truck', tone: 'info' }];
+  }
+  const stuck = vs.filter((v) => v.state === 'stuck');
+  const idle = vs.filter((v) => v.state === 'idle' && v.hubId == null);
+  const items: NowItem[] = [];
+  if (stuck.length > 0) {
+    items.push({
+      label: `${stuck.length} stuck ${stuck.length === 1 ? 'vehicle' : 'vehicles'}`,
+      detail: 'Open Idle or stuck, locate them, or reassign the route',
+      tone: 'negative',
+    });
+  }
+  if (idle.length > 0) {
+    items.push({
+      label: `${idle.length} idle off a route`,
+      detail: 'Assign a route below, or sell what you do not need',
+      tone: 'warning',
+    });
+  }
+  if (items.length === 0) {
+    items.push({ label: fleetHeadline(state), detail: 'Fleet is moving', tone: 'positive' });
+  }
+  const upkeep = vs.reduce((sum, v) => sum + vehicleUpkeep(state, v), 0);
+  if (items.length < 3) {
+    items.push({ label: `${formatMoney(upkeep)}/mo upkeep`, tone: 'neutral' });
+  }
+  return items.slice(0, 3);
 }
 
 /** Cargo as icon + quantity pairs ("Empty" when nothing aboard); `sig` changes only when the display would. */
@@ -148,6 +182,13 @@ class FleetPanel {
   private readonly rows = new Map<number, Row>();
   private listSig = '\0';
   private timer = 0;
+  private readonly disc = progressiveDisclosure({
+    panelId: 'fleet',
+    expandLabel: 'Show full Fleet',
+    coachText: 'Stuck and idle trucks lead. Open the full fleet for every vehicle, routes and upgrades.',
+    now: nowCard([]),
+    full: h('div', { class: 'fl-full' }),
+  });
 
   constructor(private readonly game: Host) {
     // compact viewports cap windows at 420px: drop cargo and trips, actions on a second line (fleet.css)
@@ -166,11 +207,12 @@ class FleetPanel {
         }, f.icon && iconEl(f.icon, 14), f.icon ? ` ${f.label}` : f.label),
       );
     }
-    this.root.append(
-      this.header,
+    const full = this.disc.el.querySelector('[data-disc="full"]') as HTMLElement;
+    full.append(
       h('div', { class: 'p-section fl-controls' }, this.summary, this.filterBar, h('div', { class: 'fl-routebar' }, this.routeSel, this.upgradeBtn)),
       this.body,
     );
+    this.root.append(this.header, this.disc.el);
     createWindow({ id: 'fleet', title: 'Fleet', content: this.root, width: 740, onClose: () => this.dispose() });
     this.timer = window.setInterval(() => this.update(), 1000);
     this.update();
@@ -269,6 +311,7 @@ class FleetPanel {
     const trouble = all.some(isProblem);
     swap(this.header, `${headline}|${trouble}`, () =>
       panelHeader({ title: 'Fleet', icon: 'truck', summary: headline, tone: trouble ? 'warning' : 'neutral' }));
+    this.disc.setNow(nowCard(fleetNow(state)));
     text(this.summary, fleetSummary(state));
     for (const b of this.filterBar.children) {
       const on = (b as HTMLElement).dataset.filter === this.filter;

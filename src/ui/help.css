@@ -25,6 +25,27 @@
 }
 .help-card h2 { margin: 0 0 10px; text-align: center; }
 .help-card h3 { margin: 14px 0 6px; font-size: var(--fs-md); border-bottom: 1px solid var(--brass-dark); }
+.help-primer {
+  margin: 0 0 10px;
+  padding: 0 0 0 1.25em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+.help-primer li { line-height: 1.35; }
+.help-primer strong {
+  display: inline-block;
+  min-width: 7.5em;
+  color: var(--brass-light);
+  margin-right: 6px;
+}
+.help-primer-pointers {
+  margin: 0 0 14px;
+  font-size: var(--fs-sm);
+  color: var(--brass-light);
+  text-align: center;
+}
 .help-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 18px; margin: 0; padding: 0; list-style: none; }
 .help-list li { display: flex; align-items: center; gap: 8px; }
 .help-key {

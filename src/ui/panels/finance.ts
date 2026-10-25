@@ -11,6 +11,7 @@ import { GOODS } from '../../data/goods';
 import { ICON_IDS } from '../../render/icons';
 import { cssColor, lineChart } from '../charts';
 import { h } from '../dom';
+import { nowCard, progressiveDisclosure, type NowItem } from '../disclosure';
 import { formatMoney } from '../format';
 import { button, dataTable, deltaText, emptyState, meter, panelHeader, section, statRow, statTile, type Tone } from '../kit';
 import { openMonth } from '../ledger';
@@ -104,6 +105,27 @@ function summaryOf(ledger: LedgerMonth[], date: GameState['date']): { summary: s
   // nothing booked yet: a brand-new ledger, or a month that has only just begun
   const history = ledger.some((m) => m !== open);
   return { summary: history ? 'Breaking even this month so far' : 'A new ledger: your first month is under way', tone: 'neutral' };
+}
+
+/** 1–3 finance decisions for the Now card (E5). */
+export function financeNow(state: GameState): NowItem[] {
+  const player = state.companies.player;
+  const head = summaryOf(player.ledger, state.date);
+  const items: NowItem[] = [{ label: head.summary, tone: head.tone }];
+  items.push({
+    label: `Cash ${formatMoney(player.money)}`,
+    detail: player.loan > 0 ? `Loan ${formatMoney(player.loan)} outstanding` : 'No loan',
+    tone: player.money < 0 ? 'negative' : player.loan > 0 ? 'warning' : 'neutral',
+  });
+  const costs = yearCosts(player.ledger, state.date.year);
+  if (costs[0]) {
+    items.push({
+      label: `Biggest cost: ${costs[0].label}`,
+      detail: `${formatMoney(costs[0].value)} this year`,
+      tone: 'neutral',
+    });
+  }
+  return items.slice(0, 3);
 }
 
 /** This year's spending by category, nonzero only, largest first. */
@@ -243,17 +265,30 @@ export const financePanel: PanelDef = {
     // a closed section has no width to draw into: draw the sparkline when it is opened
     pricesSection.addEventListener('toggle', () => update());
 
-    const body = h(
+    const full = h(
       'div',
-      { class: 'finance' },
-      headerBox,
-      tilesBox,
-      section('Where the money goes', [costsBox]),
+      { class: 'finance-full' },
       chartsSection,
       salesSection,
       statementSection,
       section('Companies', [companiesBox]),
       pricesSection,
+    );
+    const disc = progressiveDisclosure({
+      panelId: 'finance',
+      expandLabel: 'Show full ledger',
+      coachText: 'Cash, profit and costs sit up top. Open the full ledger for charts, the income statement and every company.',
+      now: nowCard(financeNow(game.state)),
+      full,
+    });
+
+    const body = h(
+      'div',
+      { class: 'finance' },
+      headerBox,
+      disc.el,
+      tilesBox,
+      section('Where the money goes', [costsBox]),
       // pinned to the foot of the panel so Borrow and Repay stay in reach while the charts scroll
       h('div', { class: 'p-actions' }, borrowBtn, repayBtn),
     );
@@ -283,6 +318,7 @@ export const financePanel: PanelDef = {
       // 1. Header: are we making money this month, and if not, what costs most.
       const head = summaryOf(player.ledger, state.date);
       swap(headerBox, `${head.tone}|${head.summary}`, () => panelHeader({ title: 'Finance', ...head }));
+      disc.setNow(nowCard(financeNow(state)));
 
       // 2. Cash, this month's profit against last month's, net worth and the loan.
       const open = openMonth(player.ledger, state.date);

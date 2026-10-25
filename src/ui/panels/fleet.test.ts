@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameController } from '../../game/controller';
 import { buildRoad, lPath, placeBuilding } from '../../sim/state';
 import { must, testCtx, testState } from '../../sim/testkit';
@@ -34,12 +34,26 @@ const win = () => document.querySelector('.window') as HTMLElement;
 const click = (sel: string) => (win().querySelector(sel) as HTMLElement).click();
 const rows = () => [...win().querySelectorAll<HTMLElement>('.fl-row')].map((r) => Number(r.dataset.vehicle));
 
+beforeEach(() => localStorage.clear());
 afterEach(() => {
   (document.querySelector('.window-close') as HTMLElement | null)?.click();
   document.body.replaceChildren();
+  localStorage.clear();
 });
 
 describe('fleet panel', () => {
+  it('opens on a Now summary; Show full reveals the vehicle table', () => {
+    const { ctx, r1, host } = setup();
+    must(buyTruck(ctx, 'player', r1.id));
+    PANELS.fleet.open(host);
+    expect(win().querySelector('[data-disc="now"] .kit-card-title')!.textContent).toBe('Now');
+    const full = win().querySelector('[data-disc="full"]') as HTMLElement;
+    expect(full.hidden).toBe(true);
+    expect(full.querySelector('.fl-row')).not.toBeNull();
+    (win().querySelector('[data-disc="toggle"]') as HTMLElement).click();
+    expect(full.hidden).toBe(false);
+  });
+
   it('fleet filter shows only idle or stuck', () => {
     const { ctx, r1, host } = setup();
     const a = must(buyTruck(ctx, 'player', r1.id));

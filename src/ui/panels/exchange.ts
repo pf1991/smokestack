@@ -15,6 +15,7 @@ import { bidMonthsLeft, bidOpen } from '../../sim/nemesis/bid';
 import type { GameState, OwnerId } from '../../sim/types';
 import { sparkline } from '../charts';
 import { h } from '../dom';
+import { nowCard, progressiveDisclosure, type NowItem } from '../disclosure';
 import './panels.css';
 import { formatMoney } from '../format';
 import { button, emptyState, panelHeader, section } from '../kit';
@@ -68,6 +69,30 @@ export function exchangeHeadline(state: GameState): string {
   if (!best) return 'No holdings yet';
   const shares = state.exchange.listings[best.id].shares || SHARES_OUTSTANDING;
   return `Your shares: ${Math.round((best.n / shares) * 100)}% of ${state.companies[best.id]?.name ?? best.id}`;
+}
+
+/** 1–3 exchange decisions for the Now card (E5). */
+export function exchangeNow(state: GameState): NowItem[] {
+  const items: NowItem[] = [];
+  if (bidOpen(state)) {
+    const months = bidMonthsLeft(state);
+    const need = buyBackNeed(state);
+    items.push({
+      label: `Hostile bid: ${plural(months, 'month')} left`,
+      detail: `Buy back ${need} shares before the deadline or lose the company`,
+      tone: 'negative',
+    });
+  }
+  items.push({ label: exchangeHeadline(state), tone: items.length ? 'warning' : 'info' });
+  const listed = companyIds(state).filter((id) => state.exchange.listings[id]?.listed && state.companies[id]?.active);
+  if (listed.length > 0) {
+    items.push({
+      label: `${listed.length} compan${listed.length === 1 ? 'y' : 'ies'} listed`,
+      detail: 'Buy and sell in lots of 10 below',
+      tone: 'neutral',
+    });
+  }
+  return items.slice(0, 3);
 }
 
 function noneListed(): HTMLElement {
@@ -189,11 +214,22 @@ function render(game: GameController, rerender: () => void): { el: HTMLElement; 
   }
   const note = section('How the exchange works', [h('p', { class: 'exchange-note-text' }, `Shares trade in lots of 10; each 50 bought moves the price 2%, and the broker takes 1%. ${CONTROL_SHARES} of a company's 1,000 shares takes it over; to take control of Smogsworth you need ${CONTROL_WEALTH_RATIO}× his wealth, and the lot that takes it costs a control premium as large again as 510 of its shares.`)]);
   note.classList.add('exchange-note');
-  const el = h('div', { class: 'exchange-panel' },
-    h('div', { class: 'exchange-header' }, panelHeader({ title: 'Exchange', summary: exchangeHeadline(state) })),
-    bidBanner(game, rerender),
+  // hostile bid stays above the fold — the buy-back is the decision, not a ledger row
+  const banner = bidBanner(game, rerender);
+  const full = h('div', { class: 'exchange-full' },
     section('Listed companies', rows.length > 0 ? rows : [noneListed()]),
     note);
+  const disc = progressiveDisclosure({
+    panelId: 'exchange',
+    expandLabel: 'Show full Exchange',
+    coachText: 'Your stake and any hostile bid sit up top. Open the full board for every listing and the buy/sell lots.',
+    now: nowCard(exchangeNow(state)),
+    full,
+  });
+  const el = h('div', { class: 'exchange-panel' },
+    h('div', { class: 'exchange-header' }, panelHeader({ title: 'Exchange', summary: exchangeHeadline(state) })),
+    banner,
+    disc.el);
   return { el, live: { update: () => updates.forEach((u) => u()) } };
 }
 

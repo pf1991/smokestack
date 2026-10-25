@@ -64,7 +64,7 @@
   border-radius: var(--r-sm) var(--r-sm) 0 0;
 }
 
-/* invention fanfare: ~10s pulse on the matching build tab (Toolbar.pulseTab) */
+/* invention fanfare / E5 coach: ~10s pulse on the matching build tab (Toolbar.pulseTab) */
 .tb-tab[data-pulse] {
   color: var(--text);
   animation: tb-pulse 1.2s ease-in-out infinite;
@@ -73,6 +73,16 @@
 @keyframes tb-pulse {
   0%, 100% { background: transparent; box-shadow: inset 0 -2px 0 var(--accent); }
   50% { background: var(--surface-3); box-shadow: inset 0 -2px 0 var(--positive); }
+}
+
+/* E5 systems coach: pulse a tool card (e.g. Trading House) */
+.tool-card[data-pulse] {
+  animation: tc-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes tc-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--accent-quiet); }
+  50% { box-shadow: inset 0 0 0 2px var(--positive); background: var(--surface-3); }
 }
 
 .tb-key {

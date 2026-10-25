@@ -38,11 +38,25 @@ function month(year: number, m: number, income: LedgerMonth['income'], expense: 
 describe('finance panel', () => {
   beforeEach(() => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    localStorage.clear();
   });
   afterEach(() => {
     vi.restoreAllMocks();
     closeAllWindows();
     document.body.replaceChildren();
+    localStorage.clear();
+  });
+
+  it('opens on a Now summary; Show full ledger reveals charts and statement', () => {
+    const body = openFinance();
+    expect(body.querySelector('[data-disc="now"] .kit-card-title')!.textContent).toBe('Now');
+    expect(body.querySelector('[data-disc="now"]')!.textContent).toContain('new ledger');
+    const full = body.querySelector('[data-disc="full"]') as HTMLElement;
+    expect(full.hidden).toBe(true);
+    expect(full.querySelector('.finance-charts-section')).not.toBeNull();
+    expect(full.querySelector('.finance-statement')).not.toBeNull();
+    (body.querySelector('[data-disc="toggle"]') as HTMLElement).click();
+    expect(full.hidden).toBe(false);
   });
 
   it('empty game: neutral summary, four tiles, chart empty state, closed statement', () => {

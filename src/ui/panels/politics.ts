@@ -17,6 +17,7 @@ import { nonCompliant } from '../../sim/society/lawState';
 import type { CompanyEdicts, PoliticsLogEntry } from '../../sim/politics/types';
 import type { GameState, SimContext } from '../../sim/types';
 import { h } from '../dom';
+import { nowCard, progressiveDisclosure, type NowItem } from '../disclosure';
 import { formatMoney, formatNumber } from '../format';
 import { dataTable, emptyState, meter, panelHeader, section } from '../kit';
 import { createWindow } from '../window';
@@ -73,6 +74,42 @@ export function nextElectionText(state: GameState): string {
   if (!next) return 'No town elections scheduled';
   const months = Math.max(0, next.politics.nextElection - monthIndex(state.date));
   return `Next election: ${next.name} ${months === 0 ? 'this month' : `in ${months} ${months === 1 ? 'month' : 'months'}`}`;
+}
+
+/** 1–3 actionable politics decisions for the Now card (E5 progressive disclosure). */
+export function politicsNow(state: GameState): NowItem[] {
+  const year = state.date.year;
+  const items: NowItem[] = [{ label: nextElectionText(state), tone: 'info' }];
+  let worst: { f: FactionId; v: number } | undefined;
+  for (const f of FACTION_IDS) {
+    const v = nationalOpinion(state, f);
+    if (!worst || v < worst.v) worst = { f, v };
+  }
+  if (worst && worst.v < 45) {
+    items.push({
+      label: `${factionName(worst.f, year)} at ${Math.round(worst.v)}`,
+      detail: 'Lowest national opinion — gifts, contracts and edicts move them',
+      tone: 'warning',
+    });
+  }
+  const dead = nationalBlackLung(state);
+  if (dead > 0) {
+    items.push({
+      label: `${formatNumber(dead)} dead of smog`,
+      detail: 'Black Lung toll — scrubbers and trees cool Reformers',
+      tone: 'negative',
+    });
+  } else if (items.length < 3) {
+    const pending = LAW_IDS.filter((id) => state.society.laws[id].passed === null);
+    if (pending.length > 0) {
+      items.push({
+        label: `${pending.length} law${pending.length === 1 ? '' : 's'} still pending`,
+        detail: 'Smog tiers and Reformers push bills onto the books',
+        tone: 'neutral',
+      });
+    }
+  }
+  return items.slice(0, 3);
 }
 
 function when(e: PoliticsLogEntry): string {
@@ -180,6 +217,7 @@ function lawTable(rows: LawRow[]): HTMLElement {
 /** Builds the window body; `update()` refreshes it in place from state. */
 export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): void } {
   const controls: EdictControl[] = [];
+  let discSetNow: ((now: HTMLElement) => void) | null = null;
   const update = (): void => {
     const { state } = ctx;
     const year = state.date.year;
@@ -259,6 +297,7 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
         }),
       );
     }
+    discSetNow?.(nowCard(politicsNow(state)));
   };
   for (const k of EDICT_KEYS) controls.push(edictControl(ctx, k, update));
   const rows = FACTION_IDS.map(opinionRow);
@@ -276,14 +315,22 @@ export function buildPolitics(ctx: SimContext): { el: HTMLElement; update(): voi
   const toll = block('Black Lung toll', 'pol-blacklung', [blackLung,
     h('div', { class: 'pol-note' }, 'Deaths from smog in towns at smog tier 2 or worse, since records began')]);
   toll.title = 'Deaths from smog in towns at smog tier 2 or worse, since records began';
-  const el = h('div', { class: 'pol' },
-    header,
+  const full = h('div', { class: 'pol-full' },
     block('Company edicts', 'pol-edicts', [...controls.map((c) => c.el),
       h('div', { class: 'pol-note' }, `Together, edicts move a faction at most ±${MAX_EDICT_DRIVE} a month; opinion drifts back toward 50.`)]),
     block('National opinion', 'pol-national', [opinionTable(rows)]),
     toll,
     block('Law of the land', 'pol-laws', [lawTable(lawRows)]),
     block('Recent political news', 'pol-news', [log, logEmpty]));
+  const disc = progressiveDisclosure({
+    panelId: 'politics',
+    expandLabel: 'Show full Politics',
+    coachText: 'Start with the decisions above. Open the full ledger for edicts, every faction, laws and the news log.',
+    now: nowCard(politicsNow(ctx.state)),
+    full,
+  });
+  discSetNow = disc.setNow;
+  const el = h('div', { class: 'pol' }, header, disc.el);
   update();
   return { el, update };
 }
