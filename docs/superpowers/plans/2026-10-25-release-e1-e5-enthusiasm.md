@@ -98,9 +98,9 @@ needed, `src/ui/panels/goals.ts`, tests.
   building per day (`+$n` + icon).
 - Respect photo mode (hidden). Disable or simplify when zoom &lt; 1.0.
 
-- [ ] **Step 1:** Unit-test aggregation helper.
-- [ ] **Step 2:** Implement overlay.
-- [ ] **Step 3:** Commit `feat(ui): on-map sale floats`.
+- [x] **Step 1:** Unit-test aggregation helper.
+- [x] **Step 2:** Implement overlay.
+- [x] **Step 3:** Commit `feat(ui): on-map sale floats`.
 
 ### Task E2.2: Invention fanfare + early alerts
 
@@ -111,9 +111,9 @@ needed, `src/ui/panels/goals.ts`, tests.
 - `BUILDING_DAYS`: use 2 when `state.date.year < 1905` (or ambitions tutorial active); else 7.
   Pin both in tests.
 
-- [ ] **Step 1:** Failing tests.
-- [ ] **Step 2:** Implement.
-- [ ] **Step 3:** Commit `feat(game): invention fanfare and faster early alerts`.
+- [x] **Step 1:** Failing tests.
+- [x] **Step 2:** Implement.
+- [x] **Step 3:** Commit `feat(game): invention fanfare and faster early alerts`.
 
 ### Task E2.3: Chain health strip
 
@@ -122,10 +122,10 @@ needed, `src/ui/panels/goals.ts`, tests.
 - Score player chain: starved inputs / idle works / empty shelves (reuse alert reasons).
 - Three-segment strip; click → jump like alerts tray.
 
-- [ ] **Step 1:** Pure function tests.
-- [ ] **Step 2:** UI strip.
-- [ ] **Step 3:** Commit `feat(ui): chain health strip`.
-- [ ] **Step 4:** Shots + `npm test` + `check-dist`. E2 gate.
+- [x] **Step 1:** Pure function tests.
+- [x] **Step 2:** UI strip.
+- [x] **Step 3:** Commit `feat(ui): chain health strip`.
+- [x] **Step 4:** Shots + `npm test` + `check-dist`. E2 gate.
 
 ---
 
