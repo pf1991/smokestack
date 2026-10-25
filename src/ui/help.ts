@@ -23,7 +23,7 @@ export const SYSTEMS_PRIMER: { step: string; detail: string }[] = [
   { step: 'Refine', detail: 'Turn raw into materials (lumber, steel, flour).' },
   { step: 'Components', detail: 'Make parts (wire, motors) for deeper consumer chains.' },
   { step: 'Manufacture', detail: 'Assemble finished goods towns will buy.' },
-  { step: 'Retail / Trade', detail: 'Sell in stores, or dump materials and parts at a Trading House.' },
+  { step: 'Retail / Trade', detail: 'Sell in stores; haul locally with a Warehouse hub; use Routes for long hauls; dump materials at a Trading House.' },
 ];
 
 let open: { root: HTMLElement; prevFocus: Element | null } | null = null;

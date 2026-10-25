@@ -43,12 +43,15 @@ export const HUB_RESERVE = 20_000;
 /** Added to every distance, so short hops do not dominate. */
 const DIST_BIAS = 8;
 
-/** Spec §8.3: what the posted manager's logistics skill buys. */
+/**
+ * What the posted manager's logistics skill buys (hubs-first: the warehouse level sets range;
+ * skill sets cadence and brains so the circle on the map is the circle you get).
+ */
 export const SKILL_TIERS: Record<Skill, { rangeShare: number; every: number; lookAhead: boolean; balance: boolean }> = {
-  1: { rangeShare: 1 / 3, every: 7, lookAhead: false, balance: false },
-  2: { rangeShare: 1 / 2, every: 5, lookAhead: false, balance: false },
-  3: { rangeShare: 2 / 3, every: 3, lookAhead: true, balance: false },
-  4: { rangeShare: 5 / 6, every: 2, lookAhead: true, balance: true },
+  1: { rangeShare: 1, every: 7, lookAhead: false, balance: false },
+  2: { rangeShare: 1, every: 5, lookAhead: false, balance: false },
+  3: { rangeShare: 1, every: 3, lookAhead: true, balance: false },
+  4: { rangeShare: 1, every: 2, lookAhead: true, balance: true },
   5: { rangeShare: 1, every: 1, lookAhead: true, balance: true },
 };
 

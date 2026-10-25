@@ -57,7 +57,7 @@ export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLEle
   const autoRow = h('div', { class: 'p-row insp-hub-auto' }, h('label', { title: 'Buy a truck when work waits, sell one when trucks idle (monthly)' }, auto, ' Auto-size the hub fleet, up to '), cap);
   const balancing = h('div', { class: 'p-row insp-muted insp-hub-balance' });
   const yesterday = h('div', { class: 'p-row insp-muted insp-hub-yesterday' });
-  const warn = h('div', { class: 'insp-warn insp-hub-warn' }, iconEl('warning', 14), ' Hire a manager to run this hub');
+  const warn = h('div', { class: 'insp-warn insp-hub-warn' }, iconEl('warning', 14), ' Hire a manager — without one the hub will not dispatch');
   const el = inspCard('Hub', 'insp-hub', [range, trucks, buy, autoRow, yesterday, balancing, warn], 'hub');
 
   function refresh(): void {
@@ -77,7 +77,7 @@ export function hubSection(host: { ctx: SimContext }, id: number): { el: HTMLEle
     setText(buy, `Buy hub truck ${formatMoney(vehiclePrice(state, newestModel(state)))}`);
     const why = mine ? hubTruckRefusal(state, b, 'player') : null;
     if (buy.disabled !== (why !== null)) buy.disabled = why !== null;
-    const tip = why ?? 'A truck of this warehouse, dispatched by its manager';
+    const tip = why ?? 'A truck of this warehouse: collects and delivers nearby once a manager is posted';
     if (buy.title !== tip) buy.title = tip;
     autoRow.hidden = !b.hub;
     auto.disabled = !mine;

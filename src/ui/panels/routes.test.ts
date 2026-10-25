@@ -426,9 +426,8 @@ describe('routes panel', () => {
     PANELS.routes.open(host);
     const empty = win().querySelector('.kit-empty') as HTMLElement;
     expect(empty).not.toBeNull();
-    expect(empty.querySelector('.kit-empty-title')!.textContent).toBe('No routes yet');
-    expect(empty.querySelector('.kit-empty-body')!.textContent).toBe(
-      'Routes carry goods between your works and stores. Pick a start and an end on the map.');
+    expect(empty.querySelector('.kit-empty-title')!.textContent).toBe('No long-haul routes yet');
+    expect(empty.querySelector('.kit-empty-body')!.textContent).toMatch(/Warehouse hub/);
     const action = empty.querySelector('button') as HTMLButtonElement;
     expect(action.classList.contains('kit-btn--primary')).toBe(true);
     expect(action.textContent).toBe('New route');

@@ -15,6 +15,7 @@ import { tabForUnlock, tabLabel, type TabId } from '../ui/toolbar';
 /** localStorage keys for one-shot toolbar coaches (E5). */
 export const COACH_COMPONENTS = 'components-tab';
 export const COACH_TRADING_HOUSE = 'trading-house';
+export const COACH_WAREHOUSE = 'warehouse-hub';
 
 /** At most one "stuck" toast per route per this many real milliseconds. */
 export const STUCK_TOAST_GAP_MS = 10_000;
@@ -227,6 +228,20 @@ export function attachSystemsCoach(
     opts.showTab?.('components');
   });
   const offDay = ctx.bus.on('dayStart', () => {
+    if (!coachSeen(COACH_WAREHOUSE)) {
+      const mine = Object.values(ctx.state.buildings).filter((b) => b.ownerId === 'player');
+      const hasWorks = mine.some((b) => {
+        const c = BUILDINGS[b.typeId]?.category;
+        return c === 'extractor' || c === 'factory' || c === 'retail';
+      });
+      const hasWh = mine.some((b) => b.typeId === 'warehouse');
+      if (hasWorks && !hasWh) {
+        markCoachSeen(COACH_WAREHOUSE);
+        opts.showTab?.('retail');
+        opts.pulseBuilding?.('warehouse');
+        opts.pulseTab?.('retail');
+      }
+    }
     if (coachSeen(COACH_TRADING_HOUSE)) return;
     if (!hasSoldConsumer(ctx.state) || !monthLooksProfitable(ctx.state)) return;
     markCoachSeen(COACH_TRADING_HOUSE);

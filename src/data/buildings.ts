@@ -247,7 +247,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   warehouse: {
     id: 'warehouse', name: 'Warehouse', category: 'logistics', workers: 6, size: { w: 3, h: 3 }, cost: 20000, maintenance: 150,
     allowedTerrain: ['grass', 'sand', 'hills'], requiresDeposit: false, requiresCity: false, recipes: [], storage: 1000, era: 1900, pollution: 0,
-    color: '#8a8f99', description: 'Cavernous brick sheds holding goods until the wagons call.',
+    color: '#8a8f99', description: 'Local logistics hub: stockpile goods and run hub trucks to nearby works and stores.',
   },
   train_station: {
     id: 'train_station', name: 'Train Station', category: 'logistics', workers: 6, size: { w: 3, h: 2 }, cost: 40000, maintenance: 500,

@@ -78,28 +78,25 @@ describe('hub dispatch', () => {
     expect(s.logistics.stats.hubJobs.player ?? 0).toBe(0);
   });
 
-  it('a logistics-1 manager sees 12 x 1/3 = 4 tiles: 3 tiles out is served, 8 is not; logistics 5 serves both', () => {
-    for (const [skill, want] of [[1, 1], [5, 2]] as const) {
-      const { s, ctx, hub } = setup();
-      const near = place(ctx, 'sawmill', 35);
-      const far = place(ctx, 'sawmill', 40);
-      expect(footprintGap(hub, near)).toBe(3);
-      expect(footprintGap(hub, far)).toBe(8);
-      near.staffing = far.staffing = 0; // no look-ahead top-up at skill 5
-      near.output.lumber = 15; // under one truck load each
-      far.output.lumber = 15;
-      must(buyHubTruck(ctx, 'player', hub.id));
-      must(buyHubTruck(ctx, 'player', hub.id));
-      manage(ctx, hub, skill);
-      expect(hubAttached(s, hub, 12 * SKILL_TIERS[skill].rangeShare).map((b) => b.id)).toEqual(skill === 1 ? [near.id] : [near.id, far.id]);
-      dispatchNow(ctx, hub);
-      const js = jobs(s);
-      expect(js).toHaveLength(want);
-      expect(js.every((j) => j.kind === 'collect' && j.to === hub.id && j.good === 'lumber')).toBe(true);
-      expect(js.map((j) => j.from).sort()).toEqual(skill === 1 ? [near.id] : [near.id, far.id]);
-      expect(s.logistics.stats.hubJobs.player).toBe(want);
-      expect(hub.hub!.yesterday).toEqual({ jobs: want, idle: 2 - want });
-    }
+  it('every logistics skill uses the full warehouse range (hubs-first: the circle you see is the circle you get)', () => {
+    const { s, ctx, hub } = setup();
+    const near = place(ctx, 'sawmill', 35);
+    const far = place(ctx, 'sawmill', 40);
+    expect(footprintGap(hub, near)).toBe(3);
+    expect(footprintGap(hub, far)).toBe(8);
+    near.staffing = far.staffing = 0;
+    near.output.lumber = 15;
+    far.output.lumber = 15;
+    must(buyHubTruck(ctx, 'player', hub.id));
+    must(buyHubTruck(ctx, 'player', hub.id));
+    manage(ctx, hub, 1);
+    expect(SKILL_TIERS[1].rangeShare).toBe(1);
+    expect(hubAttached(s, hub, 12 * SKILL_TIERS[1].rangeShare).map((b) => b.id)).toEqual([near.id, far.id]);
+    dispatchNow(ctx, hub);
+    const js = jobs(s);
+    expect(js).toHaveLength(2);
+    expect(js.every((j) => j.kind === 'collect' && j.to === hub.id && j.good === 'lumber')).toBe(true);
+    expect(js.map((j) => j.from).sort()).toEqual([near.id, far.id]);
   });
 
   it('dispatches every 7 days at skill 1 and daily at skill 5', () => {

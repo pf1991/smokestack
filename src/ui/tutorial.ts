@@ -55,10 +55,25 @@ function soldAnything(s: GameState): boolean {
   return Object.entries(s.flags ?? {}).some(([k, v]) => k.startsWith('sold:') && typeof v === 'number' && v > 0);
 }
 
+function hasHub(s: GameState): boolean {
+  return playerBuildings(s).some((b) => b.typeId === 'warehouse' && b.hub);
+}
+
+function hasHubTruck(s: GameState): boolean {
+  return Object.values(s.vehicles).some((v) => v.ownerId === 'player' && v.hubId != null);
+}
+
+function hubHasManager(s: GameState): boolean {
+  return playerBuildings(s).some((b) => {
+    if (b.typeId !== 'warehouse' || !b.hub) return false;
+    return s.logistics.managers.some((m) => m.employer === 'player' && m.post === b.id);
+  });
+}
+
 export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'welcome',
-    text: 'Welcome, young industrialist! Let us build a furniture business: timber from the forest, lumber from a sawmill, chairs from a factory, sold in a town store.',
+    text: 'Welcome, young industrialist! Let us build a furniture business: timber from the forest, lumber from a sawmill, chairs from a factory, sold in a town store — hauled by a Warehouse hub.',
     manual: true,
     done: (s) => playerBuildings(s).length > 0,
   },
@@ -76,7 +91,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'furniture_factory',
-    text: 'From the Manufacture tab, build a Furniture Factory. It turns lumber into fine furniture.',
+    text: 'From the Manufacture tab, build a Furniture Factory. Keep it close — your hub will serve a short range.',
     highlight: '.tb-tab[data-tab="manufacture"], .tool-card[data-building="furniture_factory"]',
     done: has('furniture_factory'),
   },
@@ -88,25 +103,31 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'roads',
-    text: 'Pick Road in the Transport tab and drag roads so the camp, sawmill, factory and store all touch the road network.',
+    text: 'Pick Road in the Transport tab and lay roads so the camp, sawmill, factory and store all touch the same network.',
     highlight: '.tb-tab[data-tab="transport"], .tool-card[data-tool="road"]',
     done: chainLinked,
   },
   {
-    id: 'route',
-    text: 'Open Routes (R) and create a route: click the lumber camp, then the sawmill. Trucks will load wood at the first stop and unload it at the second.',
-    highlight: '.hud-panel-btn[data-panel="routes"], [data-act="new"]',
-    done: (s) => Object.values(s.routes).some((r) => r.ownerId === 'player' && r.stops.length >= 2),
+    id: 'warehouse',
+    text: 'Still under Retail, Trade & Logistics: place a Warehouse on road so its range circle covers the camp, sawmill, factory and store. Local trucks run from here — no route per hop.',
+    highlight: '.tb-tab[data-tab="retail"], .tool-card[data-building="warehouse"]',
+    done: has('warehouse'),
   },
   {
-    id: 'truck',
-    text: 'A route needs wheels: press + on the route to buy a truck ($8,000).',
-    highlight: '.hud-panel-btn[data-panel="routes"], [data-act="truck-plus"]',
-    done: (s) => Object.values(s.vehicles).some((v) => v.ownerId === 'player'),
+    id: 'hub',
+    text: 'Click your Warehouse, open Hub, and Buy hub truck. That opens the hub: its trucks collect and deliver nearby.',
+    highlight: '.tb-tab[data-tab="retail"], .tool-card[data-building="warehouse"]',
+    done: (s) => hasHub(s) && hasHubTruck(s),
+  },
+  {
+    id: 'manager',
+    text: 'Open Managers (J): Hire someone, then Assign them to your Warehouse. Without a manager the hub sits idle.',
+    highlight: '.hud-group-btn[data-group="operations"], .hud-menu-item[data-panel="managers"], .hud-nav-btn',
+    done: hubHasManager,
   },
   {
     id: 'first_sale',
-    text: 'Add routes with trucks for the other legs, sawmill → factory and factory → store, then let the clock run (keys 1–4) until the first sale.',
+    text: 'Let the clock run (keys 1–4). The hub hauls wood → lumber → furniture into the store. Save Routes (R) for long hauls between distant clusters.',
     highlight: '.hud-speeds',
     done: soldAnything,
   },

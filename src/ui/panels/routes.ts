@@ -420,8 +420,8 @@ class RoutesPanel {
       routes.length === 0
         ? emptyState({
           icon: 'truck',
-          title: 'No routes yet',
-          body: 'Routes carry goods between your works and stores. Pick a start and an end on the map.',
+          title: 'No long-haul routes yet',
+          body: 'Local hops: use a Warehouse hub (buy hub trucks, post a manager). Routes are for corridors between distant clusters, rail, and special jobs.',
           action: emptyAction,
         })
         : h('div', { class: 'p-section rt-list' }, routes.map((r) => this.routeCard(r))),

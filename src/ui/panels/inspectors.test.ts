@@ -500,7 +500,7 @@ describe('warehouse hub section', () => {
     buy.click();
     expect(wh.hub).toBeDefined();
     expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.hidden).toBe(false);
-    expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.textContent).toContain('Hire a manager to run this hub');
+    expect(sec.querySelector<HTMLElement>('.insp-hub-warn')!.textContent).toContain('Hire a manager');
     expect(sec.textContent).toContain('Trucks 1 / 4');
     expect(sec.textContent).toContain('Yesterday: 0 jobs, 0 trucks idle');
     const auto = sec.querySelector<HTMLInputElement>('input[data-act="hub-autosize"]')!;

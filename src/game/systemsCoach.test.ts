@@ -7,17 +7,31 @@ import {
   attachSystemsCoach,
   COACH_COMPONENTS,
   COACH_TRADING_HOUSE,
+  COACH_WAREHOUSE,
   hasSoldConsumer,
   monthLooksProfitable,
 } from './feedback';
 import { coachStorageKey, markCoachSeen } from '../ui/disclosure';
+import { placeBuilding } from '../sim/state';
+import { must } from '../sim/testkit';
+import { findPlacement } from '../sim/state';
 
 function ctx(): SimContext {
   return { state: createGame({ seed: 3 }), bus: new EventBus() };
 }
 
-beforeEach(() => localStorage.clear());
-afterEach(() => localStorage.clear());
+beforeEach(() => {
+  const mem = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => { mem.set(k, String(v)); },
+    removeItem: (k: string) => { mem.delete(k); },
+    clear: () => mem.clear(),
+    get length() { return mem.size; },
+    key: () => null,
+  });
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe('systems coach helpers', () => {
   it('detects consumer sales and profitable months', () => {
@@ -51,6 +65,26 @@ describe('attachSystemsCoach', () => {
     pulsed.length = 0;
     c.bus.emit({ type: 'unlock', defId: 'electronics_works', kind: 'building' });
     expect(pulsed).toEqual([]);
+  });
+
+  it('pulses Warehouse once when the player has works but no shed yet', () => {
+    const c = ctx();
+    const pulsedBuildings: string[] = [];
+    attachSystemsCoach(c, {
+      pulseBuilding: (id) => pulsedBuildings.push(id),
+      pulseTab: () => {},
+      showTab: () => {},
+    });
+    c.bus.emit({ type: 'dayStart', date: c.state.date });
+    expect(pulsedBuildings).toEqual([]);
+    const pos = findPlacement(c.state, 'player', 'sawmill', c.state.cities[0]!.center, 40)!;
+    must(placeBuilding(c, 'player', 'sawmill', pos));
+    c.bus.emit({ type: 'dayStart', date: c.state.date });
+    expect(pulsedBuildings).toEqual(['warehouse']);
+    expect(localStorage.getItem(coachStorageKey(COACH_WAREHOUSE))).toBe('seen');
+    pulsedBuildings.length = 0;
+    c.bus.emit({ type: 'dayStart', date: c.state.date });
+    expect(pulsedBuildings).toEqual([]);
   });
 
   it('pulses Trading House once when a consumer chain is profitable', () => {

@@ -315,17 +315,19 @@ is unloaded into the hub.
 
 ### 8.3 Manager skill sets quality
 
+*(Amended 2026-10-25 — hubs-first: warehouse level sets range; skill sets cadence and brains.)*
+
 | Logistics | Range used | Dispatch every | Look-ahead | Balancing |
 |---|---|---|---|---|
-| 1 | 1/3 of the range | 7 days | no | no |
-| 2 | 1/2 | 5 days | no | no |
-| 3 | 2/3 | 3 days | 3 days of output and use | no |
-| 4 | 5/6 | 2 days | 3 days | yes |
+| 1 | full warehouse range | 7 days | no | no |
+| 2 | full | 5 days | no | no |
+| 3 | full | 3 days | 3 days of output and use | no |
+| 4 | full | 2 days | 3 days | yes |
 | 5 | full | daily | 3 days | yes |
 
-"Range used" is the radius within which buildings are attached for this dispatch; a better manager
-sees further. Look-ahead adds the producer's expected output (or the consumer's expected use) over 3
-days, bounded by storage. Dispatch days are staggered by hub id so hubs do not all plan on one day.
+The circle drawn on the map is the service radius. Look-ahead adds the producer's expected output
+(or the consumer's expected use) over 3 days, bounded by storage. Dispatch days are staggered by
+hub id so hubs do not all plan on one day.
 
 ### 8.4 Hub auto-sizing (monthly)
 
