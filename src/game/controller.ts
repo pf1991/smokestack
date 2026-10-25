@@ -27,6 +27,7 @@ import { ToolController } from './toolController';
 import { biggestCity } from './autoplay';
 import { attachCardModal } from '../ui/cardModal';
 import { mountAlerts } from '../ui/alertsTray';
+import { mountChainHealth } from '../ui/chainHealth';
 import { dateToDays } from '../sim/clock';
 import { AlertTracker, type Alert } from './alerts';
 
@@ -148,7 +149,8 @@ export class GameController {
     this.toolbar = new Toolbar(uiRoot, (t) => this.applyTool(t));
     this.input = new Input(canvas, this);
     this.disposers.push(mountAlerts(this.hud.alertsSlot, this));
-    // the alerts are re-collected once per in-game day, not every frame
+    this.disposers.push(mountChainHealth(this.hud.chainSlot, this));
+    // the alerts are re-collected once per in-game day, not every frame (chain strip listens too)
     this.addFrameHook(() => {
       if (!this.ctx) return;
       const day = dateToDays(this.state.date);

@@ -232,6 +232,8 @@ export class Hud {
   private readonly tips: (() => void)[] = [];
   /** the slot the alerts bell mounts into; empty (and hidden, with its divider) until then */
   readonly alertsSlot: HTMLElement = h('span', { id: 'hud-alerts', class: 'hud-alerts' });
+  /** chain health strip (Inputs / Works / Shelves); controller mounts ui/chainHealth.ts here */
+  readonly chainSlot: HTMLElement = h('span', { id: 'hud-chain', class: 'hud-chain' });
 
   constructor(root: HTMLElement, private readonly handlers: HudHandlers) {
     this.company = h('div', { class: 'hud-company hud-name' }, '');
@@ -344,8 +346,9 @@ export class Hud {
       h('div', { class: 'hud-right' },
         groups,
         layers,
-        // the controller mounts the alerts bell here (ui/alertsTray.ts)
+        // the controller mounts the alerts bell and chain strip here
         this.alertsSlot,
+        this.chainSlot,
         settings,
         more.wrap));
 
