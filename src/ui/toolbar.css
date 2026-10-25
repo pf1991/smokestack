@@ -8,13 +8,16 @@
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 6px);
+  bottom: calc(var(--ticker-h, 28px) + env(safe-area-inset-bottom, 0px) + 8px);
   z-index: 49;
   max-width: calc((100 * var(--uvw)) - 32px);
-  background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%),
+    linear-gradient(180deg, var(--surface-2), var(--surface-1));
   border: 1px solid var(--accent-quiet);
+  border-top: 2px solid var(--accent);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-2), var(--glow-brass);
   color: var(--text);
 }
 
@@ -59,8 +62,9 @@
 }
 
 .tb-tab.active {
-  color: var(--text);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  color: var(--accent-strong);
+  background: rgba(224, 177, 42, 0.1);
+  box-shadow: inset 0 -2px 0 var(--accent-strong);
   border-radius: var(--r-sm) var(--r-sm) 0 0;
 }
 

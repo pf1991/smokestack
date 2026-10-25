@@ -33,32 +33,32 @@ const EXACT: Record<string, string> = {
   '--sp-4': '16px',
   '--sp-5': '24px',
   '--sp-6': '32px',
-  '--r-sm': '3px',
-  '--r-md': '6px',
-  '--surface-0': '#140e0a',
-  '--surface-1': '#221810',
-  '--surface-2': '#322318',
-  '--surface-3': '#43301f',
-  '--paper': '#f3e9d2',
-  '--paper-ink': '#1d1a16',
-  '--text': '#f6ecd6',
-  '--text-muted': '#cbb892',
-  '--text-faint': '#a08f6e',
-  '--accent': '#e2b43c',
-  '--accent-strong': '#f3d26a',
-  '--accent-quiet': 'rgba(226,180,60,0.42)',
-  '--positive': '#7cc47c',
-  '--negative': '#ef7d6d',
-  '--warning': '#f0b44c',
-  '--info': '#6cc2c9',
-  '--shadow-1': '0 1px 2px rgba(0,0,0,.4)',
-  '--shadow-2': '0 8px 24px rgba(0,0,0,.5)',
+  '--r-sm': '4px',
+  '--r-md': '8px',
+  '--surface-0': '#07090d',
+  '--surface-1': '#10141c',
+  '--surface-2': '#181e2a',
+  '--surface-3': '#252c3c',
+  '--paper': '#f5edd8',
+  '--paper-ink': '#1a1712',
+  '--text': '#f5f0e6',
+  '--text-muted': '#c2b9a6',
+  '--text-faint': '#948c7c',
+  '--accent': '#e0b12a',
+  '--accent-strong': '#f6d45c',
+  '--accent-quiet': 'rgba(224, 177, 42, 0.38)',
+  '--positive': '#6ed889',
+  '--negative': '#ff8a7a',
+  '--warning': '#f5bc4a',
+  '--info': '#6ec8dc',
+  '--shadow-1': '0 1px 2px rgba(0, 0, 0, 0.55)',
+  '--shadow-2': '0 12px 32px rgba(0, 0, 0, 0.55)',
   '--focus': '0 0 0 2px var(--accent-strong)',
   '--walnut': 'var(--surface-1)',
   '--walnut-light': 'var(--surface-2)',
   '--brass': 'var(--accent)',
   '--brass-light': 'var(--accent-strong)',
-  '--brass-dark': '#8a6d17',
+  '--brass-dark': '#a07c12',
   '--good': 'var(--positive)',
   '--bad': 'var(--negative)',
 };
@@ -87,8 +87,8 @@ describe('design tokens', () => {
   });
 
   it('keeps --player and --rival', () => {
-    expect(token('--player')).toBe('#2f6fb5');
-    expect(token('--rival')).toBe('#b5302f');
+    expect(token('--player')).toBe('#4a8fd4');
+    expect(token('--rival')).toBe('#d4453f');
   });
 
   describe('contrast (WCAG AA)', () => {

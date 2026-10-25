@@ -1,15 +1,39 @@
 /* Component kit. Tokens only (see cssGate.test.ts). */
-.kit-btn { display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-3); font-family: var(--font-ui); font-size: var(--fs-md); line-height: var(--lh-tight); border-radius: var(--r-sm); border: 1px solid var(--accent-quiet); background: transparent; color: var(--text); cursor: pointer; }
-.kit-btn--primary { background: var(--accent); border-color: var(--accent-strong); color: var(--paper-ink); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35); }
-.kit-btn--primary:hover:not(:disabled) { background: var(--accent-strong); }
-.kit-btn--secondary:hover:not(:disabled) { background: var(--surface-2); }
-.kit-btn--quiet { border-color: transparent; }
-.kit-btn--quiet:hover:not(:disabled) { background: var(--surface-2); }
+.kit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--accent-quiet);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+.kit-btn--primary {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  border-color: var(--accent-strong);
+  color: var(--surface-0);
+  font-weight: 700;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4), 0 0 10px rgba(224, 177, 42, 0.2);
+}
+.kit-btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  filter: brightness(1.08);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 0 14px rgba(224, 177, 42, 0.35);
+}
+.kit-btn--secondary:hover:not(:disabled) { background: var(--surface-3); border-color: var(--accent); }
+.kit-btn--quiet { border-color: transparent; background: transparent; }
+.kit-btn--quiet:hover:not(:disabled) { background: var(--surface-3); }
 .kit-btn--danger { border-color: var(--negative); color: var(--negative); }
 .kit-btn--danger:hover:not(:disabled) { background: var(--negative-bg); }
 .kit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .kit-kbd { font-family: var(--font-ui); font-size: var(--fs-xs); padding: 0 var(--sp-1); border: 1px solid var(--accent-quiet); border-radius: var(--r-sm); color: var(--text-muted); }
-.kit-btn--primary .kit-kbd { color: var(--paper-ink); border-color: var(--paper-ink); }
+.kit-btn--primary .kit-kbd { color: var(--surface-0); border-color: var(--surface-0); }
 
 .kit-ph { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--accent-quiet); min-width: 0; }
 .kit-ph-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); color: var(--accent-strong); }
@@ -78,7 +102,15 @@
 .kit-empty-title { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--text); }
 .kit-empty-body { margin: 0; font-size: var(--fs-sm); max-width: 32ch; }
 
-.kit-card { background: var(--surface-1); border: 1px solid var(--accent-quiet); border-left: 3px solid var(--tone, var(--accent-quiet)); border-radius: var(--r-md); box-shadow: var(--shadow-1); }
+.kit-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    var(--surface-2);
+  border: 1px solid var(--accent-quiet);
+  border-left: 3px solid var(--tone, var(--accent));
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+}
 .kit-card-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); }
 .kit-card-title { margin: 0; flex: 1; font-size: var(--fs-md); color: var(--text); }
 .kit-card-body { padding: var(--sp-2) var(--sp-3) var(--sp-3); font-size: var(--fs-sm); }

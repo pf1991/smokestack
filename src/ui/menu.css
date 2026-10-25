@@ -13,19 +13,19 @@
   font-size: var(--fs-md);
   scrollbar-color: var(--accent-quiet) transparent;
 }
-.mn-modal { zoom: var(--ui-scale, 1); z-index: 5000; background: rgba(10, 6, 3, 0.62); }
+.mn-modal { zoom: var(--ui-scale, 1); z-index: 5000; background: rgba(7, 9, 13, 0.72); }
 .mn-vignette {
   position: fixed;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 50% 42%, rgba(10, 6, 3, 0) 0%, rgba(10, 6, 3, 0.3) 62%, rgba(6, 3, 1, 0.78) 100%),
-    linear-gradient(180deg, rgba(6, 3, 1, 0.35), transparent 30%, transparent 60%, rgba(6, 3, 1, 0.45));
+    radial-gradient(ellipse at 50% 42%, rgba(7, 9, 13, 0) 0%, rgba(7, 9, 13, 0.35) 62%, rgba(5, 6, 8, 0.82) 100%),
+    linear-gradient(180deg, rgba(5, 6, 8, 0.4), transparent 30%, transparent 60%, rgba(5, 6, 8, 0.5));
 }
 /* the title screen's map backdrop is a light paper map: dim it so the title and buttons read */
 .mn-root:not(.mn-modal) > .mn-vignette {
   background:
-    radial-gradient(ellipse 60% 70% at 50% 46%, rgba(20, 13, 8, 0.78) 0%, rgba(20, 13, 8, 0.6) 55%, rgba(6, 3, 1, 0.86) 100%);
+    radial-gradient(ellipse 60% 70% at 50% 46%, rgba(16, 20, 28, 0.8) 0%, rgba(16, 20, 28, 0.62) 55%, rgba(5, 6, 8, 0.88) 100%);
 }
 .mn-center {
   position: relative;
@@ -70,11 +70,13 @@
   min-width: min(340px, (92 * var(--uvw)));
   max-width: min(760px, (94 * var(--uvw)));
   padding: var(--sp-5);
-  background: rgba(31, 21, 15, 0.94);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%),
+    rgba(16, 20, 28, 0.96);
   border: 1px solid var(--accent-quiet);
   border-top: 2px solid var(--accent);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-2), var(--glow-brass);
   scrollbar-color: var(--accent-quiet) transparent;
 }
 .mn-body h2 { margin: 0 0 var(--sp-4); text-align: center; font-size: var(--fs-xl); color: var(--text); }

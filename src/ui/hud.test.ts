@@ -549,7 +549,7 @@ describe('top bar layout (release r1-r3)', () => {
 
   it('the stylesheet pins a 44 px bar and a 220 px ellipsised name', () => {
     const css = hudCss.replace(/\s+/g, ' ');
-    expect(css).toMatch(/\.hud-bar \{[^}]*height: calc\(44px/);
+    expect(css).toMatch(/\.hud-bar \{[^}]*height: calc\(48px/);
     expect(css).toMatch(/\.hud-name \{[^}]*max-width: 220px;[^}]*text-overflow: ellipsis;/);
   });
 });

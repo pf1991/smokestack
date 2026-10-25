@@ -1,6 +1,12 @@
 # SMOKESTACK UI Appeal (U1–U5)
 
-Status: **U1–U2 shipped; Market glance (U3 slice) shipped** (2026-10-25). Follow-on to E5.
+Status: **U1–U3 + full ink/brass revamp shipped** (2026-10-25). Follow-on to E5.
+
+## Revamp (2026-10-25 evening)
+
+Abandoned muddy walnut-on-tan. Chrome is cool **ink** (`#07090d`–`#252c3c`); accents are
+lit **brass**; content tables stay on **cream paper**. HUD / toolbar / dock get a brass
+hairline and soft glow so the UI reads against the warm map.
 
 ## Intent
 

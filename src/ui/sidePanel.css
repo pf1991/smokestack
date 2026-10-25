@@ -8,9 +8,11 @@
   flex-direction: column;
   min-height: 0;
   pointer-events: auto;
-  background: var(--surface-1);
-  border-left: 1px solid var(--accent-quiet);
-  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.5);
+  background:
+    linear-gradient(90deg, rgba(224, 177, 42, 0.06), transparent 12px),
+    var(--surface-1);
+  border-left: 2px solid var(--accent);
+  box-shadow: -10px 0 28px rgba(0, 0, 0, 0.55), var(--glow-brass);
   color: var(--text);
 }
 
@@ -92,9 +94,9 @@
 
 .side-panel-tab.active,
 .side-panel-tab[aria-selected='true'] {
-  color: var(--text);
+  color: var(--accent-strong);
   background: var(--surface-1);
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--accent-strong);
 }
 
 .side-panel-tab:focus-visible,

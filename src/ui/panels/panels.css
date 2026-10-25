@@ -328,7 +328,7 @@
   z-index: 2;
   margin: 0 calc(-1 * var(--sp-3));
   padding: var(--sp-2) var(--sp-3);
-  background: var(--surface-1);
+  background: linear-gradient(180deg, transparent, var(--surface-1) 28%);
   border-top: 1px solid var(--accent-quiet);
 }
 

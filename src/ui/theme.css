@@ -1,4 +1,5 @@
-/* SMOKESTACK theme: industrial art-deco. Walnut panels, brass trim, cream paper. */
+/* SMOKESTACK theme: Victorian instrument panel — ink chrome, lit brass, cream paper.
+ * Cool dark surfaces separate the UI from the warm tan/green map (U-revamp 2026-10-25). */
 
 :root {
   /* 1vw / 1vh in px of a zoomed UI root: viewport units are not compensated for zoom (ui/scale.ts) */
@@ -28,40 +29,40 @@
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
-  --r-sm: 3px;
-  --r-md: 6px;
+  --r-sm: 4px;
+  --r-md: 8px;
 
-  /* Colour roles — U2: deeper chrome, brighter brass so CTAs and paper tables read clearly */
-  --surface-0: #140e0a;
-  --surface-1: #221810;
-  --surface-2: #322318;
-  --surface-3: #43301f;
-  --paper: #f3e9d2;
-  --paper-shade: #e4d5b2;
-  --paper-ink: #1d1a16;
+  /* Colour roles — ink chrome (cool) + brass (warm) + paper (cream) */
+  --surface-0: #07090d;
+  --surface-1: #10141c;
+  --surface-2: #181e2a;
+  --surface-3: #252c3c;
+  --paper: #f5edd8;
+  --paper-shade: #e8d9b4;
+  --paper-ink: #1a1712;
   /* inks for text on --paper (AA on --paper and --paper-shade) */
-  --paper-muted: #5a4630;
-  --paper-positive: #2f6a2c;
-  --paper-negative: #9e2a1f;
+  --paper-muted: #5c4a32;
+  --paper-positive: #2a6b32;
+  --paper-negative: #a02820;
   --ink: var(--paper-ink);
-  --text: #f6ecd6;
-  --text-muted: #cbb892;
-  --text-faint: #a08f6e;
-  --accent: #e2b43c;
-  --accent-strong: #f3d26a;
-  --accent-quiet: rgba(226,180,60,0.42);
-  --positive: #7cc47c;
-  --negative: #ef7d6d;
-  --warning: #f0b44c;
-  --info: #6cc2c9;
-  --positive-bg: rgba(124, 196, 124, 0.16);
-  --negative-bg: rgba(239, 125, 109, 0.16);
-  --warning-bg: rgba(240, 180, 76, 0.16);
-  --info-bg: rgba(108, 194, 201, 0.16);
-  --player: #2f6fb5;
-  --rival: #b5302f;
+  --text: #f5f0e6;
+  --text-muted: #c2b9a6;
+  --text-faint: #948c7c;
+  --accent: #e0b12a;
+  --accent-strong: #f6d45c;
+  --accent-quiet: rgba(224, 177, 42, 0.38);
+  --positive: #6ed889;
+  --negative: #ff8a7a;
+  --warning: #f5bc4a;
+  --info: #6ec8dc;
+  --positive-bg: rgba(110, 216, 137, 0.16);
+  --negative-bg: rgba(255, 138, 122, 0.16);
+  --warning-bg: rgba(245, 188, 74, 0.16);
+  --info-bg: rgba(110, 200, 220, 0.16);
+  --player: #4a8fd4;
+  --rival: #d4453f;
   /* the cold open's letterbox bars */
-  --letterbox: #0d0a08;
+  --letterbox: #050608;
 
   /* Newsprint: the Daily Smokestack's printed page (panels/newspaper.css), ink on aged paper */
   --news-paper: #efe3c3;
@@ -80,16 +81,17 @@
   --font-masthead-1975: 'Helvetica Neue', Arial, sans-serif;
 
   /* Elevation and focus */
-  --shadow-1: 0 1px 2px rgba(0,0,0,.4);
-  --shadow-2: 0 8px 24px rgba(0,0,0,.5);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.55);
   --focus: 0 0 0 2px var(--accent-strong);
+  --glow-brass: 0 0 18px rgba(224, 177, 42, 0.22);
 
   /* Old names, kept as aliases for the screens not yet migrated */
   --walnut: var(--surface-1);
   --walnut-light: var(--surface-2);
   --brass: var(--accent);
   --brass-light: var(--accent-strong);
-  --brass-dark: #8a6d17;
+  --brass-dark: #a07c12;
   --good: var(--positive);
   --bad: var(--negative);
 }
@@ -102,8 +104,8 @@
 
 body {
   margin: 0;
-  background: var(--walnut);
-  color: var(--paper);
+  background: var(--surface-0);
+  color: var(--text);
   font-family: var(--font-ui);
   font-size: var(--fs-md);
   line-height: var(--lh-body);
@@ -125,13 +127,14 @@ h3 {
   flex: none;
 }
 
-/* Walnut panel with a brass inset border. */
+/* Ink panel with a brass inset border. */
 .panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18)),
-    var(--walnut-light);
-  border: 2px solid var(--brass-dark);
-  box-shadow: inset 0 0 0 1px var(--brass), inset 0 0 12px rgba(0, 0, 0, 0.5);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.22)),
+    var(--surface-2);
+  border: 1px solid var(--accent-quiet);
+  box-shadow: inset 0 0 0 1px rgba(224, 177, 42, 0.12), var(--shadow-1);
+  border-radius: var(--r-md);
   padding: 12px;
 }
 
@@ -147,6 +150,7 @@ h3 {
   padding: var(--sp-2) var(--sp-3);
   cursor: pointer;
   box-shadow: var(--shadow-1);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .btn:focus-visible {
@@ -157,10 +161,11 @@ h3 {
 .btn:hover {
   background: var(--surface-3);
   border-color: var(--accent);
+  color: var(--text);
 }
 
 .btn:active {
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
   transform: translateY(1px);
 }
 
@@ -176,6 +181,7 @@ input[type='text'] {
   background: var(--paper);
   color: var(--paper-ink);
   border: 1px solid var(--brass-dark);
+  border-radius: var(--r-sm);
   font-family: var(--font-ui);
   padding: 6px 8px;
 }
@@ -185,13 +191,14 @@ input[type='text'] {
   position: absolute;
   pointer-events: auto;
   min-width: 220px;
-  background: var(--walnut-light);
-  border: 3px solid var(--brass);
-  border-radius: 4px;
+  background: var(--surface-1);
+  border: 2px solid var(--accent);
+  border-radius: var(--r-md);
   box-shadow:
-    inset 0 0 0 1px var(--brass-dark),
-    0 8px 24px rgba(0, 0, 0, 0.6);
-  color: var(--paper);
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    var(--shadow-2),
+    var(--glow-brass);
+  color: var(--text);
 }
 
 .window-title {
@@ -199,14 +206,14 @@ input[type='text'] {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 7px 10px;
   cursor: move;
   user-select: none;
   font-family: var(--font-display);
   font-weight: 700;
-  color: var(--surface-1);
-  background: linear-gradient(90deg, var(--brass-dark), var(--brass), var(--brass-dark));
-  border-bottom: 2px solid var(--brass-dark);
+  color: var(--surface-0);
+  background: linear-gradient(90deg, var(--brass-dark), var(--accent-strong) 45%, var(--accent) 70%, var(--brass-dark));
+  border-bottom: 1px solid var(--brass-dark);
 }
 
 .window-close {
@@ -216,14 +223,15 @@ input[type='text'] {
   height: 22px;
   padding: 0;
   cursor: pointer;
-  color: var(--paper);
-  background: var(--walnut);
+  color: var(--text);
+  background: var(--surface-0);
   border: 1px solid var(--brass-dark);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
 }
 
 .window-close:hover {
   background: var(--rival);
+  border-color: var(--rival);
 }
 
 .window-body {
@@ -267,7 +275,7 @@ input[type='text'] {
   white-space: nowrap;
   border: 4px double currentColor;
   border-radius: var(--r-md);
-  background: rgba(15, 10, 6, 0.55);
+  background: rgba(7, 9, 13, 0.72);
   transform: translate(-50%, -50%) rotate(-8deg);
   animation: stamp-slam 2200ms ease-out forwards;
   z-index: 1002;
@@ -292,6 +300,7 @@ input[type='text'] {
 @media (prefers-reduced-motion: reduce) {
   .hud-pop { animation: juice-fade 1500ms ease-out forwards; }
   .stamp { animation: juice-fade 2200ms ease-out forwards; }
+  .btn { transition: none; }
 
   @keyframes juice-fade {
     0% { opacity: 0; }
