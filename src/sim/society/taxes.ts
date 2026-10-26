@@ -1,17 +1,26 @@
 /**
  * Corporate sales tax (hubs-first / economy loop): a readable monthly levy on booked sales,
- * softened by friendly mayors and tax-break edicts. Same rules for every company.
+ * softened by friendly mayors and tax-break edicts, tugged by the soft business cycle.
+ * Same rules for every company.
  */
 import { companyIds } from '../companies';
 import { currentLedger, spend } from '../finance';
 import { hasEdict } from '../politics/mayorEdicts';
-import type { Company, GameState, OwnerId, SimContext } from '../types';
+import { cyclePhase } from './economy';
+import type { Company, CyclePhase, GameState, OwnerId, SimContext } from '../types';
 
 /** National floor / ceiling for the sales-tax rate (opinion 100 → min, 0 → max). */
 export const TAX_RATE_MIN = 0.03;
 export const TAX_RATE_MAX = 0.07;
 /** Rate when opinion is 50 and no tax break: midpoint of min/max. */
 export const TAX_RATE_MID = (TAX_RATE_MIN + TAX_RATE_MAX) / 2;
+
+/** Additive tug on the national rate by soft-cycle phase (clamped after). */
+export const CYCLE_TAX_TUG: Record<CyclePhase, number> = {
+  boom: -0.01,
+  steady: 0,
+  recession: 0.01,
+};
 
 /** One city's tax climate from its mayor's faction opinion and edicts. */
 export function cityTaxRate(city: GameState['cities'][number]): number {
@@ -23,8 +32,8 @@ export function cityTaxRate(city: GameState['cities'][number]): number {
   return Math.min(TAX_RATE_MAX, Math.max(TAX_RATE_MIN, rate));
 }
 
-/** Population-weighted national rate (steady mid rate when there are no cities). */
-export function nationalTaxRate(state: GameState): number {
+/** Population-weighted climate before the soft-cycle tug (mid rate when there are no cities). */
+export function baseNationalTaxRate(state: GameState): number {
   const cities = state.cities;
   if (cities.length === 0) return TAX_RATE_MID;
   let w = 0;
@@ -35,6 +44,15 @@ export function nationalTaxRate(state: GameState): number {
     w += p;
   }
   return sum / w;
+}
+
+/**
+ * National sales-tax rate for this month: city climate + cycle tug, clamped to min/max.
+ * Same number for every company.
+ */
+export function nationalTaxRate(state: GameState): number {
+  const raw = baseNationalTaxRate(state) + CYCLE_TAX_TUG[cyclePhase(state.economy)];
+  return Math.min(TAX_RATE_MAX, Math.max(TAX_RATE_MIN, raw));
 }
 
 /** This month's sales already booked for `owner` (whole dollars). */
@@ -66,10 +84,12 @@ export function taxesMonth(ctx: SimContext): void {
   }
 }
 
-/** Short tip for UI: e.g. "Sales tax 5.2% (national)". */
+/** Short tip for UI: e.g. "Sales tax 5.2% (national)" or "... (national, recession)". */
 export function taxRateLabel(state: GameState): string {
   const pct = (nationalTaxRate(state) * 100).toFixed(1);
-  return `Sales tax ${pct}% (national)`;
+  const phase = cyclePhase(state.economy);
+  const tag = phase === 'steady' ? 'national' : `national, ${phase}`;
+  return `Sales tax ${pct}% (${tag})`;
 }
 
 /** Test helper: tax for one owner at the current national rate. */

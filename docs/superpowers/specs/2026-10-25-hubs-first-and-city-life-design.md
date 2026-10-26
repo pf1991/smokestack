@@ -2,7 +2,7 @@
 
 Status: **hubs-first UX shipped** (2026-10-25). Warehouse ↔ warehouse train trunk **shipped** (2026-10-25).
 Fishing thin slice **shipped** (2026-10-25). City-appeal (§4) thin slice **shipped** (2026-10-26).
-Sales tax + soft cycle (§5) **shipped** (2026-10-25).
+Sales tax + soft cycle (§5) **shipped** (2026-10-25). Cycle↔tax tug (§5 deepen) **shipped** (2026-10-26).
 
 ## 1. Hubs-first local transport *(decided)*
 
@@ -97,6 +97,10 @@ festivals, fishing or waterfront appeal bonuses.
 opinion + tax-break edicts) and a soft **boom / steady / recession** demand cycle (newspaper +
 toast; clock tooltip shows phase and rate).
 
+**Deepen shipped 2026-10-26:** **cycle tax tug** — boom softens / recession stiffens the same
+national sales-tax rate for every company (±1pp, clamped to the existing min/max). One readable
+pressure on top of thin demand; no lobby, bankruptcies, or empty-store drama in this slice.
+
 Everything should tug on everything else. Pieces already in the game:
 - **Factions + opinion** (0–100) and **mayor edicts** (permits, tax break, truck tolls, wages…).
 - **Inflation** (`economy.priceIndex`) — costs drift up; not yet a boom/bust cycle.
@@ -109,11 +113,21 @@ Everything should tug on everything else. Pieces already in the game:
 |---|---|
 | Faction happiness | Softens or hardens **taxes / tolls / permits**; workers’ mood hits staffing |
 | Corporate / sales tax | Monthly cash drain scaled by activity and political climate |
-| Boom | Demand ×↑, easier credit, factions slightly forgiving |
-| Recession | Demand ×↓, tax pressure up or relief politics, bankruptcies / empty stores |
+| Boom | Demand ×↑; **sales tax −1pp** (clamped); (later: easier credit, factions forgiving) |
+| Recession | Demand ×↓; **sales tax +1pp** (clamped); (later: relief politics, bankruptcies / empty stores) |
 
 A recession should feel bad for *business* (thin sales, idle trucks) without being an instant
 game-over — the player’s job is to **tilt the odds**.
+
+### 5.1a Cycle tax tug *(decided / shipped)*
+
+1. **Same rate for everyone** — `nationalTaxRate` (after opinion + edict weighting) plus
+   `CYCLE_TAX_TUG[phase]` (−0.01 / 0 / +0.01). Player, Baron, and AI pay through the same
+   `taxesMonth` path.
+2. **Clamp** — still `TAX_RATE_MIN`…`TAX_RATE_MAX`; tax-break and friendly mayors keep meaning.
+3. **Readable** — HUD clock tip: `Sales tax X.X% (national)` in steady; append `, boom` or
+   `, recession` when the phase is swinging. Ledger stays one `taxes` line.
+4. **Out of this slice** — national lobby, credit easing, idle-truck telegraph, empty stores.
 
 ### 5.2 How the player stacks the deck
 
@@ -132,8 +146,10 @@ game-over — the player’s job is to **tilt the odds**.
 
 - Taxes must be **readable** (one ledger line, one HUD tip: “Ashford workers levy 4%”).
 - Boom/bust should be **telegraphed** (newspaper, Exchange, faction chatter) so skilled play
-   is preparation, not surprise death.
+  is preparation, not surprise death.
 - Baron / AI play the same rules — recessions hit them too (drama, not just player pain).
 - Start thin: **one visible tax channel + a soft demand cycle**, wired to existing edicts and
   opinion, before a full macro model. *(Done for the thin slice above.)*
+- Deepen with **one** clear pressure at a time — cycle↔tax tug first; do not stack lobby,
+  bankruptcies, and empty-store drama in the same slice.
 

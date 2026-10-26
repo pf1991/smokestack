@@ -7,6 +7,7 @@ import {
   nationalTaxRate,
   taxDueFor,
   taxOnSales,
+  taxRateLabel,
   taxesMonth,
   TAX_RATE_MAX,
   TAX_RATE_MIN,
@@ -69,5 +70,55 @@ describe('sales tax', () => {
     taxesMonth(ctx);
     expect(ctx.state.companies.player.money).toBe(before);
     expect(ctx.state.companies.player.ledger.at(-1)?.expense.taxes ?? 0).toBe(0);
+  });
+});
+
+describe('cycle tax tug', () => {
+  function midClimateState(cycle: 'boom' | 'steady' | 'recession') {
+    const s = testState({
+      money: 1e6,
+      rivalMoney: 1e6,
+      cities: [{ x: 10, y: 10, population: 4000, name: 'Ashford' }],
+    });
+    const city = s.cities[0]!;
+    city.politics.mayor.faction = 'oldmoney';
+    city.opinion.oldmoney = 50;
+    city.politics.edicts = [];
+    s.economy.cycle = cycle;
+    s.economy.cycleLeft = 12;
+    s.economy.cycleFlip = cycle === 'boom' ? 'recession' : 'boom';
+    return s;
+  }
+
+  it('softens in boom and stiffens in recession by 1pp, clamped to min/max', () => {
+    expect(nationalTaxRate(midClimateState('steady'))).toBeCloseTo(TAX_RATE_MID, 8);
+    expect(nationalTaxRate(midClimateState('boom'))).toBeCloseTo(TAX_RATE_MID - 0.01, 8);
+    expect(nationalTaxRate(midClimateState('recession'))).toBeCloseTo(TAX_RATE_MID + 0.01, 8);
+
+    const floor = midClimateState('boom');
+    floor.cities[0]!.opinion.oldmoney = 100;
+    expect(nationalTaxRate(floor)).toBe(TAX_RATE_MIN);
+
+    const ceil = midClimateState('recession');
+    ceil.cities[0]!.opinion.oldmoney = 0;
+    expect(nationalTaxRate(ceil)).toBe(TAX_RATE_MAX);
+  });
+
+  it('charges player and rival the same tugged rate on equal sales', () => {
+    const ctx = testCtx(midClimateState('recession'));
+    const sales = 10_000;
+    earn(ctx.state.companies.player, 'sales', sales, ctx.state.date);
+    earn(ctx.state.companies.rival, 'sales', sales, ctx.state.date);
+    const due = taxOnSales(sales, nationalTaxRate(ctx.state));
+    expect(due).toBe(Math.floor(sales * (TAX_RATE_MID + 0.01)));
+    taxesMonth(ctx);
+    expect(ctx.state.companies.player.ledger.at(-1)!.expense.taxes).toBe(due);
+    expect(ctx.state.companies.rival.ledger.at(-1)!.expense.taxes).toBe(due);
+  });
+
+  it('taxRateLabel names the swinging phase', () => {
+    expect(taxRateLabel(midClimateState('steady'))).toMatch(/Sales tax [\d.]+% \(national\)$/);
+    expect(taxRateLabel(midClimateState('boom'))).toMatch(/\(national, boom\)$/);
+    expect(taxRateLabel(midClimateState('recession'))).toMatch(/\(national, recession\)$/);
   });
 });
