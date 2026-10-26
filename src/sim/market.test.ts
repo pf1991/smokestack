@@ -128,9 +128,13 @@ describe('market', () => {
   it('park amenity bonus grows and retains population', () => {
     expect(monthlyGrowth(10000, 0.9, 0, 0, PARK_GROWTH_BONUS)).toBe(10168);
     expect(monthlyGrowth(10000, 0, 1, 0, PARK_GROWTH_BONUS)).toBe(9950);
-    expect(parkGrowthBonus({ landmarks: [{ id: 'park', pos: { x: 0, y: 0 } }] } as City)).toBe(PARK_GROWTH_BONUS);
-    expect(parkGrowthBonus({ landmarks: [{ id: 'church', pos: { x: 0, y: 0 } }] } as City)).toBe(0);
-    expect(parkGrowthBonus({ landmarks: [] } as City)).toBe(0);
+    const withPark = city(6000);
+    withPark.landmarks = [{ id: 'park', pos: { x: 0, y: 0 } }];
+    expect(parkGrowthBonus(withPark)).toBe(PARK_GROWTH_BONUS);
+    const withChurch = city(6000);
+    withChurch.landmarks = [{ id: 'church', pos: { x: 0, y: 0 } }];
+    expect(parkGrowthBonus(withChurch)).toBe(0);
+    expect(parkGrowthBonus(city(6000))).toBe(0);
   });
 
   it('urbanRadius', () => {
