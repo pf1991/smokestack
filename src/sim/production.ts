@@ -18,7 +18,7 @@ import { compareDates, dateToDays, isSummer, isWinter } from './clock';
 import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
-import { averageSatisfaction, computeDailySales, demandGoods, demandModifier, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
+import { averageSatisfaction, computeDailySales, demandGoods, demandModifier, monthlyGrowth, parkGrowthBonus, updateMarketDay, urbanRadius, type StoreStock } from './market';
 import { layCityStreets, orthogonalShoreWater, refreshUrbanTiles, ROAD_UPKEEP } from './state';
 import { assetEfficiency } from './society/aging';
 import { atPrices, priceIndex } from './society/economy';
@@ -264,7 +264,7 @@ export function growthMonth(ctx: SimContext): void {
   for (const city of state.cities) {
     const avg = averageSatisfaction(state, city);
     city.prevPopulation = city.population;
-    city.population = monthlyGrowth(city.population, avg, city.pollution, growthPenalty(city));
+    city.population = monthlyGrowth(city.population, avg, city.pollution, growthPenalty(city), parkGrowthBonus(city));
     city.happiness = avg;
     const r = urbanRadius(city.population);
     if (r !== city.urbanRadius) radiusChanged = true;

@@ -6,6 +6,7 @@
  */
 import { BUILDINGS } from '../data/buildings';
 import { dateToDays } from '../sim/clock';
+import { workCity } from '../sim/politics/workforce';
 import { strikeActive } from '../sim/society/strikeState';
 import { monthProfit } from '../sim/finance';
 import { modelRow } from '../sim/logistics/models';
@@ -80,10 +81,28 @@ export class AlertTracker {
         : b.status === 'output_full' ? { key: 'output_full', tone: 'warning' as const, icon: 'warning', title: `${name} is backed up` }
         : b.status === 'idle' ? { key: 'idle', tone: 'info' as const, icon: 'info', title: `${name} is idle` }
         : null;
-      if (!rule) continue;
-      const id = `b:${b.id}:${rule.key}`;
-      const days = see(id);
-      if (days >= buildingAlertDays(state.date.year)) add({ id, tone: rule.tone, icon: rule.icon, title: rule.title, detail: detail(), target }, now.get(id)!);
+      if (rule) {
+        const id = `b:${b.id}:${rule.key}`;
+        const days = see(id);
+        if (days >= buildingAlertDays(state.date.year)) add({ id, tone: rule.tone, icon: rule.icon, title: rule.title, detail: detail(), target }, now.get(id)!);
+      }
+      // understaffed works: teach the labour loop (grow town / housing / smog); independent of status
+      if (works && b.staffing < 1) {
+        const id = `b:${b.id}:staffing`;
+        const days = see(id);
+        if (days >= buildingAlertDays(state.date.year)) {
+          const town = workCity(state, b);
+          const where = town ? `in ${town.name}` : 'at a remote works';
+          add({
+            id,
+            tone: 'warning',
+            icon: 'city',
+            title: `${name} short of hands`,
+            detail: `Short of hands ${where} — grow the town, build company housing, or cut smog`,
+            target,
+          }, now.get(id)!);
+        }
+      }
     }
 
     for (const v of Object.values(state.vehicles)) {

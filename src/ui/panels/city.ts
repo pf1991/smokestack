@@ -364,8 +364,12 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
       const diff = city.population - city.prevPopulation;
       const st = smogTierLine(city);
       const workers = Math.round(laborPool(city));
+      const hasPark = city.landmarks.some((l) => l.id === 'park');
+      const popTitle = hasPark
+        ? 'Change at the last monthly count · Park: townsfolk stay (+0.5%/mo)'
+        : 'Change at the last monthly count';
       const tiles = [
-        { label: 'Population', value: formatNumber(city.population), delta: trendText(diff), tone: (diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral') as Tone, title: 'Change at the last monthly count' },
+        { label: 'Population', value: formatNumber(city.population), delta: trendText(diff), tone: (diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral') as Tone, title: popTitle },
         { label: 'Workers', value: formatNumber(workers), title: 'Hands the town can offer the works around it' },
         { label: 'Smog tier', value: st.name, delta: `${st.level} ${st.trend === 'up' ? '▲' : st.trend === 'down' ? '▼' : ''}`.trim(), tone: (st.tier >= 3 ? 'negative' : st.tier >= 1 ? 'warning' : 'positive') as Tone, title: `Smog level (3-month average); this month ${formatPercent(city.pollution)}` },
         { label: 'Happiness', value: formatPercent(city.happiness), tone: 'neutral' as Tone },
@@ -375,7 +379,8 @@ function buildView(host: InspectorHost, cityId: number): InspectorView {
         const why = philanthropyBlocker(state, city.id, g.id);
         const disabled = why !== null;
         if ((g.btn as HTMLButtonElement).disabled !== disabled) (g.btn as HTMLButtonElement).disabled = disabled;
-        const tip = why ?? `Opinion in ${city.name}: ${effectsLine(g.id, state.date.year)}`;
+        const opinion = `Opinion in ${city.name}: ${effectsLine(g.id, state.date.year)}`;
+        const tip = why ?? (g.id === 'park' ? `${opinion}. Park: townsfolk stay (+0.5%/mo growth)` : opinion);
         if (g.btn.title !== tip) g.btn.title = tip;
         setText(g.label, `Endow a ${LANDMARKS[g.id].name.toLowerCase()} — ${formatMoney(philanthropyCost(state, g.id))}`);
       }

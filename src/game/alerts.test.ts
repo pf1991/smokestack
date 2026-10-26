@@ -178,6 +178,41 @@ describe('AlertTracker', () => {
     expect(t.collect(s)).toHaveLength(0);
   });
 
+  it('alerts when a works stays understaffed', () => {
+    const s = testState({ width: 100, height: 40, cities: [{ x: 10, y: 20, population: 1000, name: 'Ashford' }] });
+    expect(s.date.year).toBeLessThan(1905);
+    const b = mk(s, 1, 'ok');
+    b.pos = { x: 12, y: 20 };
+    b.staffing = 0.85;
+    const t = new AlertTracker();
+    expect(t.collect(s)).toHaveLength(0);
+    advance(s, 1);
+    expect(t.collect(s)).toHaveLength(0);
+    advance(s, 1);
+    const a = t.collect(s);
+    expect(a).toHaveLength(1);
+    expect(a[0].id).toBe('b:1:staffing');
+    expect(a[0].tone).toBe('warning');
+    expect(a[0].icon).toBe('city');
+    expect(a[0].title).toBe('Sawmill short of hands');
+    expect(a[0].detail).toBe('Short of hands in Ashford — grow the town, build company housing, or cut smog');
+    expect(a[0].target).toEqual({ kind: 'building', id: 1 });
+  });
+
+  it('does not alert for a fully staffed works or an understaffed warehouse', () => {
+    const s = testState({ width: 100, height: 40, cities: [{ x: 10, y: 20, population: 1000, name: 'Ashford' }] });
+    const mill = mk(s, 1, 'ok');
+    mill.pos = { x: 12, y: 20 };
+    mill.staffing = 1;
+    const shed = mk(s, 2, 'idle', 'player', 'warehouse');
+    shed.pos = { x: 14, y: 20 };
+    shed.staffing = 0.5;
+    const t = new AlertTracker();
+    t.collect(s);
+    advance(s, 10);
+    expect(t.collect(s)).toHaveLength(0);
+  });
+
   it('does not modify state', () => {
     const s = testState({ cities: [{ x: 5, y: 5 }] });
     mk(s, 1, 'no_input');

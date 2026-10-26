@@ -1,7 +1,8 @@
 # Hubs-first logistics, fishing & city life
 
 Status: **hubs-first UX shipped** (2026-10-25). Warehouse ↔ warehouse train trunk **shipped** (2026-10-25).
-Fishing thin slice **shipped** (2026-10-25). City-appeal (§4) remains **proposed**.
+Fishing thin slice **shipped** (2026-10-25). City-appeal (§4) thin slice **shipped** (2026-10-26).
+Sales tax + soft cycle (§5) **shipped** (2026-10-25).
 
 ## 1. Hubs-first local transport *(decided)*
 
@@ -63,18 +64,32 @@ canneries can tin. No boats, no fish deposits, no §4 amenities.
 
 Boat vehicles, fish deposits, restaurants / cold chain, city-appeal bonuses from waterfront.
 
-## 4. Workers, population & “cool” cities *(proposed)*
+## 4. Workers, population & “cool” cities *(thin slice shipped 2026-10-26)*
 
-Factories already expect workers (`Building.staffing` from the town labour pool). Today the pool
-is mostly `population × opinion × smog health`. Lean into that:
+Factories already expect workers (`Building.staffing` from the town labour pool). The pool is
+`population × workers’ opinion × smog health`, plus company-housing hands. Lean into that.
 
-1. **Population as the main lever** — boring / smoggy / remote towns stay small → works understaffed.
-2. **Player tools to make a city cool** — parks / trees (already cut smog), company housing, culture
-   or amenity buildings, cleaner industry, maybe prestige goods in stores.
-3. **Later factors** — wages, transit, pollution tier, rival presence, festivals.
+### Decisions
 
-Start by teaching the existing staffing loop (alerts + inspector), then add one amenity that
-clearly grows or retains population before stacking more systems.
+1. **“Cool” this slice** = people move in / stay. Population is the primary lever; opinion and
+   staffing follow through the existing labour-pool formula. No prestige score, culture stack, or
+   amenity catalogue.
+2. **Teach the staffing loop** — inspector already shows “Staff N% — short of hands in \<town\>”.
+   Add an **understaffed works alert** (same delay as other building faults) for player extractors /
+   factories with `staffing < 1`. Detail points at the town and the tools: grow the town, company
+   housing, cut smog. Strikes keep their own alert; no new inspector chrome.
+3. **One amenity: Park** — endow the existing philanthropy **Park** landmark (once per town). While
+   a town has a park, apply a lasting **`PARK_GROWTH_BONUS` (+0.5%/mo)** on `monthlyGrowth` (keeps
+   more people under bad conditions; grows faster when satisfied). Keep the one-shot opinion gift.
+   City panel / endow tip call out that the park retains townsfolk. No new buildable amenity type.
+4. **How it hits the three** — park → population (primary); existing park opinion bump
+   (secondary); larger population → larger `laborPool` → staffing over time. Company housing stays
+   the direct hands tool, not a population amenity.
+
+### Out of scope (this slice)
+
+Library / hospital prestige, placeable parks, company-housing redesign, wages / transit /
+festivals, fishing or waterfront appeal bonuses.
 
 ## 5. Taxes, factions & the business cycle
 

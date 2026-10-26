@@ -692,6 +692,19 @@ describe('city panel layout (Task 8)', () => {
     expect(document.querySelector('.insp table.kit-table tr.insp-good')).not.toBeNull();
     expect(document.querySelectorAll('.insp-opinion .kit-meter')).toHaveLength(5);
   });
+
+  it('park endow tip promises townsfolk stay', () => {
+    const state = testState({ money: 1e7, cities: [{ x: 10, y: 10, population: 6000 }] });
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    expect(document.querySelector<HTMLButtonElement>('.insp-endow[data-endow="park"]')!.title).toContain('Park: townsfolk stay');
+  });
+
+  it('population tile notes a park retains townsfolk', () => {
+    const state = testState({ money: 1e7, cities: [{ x: 10, y: 10, population: 6000 }] });
+    state.cities[0].landmarks = [{ id: 'park', pos: { x: 10, y: 10 } }];
+    PANELS.city.open(host(testCtx(state)) as never, 0);
+    expect((document.querySelector('.insp .kit-stat-row .kit-stat') as HTMLElement).title).toContain('Park: townsfolk stay');
+  });
 });
 
 describe('vehicle panel layout (Task 8)', () => {

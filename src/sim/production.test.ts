@@ -302,6 +302,21 @@ describe('production', () => {
     expect(b.producedThisMonth).toEqual({});
   });
 
+  it('a park makes a well-supplied town grow faster', () => {
+    const plain = testState({ cities: [{ x: 20, y: 15, population: 6000 }] });
+    const gifted = testState({ cities: [{ x: 20, y: 15, population: 6000 }] });
+    for (const state of [plain, gifted]) {
+      const city = state.cities[0];
+      for (const g of Object.keys(DEMAND_PER_1000))
+        if (monthlyDemand(city, g, state.date.year) > 0) city.market[g] = { sold30: 100, demand30: 100, pending: 0 };
+    }
+    gifted.cities[0].landmarks = [{ id: 'park', pos: { x: 20, y: 15 } }];
+    growthMonth(testCtx(plain));
+    growthMonth(testCtx(gifted));
+    expect(gifted.cities[0].population).toBeGreaterThan(plain.cities[0].population);
+    expect(gifted.cities[0].population).toBe(Math.round(6000 * (1 + 0.015 * (1 - 6000 / 80_000) + 0.005)));
+  });
+
   it('growth averages over currently demanded baseline goods, including unserved ones', () => {
     const state = testState({ cities: [{ x: 20, y: 15, population: 6000 }] });
     const ctx = testCtx(state);

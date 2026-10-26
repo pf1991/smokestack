@@ -220,12 +220,19 @@ export function satisfaction(city: City, goodId: GoodId): number {
 export const POP_CAP = 80_000;
 /** Largest urban radius, so big late-game cities don't swallow the map. */
 export const MAX_URBAN_RADIUS = 16;
+/** Monthly growth-rate bonus while a town has a park landmark (§4 city appeal). */
+export const PARK_GROWTH_BONUS = 0.005;
 
-/** `penalty` is taken off the monthly rate (the smog tier-2 health penalty, society/tiers.ts). */
-export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number, penalty = 0): number {
+/** `amenityBonus` is added to the monthly rate (park retention, §4). `penalty` is taken off (smog tier-2). */
+export function monthlyGrowth(population: number, avgSatisfaction: number, pollution: number, penalty = 0, amenityBonus = 0): number {
   const room = Math.max(0, 1 - population / POP_CAP);
-  const next = population * (1 + 0.015 * avgSatisfaction * room - 0.01 * pollution - penalty);
+  const next = population * (1 + 0.015 * avgSatisfaction * room - 0.01 * pollution - penalty + amenityBonus);
   return Math.min(POP_CAP, Math.max(500, Math.round(next)));
+}
+
+/** Lasting population growth/retention from an endowed park (0 without one). */
+export function parkGrowthBonus(city: City): number {
+  return city.landmarks.some((l) => l.id === 'park') ? PARK_GROWTH_BONUS : 0;
 }
 
 export function urbanRadius(population: number): number {

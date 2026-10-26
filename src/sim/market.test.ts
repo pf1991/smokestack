@@ -8,6 +8,8 @@ import {
   updateMarketDay,
   satisfaction,
   monthlyGrowth,
+  PARK_GROWTH_BONUS,
+  parkGrowthBonus,
   urbanRadius,
   averageSatisfaction,
   type StoreStock,
@@ -121,6 +123,14 @@ describe('market', () => {
     expect(monthlyGrowth(80_000, 1, 0)).toBe(80_000);
     expect(monthlyGrowth(10000, 0, 1)).toBe(9900);
     expect(monthlyGrowth(500, 0, 1)).toBe(500);
+  });
+
+  it('park amenity bonus grows and retains population', () => {
+    expect(monthlyGrowth(10000, 0.9, 0, 0, PARK_GROWTH_BONUS)).toBe(10168);
+    expect(monthlyGrowth(10000, 0, 1, 0, PARK_GROWTH_BONUS)).toBe(9950);
+    expect(parkGrowthBonus({ landmarks: [{ id: 'park', pos: { x: 0, y: 0 } }] } as City)).toBe(PARK_GROWTH_BONUS);
+    expect(parkGrowthBonus({ landmarks: [{ id: 'church', pos: { x: 0, y: 0 } }] } as City)).toBe(0);
+    expect(parkGrowthBonus({ landmarks: [] } as City)).toBe(0);
   });
 
   it('urbanRadius', () => {
