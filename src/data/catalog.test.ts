@@ -374,7 +374,7 @@ describe('R4 1900 content (Tables G, D, R and B)', () => {
     ['shoe_factory', 'Shoe Factory', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_shoes'], 80, 1, 60, '#5a3a26', 'Lasts, awls and stitching machines: boots for the nation.'],
     ['confectionery', 'Confectionery', 'factory', [2, 2], 16000, 200, ['grass', 'sand'], ['r_candy'], 80, 1, 60, '#f29bc0', 'Copper pans of boiling sugar, wrapped by the penny.'],
     ['print_works', 'Print Works', 'factory', [3, 3], 25000, 300, ['grass', 'sand'], ['r_books'], 80, 1, 60, '#6e2f40', 'Presses thunder out books and almanacs.'],
-    ['cannery', 'Cannery', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_canned_food'], 80, 2, 60, '#a8473f', 'Sealed tins of meat that keep a winter or a war.'],
+    ['cannery', 'Cannery', 'factory', [2, 2], 20000, 250, ['grass', 'sand'], ['r_canned_food', 'r_canned_fish'], 80, 2, 60, '#a8473f', 'Sealed tins of meat that keep a winter or a war.'],
     ['trading_house', 'Trading House', 'trade', [3, 2], 35000, 400, ['grass', 'sand', 'hills'], [], 600, 0, 12, '#7d6b4f', 'Brokers on the telephone sell your materials and parts to the whole nation.'],
   ] as const)('building %s', (id, name, category, [w, hgt], cost, maintenance, allowedTerrain, recipes, storage, pollution, workers, color, description) => {
     expect(BUILDINGS[id]).toEqual({
@@ -437,7 +437,7 @@ describe('R4 1905–1929 content (Tables G, D, R and B)', () => {
   it('1905–1929 demand entries follow the 1900 ones in Table D order', () => {
     const keys = Object.keys(DEMAND_PER_1000);
     const i = keys.indexOf('canned_food');
-    expect(keys.slice(i, i + 4)).toEqual(['canned_food', 'phonographs', 'bicycles', 'motorcycles']);
+    expect(keys.slice(i, i + 5)).toEqual(['canned_food', 'fish', 'phonographs', 'bicycles', 'motorcycles']);
   });
 
   it.each([
@@ -560,13 +560,13 @@ describe('R4 1930–1959 content (Tables G, D, R and B)', () => {
 });
 
 describe('R4 1960–2000 content (Tables G, D, R and B)', () => {
-  it('final kind counts: 15 raw, 15 material, 7 component, 24 consumer, 61 goods', () => {
+  it('final kind counts: 15 raw, 15 material, 7 component, 25 consumer, 62 goods', () => {
     const by = (k: string) => Object.values(GOODS).filter((g) => g.kind === k);
     expect(by('raw')).toHaveLength(15);
     expect(by('material')).toHaveLength(15);
     expect(by('component')).toHaveLength(7);
-    expect(by('consumer')).toHaveLength(24);
-    expect(Object.keys(GOODS)).toHaveLength(61);
+    expect(by('consumer')).toHaveLength(25);
+    expect(Object.keys(GOODS)).toHaveLength(62);
   });
 
   it.each([

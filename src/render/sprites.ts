@@ -50,6 +50,7 @@ export const BUILDING_HEIGHT: Record<BuildingTypeId, number> = {
   train_station: 12,
   company_housing: 10,
   // R4: Table B (painters and keys for ids the catalogue does not hold yet are harmless)
+  fishing_pier: 6,
   ranch: 8,
   clay_pit: 6,
   copper_mine: 10,
@@ -575,6 +576,25 @@ function paintOil(g: Ctx, def: BuildingDef, W: number, H: number): void {
   rect(g, W - 17, base - 6, 3, 8, '#56565e');
 }
 
+/** Fishing pier: boardwalk over shallows, a net shed and drying racks. */
+function paintFishingPier(g: Ctx, def: BuildingDef, W: number, H: number): void {
+  const L = BUILDING_HEIGHT[def.id];
+  const fw = W - SHADOW, fh = H - HR0 - SHADOW;
+  rect(g, 0, HR0, fw, fh, '#6a8fa0'); // shallows wash
+  for (let i = 0; i < 6; i++) rect(g, 2 + i * 5, HR0 + fh - 4, 3, 2, '#4a7088');
+  // boardwalk planks
+  rect(g, 4, HR0 + 10, fw - 10, fh - 16, '#8b6a3e');
+  for (let i = 0; i < 5; i++) rect(g, 4, HR0 + 12 + i * 4, fw - 10, 1, '#6e522e');
+  // net shed
+  const hut = raised(g, 8, HR0 + 4, 14, 7, 4, L, '#5a4a38', '#c4b28a');
+  rect(g, 12, hut.seam + 2, 4, 3, '#2b3a4a');
+  // drying racks / poles
+  rect(g, fw - 14, HR0 + 8, 1, fh - 14, '#4a3a28');
+  rect(g, fw - 8, HR0 + 8, 1, fh - 14, '#4a3a28');
+  rect(g, fw - 14, HR0 + 14, 7, 1, '#3d6f8f');
+  rect(g, fw - 14, HR0 + 18, 7, 1, '#3d6f8f');
+}
+
 /** Cattle ranch: dry range, a post-and-rail corral of brown cattle, a red gambrel barn and a stock trough. */
 function paintRanch(g: Ctx, def: BuildingDef, W: number, H: number): void {
   const L = BUILDING_HEIGHT[def.id];
@@ -796,6 +816,7 @@ export function extractorCasters(def: BuildingDef): ShadowCaster[] {
     }
     case 'sand_pit': return [raisedCaster(6, HR0 + 2, 12, 5, 4, L), { x: W - 22, y: H - HR0 - 14, w: 10, d: 2, z: 8, taper: true }];
     case 'oil_well': return [siloCaster(10, HR0 + 12, 5, L + 6), { x: W / 2 - 10, y: H - HR0 - 17, w: 20, d: 3, z: H - 14 - 3, taper: true }];
+    case 'fishing_pier': return [raisedCaster(8, HR0 + 4, 14, 7, 4, L)];
     case 'ranch': return [raisedCaster(6, HR0 + 3, 34, 12, 6, L), { x: 72, y: 16, w: 8, d: 3, z: 26, taper: true }];
     case 'clay_pit': return [raisedCaster(4, HR0 + 2, 34, 8, 4, L)];
     case 'copper_mine': return [raisedCaster(34, HR0 + 6, 22, 8, 5, L), { x: 10, y: 20, w: 16, d: 3, z: HR0 + 22 - 4, taper: true }];
@@ -1209,6 +1230,7 @@ export function paintBuilding(g: Ctx, def: BuildingDef, owner: OwnerId, variant:
     case 'mine': paintMine(g, def, W, H); break;
     case 'sand_pit': paintSandPit(g, def, W, H); break;
     case 'oil_well': paintOil(g, def, W, H); break;
+    case 'fishing_pier': paintFishingPier(g, def, W, H); break;
     case 'ranch': paintRanch(g, def, W, H); break;
     case 'clay_pit': paintClayPit(g, def, W, H); break;
     case 'copper_mine': paintCopperMine(g, def, W, H); break;

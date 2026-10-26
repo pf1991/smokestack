@@ -82,6 +82,8 @@ export const GOODS: Record<GoodId, GoodDef> = {
   books: { id: 'books', name: 'Books', tier: 2, kind: 'consumer', basePrice: 36, era: 1900, fadeYear: null, color: '#7d2e46' },
   // Fades mid-century once refrigerators keep fresh food (E4): cannery players must retool
   canned_food: { id: 'canned_food', name: 'Canned Food', tier: 2, kind: 'consumer', basePrice: 18, era: 1900, fadeYear: 1955, color: '#b0413e', plural: 'Canned food' },
+  // Coastal staple: towns buy it fresh; canneries tin it (dual use with r_canned_fish)
+  fish: { id: 'fish', name: 'Fish', tier: 2, kind: 'consumer', basePrice: 10, era: 1900, fadeYear: null, color: '#3d6f8f' },
   phonographs: { id: 'phonographs', name: 'Phonograph', tier: 2, kind: 'consumer', basePrice: 120, era: 1905, fadeYear: 1955, color: '#a67c00', plural: 'Phonographs' },
   // Car suburbs thin the bicycle trade (E4); cycle works shift to motorcycles
   bicycles: { id: 'bicycles', name: 'Bicycle', tier: 2, kind: 'consumer', basePrice: 120, era: 1910, fadeYear: 1960, color: '#2f8f83', plural: 'Bicycles' },
@@ -122,6 +124,7 @@ export const DEMAND_PER_1000: Record<GoodId, number> = {
   candy: 30,
   books: 10,
   canned_food: 40,
+  fish: 20,
   phonographs: 3,
   bicycles: 4,
   motorcycles: 1.5,
@@ -166,6 +169,7 @@ export const CLASS_DEMAND: Record<GoodId, ClassDemand> = {
   candy: PLAIN,
   books: MIDDLE,
   canned_food: STAPLE,
+  fish: STAPLE,
   phonographs: MIDDLE,
   bicycles: STAPLE,
   motorcycles: PLAIN,

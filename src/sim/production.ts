@@ -19,7 +19,7 @@ import { currentLedger, earn, spend } from './finance';
 import { loadSource } from './inventory';
 import { RAIL_UPKEEP } from './rail';
 import { averageSatisfaction, computeDailySales, demandGoods, demandModifier, monthlyGrowth, updateMarketDay, urbanRadius, type StoreStock } from './market';
-import { layCityStreets, refreshUrbanTiles, ROAD_UPKEEP } from './state';
+import { layCityStreets, orthogonalShoreWater, refreshUrbanTiles, ROAD_UPKEEP } from './state';
 import { assetEfficiency } from './society/aging';
 import { atPrices, priceIndex } from './society/economy';
 import { buildingMaintenance } from './society/upgrades';
@@ -53,6 +53,9 @@ function extractorEfficiency(state: GameState, b: Building, outputs: readonly st
   if (b.typeId === 'farm') {
     const seasonal = outputs.some((g) => SEASONAL_CROPS.includes(g));
     if (seasonal) return isWinter(state.date.month) ? 0 : isSummer(state.date.month) ? 1.5 : 1;
+  }
+  if (b.typeId === 'fishing_pier') {
+    return Math.min(1, orthogonalShoreWater(state.map, b.pos, def.size) / 8);
   }
   return 1;
 }

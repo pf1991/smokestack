@@ -98,6 +98,29 @@ export function footprint(b: { typeId: BuildingTypeId; pos: Vec2 }): Vec2[] {
   return out;
 }
 
+/**
+ * Unique water tiles orthogonally adjacent to a footprint (the shore ring a fishing pier works).
+ * Diagonals do not count; water under the footprint itself is ignored.
+ */
+export function orthogonalShoreWater(map: GameMap, pos: Vec2, size: { w: number; h: number }): number {
+  const { w, h } = size;
+  const counted = new Set<number>();
+  const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  for (let y = pos.y; y < pos.y + h; y++) {
+    for (let x = pos.x; x < pos.x + w; x++) {
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= pos.x && nx < pos.x + w && ny >= pos.y && ny < pos.y + h) continue;
+        const t = tileOf(map, nx, ny);
+        if (!t || t.terrain !== 'water') continue;
+        counted.add(ny * map.width + nx);
+      }
+    }
+  }
+  return counted.size;
+}
+
 /** Road tiles orthogonally adjacent to the footprint, scanned row by row. */
 export function accessTiles(state: GameState, building: { typeId: BuildingTypeId; pos: Vec2 }): Vec2[] {
   const { w, h } = BUILDINGS[building.typeId].size;
@@ -397,6 +420,7 @@ function planPlacement(
   if (tiles.some((t) => t.buildingId !== null || t.road || t.rail)) return err('Tile occupied');
   if (!def.allowedTerrain.includes('water') && tiles.some((t) => t.terrain === 'water')) return err("Can't build on water");
   if (tiles.some((t) => !def.allowedTerrain.includes(t.terrain))) return err('Wrong terrain');
+  if (typeId === 'fishing_pier' && orthogonalShoreWater(map, pos, def.size) === 0) return err('Must touch water');
 
   let cityId: number | null = null;
   if (def.requiresCity) {

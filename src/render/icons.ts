@@ -379,6 +379,15 @@ const GOOD_PAINTERS: Record<string, Painter> = {
     circ(g, 5.9, 7, 0.75, C.ink, false);
     circ(g, 10.1, 7, 0.75, C.ink, false);
   },
+  fish: (g) => {
+    // a side-on fish: tapered body, dorsal fin, tail fork, eye and gill
+    poly(g, [2.5, 8, 5, 5.2, 10.5, 4.6, 13.2, 7.2, 13.2, 9.2, 10.5, 11.6, 5, 11, 2.5, 8], '#3d6f8f');
+    poly(g, [13, 7.4, 15.4, 5.2, 14.6, 8.2, 15.4, 11.2, 13, 9], '#2a5470');
+    poly(g, [7.2, 4.8, 9.4, 2.4, 10.6, 4.8], '#4a8aad');
+    circ(g, 5.2, 7.4, 0.85, C.paper, false);
+    circ(g, 5.2, 7.4, 0.4, C.ink, false);
+    line(g, [6.6, 6.2, 6.6, 10], C.ink, 0.9);
+  },
   sugar_beet: (g) => {
     // a fat tapering root under a tuft of leaves
     ell(g, 5.6, 4.2, 1.5, 3.2, C.green, -0.55);

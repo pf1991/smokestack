@@ -17,7 +17,7 @@ import { buildRail, buyTrain, stationAccess } from './rail';
 
 /** Table D consumer goods (R4 product expansion). */
 const TABLE_D: readonly GoodId[] = [
-  'shoes', 'candy', 'books', 'canned_food', 'phonographs', 'bicycles', 'motorcycles',
+  'shoes', 'candy', 'books', 'canned_food', 'fish', 'phonographs', 'bicycles', 'motorcycles',
   'refrigerators', 'washing_machines', 'cosmetics', 'calculators', 'video_games', 'mobile_phones',
 ];
 /** Matches rival/projects.ts; not exported. */

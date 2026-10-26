@@ -23,7 +23,7 @@ function cpuMs(): number {
 describe('chain economics', () => {
   it('every 1900 chain is profitable at full utilisation', () => {
     const goods = Object.values(GOODS).filter((g) => g.kind === 'consumer' && g.era <= 1900);
-    expect(goods.map((g) => g.id).sort()).toEqual(['books', 'bread', 'candy', 'canned_food', 'cheese', 'clothes', 'furniture', 'juice', 'shoes', 'tools', 'toys']);
+    expect(goods.map((g) => g.id).sort()).toEqual(['books', 'bread', 'candy', 'canned_food', 'cheese', 'clothes', 'fish', 'furniture', 'juice', 'shoes', 'tools', 'toys']);
     for (const g of goods) {
       const r = chainEconomics(g.id, 1900);
       expect(r, g.id).not.toBeNull();

@@ -133,6 +133,11 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
     color: '#2aa198', description: 'Valves, circuits and glowing screens, assembled with care.',
   },
   // R4 1900–1929 works (before the store; none makes an old good except electronics_plant above)
+  fishing_pier: {
+    id: 'fishing_pier', name: 'Fishing Pier', ...EX, size: { w: 2, h: 2 }, cost: 12000, maintenance: 175,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_fish'], storage: 120, era: 1900, pollution: 0,
+    color: '#4a7a8c', description: 'Nets over the shallows; the catch comes in before dawn.',
+  },
   ranch: {
     id: 'ranch', name: 'Cattle Ranch', ...EX, size: { w: 3, h: 3 }, cost: 14000, maintenance: 200,
     allowedTerrain: ['grass'], requiresDeposit: false, recipes: ['r_cattle'], storage: 120, era: 1900, pollution: 1,
@@ -215,7 +220,7 @@ export const BUILDINGS: Record<BuildingTypeId, BuildingDef> = {
   },
   cannery: {
     id: 'cannery', name: 'Cannery', ...FA, size: { w: 2, h: 2 }, cost: 20000, maintenance: 250,
-    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_canned_food'], storage: 80, era: 1900, pollution: 2,
+    allowedTerrain: ['grass', 'sand'], requiresDeposit: false, recipes: ['r_canned_food', 'r_canned_fish'], storage: 80, era: 1900, pollution: 2,
     color: '#a8473f', description: 'Sealed tins of meat that keep a winter or a war.',
   },
   cycle_works: {

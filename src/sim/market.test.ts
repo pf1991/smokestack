@@ -190,8 +190,8 @@ describe('market', () => {
       expect(averageSatisfaction(state, c)).toBeCloseTo(base, 12);
       c.market.candy = { sold30: 100, demand30: 100, pending: 0 };
       expect(averageSatisfaction(state, c)).toBeGreaterThan(base);
-      // 7 baseline goods plus shoes, candy, books, canned_food: candy counts 1, the rest count the base
-      expect(averageSatisfaction(state, c)).toBeCloseTo((base * 10 + 1) / 11, 12);
+      // 7 baseline + shoes, candy, books, canned_food, fish: candy counts 1, the rest count the base
+      expect(averageSatisfaction(state, c)).toBeCloseTo((base * 11 + 1) / 12, 12);
     });
 
     it('wanting nothing gives 0.4', () => {

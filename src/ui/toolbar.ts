@@ -70,6 +70,7 @@ function goodEl(id: string): HTMLElement {
 const BUILDING_ICON: Record<string, IconId> = {
   lumber_camp: 'tree', train_station: 'train', warehouse: 'crate', store: 'shop', company_housing: 'city',
   // R4 (Table B): extractors show their raw good, works their first output, part makers a gear
+  fishing_pier: 'fish',
   ranch: 'cattle', clay_pit: 'clay', copper_mine: 'copper_ore',
   rubber_plantation: 'rubber', bauxite_quarry: 'bauxite',
   smelter: 'copper', tannery: 'leather', sugar_refinery: 'sugar', brickworks: 'bricks', paper_mill: 'paper',

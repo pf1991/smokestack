@@ -1,6 +1,7 @@
 # Hubs-first logistics, fishing & city life
 
-Status: **hubs-first UX shipped** (2026-10-25). Warehouse ↔ warehouse train trunk **shipped** (2026-10-25). Fishing and city-appeal remain **proposed**.
+Status: **hubs-first UX shipped** (2026-10-25). Warehouse ↔ warehouse train trunk **shipped** (2026-10-25).
+Fishing thin slice **shipped** (2026-10-25). City-appeal (§4) remains **proposed**.
 
 ## 1. Hubs-first local transport *(decided)*
 
@@ -37,14 +38,30 @@ Why it fits hubs-first:
 - Complements overlapping-hub truck balance (short) with rail balance (long).
 - Routes UI stays the power tool; this is the opinionated default for inter-city stock.
 
-## 3. Fishing / water *(proposed)*
+## 3. Fishing / water *(shipped 2026-10-25)*
 
-Explore water as a primary resource layer:
-- Coastal / river tiles yield **fish** (raw good) via a fishing camp / pier / trawler.
-- Feeds food chains (canned food, later restaurants / cold chain) and gives map shores a job.
-- Needs mapgen deposits or a terrain rule, a building, recipes, and possibly boat pathing later.
+Shores earn their keep: a land **Fishing Pier** harvests **fish**, which towns buy fresh and
+canneries can tin. No boats, no fish deposits, no §4 amenities.
 
-Out of scope until a short design pins tile rules and whether boats are vehicles or abstract.
+### Decisions
+
+1. **Building, not boat** — `fishing_pier` extractor on land (`grass` / `sand`), size 2×2. Boats /
+   trawlers / water pathing stay future work.
+2. **Tile rule** — footprint must have ≥1 **orthogonal** water neighbour. Refuse with
+   “Must touch water”. No mapgen fish deposits; water terrain is the resource.
+3. **Efficiency** — `min(1, orthogonal_shore_water / 8)`, lumber-camp style. A pier with one
+   water tile limps; a river bend or bay runs near full rate.
+4. **Good** — `fish` is a **consumer** staple (tier 2) so stores accept it, with small demand
+   (`DEMAND_PER_1000` 20, class staple). Canneries also take it as an industrial input
+   (dual use: fresh market or tin).
+5. **Recipes** — `r_fish` (pier → fish, empty inputs, ~ranch rate). Cannery gains alt
+   `r_canned_fish` (fish + steel → canned_food, same yields as cattle cans). Cattle path stays
+   first so AI / `firstRecipeFor` keep the old default.
+6. **Logistics** — hub trucks move fish like any other good; no special vehicle.
+
+### Out of scope (this slice)
+
+Boat vehicles, fish deposits, restaurants / cold chain, city-appeal bonuses from waterfront.
 
 ## 4. Workers, population & “cool” cities *(proposed)*
 

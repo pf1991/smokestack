@@ -74,6 +74,9 @@ export const RECIPES: Record<string, RecipeDef> = {
   r_candy: { id: 'r_candy', inputs: { sugar: 3, milk: 2 }, outputs: { candy: 6 }, days: 1 },
   r_books: { id: 'r_books', inputs: { paper: 6 }, outputs: { books: 3 }, days: 1 },
   r_canned_food: { id: 'r_canned_food', inputs: { cattle: 2, steel: 1 }, outputs: { canned_food: 6 }, days: 1 },
+  r_fish: { id: 'r_fish', inputs: {}, outputs: { fish: 4 }, days: 1 },
+  // After r_canned_food so firstRecipeFor / AI keep the cattle default
+  r_canned_fish: { id: 'r_canned_fish', inputs: { fish: 2, steel: 1 }, outputs: { canned_food: 6 }, days: 1 },
   r_phonographs: { id: 'r_phonographs', inputs: { lumber: 2, copper: 2 }, outputs: { phonographs: 2 }, days: 1 },
   r_bicycles: { id: 'r_bicycles', inputs: { steel: 2, tyres: 2 }, outputs: { bicycles: 2 }, days: 1 },
   r_motorcycles: { id: 'r_motorcycles', inputs: { engines: 1, tyres: 2, steel: 1 }, outputs: { motorcycles: 1 }, days: 1 },
